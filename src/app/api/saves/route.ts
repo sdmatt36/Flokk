@@ -1,3 +1,9 @@
+// Extraction pipeline entry point.
+// Full architecture documented in src/lib/og-extract.ts.
+// Current state: Layer 1 (metadata) only.
+// Layers 2 (Claude classification), 3 (Google Places),
+// and 4 (community data) are not yet implemented.
+
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";

@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z, ZodError } from "zod";
@@ -6,6 +6,7 @@ import { DietaryReq, InterestCategory } from "@prisma/client";
 
 const MemberSchema = z.object({
   role: z.enum(["ADULT", "CHILD"]),
+  name: z.string().optional(),
   birthDate: z.string().optional(),
   dietaryRequirements: z.array(z.nativeEnum(DietaryReq)),
 });
@@ -29,12 +30,16 @@ export async function POST(request: Request) {
     const body = await request.json();
     const data = OnboardingSchema.parse(body);
 
-    // Upsert user record (sync with Clerk)
-    const user = await db.user.upsert({
-      where: { clerkId: userId },
-      create: { clerkId: userId, email: "" },
-      update: {},
-    });
+    // Find or create user record — avoid upsert to prevent email unique constraint collisions
+    let user = await db.user.findUnique({ where: { clerkId: userId } });
+    if (!user) {
+      const clerkUser = await currentUser();
+      const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? `${userId}@placeholder.trovv`;
+      user = await db.user.create({ data: { clerkId: userId, email } });
+    }
+
+    // Delete any existing family profile (re-onboarding support)
+    await db.familyProfile.deleteMany({ where: { userId: user.id } });
 
     // Create family profile with members and interests
     const familyProfile = await db.familyProfile.create({
@@ -46,6 +51,7 @@ export async function POST(request: Request) {
         travelFrequency: data.travelFrequency,
         members: {
           create: data.members.map((m) => ({
+            name: m.name ?? null,
             role: m.role,
             birthDate: m.birthDate ? new Date(m.birthDate) : null,
             dietaryRequirements: m.dietaryRequirements,
@@ -67,8 +73,9 @@ export async function POST(request: Request) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });
     }
-    console.error("Onboarding error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("Onboarding error:", JSON.stringify(error, Object.getOwnPropertyNames(error as object)));
+    const message = error instanceof Error ? error.message : "Internal server error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

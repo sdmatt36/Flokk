@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 
 export type FamilyMemberInput = {
   role: "ADULT" | "CHILD";
+  name?: string;
   birthDate?: string;
   dietaryRequirements: string[];
 };
@@ -60,56 +61,61 @@ export default function OnboardingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(final),
       });
-      if (!res.ok) throw new Error("Failed to save");
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: "Unknown error" }));
+        const msg = Array.isArray(errorData.error)
+          ? errorData.error.map((e: { message?: string }) => e.message ?? JSON.stringify(e)).join("; ")
+          : errorData.error ?? `HTTP ${res.status}`;
+        throw new Error(msg);
+      }
       router.push("/home");
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (err) {
+      console.error("Onboarding submit error:", err);
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
       setSaving(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: "#FFFFFF" }}>
       {/* Progress bar */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-100 px-6 py-4">
+      <div className="fixed top-0 left-0 right-0 z-50 px-6 py-4 border-b" style={{ backgroundColor: "rgba(245,239,224,0.95)", backdropFilter: "blur(8px)", borderColor: "#EEEEEE" }}>
         <div className="max-w-lg mx-auto">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-400">Step {step} of {TOTAL_STEPS}</span>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold tracking-widest uppercase" style={{ color: "#C4664A" }}>
+              Step {step} of {TOTAL_STEPS}
+            </span>
             {step > 1 && (
               <button
                 onClick={handleBack}
-                className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-sm font-medium transition-colors"
+                style={{ color: "#999" }}
               >
                 ← Back
               </button>
             )}
           </div>
-          <Progress value={progress} className="h-1" />
+          {/* Custom progress bar */}
+          <div className="h-1 rounded-full" style={{ backgroundColor: "#EEEEEE" }}>
+            <div
+              className="h-1 rounded-full transition-all duration-300"
+              style={{ width: `${progress}%`, backgroundColor: "#C4664A" }}
+            />
+          </div>
         </div>
       </div>
 
       {/* Step content */}
-      <div className="flex-1 pt-20 pb-8 px-6">
+      <div className="flex-1 pt-24 pb-8 px-6">
         <div className="max-w-lg mx-auto">
           {step === 1 && (
-            <StepFamilyBasics
-              data={data}
-              onNext={(update) => handleNext(update)}
-            />
+            <StepFamilyBasics data={data} onNext={(update) => handleNext(update)} />
           )}
           {step === 2 && (
-            <StepFamilyMembers
-              data={data}
-              onNext={(update) => handleNext(update)}
-            />
+            <StepFamilyMembers data={data} onNext={(update) => handleNext(update)} />
           )}
           {step === 3 && (
-            <StepInterests
-              data={data}
-              onComplete={(update) => handleComplete(update)}
-              saving={saving}
-              error={error}
-            />
+            <StepInterests data={data} onComplete={(update) => handleComplete(update)} saving={saving} error={error} />
           )}
         </div>
       </div>

@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { User, Baby } from "lucide-react";
 import type { OnboardingData, FamilyMemberInput } from "@/app/(app)/onboarding/page";
 
 const DIETARY_OPTIONS = [
@@ -21,12 +19,7 @@ interface Props {
   onNext: (update: Partial<OnboardingData>) => void;
 }
 
-function MemberCard({
-  member,
-  index,
-  onChange,
-  onRemove,
-}: {
+function MemberCard({ member, index, onChange, onRemove }: {
   member: FamilyMemberInput;
   index: number;
   onChange: (m: FamilyMemberInput) => void;
@@ -43,53 +36,69 @@ function MemberCard({
   };
 
   return (
-    <div className="border-2 border-gray-100 rounded-2xl p-5 space-y-4">
+    <div className="rounded-2xl p-5 space-y-4 border" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE", borderLeft: "4px solid #C4664A" }}>
       <div className="flex items-center justify-between">
-        <span className="font-semibold text-gray-700">
-          {member.role === "ADULT" ? "👤 Adult" : "🧒 Child"}{" "}
-          <span className="text-gray-400 font-normal">#{index + 1}</span>
+        <span className="flex items-center gap-2 font-semibold text-sm" style={{ color: "#2d2d2d" }}>
+          {member.role === "ADULT"
+            ? <User size={15} style={{ color: "#C4664A" }} />
+            : <Baby size={15} style={{ color: "#6B8F71" }} />}
+          {member.role === "ADULT" ? "Adult" : "Child"}
+          <span className="font-normal" style={{ color: "#717171" }}>#{index + 1}</span>
         </span>
-        <button
-          onClick={onRemove}
-          className="text-gray-300 hover:text-red-400 transition-colors text-sm"
-        >
+        <button onClick={onRemove} className="text-xs font-medium transition-colors" style={{ color: "#ccc" }}
+          onMouseEnter={e => (e.currentTarget.style.color = "#C4664A")}
+          onMouseLeave={e => (e.currentTarget.style.color = "#ccc")}>
           Remove
         </button>
       </div>
 
+      {/* First name */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold" style={{ color: "#717171" }}>First name</label>
+        <input
+          type="text"
+          placeholder={member.role === "ADULT" ? "e.g. Matt" : "e.g. Beau"}
+          value={member.name ?? ""}
+          onChange={(e) => onChange({ ...member, name: e.target.value })}
+          style={{ width: "100%", height: "40px", padding: "0 12px", borderRadius: "10px", border: "1.5px solid #EEEEEE", backgroundColor: "#FFFFFF", fontSize: "14px", color: "#2d2d2d", outline: "none", boxSizing: "border-box" }}
+        />
+      </div>
+
       {member.role === "CHILD" && (
-        <div className="space-y-2">
-          <Label className="text-sm text-gray-600">Date of birth</Label>
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold" style={{ color: "#717171" }}>Date of birth</label>
           <input
             type="date"
             value={member.birthDate ?? ""}
             onChange={(e) => onChange({ ...member, birthDate: e.target.value })}
-            className="w-full h-10 px-3 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-900"
+            style={{ width: "100%", height: "40px", padding: "0 12px", borderRadius: "10px", border: "1.5px solid #EEEEEE", backgroundColor: "#FFFFFF", fontSize: "14px", color: "#2d2d2d", outline: "none" }}
           />
-          <p className="text-xs text-gray-400">
-            We use birth date (not age) so recommendations stay accurate as your kids grow.
-          </p>
+          <p className="text-xs" style={{ color: "#717171" }}>We use birth date so recommendations stay accurate as your kids grow.</p>
         </div>
       )}
 
       <div className="space-y-2">
-        <Label className="text-sm text-gray-600">
-          Dietary needs <span className="text-gray-400">(optional)</span>
-        </Label>
+        <label className="text-xs font-semibold" style={{ color: "#717171" }}>
+          Dietary needs <span className="font-normal" style={{ color: "#717171" }}>(optional)</span>
+        </label>
         <div className="flex flex-wrap gap-2">
-          {DIETARY_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => toggleDietary(opt.value)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                member.dietaryRequirements.includes(opt.value)
-                  ? "bg-gray-900 text-white border-gray-900"
-                  : "border-gray-200 text-gray-600 hover:border-gray-400"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+          {DIETARY_OPTIONS.map((opt) => {
+            const active = member.dietaryRequirements.includes(opt.value);
+            return (
+              <button
+                key={opt.value}
+                onClick={() => toggleDietary(opt.value)}
+                className="px-3 py-1.5 rounded-full text-xs font-medium border transition-all"
+                style={{
+                  borderColor: active ? "#C4664A" : "#EEEEEE",
+                  backgroundColor: active ? "#C4664A" : "#fff",
+                  color: active ? "#fff" : "#717171",
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -98,9 +107,7 @@ function MemberCard({
 
 export function StepFamilyMembers({ data, onNext }: Props) {
   const [members, setMembers] = useState<FamilyMemberInput[]>(
-    data.members.length > 0
-      ? data.members
-      : [{ role: "ADULT", dietaryRequirements: [] }]
+    data.members.length > 0 ? data.members : [{ role: "ADULT", dietaryRequirements: [] }]
   );
 
   const addMember = (role: "ADULT" | "CHILD") => {
@@ -116,12 +123,11 @@ export function StepFamilyMembers({ data, onNext }: Props) {
   };
 
   return (
-    <div className="space-y-8 pt-8">
+    <div className="space-y-8 pt-6">
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-gray-900">Your family</h1>
-        <p className="text-gray-500 text-lg">
-          Add everyone who travels with you. This is how we tailor recommendations.
-        </p>
+        <h1 className="text-3xl font-black" style={{ color: "#1a1a1a" }}>Your crew.</h1>
+        <p className="text-lg" style={{ color: "#717171" }}>Add everyone who travels with you — kids, adults, grandparents, whoever.</p>
+        <p className="text-sm" style={{ color: "#717171" }}>No kids? No problem — just add the adults.</p>
       </div>
 
       <div className="space-y-3">
@@ -139,25 +145,34 @@ export function StepFamilyMembers({ data, onNext }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <button
           onClick={() => addMember("ADULT")}
-          className="h-12 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-all text-sm font-medium"
+          className="h-12 rounded-2xl border-2 border-dashed font-medium text-sm transition-all"
+          style={{ borderColor: "#EEEEEE", color: "#717171" }}
         >
           + Add adult
         </button>
         <button
           onClick={() => addMember("CHILD")}
-          className="h-12 rounded-xl border-2 border-dashed border-gray-200 text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-all text-sm font-medium"
+          className="h-12 rounded-2xl border-2 border-dashed font-medium text-sm transition-all"
+          style={{ borderColor: "#EEEEEE", color: "#717171" }}
         >
           + Add child
         </button>
       </div>
 
-      <Button
+      <button
         onClick={() => onNext({ members })}
         disabled={members.length === 0}
-        className="w-full h-12 text-base font-semibold"
+        className="w-full font-semibold rounded-full transition-colors"
+        style={{
+          height: "52px",
+          fontSize: "16px",
+          backgroundColor: members.length > 0 ? "#C4664A" : "#EEEEEE",
+          color: members.length > 0 ? "#fff" : "#aaa",
+          cursor: members.length > 0 ? "pointer" : "not-allowed",
+        }}
       >
         Continue →
-      </Button>
+      </button>
     </div>
   );
 }

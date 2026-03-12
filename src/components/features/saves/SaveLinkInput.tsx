@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Link as LinkIcon } from "lucide-react";
 
 export function SaveLinkInput() {
   const router = useRouter();
@@ -35,7 +36,7 @@ export function SaveLinkInput() {
       setUrl("");
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
-      router.refresh(); // re-fetch server component data
+      router.refresh();
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -50,32 +51,61 @@ export function SaveLinkInput() {
   return (
     <div className="space-y-2">
       <div className="flex gap-2">
-        <input
-          type="url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Paste a link from Instagram, TikTok, Google Maps..."
-          className="flex-1 h-12 px-4 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 placeholder:text-gray-400"
-          disabled={saving}
-        />
+        <div className="relative flex-1">
+          <LinkIcon
+            size={15}
+            style={{ color: "#717171", position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)" }}
+          />
+          <input
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Paste a link from Instagram, TikTok, Maps..."
+            disabled={saving}
+            style={{
+              width: "100%",
+              height: "48px",
+              paddingLeft: "38px",
+              paddingRight: "14px",
+              borderRadius: "14px",
+              border: "1.5px solid #EEEEEE",
+              backgroundColor: "#fff",
+              fontSize: "14px",
+              color: "#1a1a1a",
+              outline: "none",
+            }}
+          />
+        </div>
         <button
           onClick={handleSave}
           disabled={saving || !url.trim()}
-          className="h-12 px-5 bg-gray-900 text-white font-semibold rounded-xl text-sm hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+          style={{
+            height: "48px",
+            paddingLeft: "20px",
+            paddingRight: "20px",
+            borderRadius: "14px",
+            backgroundColor: saving || !url.trim() ? "#EEEEEE" : "#C4664A",
+            color: saving || !url.trim() ? "#717171" : "#fff",
+            fontWeight: 600,
+            fontSize: "14px",
+            flexShrink: 0,
+            cursor: saving || !url.trim() ? "not-allowed" : "pointer",
+            border: "none",
+            transition: "background-color 0.15s",
+          }}
         >
           {saving ? "Saving..." : "Save"}
         </button>
       </div>
 
-      {error && <p className="text-red-500 text-sm">{error}</p>}
+      {error && <p style={{ fontSize: "13px", color: "#C4664A" }}>{error}</p>}
       {success && (
-        <p className="text-green-600 text-sm font-medium">Saved! ✓</p>
+        <p style={{ fontSize: "13px", color: "#6B8F71", fontWeight: 500 }}>Saved successfully.</p>
       )}
 
-      <p className="text-xs text-gray-400">
-        Works with Instagram, TikTok, Google Maps, Airbnb, Booking.com, and
-        most links.
+      <p style={{ fontSize: "12px", color: "#717171" }}>
+        Works with Instagram, TikTok, Google Maps, Airbnb, Booking.com, and most links.
       </p>
     </div>
   );

@@ -1,9 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import type { OnboardingData } from "@/app/(app)/onboarding/page";
 
 const FREQUENCY_OPTIONS = [
@@ -25,72 +22,72 @@ export function StepFamilyBasics({ data, onNext }: Props) {
 
   const canContinue = homeCity.trim() && homeCountry.trim() && travelFrequency;
 
+  const inputStyle = {
+    height: "48px",
+    fontSize: "15px",
+    padding: "0 14px",
+    borderRadius: "12px",
+    border: "1.5px solid #EEEEEE",
+    backgroundColor: "#fff",
+    color: "#1a1a1a",
+    width: "100%",
+    outline: "none",
+  };
+
   return (
-    <div className="space-y-8 pt-8">
+    <div className="space-y-8 pt-6">
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold text-gray-900">
-          Let's get started
-        </h1>
-        <p className="text-gray-500 text-lg">
-          A few quick details about your family — takes about 60 seconds.
-        </p>
+        <h1 className="text-3xl font-black" style={{ color: "#1a1a1a" }}>Let&apos;s get started.</h1>
+        <p className="text-lg" style={{ color: "#717171" }}>A few quick details — takes about 60 seconds.</p>
       </div>
 
       <div className="space-y-5">
         <div className="space-y-2">
-          <Label htmlFor="familyName" className="text-gray-700 font-medium">
-            Family name <span className="text-gray-400 font-normal">(optional)</span>
-          </Label>
-          <Input
-            id="familyName"
+          <label className="text-sm font-semibold" style={{ color: "#2d2d2d" }}>
+            Family name <span className="font-normal" style={{ color: "#717171" }}>(optional)</span>
+          </label>
+          <input
             placeholder="e.g. The Johnsons"
             value={familyName}
             onChange={(e) => setFamilyName(e.target.value)}
-            className="h-12 text-base"
+            style={inputStyle}
           />
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="homeCity" className="text-gray-700 font-medium">
-              Home city <span className="text-red-400">*</span>
-            </Label>
-            <Input
-              id="homeCity"
+            <label className="text-sm font-semibold" style={{ color: "#2d2d2d" }}>Home city</label>
+            <input
               placeholder="e.g. Chicago"
               value={homeCity}
               onChange={(e) => setHomeCity(e.target.value)}
-              className="h-12 text-base"
+              style={inputStyle}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="homeCountry" className="text-gray-700 font-medium">
-              Country <span className="text-red-400">*</span>
-            </Label>
-            <Input
-              id="homeCountry"
+            <label className="text-sm font-semibold" style={{ color: "#2d2d2d" }}>Country</label>
+            <input
               placeholder="e.g. USA"
               value={homeCountry}
               onChange={(e) => setHomeCountry(e.target.value)}
-              className="h-12 text-base"
+              style={inputStyle}
             />
           </div>
         </div>
 
         <div className="space-y-3">
-          <Label className="text-gray-700 font-medium">
-            How often does your family travel? <span className="text-red-400">*</span>
-          </Label>
+          <label className="text-sm font-semibold" style={{ color: "#2d2d2d" }}>How often does your family travel?</label>
           <div className="space-y-2">
             {FREQUENCY_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 onClick={() => setTravelFrequency(opt.value)}
-                className={`w-full text-left px-4 py-3.5 rounded-xl border-2 transition-all text-base font-medium ${
-                  travelFrequency === opt.value
-                    ? "border-gray-900 bg-gray-900 text-white"
-                    : "border-gray-200 text-gray-700 hover:border-gray-300"
-                }`}
+                className="w-full text-left px-5 py-3.5 rounded-2xl border-2 transition-all text-base font-medium"
+                style={{
+                  borderColor: travelFrequency === opt.value ? "#C4664A" : "#EEEEEE",
+                  backgroundColor: travelFrequency === opt.value ? "#C4664A" : "#fff",
+                  color: travelFrequency === opt.value ? "#fff" : "#2d2d2d",
+                }}
               >
                 {opt.label}
               </button>
@@ -99,13 +96,20 @@ export function StepFamilyBasics({ data, onNext }: Props) {
         </div>
       </div>
 
-      <Button
+      <button
         onClick={() => onNext({ familyName, homeCity, homeCountry, travelFrequency })}
         disabled={!canContinue}
-        className="w-full h-12 text-base font-semibold"
+        className="w-full font-semibold rounded-full transition-colors"
+        style={{
+          height: "52px",
+          fontSize: "16px",
+          backgroundColor: canContinue ? "#C4664A" : "#EEEEEE",
+          color: canContinue ? "#fff" : "#aaa",
+          cursor: canContinue ? "pointer" : "not-allowed",
+        }}
       >
         Continue →
-      </Button>
+      </button>
     </div>
   );
 }

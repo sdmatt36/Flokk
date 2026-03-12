@@ -106,6 +106,7 @@ model FamilyMember {
   id               String        @id @default(cuid())
   familyProfileId  String
   familyProfile    FamilyProfile @relation(fields: [familyProfileId], references: [id], onDelete: Cascade)
+  name             String?
   role             MemberRole
   birthDate        DateTime?
   dietaryRequirements DietaryReq[]

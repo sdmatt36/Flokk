@@ -1,29 +1,36 @@
 import Link from "next/link";
 import { Show, UserButton, SignInButton, SignUpButton } from "@clerk/nextjs";
+import { Plane, Compass, Bookmark, CalendarDays, CreditCard, MapPin, Users, Heart, Clock, Layers, Mail, Map, Calendar, Award, ChevronDown, Sparkles, Instagram } from "lucide-react";
+import { Playfair_Display } from "next/font/google";
+
+const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700"] });
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen" style={{ backgroundColor: "#FFFFFF" }}>
 
       {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm border-b border-gray-100">
+      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-sm border-b" style={{ backgroundColor: "rgba(255,255,255,0.92)", borderColor: "#EEEEEE" }}>
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-          <span className="text-xl font-bold text-gray-900">✈️ [App Name]</span>
+          <span className="flex items-center gap-2 text-xl font-bold" style={{ color: "#2d2d2d" }}>
+            <Plane size={20} style={{ color: "#C4664A" }} />
+            Trovv
+          </span>
           <div className="flex items-center gap-4">
             <Show when="signed-out">
               <SignInButton>
-                <button className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
+                <button className="text-sm font-medium transition-colors" style={{ color: "#717171" }}>
                   Sign in
                 </button>
               </SignInButton>
               <SignUpButton>
-                <button className="bg-gray-900 text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-gray-700 transition-colors">
+                <button className="text-sm font-semibold px-5 py-2.5 rounded-full transition-colors text-white" style={{ backgroundColor: "#C4664A" }}>
                   Get early access
                 </button>
               </SignUpButton>
             </Show>
             <Show when="signed-in">
-              <Link href="/home" className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors">
+              <Link href="/home" className="text-sm font-medium transition-colors" style={{ color: "#717171" }}>
                 Dashboard
               </Link>
               <UserButton />
@@ -33,177 +40,506 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero */}
-      <section className="pt-32 pb-24 px-6">
-        <div className="max-w-3xl mx-auto text-center space-y-8">
-          <div className="inline-flex items-center gap-2 bg-gray-100 text-gray-600 text-sm font-medium px-4 py-2 rounded-full">
-            <span>🚀</span> Early access
+      <section style={{ position: "relative", overflow: "hidden", paddingTop: "9rem", paddingBottom: "5rem", paddingLeft: "1.5rem", paddingRight: "1.5rem", backgroundColor: "#FFFFFF" }}>
+
+        {/* Background photo — desktop only */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=1800&q=80"
+          alt=""
+          aria-hidden="true"
+          className="hidden md:block"
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center", zIndex: 0, pointerEvents: "none" }}
+        />
+
+        {/* Gradient overlay — desktop only, strictly scoped to this section */}
+        <div
+          className="hidden md:block"
+          style={{
+            position: "absolute", inset: 0, zIndex: 1, pointerEvents: "none",
+            background: "linear-gradient(to right, rgba(255,255,255,0.85) 40%, rgba(255,255,255,0.3) 100%)"
+          }}
+        />
+
+        {/* Hero content — above image and overlay */}
+        <div style={{ position: "relative", zIndex: 2 }}>
+          <div className="max-w-5xl mx-auto">
+            <div className="grid md:grid-cols-[1fr_360px] gap-10 items-center">
+
+              {/* Left: hero text */}
+              <div className="text-center md:text-left space-y-7">
+                <div className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-1.5 rounded-full" style={{ backgroundColor: "#6B8F71", color: "#fff" }}>
+                  Now in early access
+                </div>
+                <h1 className="text-5xl md:text-6xl font-bold leading-tight" style={{ color: "#1a1a1a" }}>
+                  Your family&apos;s next great trip —{" "}
+                  <span style={{ color: "#C4664A" }}>finally in one place.</span>
+                </h1>
+                <p className="text-xl leading-relaxed" style={{ color: "#717171" }}>
+                  The restaurants you saved on Instagram. The hotel from that email thread. The budget in a spreadsheet nobody&apos;s updated. The itinerary lost in WhatsApp. Trovv brings it all together — and connects you to real trips from families who&apos;ve already been there.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center md:justify-start pt-2">
+                  <Link
+                    href="/sign-up"
+                    className="font-semibold px-8 py-4 rounded-full text-base transition-colors text-white shadow-sm"
+                    style={{ backgroundColor: "#C4664A" }}
+                  >
+                    Get early access — it&apos;s free →
+                  </Link>
+                  <a
+                    href="#how-it-works"
+                    className="font-semibold px-8 py-4 rounded-full text-base transition-colors border"
+                    style={{ color: "#2d2d2d", borderColor: "#EEEEEE", backgroundColor: "transparent" }}
+                  >
+                    See how it works
+                  </a>
+                </div>
+                <p className="text-sm" style={{ color: "#999" }}>No credit card required.</p>
+              </div>
+
+              {/* Right: floating product card — desktop only */}
+              <div className="hidden md:block" style={{ transform: "rotate(2.5deg)", filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.14))" }}>
+                <div className="rounded-2xl overflow-hidden border" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE", maxWidth: "320px" }}>
+                  <div className="flex items-center gap-2 px-4 pt-4 pb-2">
+                    <MapPin size={13} style={{ color: "#C4664A", flexShrink: 0 }} />
+                    <span className="text-xs font-medium" style={{ color: "#999" }}>600m from your hotel</span>
+                  </div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="https://images.unsplash.com/photo-1533900298318-6b8da08a523e?w=640&q=80" alt="Mercado de San Miguel" className="w-full object-cover" style={{ height: "160px" }} />
+                  <div className="p-4 space-y-3">
+                    <div>
+                      <p className="font-bold text-base" style={{ color: "#1a1a1a" }}>Mercado de San Miguel</p>
+                      <p className="text-xs mt-0.5" style={{ color: "#999" }}>Madrid · Saved 4 months ago from Instagram</p>
+                    </div>
+                    <p className="text-sm leading-relaxed" style={{ color: "#717171" }}>
+                      Opens at 10am — perfect before your museum visit. Kids aged 6+ love the churros counter.
+                    </p>
+                    <div className="flex gap-2 pt-1">
+                      <button className="flex-1 text-sm font-semibold py-2 rounded-xl text-white" style={{ backgroundColor: "#1a1a1a" }}>
+                        Add to Tuesday
+                      </button>
+                      <button className="px-4 text-sm font-medium rounded-xl border" style={{ borderColor: "#EEEEEE", color: "#717171" }}>
+                        Map
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
           </div>
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 leading-tight">
-            Your next family trip is scattered across{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-500">
-              11 tabs, three apps, and a spreadsheet nobody&apos;s updated.
-            </span>
-          </h1>
-          <p className="text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed">
-            [App Name] brings it all together — your saved Instagram posts, TikTok reels, Airbnb
-            favorites, hotel tabs, Google Maps stars, and that email thread you keep forwarding to
-            yourself. One place. Actually organized. Built around your family.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link
-              href="/sign-up"
-              className="bg-gray-900 text-white font-semibold px-8 py-4 rounded-xl text-base hover:bg-gray-700 transition-colors"
-            >
-              Get early access →
-            </Link>
-            <a
-              href="#how-it-works"
-              className="border border-gray-200 text-gray-700 font-semibold px-8 py-4 rounded-xl text-base hover:border-gray-400 transition-colors"
-            >
-              See how it works
-            </a>
-          </div>
-          <p className="text-sm text-gray-400">Free to join. No credit card required.</p>
         </div>
       </section>
 
-      {/* Core hook */}
-      <section id="how-it-works" className="py-24 bg-gray-50 px-6">
-        <div className="max-w-4xl mx-auto space-y-16">
-          <div className="text-center space-y-4">
-            <h2 className="text-3xl md:text-4xl font-bold text-gray-900">
-              Save anywhere. Find it when it matters.
-            </h2>
-            <p className="text-lg text-gray-500 max-w-2xl mx-auto">
-              You&apos;ve been collecting the perfect trip for months. A restaurant from a TikTok. A
-              hotel someone emailed you. A beach you hearted on Booking.com at midnight. They&apos;re
-              all there — somewhere. We make them actually usable.
+      {/* From the community strip — separate section, no overlap with hero */}
+      <section style={{ backgroundColor: "#FAFAFA", paddingTop: "5rem", paddingBottom: "5rem", paddingLeft: "1.5rem", paddingRight: "1.5rem", position: "relative", zIndex: 0 }}>
+        <p className="text-center text-sm font-semibold tracking-widest uppercase mb-6" style={{ color: "#717171" }}>From the community</p>
+        <div className="max-w-4xl mx-auto grid grid-cols-3 gap-4">
+          {[
+            { img: "https://picsum.photos/seed/santorini/400/300", label: "Saved from Instagram", sub: "Santorini · Bucket list" },
+            { img: "https://picsum.photos/seed/tokyo/400/300", label: "Tokyo with Kids", sub: "Itinerary · 8 days" },
+            { img: "https://picsum.photos/seed/tuscany/400/300", label: "Villa Rental · Tuscany", sub: "Summer 2026 · Shortlist" },
+          ].map((card) => (
+            <div key={card.label} className="rounded-2xl overflow-hidden shadow-sm border" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={card.img} alt={card.label} className="w-full h-36 object-cover" />
+              <div className="p-4">
+                <p className="font-semibold text-sm" style={{ color: "#1a1a1a" }}>{card.label}</p>
+                <p className="text-xs mt-0.5" style={{ color: "#999" }}>{card.sub}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* See it in action */}
+      <section id="how-it-works" style={{ backgroundColor: "#FAFAFA", borderTop: "1px solid #EEEEEE", padding: "60px 48px" }}>
+
+        {/* Section header */}
+        <div style={{ textAlign: "center", marginBottom: "56px" }}>
+          <p style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "#C4664A", marginBottom: "8px" }}>See it in action</p>
+          <h2 className={`${playfair.className} text-[28px] md:text-[40px]`} style={{ fontWeight: 700, color: "#1a1a1a", lineHeight: 1.2, maxWidth: "640px", margin: "0 auto" }}>
+            Your saves. Your family. One trip that works for everyone.
+          </h2>
+        </div>
+
+        {/* Row cards */}
+        <div style={{ maxWidth: "1100px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "24px" }}>
+
+          {/* Row 1 — Copy left, UI right */}
+          <div className="flex flex-col md:flex-row" style={{ backgroundColor: "#FFFFFF", borderRadius: "20px", boxShadow: "0 2px 16px rgba(0,0,0,0.06)", padding: "64px 56px", gap: "64px", alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "#C4664A", marginBottom: "12px" }}>01 — Save</p>
+              <h3 className={playfair.className} style={{ fontSize: "32px", fontWeight: 700, color: "#1a1a1a", lineHeight: 1.2, marginBottom: "16px" }}>Nothing gets lost. Ever again.</h3>
+              <p style={{ fontSize: "16px", color: "#717171", lineHeight: 1.75 }}>See something on Instagram? Share it to Trovv. Google Maps star? Imported. TikTok reel? Saved with location, context, and category — automatically. If you can share it, we can save it.</p>
+            </div>
+            <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+              <div style={{ backgroundColor: "#fff", borderRadius: "16px", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", border: "1px solid #EEEEEE", overflow: "hidden", width: "100%", maxWidth: "360px" }}>
+                <div style={{ position: "relative", height: "180px", backgroundImage: "url('https://images.unsplash.com/photo-1533900298318-6b8da08a523e?w=640&q=80')", backgroundSize: "cover", backgroundPosition: "center" }}>
+                  <div style={{ position: "absolute", bottom: "10px", left: "10px", backgroundColor: "#E1306C", color: "#fff", fontSize: "11px", padding: "3px 10px", borderRadius: "20px", display: "flex", alignItems: "center", gap: "4px" }}>
+                    <Instagram size={12} />
+                    Instagram
+                  </div>
+                </div>
+                <div style={{ padding: "14px 16px" }}>
+                  <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a", marginBottom: "4px" }}>Mercado de San Miguel</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "8px" }}>
+                    <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
+                    <span style={{ fontSize: "13px", color: "#717171" }}>Madrid, Spain</span>
+                  </div>
+                  <div style={{ display: "flex", gap: "6px", marginBottom: "8px", flexWrap: "wrap" }}>
+                    {["Food", "Market", "All ages"].map((tag) => (
+                      <span key={tag} style={{ fontSize: "11px", backgroundColor: "rgba(0,0,0,0.05)", color: "#666", borderRadius: "20px", padding: "2px 8px" }}>{tag}</span>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: "12px", color: "#999" }}>Saved from Instagram · 4 months ago</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2 — UI left, Copy right */}
+          <div className="flex flex-col md:flex-row-reverse" style={{ backgroundColor: "#FFFFFF", borderRadius: "20px", boxShadow: "0 2px 16px rgba(0,0,0,0.06)", padding: "64px 56px", gap: "64px", alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "#C4664A", marginBottom: "12px" }}>02 — Surface</p>
+              <h3 className={playfair.className} style={{ fontSize: "32px", fontWeight: 700, color: "#1a1a1a", lineHeight: 1.2, marginBottom: "16px" }}>The right save, at exactly the right moment.</h3>
+              <p style={{ fontSize: "16px", color: "#717171", lineHeight: 1.75 }}>You saved that market six months ago. Now you&apos;re planning Madrid. Trovv surfaces it — 600 metres from your hotel, open before your museum visit, with a churros counter your kids will love.</p>
+            </div>
+            <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center" }}>
+              <div style={{ padding: "8px" }}>
+                <div style={{ transform: "rotate(1.5deg)", filter: "drop-shadow(0 16px 32px rgba(0,0,0,0.12))" }}>
+                  <div className="rounded-2xl overflow-hidden border" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE", minWidth: "280px", maxWidth: "340px", width: "300px" }}>
+                    <div className="flex items-center gap-2 px-4 pt-4 pb-2">
+                      <MapPin size={13} style={{ color: "#C4664A", flexShrink: 0 }} />
+                      <span className="text-xs font-medium" style={{ color: "#999" }}>600m from your hotel</span>
+                    </div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="https://images.unsplash.com/photo-1533900298318-6b8da08a523e?w=640&q=80" alt="Mercado de San Miguel" className="w-full object-cover" style={{ height: "150px" }} />
+                    <div className="p-4 space-y-3">
+                      <div>
+                        <p className="font-bold text-base" style={{ color: "#1a1a1a" }}>Mercado de San Miguel</p>
+                        <p className="text-xs mt-0.5" style={{ color: "#999" }}>Madrid · Saved 4 months ago from Instagram</p>
+                      </div>
+                      <p className="text-sm leading-relaxed" style={{ color: "#717171" }}>Opens at 10am — perfect before your museum visit. Kids aged 6+ love the churros counter.</p>
+                      <div className="flex gap-2 pt-1">
+                        <button className="flex-1 text-sm font-semibold py-2 rounded-xl text-white" style={{ backgroundColor: "#1a1a1a" }}>Add to Tuesday</button>
+                        <button className="px-4 text-sm font-medium rounded-xl border" style={{ borderColor: "#EEEEEE", color: "#717171" }}>Map</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 3 — Copy left, UI right */}
+          <div className="flex flex-col md:flex-row" style={{ backgroundColor: "#FFFFFF", borderRadius: "20px", boxShadow: "0 2px 16px rgba(0,0,0,0.06)", padding: "64px 56px", gap: "64px", alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "#C4664A", marginBottom: "12px" }}>03 — Plan</p>
+              <h3 className={playfair.className} style={{ fontSize: "32px", fontWeight: 700, color: "#1a1a1a", lineHeight: 1.2, marginBottom: "16px" }}>A real itinerary, built around your family.</h3>
+              <p style={{ fontSize: "16px", color: "#717171", lineHeight: 1.75 }}>Day-by-day planning with travel times, weather, budget tracking, and a live map. Built from your saves and personalized recommendations — not a generic template.</p>
+            </div>
+            <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+              <div style={{ backgroundColor: "#FAFAFA", borderRadius: "16px", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", border: "1px solid #EEEEEE", overflow: "hidden", width: "100%", maxWidth: "360px" }}>
+                {/* Day 1 — expanded */}
+                <div style={{ backgroundColor: "#fff", borderBottom: "1px solid #EEEEEE" }}>
+                  <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div>
+                      <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>Day 1 — Sun, May 4</p>
+                      <p style={{ fontSize: "11px", color: "#717171", marginTop: "2px" }}>☀️ 29°C · $420</p>
+                    </div>
+                    <ChevronDown size={16} style={{ color: "#C4664A", transform: "rotate(180deg)" }} />
+                  </div>
+                  <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column" }}>
+                    <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                      <div style={{ width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "#F5F5F5", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Plane size={16} style={{ color: "#C4664A" }} />
+                      </div>
+                      <div>
+                        <p style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a1a" }}>JAL 917 → Naha</p>
+                        <p style={{ fontSize: "11px", color: "#717171" }}>Flight · Dep. 08:40</p>
+                      </div>
+                    </div>
+                    <div style={{ marginLeft: "17px", borderLeft: "2px solid #EEEEEE", padding: "6px 0 6px 16px" }}>
+                      <p style={{ fontSize: "11px", color: "#999" }}>↓ 3h 10m travel time</p>
+                    </div>
+                    <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                      <div style={{ width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "#F5F5F5", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Bookmark size={16} style={{ color: "#C4664A" }} />
+                      </div>
+                      <div>
+                        <p style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a1a" }}>Halekulani Okinawa</p>
+                        <p style={{ fontSize: "11px", color: "#717171" }}>Lodging · Check-in 3pm</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {/* Day 2 — collapsed */}
+                <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #EEEEEE" }}>
+                  <div>
+                    <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>Day 2 — Mon, May 5</p>
+                    <p style={{ fontSize: "11px", color: "#717171", marginTop: "2px" }}>Katsuren Castle Ruins</p>
+                  </div>
+                  <ChevronDown size={16} style={{ color: "#717171" }} />
+                </div>
+                {/* Day 3 — collapsed */}
+                <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div>
+                    <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>Day 3 — Tue, May 6</p>
+                    <p style={{ fontSize: "11px", color: "#717171", marginTop: "2px" }}>Free day · Okinawa</p>
+                  </div>
+                  <ChevronDown size={16} style={{ color: "#717171" }} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 4 — UI left, Copy right */}
+          <div className="flex flex-col md:flex-row-reverse" style={{ backgroundColor: "#FFFFFF", borderRadius: "20px", boxShadow: "0 2px 16px rgba(0,0,0,0.06)", padding: "64px 56px", gap: "64px", alignItems: "center" }}>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "#C4664A", marginBottom: "12px" }}>04 — Personalize</p>
+              <h3 className={playfair.className} style={{ fontSize: "32px", fontWeight: 700, color: "#1a1a1a", lineHeight: 1.2, marginBottom: "16px" }}>Recommendations that actually know your family.</h3>
+              <p style={{ fontSize: "16px", color: "#717171", lineHeight: 1.75 }}>Not &ldquo;top 10 things to do&rdquo;. Recommendations scored against your kids&apos; ages, your interests, your budget, and what families just like yours actually loved.</p>
+            </div>
+            <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center" }}>
+              <div style={{ backgroundColor: "#fff", borderRadius: "16px", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", border: "1px solid #EEEEEE", padding: "20px", width: "100%", maxWidth: "340px" }}>
+                <span style={{ fontSize: "11px", backgroundColor: "rgba(196,102,74,0.1)", color: "#C4664A", borderRadius: "20px", padding: "3px 10px", fontWeight: 700 }}>Culture</span>
+                <p style={{ fontSize: "22px", fontWeight: 700, color: "#1a1a1a", margin: "12px 0 8px" }}>Shuri Castle</p>
+                <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", marginBottom: "16px" }}>
+                  <Sparkles size={14} style={{ color: "#C4664A", flexShrink: 0, marginTop: "2px" }} />
+                  <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.5 }}>History & Culture · Ages 5+ · UNESCO site · 2,210 families saved</p>
+                </div>
+                <button style={{ width: "100%", padding: "10px", borderRadius: "12px", border: "1.5px solid #C4664A", backgroundColor: "transparent", color: "#C4664A", fontSize: "14px", fontWeight: 600, cursor: "pointer" }}>
+                  Save to trip
+                </button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Mini CTA */}
+        <div style={{ textAlign: "center", padding: "64px 24px 0" }}>
+          <p style={{ fontSize: "22px", fontWeight: 700, color: "#1a1a1a", marginBottom: "20px" }}>Ready to plan your next trip?</p>
+          <Link
+            href="/sign-up"
+            className="inline-block font-semibold px-8 py-4 rounded-full text-base text-white"
+            style={{ backgroundColor: "#C4664A" }}
+          >
+            Get early access — it&apos;s free →
+          </Link>
+          <p style={{ fontSize: "13px", color: "#999", marginTop: "12px" }}>No credit card required.</p>
+        </div>
+
+        {/* What's coming */}
+        <div style={{ backgroundColor: "#F5F5F5", padding: "48px 24px", marginTop: "60px", borderRadius: "20px" }}>
+          <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
+            <div style={{ textAlign: "center", marginBottom: "32px" }}>
+              <h2 style={{ fontSize: "22px", fontWeight: 700, color: "#1A1A1A", marginBottom: "6px" }}>What&apos;s coming</h2>
+              <p style={{ fontSize: "14px", color: "#717171" }}>We&apos;re just getting started.</p>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", justifyContent: "center", marginBottom: "24px" }}>
+              {[
+                { icon: <CreditCard size={16} style={{ color: "#C4664A", flexShrink: 0 }} />, label: "Book flights & hotels" },
+                { icon: <Mail size={16} style={{ color: "#C4664A", flexShrink: 0 }} />, label: "Forward any confirmation" },
+                { icon: <Map size={16} style={{ color: "#C4664A", flexShrink: 0 }} />, label: "Google & Apple Maps sync" },
+                { icon: <Calendar size={16} style={{ color: "#C4664A", flexShrink: 0 }} />, label: "Auto-populate your calendar" },
+                { icon: <Award size={16} style={{ color: "#C4664A", flexShrink: 0 }} />, label: "Miles & points in one place" },
+                { icon: <Users size={16} style={{ color: "#C4664A", flexShrink: 0 }} />, label: "Trip plans from real families" },
+              ].map(({ icon, label }) => (
+                <div key={label} style={{ display: "flex", alignItems: "center", gap: "8px", backgroundColor: "#fff", border: "1px solid #EEEEEE", borderRadius: "20px", padding: "10px 20px" }}>
+                  {icon}
+                  <span style={{ fontSize: "14px", color: "#1A1A1A" }}>{label}</span>
+                </div>
+              ))}
+            </div>
+            <p style={{ textAlign: "center", fontSize: "12px", color: "#999" }}>
+              Beta access is free. Early adopters get priority access to everything above as it ships.
             </p>
           </div>
-
-          {/* Demo cards */}
-          <div className="flex flex-col sm:flex-row gap-6 justify-center items-center sm:items-start">
-            {/* Card 1 */}
-            <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 w-full max-w-sm space-y-4">
-              <div className="flex items-center gap-2 text-sm text-gray-400 font-medium">
-                <span>📍</span> 600m from your hotel
-              </div>
-              <div className="bg-gray-100 rounded-2xl h-40 flex items-center justify-center text-4xl">
-                🍕
-              </div>
-              <div>
-                <p className="font-bold text-gray-900 text-lg">Mercado de San Miguel</p>
-                <p className="text-gray-400 text-sm">Madrid · Saved 4 months ago from Instagram</p>
-              </div>
-              <p className="text-gray-600 text-sm leading-relaxed">
-                You saved this when you started planning. It opens at 10am — perfect before your
-                museum visit. Kids aged 6+ love the churros counter.
-              </p>
-              <div className="flex gap-2">
-                <button className="flex-1 bg-gray-900 text-white font-semibold py-2.5 rounded-xl text-sm">
-                  Add to Tuesday
-                </button>
-                <button className="px-4 border border-gray-200 rounded-xl text-sm text-gray-600 hover:border-gray-400 transition-colors">
-                  Map
-                </button>
-              </div>
-            </div>
-
-            {/* Card 2 */}
-            <div className="bg-white rounded-3xl p-8 shadow-sm border border-gray-100 w-full max-w-sm space-y-4">
-              <div className="flex items-center gap-2 text-sm text-gray-400 font-medium">
-                <span>🏨</span> Saved from email
-              </div>
-              <div className="bg-gray-100 rounded-2xl h-40 flex items-center justify-center text-4xl">
-                🏡
-              </div>
-              <div>
-                <p className="font-bold text-gray-900 text-lg">Hotel Matilda</p>
-                <p className="text-gray-400 text-sm">San Miguel de Allende · Saved 2 months ago</p>
-              </div>
-              <p className="text-gray-600 text-sm leading-relaxed">
-                From that email thread. Family suite available for your dates. Rooftop pool — your
-                kids will love it. 3 blocks from the jardín.
-              </p>
-              <div className="flex gap-2">
-                <button className="flex-1 bg-gray-900 text-white font-semibold py-2.5 rounded-xl text-sm">
-                  Add to trip
-                </button>
-                <button className="px-4 border border-gray-200 rounded-xl text-sm text-gray-600 hover:border-gray-400 transition-colors">
-                  Map
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section className="py-24 px-6">
+      {/* Community Section */}
+      <section className="py-24 px-6" style={{ backgroundColor: "#FFFFFF" }}>
         <div className="max-w-4xl mx-auto space-y-12">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 text-center">
-            The travel brain your family never had
-          </h2>
+          <div className="text-center space-y-4">
+            <h2 className="text-3xl md:text-4xl font-bold" style={{ color: "#1a1a1a" }}>
+              Steal someone else&apos;s homework. They won&apos;t mind.
+            </h2>
+            <p className="text-lg max-w-2xl mx-auto leading-relaxed" style={{ color: "#717171" }}>
+              Type &ldquo;Tokyo, 8-year-old train obsessive, no shellfish.&rdquo; Someone already built that trip. Every restaurant, every activity, every hotel — borrow the whole thing and make it yours. When you get back, your version becomes the cheat sheet for the next family asking the exact same question.
+            </p>
+          </div>
           <div className="grid md:grid-cols-2 gap-6">
             {[
               {
-                emoji: "📲",
-                title: "Save from anywhere",
-                desc: "Instagram, TikTok, Google Maps, Airbnb, Booking.com, Yelp, emails, links — share it to [App Name] the same way you'd share it to a text. We extract the location, the details, and the context automatically.",
+                img: "https://picsum.photos/seed/kyoto/600/400",
+                destination: "Japan — Kyoto & Tokyo",
+                family: "Family of 4 · Kids ages 7 & 10",
+                tags: ["Kid-friendly", "10 days", "Gluten-free"],
+                items: ["Arashiyama Bamboo Grove", "teamLab Planets", "Tsukiji Outer Market"],
               },
               {
-                emoji: "🧠",
-                title: "Knows your family, not just families",
-                desc: "Recommendations filtered by your kids' actual ages, dietary needs, energy levels, and interests. Not a generic family list. Your family.",
+                img: "https://picsum.photos/seed/jungle/600/400",
+                destination: "Costa Rica — Guanacaste",
+                family: "Family of 5 · Kids ages 4, 8 & 12",
+                tags: ["Adventure", "7 days", "All-inclusive"],
+                items: ["Monteverde Cloud Forest", "Manuel Antonio Beach", "Arenal Volcano"],
               },
-              {
-                emoji: "🗂️",
-                title: "One trip, not ten tabs",
-                desc: "See everything for a destination in one place — your saves, smart recommendations, a day-by-day itinerary, and how far everything is from where you're staying.",
-              },
-              {
-                emoji: "🌍",
-                title: "Community you can trust",
-                desc: "Real recommendations from families who've actually been there — with kids the same ages as yours, the same dietary needs, the same travel style. Not influencer content. Not TripAdvisor reviews from 2019.",
-              },
-            ].map((f) => (
-              <div
-                key={f.title}
-                className="bg-gray-50 rounded-2xl p-6 space-y-3 border border-gray-100"
-              >
-                <span className="text-3xl">{f.emoji}</span>
-                <h3 className="font-bold text-gray-900 text-lg">{f.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{f.desc}</p>
+            ].map((trip) => (
+              <div key={trip.destination} className="rounded-2xl overflow-hidden border shadow-sm" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={trip.img} alt={trip.destination} className="w-full h-44 object-cover" />
+                <div className="p-5 space-y-3">
+                  <div>
+                    <p className="font-bold text-base" style={{ color: "#1a1a1a" }}>{trip.destination}</p>
+                    <p className="text-sm mt-0.5" style={{ color: "#999" }}>{trip.family}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {trip.tags.map((tag) => (
+                      <span key={tag} className="text-xs font-medium px-3 py-1 rounded-full" style={{ backgroundColor: "#FAFAFA", color: "#6B8F71" }}>
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  <ul className="space-y-1">
+                    {trip.items.map((item) => (
+                      <li key={item} className="flex items-center gap-2 text-sm" style={{ color: "#717171" }}>
+                        <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                  <button className="w-full text-sm font-semibold py-2.5 rounded-xl border transition-colors" style={{ borderColor: "#EEEEEE", color: "#2d2d2d" }}>
+                    Use this as my starting point
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* CTA footer */}
-      <section className="py-24 bg-gray-900 px-6 text-center">
+      {/* Stats bar */}
+      <section className="py-16 px-6" style={{ backgroundColor: "#C4664A" }}>
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl md:text-3xl font-bold text-white">The numbers don&apos;t lie.</h2>
+            <p className="mt-1 text-base" style={{ color: "rgba(255,255,255,0.7)" }}>Your spreadsheet does.</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-4 items-stretch">
+            {[
+              { stat: "20 hrs", label: "The average family spends this researching every trip. You won't.", icon: <Clock size={22} style={{ color: "#C4664A" }} />, scale: false },
+              { stat: "Built for families", label: "Not a generic travel app with a family filter bolted on.", icon: <Users size={22} style={{ color: "#C4664A" }} />, scale: true },
+              { stat: "All in one place", label: "Saves, itineraries, recommendations, and booking. No tab switching.", icon: <Layers size={22} style={{ color: "#C4664A" }} />, scale: false },
+            ].map((item) => (
+              <div
+                key={item.stat}
+                className="rounded-2xl p-5 text-center flex flex-col items-center justify-center gap-3 border shadow-lg"
+                style={{
+                  backgroundColor: "#FFFFFF",
+                  borderColor: "#EEEEEE",
+                  transform: item.scale ? "scale(1.05)" : "scale(1)",
+                }}
+              >
+                {item.icon}
+                <p className="font-black leading-tight" style={{ fontSize: "32px", color: "#1a1a1a" }}>{item.stat}</p>
+                <p className="text-center leading-relaxed" style={{ color: "#717171", fontSize: "13px" }}>{item.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="py-24 px-6" style={{ backgroundColor: "#fff" }}>
+        <div className="max-w-4xl mx-auto space-y-12">
+          <h2 className="text-3xl md:text-4xl font-bold text-center" style={{ color: "#1a1a1a" }}>
+            Built around your family, not the other way around.
+          </h2>
+          <div className="grid md:grid-cols-2 gap-5">
+            {[
+              {
+                icon: <MapPin size={26} style={{ color: "#C4664A" }} />,
+                title: "Smart saves",
+                hook: "Share a link. We handle the rest.",
+                desc: "Share any link from Instagram, TikTok, Google Maps, Airbnb, Booking.com, email — anywhere. We automatically extract the name, location, and context. Your saves become searchable, filterable, and trip-ready.",
+              },
+              {
+                icon: <Users size={26} style={{ color: "#C4664A" }} />,
+                title: "Personalized for your crew",
+                hook: "Your family isn't generic. Your recommendations shouldn't be either.",
+                desc: "Set up your family once — ages, interests, dietary needs, travel style, and more. Every recommendation and filter adapts to you automatically.",
+              },
+              {
+                icon: <CalendarDays size={26} style={{ color: "#C4664A" }} />,
+                title: "Day-by-day itineraries",
+                hook: "See what's close, what fits, and what your kids will actually enjoy.",
+                desc: "Drag and drop your saves into a trip timeline. See what's close to your hotel, what's kid-friendly, and what fits your day.",
+              },
+              {
+                icon: <Heart size={26} style={{ color: "#C4664A" }} />,
+                title: "Trusted community",
+                hook: "Families who've been there. With kids the same age. Same dietary needs.",
+                desc: "Recommendations from families who've been there — with kids the same age, the same dietary needs, the same travel style.",
+              },
+            ].map((f) => (
+              <div key={f.title} className="rounded-2xl p-8 border" style={{ backgroundColor: "#FFFFFF", borderColor: "#EEEEEE", borderLeft: "4px solid #C4664A" }}>
+                <div className="mb-4">{f.icon}</div>
+                <h3 className="font-black mb-2" style={{ fontSize: "22px", color: "#1a1a1a" }}>{f.title}</h3>
+                <p className="font-semibold text-sm mb-3" style={{ color: "#C4664A" }}>{f.hook}</p>
+                <p className="text-sm leading-relaxed" style={{ color: "#717171" }}>{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* No Kids callout */}
+      <section className="px-6 pb-10" style={{ backgroundColor: "#fff" }}>
+        <div className="max-w-4xl mx-auto">
+          <div className="rounded-2xl px-8 py-6 flex flex-col sm:flex-row items-center gap-4 border" style={{ backgroundColor: "#FAFAFA", borderColor: "#EEEEEE", borderLeft: "4px solid #6B8F71" }}>
+            <div className="flex-1">
+              <p className="font-black text-lg" style={{ color: "#1a1a1a" }}>No kids? No problem.</p>
+              <p className="text-sm mt-1 leading-relaxed" style={{ color: "#717171" }}>
+                Traveling with nieces, nephews, grandparents, or a group of adults who just really need a vacation — you&apos;re welcome here too. Great travel planning isn&apos;t only for parents.
+              </p>
+            </div>
+            <Link href="/sign-up" className="flex-shrink-0 text-sm font-semibold px-5 py-2.5 rounded-full text-white whitespace-nowrap" style={{ backgroundColor: "#6B8F71" }}>
+              Join us →
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="py-28 px-6 text-center" style={{ backgroundColor: "#1a1a1a" }}>
         <div className="max-w-2xl mx-auto space-y-6">
           <h2 className="text-3xl md:text-4xl font-bold text-white">
-            Stop planning in chaos.
+            Your family&apos;s next great trip starts here.
           </h2>
-          <p className="text-gray-400 text-lg">
-            Most families spend 10+ hours researching every trip — across tabs, apps, spreadsheets,
-            and group chats — and still feel like they&apos;re guessing. There&apos;s a better way.
+          <p className="text-lg" style={{ color: "rgba(255,255,255,0.6)" }}>
+            Join families already planning trips they&apos;ll actually remember.
           </p>
           <Link
             href="/sign-up"
-            className="inline-block bg-white text-gray-900 font-semibold px-8 py-4 rounded-xl text-base hover:bg-gray-100 transition-colors"
+            className="inline-block font-semibold px-8 py-4 rounded-full text-base transition-colors"
+            style={{ backgroundColor: "#C4664A", color: "#fff" }}
           >
-            Get early access →
+            Get early access — it&apos;s free →
           </Link>
-          <p className="text-gray-500 text-sm">Free to join. No credit card required.</p>
+          <p className="text-sm" style={{ color: "rgba(255,255,255,0.35)" }}>No credit card required.</p>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="py-8 px-6 border-t border-gray-100">
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-400">
-          <span>✈️ [App Name] — Family Travel Platform</span>
+      <footer className="py-8 px-6 border-t" style={{ backgroundColor: "#FAFAFA", borderColor: "#EEEEEE" }}>
+        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm" style={{ color: "#999" }}>
+          <span className="flex items-center gap-2">
+            <Plane size={14} style={{ color: "#C4664A" }} />
+            Trovv — Family Travel, Reimagined
+          </span>
           <span>© 2026 · Confidential</span>
         </div>
       </footer>
