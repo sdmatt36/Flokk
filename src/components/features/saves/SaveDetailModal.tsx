@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
-import { X, MapPin, Sparkles, Navigation, ExternalLink, ChevronDown } from "lucide-react";
+import { X, MapPin, Sparkles, ExternalLink, ChevronDown } from "lucide-react";
 
 type SaveItem = {
   id: string;
@@ -75,6 +75,7 @@ export function SaveDetailModal({ itemId, onClose }: { itemId: string; onClose: 
   const [mounted, setMounted] = useState(false);
   const [tripDropdownOpen, setTripDropdownOpen] = useState(false);
   const [assignedTrip, setAssignedTrip] = useState<{ id: string; title: string } | null>(null);
+  const [showDirections, setShowDirections] = useState(false);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialNotes = useRef("");
 
@@ -131,10 +132,15 @@ export function SaveDetailModal({ itemId, onClose }: { itemId: string; onClose: 
   const tags = item?.categoryTags ?? [];
   const gradient = getGradient(tags);
   const location = [item?.destinationCity, item?.destinationCountry].filter(Boolean).join(", ");
-  const mapsUrl = item
+  const appleMapsUrl = item
     ? item.lat && item.lng
       ? `https://maps.apple.com/?q=${encodeURIComponent(item.rawTitle ?? "")}&ll=${item.lat},${item.lng}`
       : `https://maps.apple.com/?q=${encodeURIComponent([item.rawTitle, location].filter(Boolean).join(" "))}`
+    : null;
+  const googleMapsUrl = item
+    ? item.lat && item.lng
+      ? `https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lng}`
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([item.rawTitle, location].filter(Boolean).join(" "))}`
     : null;
 
   return (
@@ -345,21 +351,51 @@ export function SaveDetailModal({ itemId, onClose }: { itemId: string; onClose: 
               </div>
             )}
 
-            {/* Get directions text link — always shown */}
-            {mapsUrl && (
-              <a
-                href={mapsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="directions-link"
-                style={{
-                  display: "block", textAlign: "center",
-                  marginTop: "10px", fontSize: "14px", fontWeight: 500, color: "#717171",
-                  textDecoration: "none",
-                }}
-              >
-                Get directions
-              </a>
+            {/* Get directions — toggle to show map app choices */}
+            {appleMapsUrl && (
+              !showDirections ? (
+                <button
+                  onClick={() => setShowDirections(true)}
+                  style={{
+                    display: "block", width: "100%", textAlign: "center",
+                    marginTop: "10px", fontSize: "14px", fontWeight: 500, color: "#717171",
+                    background: "none", border: "none", cursor: "pointer", padding: "2px 0",
+                  }}
+                >
+                  Get directions
+                </button>
+              ) : (
+                <div style={{ display: "flex", gap: "8px", marginTop: "10px", justifyContent: "center" }}>
+                  <a
+                    href={appleMapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "flex", alignItems: "center", gap: "5px",
+                      padding: "7px 16px", borderRadius: "999px",
+                      border: "1.5px solid rgba(0,0,0,0.15)", backgroundColor: "#fff",
+                      fontSize: "13px", fontWeight: 600, color: "#333", textDecoration: "none",
+                    }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#555"/></svg>
+                    Apple Maps
+                  </a>
+                  <a
+                    href={googleMapsUrl!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "flex", alignItems: "center", gap: "5px",
+                      padding: "7px 16px", borderRadius: "999px",
+                      border: "1.5px solid rgba(0,0,0,0.15)", backgroundColor: "#fff",
+                      fontSize: "13px", fontWeight: 600, color: "#333", textDecoration: "none",
+                    }}
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="#4285F4"/></svg>
+                    Google Maps
+                  </a>
+                </div>
+              )
             )}
           </div>
         )}
