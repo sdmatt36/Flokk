@@ -217,7 +217,7 @@ export function SaveDetailModal({ itemId, onClose }: { itemId: string; onClose: 
               ))}
             </div>
             <p style={{ fontSize: "12px", color: "#aaa", marginBottom: "16px" }}>
-              Saved from {SOURCE_LABEL[item.sourceType] ?? item.sourceType} · {formatDate(item.savedAt)}
+              {item.sourceType === "MANUAL" ? "Saved manually" : `Saved from ${SOURCE_LABEL[item.sourceType] ?? item.sourceType}`} · {formatDate(item.savedAt)}
             </p>
 
             {/* Match reason */}
@@ -287,43 +287,24 @@ export function SaveDetailModal({ itemId, onClose }: { itemId: string; onClose: 
             position: "sticky", bottom: 0, backgroundColor: "#fff",
             borderTop: "1px solid rgba(0,0,0,0.08)",
             padding: "12px 20px 24px",
-            display: "flex", gap: "10px", alignItems: "center",
           }}>
-            {/* Get directions */}
-            {mapsUrl && (
-              <a
-                href={mapsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px",
-                  padding: "11px", borderRadius: "999px", border: "1.5px solid rgba(0,0,0,0.12)",
-                  fontSize: "13px", fontWeight: 600, color: "#333", textDecoration: "none",
-                  backgroundColor: "#fff",
-                }}
-              >
-                <Navigation size={13} />
-                Directions
-              </a>
-            )}
-
-            {/* Book now / Add to trip */}
+            {/* Primary CTA: Book now or Add/Change trip */}
             {item.affiliateUrl ? (
               <a
                 href={item.affiliateUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
-                  flex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px",
-                  padding: "11px", borderRadius: "999px", backgroundColor: "#C4664A",
-                  fontSize: "13px", fontWeight: 700, color: "#fff", textDecoration: "none",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "5px",
+                  width: "100%", padding: "13px", borderRadius: "999px", backgroundColor: "#C4664A",
+                  fontSize: "14px", fontWeight: 700, color: "#fff", textDecoration: "none",
                 }}
               >
-                <ExternalLink size={13} />
+                <ExternalLink size={14} />
                 Book now
               </a>
             ) : (
-              <div style={{ flex: 2, position: "relative" }}>
+              <div style={{ position: "relative" }}>
                 <button
                   onClick={() => setTripDropdownOpen(o => !o)}
                   style={{
@@ -332,7 +313,7 @@ export function SaveDetailModal({ itemId, onClose }: { itemId: string; onClose: 
                     fontSize: "13px", fontWeight: 700, color: "#fff", border: "none", cursor: "pointer",
                   }}
                 >
-                  {assignedTrip ? "Move to trip" : "Add to trip"}
+                  {assignedTrip ? "Change trip" : "Add to trip"}
                   <ChevronDown size={13} />
                 </button>
                 {tripDropdownOpen && trips.length > 0 && (
@@ -359,6 +340,23 @@ export function SaveDetailModal({ itemId, onClose }: { itemId: string; onClose: 
                   </div>
                 )}
               </div>
+            )}
+
+            {/* Get directions text link — always shown */}
+            {mapsUrl && (
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: "4px",
+                  marginTop: "10px", fontSize: "13px", fontWeight: 600, color: "#717171",
+                  textDecoration: "none",
+                }}
+              >
+                <Navigation size={12} />
+                Get directions
+              </a>
             )}
           </div>
         )}
