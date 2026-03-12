@@ -60,8 +60,8 @@ export async function PATCH(request: Request) {
     const profileId = user.familyProfile.id;
 
     // Replace all interests
-    await db.familyInterest.deleteMany({ where: { familyProfileId: profileId } });
-    await db.familyInterest.createMany({
+    await db.declaredInterest.deleteMany({ where: { familyProfileId: profileId } });
+    await db.declaredInterest.createMany({
       data: interestKeys.map((key) => ({
         familyProfileId: profileId,
         interestKey: key,
