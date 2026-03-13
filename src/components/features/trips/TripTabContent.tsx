@@ -1141,7 +1141,7 @@ function RecommendedContent({
       {/* Cards grouped by category */}
       {sortedCategories.map((cat) => (
         <div key={cat} style={{ marginBottom: "28px" }}>
-          <div style={{ fontSize: "14px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.08em", paddingBottom: "10px", marginBottom: "12px", borderBottom: "1px solid #EEEEEE" }}>
+          <div style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.08em", paddingBottom: "10px", marginBottom: "12px", borderBottom: "1px solid #EEEEEE" }}>
             {cat}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -1216,12 +1216,12 @@ function RecCard({ rec, isSaved, isSaving, onToggle, onViewOnMap }: { rec: typeo
   return (
     <div style={{ backgroundColor: "#FAFAFA", borderRadius: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", borderLeft: "3px solid rgba(196,102,74,0.3)", padding: "12px", display: "flex", gap: "12px", alignItems: "flex-start", minHeight: "110px" }}>
       {imgFailed ? (
-        <div style={{ width: "96px", height: "96px", borderRadius: "8px", flexShrink: 0, backgroundColor: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: "80px", height: "80px", borderRadius: "8px", flexShrink: 0, backgroundColor: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Compass size={24} style={{ color: "#999" }} />
         </div>
       ) : (
         <>
-          <div style={{ width: "96px", height: "96px", borderRadius: "8px", flexShrink: 0, backgroundImage: `url('${rec.img}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
+          <div style={{ width: "80px", height: "80px", borderRadius: "8px", flexShrink: 0, backgroundImage: `url('${rec.img}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
           <img src={rec.img} alt="" onError={() => setImgFailed(true)} style={{ display: "none" }} />
         </>
       )}

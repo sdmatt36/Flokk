@@ -13,6 +13,14 @@ import type { SourceType } from "@prisma/client";
 
 const SaveSchema = z.object({
   url: z.string().url(),
+  tripId: z.string().optional(),
+  title: z.string().optional(),
+  description: z.string().optional(),
+  thumbnailUrl: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  lat: z.number().optional(),
+  lng: z.number().optional(),
+  dayIndex: z.number().int().min(1).optional(),
 });
 
 function detectSourceType(url: string): SourceType {
@@ -30,7 +38,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await request.json();
-    const { url } = SaveSchema.parse(body);
+    const { url, tripId, title, description, thumbnailUrl, tags, lat, lng, dayIndex } = SaveSchema.parse(body);
 
     const user = await db.user.findUnique({
       where: { clerkId: userId },
@@ -45,17 +53,33 @@ export async function POST(request: Request) {
     }
 
     const sourceType = detectSourceType(url);
-    const meta = await extractOgMetadata(url);
+
+    // If preview data was passed from the UI, use it directly (skip live OG fetch)
+    let rawTitle = title ?? null;
+    let rawDescription = description ?? null;
+    let mediaThumbnailUrl = thumbnailUrl ?? null;
+    if (!title) {
+      const meta = await extractOgMetadata(url);
+      rawTitle = meta.title ?? null;
+      rawDescription = meta.description ?? null;
+      mediaThumbnailUrl = meta.image ?? null;
+    }
 
     const savedItem = await db.savedItem.create({
       data: {
         familyProfileId: user.familyProfile.id,
+        tripId: tripId ?? null,
         sourceType,
         sourceUrl: url,
-        rawTitle: meta.title ?? null,
-        rawDescription: meta.description ?? null,
-        mediaThumbnailUrl: meta.image ?? null,
-        extractionStatus: meta.title ? "ENRICHED" : "PENDING",
+        rawTitle,
+        rawDescription,
+        mediaThumbnailUrl,
+        categoryTags: tags ?? [],
+        lat: lat ?? null,
+        lng: lng ?? null,
+        dayIndex: dayIndex ?? null,
+        extractionStatus: rawTitle ? "ENRICHED" : "PENDING",
+        status: tripId ? "TRIP_ASSIGNED" : "UNORGANIZED",
       },
     });
 
@@ -69,22 +93,39 @@ export async function POST(request: Request) {
   }
 }
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
     const { userId } = await auth();
-    if (!userId)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Debug: log auth identity for each request
+    console.log("[GET /api/saves] clerkUserId:", userId ?? "null");
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401, headers: { "Cache-Control": "no-store" } }
+      );
+    }
 
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category");
+    const tripId = searchParams.get("tripId");
 
     const user = await db.user.findUnique({
       where: { clerkId: userId },
       include: { familyProfile: true },
     });
 
+    console.log("[GET /api/saves] familyProfileId:", user?.familyProfile?.id ?? "none");
+
     if (!user?.familyProfile) {
-      return NextResponse.json({ saves: [] });
+      console.log("[GET /api/saves] No familyProfile — returning empty");
+      return NextResponse.json(
+        { saves: [] },
+        { headers: { "Cache-Control": "no-store" } }
+      );
     }
 
     const saves = await db.savedItem.findMany({
@@ -93,13 +134,25 @@ export async function GET(request: Request) {
         ...(category && category !== "all"
           ? { categoryTags: { has: category } }
           : {}),
+        ...(tripId
+          ? { OR: [{ tripId }, { tripId: null }] }
+          : {}),
       },
       orderBy: { savedAt: "desc" },
+      include: { trip: { select: { id: true, title: true } } },
     });
 
-    return NextResponse.json({ saves });
+    console.log("[GET /api/saves] returning", saves.length, "saves for familyProfile", user.familyProfile.id);
+
+    return NextResponse.json(
+      { saves },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (error) {
     console.error("Saves fetch error:", error);
-    return NextResponse.json({ error: "Failed to fetch saves" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to fetch saves" },
+      { status: 500, headers: { "Cache-Control": "no-store" } }
+    );
   }
 }
