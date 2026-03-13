@@ -510,9 +510,9 @@ export function SavesScreen() {
               title={tripName}
               badge={TRIP_FLAGS[tripName]}
               count={cards.length}
-              action={{ label: "View trip →", onClick: () => router.push('/trips/1') }}
+              action={{ label: "View trip →", onClick: () => router.push('/trips/cmmet611o0000yn8nz6ss7yg4') }}
             />
-            <CardGrid cards={cards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={(name) => router.push('/trips/1')} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} />
+            <CardGrid cards={cards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={(name) => router.push('/trips/cmmet611o0000yn8nz6ss7yg4')} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} />
           </div>
         ))}
 
@@ -525,7 +525,7 @@ export function SavesScreen() {
               count={unorganizedCards.length}
               action={{ label: "Assign all →", onClick: () => setActiveFilter("Unorganized") }}
             />
-            <CardGrid cards={unorganizedCards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={(name) => router.push('/trips/1')} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} />
+            <CardGrid cards={unorganizedCards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={(name) => router.push('/trips/cmmet611o0000yn8nz6ss7yg4')} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} />
           </div>
         )}
 

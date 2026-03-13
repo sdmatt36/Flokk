@@ -1212,31 +1212,26 @@ function RecommendedContent({
         <div style={{ fontSize: "13px", color: "#717171" }}>Based on your family&apos;s interests and what families like yours loved</div>
       </div>
 
-      {/* Cards grouped by category */}
-      {sortedCategories.map((cat) => (
-        <div key={cat} style={{ marginBottom: "28px" }}>
-          <div style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.08em", paddingBottom: "10px", marginBottom: "12px", borderBottom: "1px solid #EEEEEE" }}>
-            {cat}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(2, 1fr)" : "1fr", gap: "16px" }}>
-            {grouped[cat].map((rec) => {
-              const isSaved = savedSet.has(rec.title);
-              const isSaving = savingTitle === rec.title;
-              const isPending = pendingRec === rec.title;
-              return (
-                <div key={rec.title} style={{ display: "flex", flexDirection: "column", gap: "0" }}>
-                  <RecCard
-                    rec={rec}
-                    isSaved={isSaved}
-                    isSaving={isSaving}
-                    onToggle={() => {
-                      if (isSaved || isSaving) return;
-                      setPendingRec(rec.title);
-                      setPendingDayIndex(null);
-                      setPendingCategory(rec.tags.split(" · ")[0]);
-                    }}
-                    onViewOnMap={(lat, lng) => onViewOnMap(lat, lng)}
-                  />
+      {/* All cards in one flat 2-column grid */}
+      <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(2, 1fr)" : "1fr", gap: "16px" }}>
+        {RECOMMENDATIONS.map((rec) => {
+          const isSaved = savedSet.has(rec.title);
+          const isSaving = savingTitle === rec.title;
+          const isPending = pendingRec === rec.title;
+          return (
+            <div key={rec.title} style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+              <RecCard
+                rec={rec}
+                isSaved={isSaved}
+                isSaving={isSaving}
+                onToggle={() => {
+                  if (isSaved || isSaving) return;
+                  setPendingRec(rec.title);
+                  setPendingDayIndex(null);
+                  setPendingCategory(rec.tags.split(" · ")[0]);
+                }}
+                onViewOnMap={(lat, lng) => onViewOnMap(lat, lng)}
+              />
                   {isPending && (
                     <div style={{ backgroundColor: "#FAFAFA", borderRadius: "0 0 12px 12px", border: "1px solid #EEEEEE", borderTop: "none", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "10px" }}>
                       {recDayPills.length > 0 && (
@@ -1277,10 +1272,8 @@ function RecommendedContent({
                   )}
                 </div>
               );
-            })}
-          </div>
-        </div>
-      ))}
+          })}
+      </div>
     </div>
   );
 }
