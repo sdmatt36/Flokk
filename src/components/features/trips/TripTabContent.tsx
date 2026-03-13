@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
 
 function useIsDesktop() {
@@ -391,7 +392,20 @@ type TripSavedItemForDisplay = {
 
 // ── Static Okinawa saved items ─────────────────────────────────────────────
 
-const SAVED_LEFT: { category: string; items: { title: string; detail: string; status: string; statusBooked: boolean; families: string; img: string; icon: React.ReactNode }[] }[] = [
+type SavedDisplayItem = {
+  title: string;
+  detail: string;
+  status: string;
+  statusBooked: boolean;
+  families: string;
+  img: string;
+  icon: React.ReactNode;
+  bookUrl?: string;
+  websiteUrl?: string;
+  description?: string;
+};
+
+const SAVED_LEFT: { category: string; items: SavedDisplayItem[] }[] = [
   {
     category: "LODGING",
     items: [
@@ -403,6 +417,8 @@ const SAVED_LEFT: { category: string; items: { title: string; detail: string; st
         families: "2,340 families saved this",
         img: "https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9?w=200&auto=format&fit=crop&q=80",
         icon: <BedDouble size={18} style={{ color: "#C4664A" }} />,
+        bookUrl: "https://www.halekulani.com/okinawa",
+        description: "Perched along Onna Village's coral coast, Halekulani Okinawa is a luxury resort built around traditional Ryukyuan culture. Private beach, multiple pools, and world-class dining — your home base for the trip.",
       },
     ],
   },
@@ -417,12 +433,14 @@ const SAVED_LEFT: { category: string; items: { title: string; detail: string; st
         families: "1,820 families saved this",
         img: "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=200&auto=format&fit=crop&q=80",
         icon: <Plane size={18} style={{ color: "#C4664A" }} />,
+        bookUrl: "https://www.jal.co.jp",
+        description: "Direct JAL flight from Haneda to Naha. 2h 45m flight with full service. Arrive in time for afternoon check-in at the resort.",
       },
     ],
   },
 ];
 
-const SAVED_RIGHT: { category: string; items: { title: string; detail: string; status: string; statusBooked: boolean; families: string; img: string; icon: React.ReactNode }[] }[] = [
+const SAVED_RIGHT: { category: string; items: SavedDisplayItem[] }[] = [
   {
     category: "RESTAURANTS",
     items: [
@@ -434,6 +452,8 @@ const SAVED_RIGHT: { category: string; items: { title: string; detail: string; s
         families: "890 families saved this",
         img: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=200&auto=format&fit=crop&q=80",
         icon: <Utensils size={18} style={{ color: "#C4664A" }} />,
+        websiteUrl: "https://www.makishi-public-market.jp",
+        description: "The heart of Naha's food scene. Browse fresh seafood on the first floor, then take your picks upstairs to be cooked by market restaurants. No reservation needed — just show up and explore.",
       },
     ],
   },
@@ -448,6 +468,8 @@ const SAVED_RIGHT: { category: string; items: { title: string; detail: string; s
         families: "3,100 families saved this",
         img: "https://images.unsplash.com/photo-1583212292454-1fe6229603b7?w=200&auto=format&fit=crop&q=80",
         icon: <Waves size={18} style={{ color: "#C4664A" }} />,
+        bookUrl: "https://churaumi.okinawa/en/",
+        description: "One of the world's largest aquariums, home to whale sharks and manta rays in the spectacular Kuroshio Sea tank. Set inside Ocean Expo Park with free outdoor attractions including a dolphin show.",
       },
       {
         title: "Katsuren Castle Ruins",
@@ -457,14 +479,155 @@ const SAVED_RIGHT: { category: string; items: { title: string; detail: string; s
         families: "780 families saved this",
         img: "https://images.unsplash.com/photo-1545569341-9eb8b30979d9?w=200&auto=format&fit=crop&q=80",
         icon: <Landmark size={18} style={{ color: "#C4664A" }} />,
+        websiteUrl: "https://www.visitokinawa.jp/information/katsuren-castle-ruin",
+        description: "A UNESCO World Heritage Site on a hilltop peninsula overlooking the Pacific. The 12th–15th century Ryukyuan castle ruins offer panoramic ocean views and are free to explore. Easy walk for kids.",
       },
     ],
   },
 ];
 
-function SavedHorizCard({ item, isDesktop }: {
-  item: { title: string; detail: string; status: string; statusBooked: boolean; families: string; img: string; icon: React.ReactNode };
+const TRIP_DAYS = [
+  { dayIndex: 0, label: "Day 1", date: "Sun May 4" },
+  { dayIndex: 1, label: "Day 2", date: "Mon May 5" },
+  { dayIndex: 2, label: "Day 3", date: "Tue May 6" },
+  { dayIndex: 3, label: "Day 4", date: "Wed May 7" },
+  { dayIndex: 4, label: "Day 5", date: "Thu May 8" },
+];
+
+function SavedDayPickerModal({ itemTitle, onConfirm, onClose }: {
+  itemTitle: string;
+  onConfirm: (dayIndex: number) => void;
+  onClose: () => void;
+}) {
+  const [selected, setSelected] = useState<number | null>(null);
+  return createPortal(
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "480px", padding: "24px 20px 32px" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+          <p style={{ fontSize: "16px", fontWeight: 800, color: "#1a1a1a" }}>Which day?</p>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "20px", color: "#999", lineHeight: 1 }}>×</button>
+        </div>
+        <p style={{ fontSize: "13px", color: "#717171", marginBottom: "16px" }}>Add <strong>{itemTitle}</strong> to your itinerary</p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "20px" }}>
+          {TRIP_DAYS.map(({ dayIndex, label, date }) => (
+            <button
+              key={dayIndex}
+              type="button"
+              onClick={e => { e.stopPropagation(); setSelected(dayIndex); }}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "12px 16px", borderRadius: "12px", border: "1.5px solid",
+                borderColor: selected === dayIndex ? "#C4664A" : "#EEEEEE",
+                backgroundColor: selected === dayIndex ? "rgba(196,102,74,0.06)" : "#fff",
+                cursor: "pointer", textAlign: "left",
+              }}
+            >
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{label}</span>
+              <span style={{ fontSize: "13px", color: "#717171" }}>{date}</span>
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => { if (selected !== null) onConfirm(selected); }}
+          style={{
+            width: "100%", padding: "14px", borderRadius: "12px", border: "none",
+            backgroundColor: selected !== null ? "#C4664A" : "#E0E0E0",
+            color: selected !== null ? "#fff" : "#aaa",
+            fontSize: "15px", fontWeight: 700, cursor: selected !== null ? "pointer" : "default",
+          }}
+        >
+          {selected !== null ? `Add to ${TRIP_DAYS[selected].label} →` : "Select a day"}
+        </button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function SavedDetailModal({ item, onClose }: { item: SavedDisplayItem; onClose: () => void }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  return createPortal(
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "560px", maxHeight: "85vh", overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom, 16px)" }}
+      >
+        {/* Hero image */}
+        <div style={{ position: "relative" }}>
+          {imgFailed ? (
+            <div style={{ height: "200px", backgroundColor: "#F5F0EB", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {item.icon}
+            </div>
+          ) : (
+            <>
+              <div style={{ height: "200px", backgroundImage: `url('${item.img}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
+              <img src={item.img} alt="" onError={() => setImgFailed(true)} style={{ display: "none" }} />
+            </>
+          )}
+          <button onClick={onClose} style={{ position: "absolute", top: "12px", right: "12px", width: "32px", height: "32px", borderRadius: "50%", backgroundColor: "rgba(0,0,0,0.5)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "18px", lineHeight: 1 }}>×</button>
+          {item.statusBooked && (
+            <span style={{ position: "absolute", bottom: "12px", left: "12px", fontSize: "11px", fontWeight: 700, backgroundColor: "rgba(74,124,89,0.9)", color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>Booked ✓</span>
+          )}
+        </div>
+
+        {/* Content */}
+        <div style={{ padding: "20px 20px 24px" }}>
+          <p style={{ fontSize: "20px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>{item.title}</p>
+          <p style={{ fontSize: "13px", color: "#717171", marginBottom: "12px" }}>{item.detail}</p>
+
+          {item.description && (
+            <p style={{ fontSize: "14px", color: "#444", lineHeight: 1.6, marginBottom: "16px" }}>{item.description}</p>
+          )}
+
+          <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "16px" }}>
+            <Users size={12} style={{ color: "#BBBBBB" }} />
+            <span style={{ fontSize: "12px", color: "#BBBBBB" }}>{item.families}</span>
+          </div>
+
+          <div style={{ display: "flex", gap: "10px" }}>
+            {item.bookUrl && (
+              <button
+                type="button"
+                onClick={() => window.open(item.bookUrl, "_blank")}
+                style={{ flex: 1, padding: "12px", borderRadius: "12px", border: "none", backgroundColor: "#C4664A", fontSize: "14px", fontWeight: 700, color: "#fff", cursor: "pointer" }}
+              >
+                Book now
+              </button>
+            )}
+            {item.websiteUrl && (
+              <button
+                type="button"
+                onClick={() => window.open(item.websiteUrl, "_blank")}
+                style={{ flex: 1, padding: "12px", borderRadius: "12px", border: "1.5px solid #EEEEEE", backgroundColor: "#fff", fontSize: "14px", fontWeight: 600, color: "#C4664A", cursor: "pointer" }}
+              >
+                Website ↗
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function SavedHorizCard({ item, isDesktop, onAddToItinerary, onBook, onLearnMore, assignedDay }: {
+  item: SavedDisplayItem;
   isDesktop: boolean;
+  onAddToItinerary: () => void;
+  onBook: () => void;
+  onLearnMore: () => void;
+  assignedDay?: number;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   const thumbSize = isDesktop ? 96 : 72;
@@ -491,9 +654,17 @@ function SavedHorizCard({ item, isDesktop }: {
           </div>
         ) : (
           <div style={{ display: "flex", gap: "5px", marginTop: "4px", flexWrap: "wrap" }}>
-            <button type="button" style={{ fontSize: "10px", fontWeight: 600, padding: "3px 8px", borderRadius: "20px", border: "1px solid rgba(196,102,74,0.3)", backgroundColor: "transparent", color: "#C4664A", cursor: "pointer", whiteSpace: "nowrap" }}>+ Itinerary</button>
-            <button type="button" style={{ fontSize: "10px", fontWeight: 600, padding: "3px 8px", borderRadius: "20px", border: "1px solid #E0E0E0", backgroundColor: "transparent", color: "#555", cursor: "pointer", whiteSpace: "nowrap" }}>Book</button>
-            <button type="button" style={{ fontSize: "10px", fontWeight: 600, padding: "3px 8px", borderRadius: "20px", border: "1px solid #E0E0E0", backgroundColor: "transparent", color: "#555", cursor: "pointer", whiteSpace: "nowrap" }}>Learn more</button>
+            {assignedDay !== undefined ? (
+              <span style={{ fontSize: "10px", fontWeight: 600, padding: "3px 8px", borderRadius: "20px", backgroundColor: "rgba(74,124,89,0.1)", color: "#4a7c59", border: "1px solid rgba(74,124,89,0.2)", whiteSpace: "nowrap" }}>
+                ✓ Day {assignedDay + 1}
+              </span>
+            ) : (
+              <button type="button" onClick={e => { e.stopPropagation(); onAddToItinerary(); }} style={{ fontSize: "10px", fontWeight: 600, padding: "3px 8px", borderRadius: "20px", border: "1px solid rgba(196,102,74,0.3)", backgroundColor: "transparent", color: "#C4664A", cursor: "pointer", whiteSpace: "nowrap" }}>+ Itinerary</button>
+            )}
+            {item.bookUrl && (
+              <button type="button" onClick={e => { e.stopPropagation(); onBook(); }} style={{ fontSize: "10px", fontWeight: 600, padding: "3px 8px", borderRadius: "20px", border: "1px solid #E0E0E0", backgroundColor: "transparent", color: "#555", cursor: "pointer", whiteSpace: "nowrap" }}>Book</button>
+            )}
+            <button type="button" onClick={e => { e.stopPropagation(); onLearnMore(); }} style={{ fontSize: "10px", fontWeight: 600, padding: "3px 8px", borderRadius: "20px", border: "1px solid #E0E0E0", backgroundColor: "transparent", color: "#555", cursor: "pointer", whiteSpace: "nowrap" }}>Learn more</button>
           </div>
         )}
         <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "1px" }}>
@@ -507,6 +678,21 @@ function SavedHorizCard({ item, isDesktop }: {
 
 function SavedContent({ tripId: tripIdProp }: { tripId?: string }) {
   const isDesktop = useIsDesktop();
+  const [dayPickerItem, setDayPickerItem] = useState<SavedDisplayItem | null>(null);
+  const [detailItem, setDetailItem] = useState<SavedDisplayItem | null>(null);
+  // title → dayIndex (0-based) for visual confirmation on the pill
+  const [assignedDays, setAssignedDays] = useState<Record<string, number>>({});
+
+  function handleAddToItinerary(item: SavedDisplayItem) {
+    setDayPickerItem(item);
+  }
+  function handleBook(item: SavedDisplayItem) {
+    const url = item.bookUrl ?? item.websiteUrl;
+    if (url) window.open(url, "_blank");
+  }
+  function handleLearnMore(item: SavedDisplayItem) {
+    setDetailItem(item);
+  }
 
   return (
     <div>
@@ -525,7 +711,15 @@ function SavedContent({ tripId: tripIdProp }: { tripId?: string }) {
                 <span style={{ fontSize: "11px", color: "#bbb", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>{section.items.length}</span>
               </div>
               {section.items.map(item => (
-                <SavedHorizCard key={item.title} item={item} isDesktop={isDesktop} />
+                <SavedHorizCard
+                  key={item.title}
+                  item={item}
+                  isDesktop={isDesktop}
+                  onAddToItinerary={() => handleAddToItinerary(item)}
+                  onBook={() => handleBook(item)}
+                  onLearnMore={() => handleLearnMore(item)}
+                  assignedDay={assignedDays[item.title]}
+                />
               ))}
             </div>
           ))}
@@ -539,12 +733,41 @@ function SavedContent({ tripId: tripIdProp }: { tripId?: string }) {
                 <span style={{ fontSize: "11px", color: "#bbb", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>{section.items.length}</span>
               </div>
               {section.items.map(item => (
-                <SavedHorizCard key={item.title} item={item} isDesktop={isDesktop} />
+                <SavedHorizCard
+                  key={item.title}
+                  item={item}
+                  isDesktop={isDesktop}
+                  onAddToItinerary={() => handleAddToItinerary(item)}
+                  onBook={() => handleBook(item)}
+                  onLearnMore={() => handleLearnMore(item)}
+                  assignedDay={assignedDays[item.title]}
+                />
               ))}
             </div>
           ))}
         </div>
       </div>
+
+      {dayPickerItem && (
+        <SavedDayPickerModal
+          itemTitle={dayPickerItem.title}
+          onConfirm={(dayIndex) => {
+            try {
+              const key = ITINERARY_KEY(tripIdProp);
+              const existing: RecAddition[] = JSON.parse(localStorage.getItem(key) ?? "[]");
+              existing.push({ dayIndex, title: dayPickerItem.title, location: dayPickerItem.detail, img: dayPickerItem.img });
+              localStorage.setItem(key, JSON.stringify(existing));
+              console.log("[ItineraryWrite] saved item to day", dayIndex, "(Day", dayIndex + 1, "):", dayPickerItem.title, "| stored:", existing.length, "total");
+            } catch (e) { console.error("[ItineraryWrite] localStorage write failed:", e); }
+            setAssignedDays(prev => ({ ...prev, [dayPickerItem.title]: dayIndex }));
+            setDayPickerItem(null);
+          }}
+          onClose={() => setDayPickerItem(null)}
+        />
+      )}
+      {detailItem && (
+        <SavedDetailModal item={detailItem} onClose={() => setDetailItem(null)} />
+      )}
     </div>
   );
 }
@@ -624,9 +847,29 @@ function TaskModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function ItineraryContent({ flyTarget, onFlyTargetConsumed }: { flyTarget: { lat: number; lng: number } | null; onFlyTargetConsumed: () => void }) {
+type RecAddition = { dayIndex: number; title: string; location: string; img: string };
+
+const ITINERARY_KEY = (tripId?: string) => `flokk_itinerary_additions_${tripId ?? "default"}`;
+
+function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId }: {
+  flyTarget: { lat: number; lng: number } | null;
+  onFlyTargetConsumed: () => void;
+  tripId?: string;
+}) {
+  const isDesktop = useIsDesktop();
   const [openDay, setOpenDay] = useState(0); // -1 = all collapsed
   const [notes, setNotes] = useState(["", "", "", "", ""]);
+  const [recAdditions, setRecAdditions] = useState<RecAddition[]>([]);
+
+  // Load additions from localStorage on mount (persists across tab switches)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(ITINERARY_KEY(tripId));
+      const parsed: RecAddition[] = raw ? JSON.parse(raw) : [];
+      console.log("[ItineraryRead] loaded", parsed.length, "additions from localStorage for trip", tripId, parsed);
+      if (parsed.length > 0) setRecAdditions(parsed);
+    } catch (e) { console.error("[ItineraryRead] localStorage read failed:", e); }
+  }, [tripId]);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [leftHeight, setLeftHeight] = useState<number | null>(null);
   const leftPanelRef = useRef<HTMLDivElement>(null);
@@ -715,10 +958,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed }: { flyTarget: { lat
       </div>
 
       {/* Split content area */}
-      <div className="flex flex-col md:flex-row" style={{ gap: "24px", alignItems: "flex-start" }}>
+      <div style={{ display: "flex", flexDirection: isDesktop ? "row" : "column", gap: "24px", alignItems: "flex-start" }}>
 
         {/* Left panel: accordion */}
-        <div ref={leftPanelRef} className="w-full md:w-[58%]" style={{ minWidth: 0 }}>
+        <div ref={leftPanelRef} style={{ width: isDesktop ? "58%" : "100%", minWidth: 0 }}>
           <div style={{ borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", overflow: "hidden", backgroundColor: "#fff" }}>
             {ACCORDION_DAYS.map((day, i) => {
               const isOpen = openDay === i;
@@ -837,6 +1080,11 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed }: { flyTarget: { lat
                         </>
                       )}
 
+                      {/* Additions from Recommended tab */}
+                      {recAdditions.filter(a => a.dayIndex === i).map((a, idx) => (
+                        <FilledSlot key={`rec-${idx}`} title={a.title} subtitle={a.location} img={a.img} tags={["Added from Recommended"]} />
+                      ))}
+
                       {/* Per-day notes */}
                       <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid rgba(0,0,0,0.05)" }}>
                         <textarea
@@ -858,7 +1106,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed }: { flyTarget: { lat
         </div>{/* end left panel */}
 
         {/* Right panel: map — stacks below on mobile, sticky sidebar on desktop */}
-        <div className="w-full md:w-[42%]" style={{ position: "sticky", top: 0, height: leftHeight ? `${leftHeight}px` : "300px", minHeight: "260px", maxHeight: "600px" }}>
+        <div style={{ width: isDesktop ? "42%" : "100%", position: isDesktop ? "sticky" : "relative", top: 0, height: isDesktop ? (leftHeight ? `${leftHeight}px` : "500px") : "300px", minHeight: "260px", maxHeight: "600px" }}>
           <TripMap activeDay={openDay >= 0 ? openDay : 0} flyTarget={flyTarget} onFlyTargetConsumed={onFlyTargetConsumed} />
         </div>{/* end right panel */}
 
@@ -1119,7 +1367,7 @@ function RecDetailModal({
   onClose,
   dayPills,
 }: {
-  rec: typeof RECOMMENDATIONS[0];
+  rec: RecItem;
   isSaved: boolean;
   isSaving: boolean;
   onSave: (dayIndex: number | null) => void;
@@ -1129,15 +1377,14 @@ function RecDetailModal({
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const [showDayPicker, setShowDayPicker] = useState(false);
   const category = rec.tags.split(" · ")[0];
   const price = rec.tags.split(" · ")[1] ?? "";
   const duration = rec.tags.split(" · ")[2] ?? "";
 
-  return (
+  return createPortal(
     <div
       onClick={onClose}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
     >
       <div
         onClick={e => e.stopPropagation()}
@@ -1168,11 +1415,25 @@ function RecDetailModal({
           </div>
 
           {/* Stats row */}
-          <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
-            {price && <div style={{ textAlign: "center" }}><p style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a" }}>{price}</p><p style={{ fontSize: "11px", color: "#999" }}>price</p></div>}
-            {duration && <div style={{ textAlign: "center" }}><p style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a" }}>{duration}</p><p style={{ fontSize: "11px", color: "#999" }}>duration</p></div>}
-            <div style={{ textAlign: "center" }}><p style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a" }}>{rec.saved.toLocaleString()}</p><p style={{ fontSize: "11px", color: "#999" }}>families saved</p></div>
+          <div style={{ display: "flex", gap: "20px", marginBottom: "16px", flexWrap: "wrap" }}>
+            {price && <div><p style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a", margin: 0 }}>{price}</p><p style={{ fontSize: "11px", color: "#999", margin: "2px 0 0" }}>price</p></div>}
+            {duration && <div><p style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a", margin: 0 }}>{duration}</p><p style={{ fontSize: "11px", color: "#999", margin: "2px 0 0" }}>duration</p></div>}
+            {rec.ages && <div><p style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a", margin: 0 }}>{rec.ages}</p><p style={{ fontSize: "11px", color: "#999", margin: "2px 0 0" }}>ages</p></div>}
+            <div><p style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a", margin: 0 }}>{rec.saved.toLocaleString()}</p><p style={{ fontSize: "11px", color: "#999", margin: "2px 0 0" }}>families saved</p></div>
           </div>
+
+          {/* Description */}
+          {rec.description && (
+            <p style={{ fontSize: "14px", color: "#444", lineHeight: 1.6, marginBottom: "16px" }}>{rec.description}</p>
+          )}
+
+          {/* Hours */}
+          {rec.hours && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", marginBottom: "12px" }}>
+              <Clock size={13} style={{ color: "#717171", flexShrink: 0, marginTop: "2px" }} />
+              <span style={{ fontSize: "13px", color: "#555" }}>{rec.hours}</span>
+            </div>
+          )}
 
           {/* Match reason */}
           <div style={{ backgroundColor: "rgba(196,102,74,0.07)", borderRadius: "10px", padding: "12px 14px", marginBottom: "16px" }}>
@@ -1183,33 +1444,64 @@ function RecDetailModal({
             <p style={{ fontSize: "13px", color: "#555", lineHeight: 1.5 }}>{rec.match}</p>
           </div>
 
-          {/* Day picker */}
-          {showDayPicker && dayPills.length > 0 && (
+          {/* Day picker — always shown */}
+          {dayPills.length > 0 && (
             <div style={{ marginBottom: "16px" }}>
-              <p style={{ fontSize: "12px", fontWeight: 700, color: "#555", marginBottom: "8px" }}>Add to which day?</p>
+              <p style={{ fontSize: "12px", fontWeight: 700, color: "#555", marginBottom: "8px" }}>Which day?</p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                <button type="button" onClick={() => setSelectedDay(null)} style={{ padding: "5px 12px", borderRadius: "999px", fontSize: "11px", fontWeight: 600, border: "1.5px solid", borderColor: selectedDay === null ? "#C4664A" : "#DDD", backgroundColor: selectedDay === null ? "#C4664A" : "#fff", color: selectedDay === null ? "#fff" : "#666", cursor: "pointer" }}>No specific day</button>
                 {dayPills.map(({ dayIndex, label }) => (
-                  <button type="button" key={dayIndex} onClick={() => setSelectedDay(dayIndex)} style={{ padding: "5px 12px", borderRadius: "999px", fontSize: "11px", fontWeight: 600, border: "1.5px solid", borderColor: selectedDay === dayIndex ? "#C4664A" : "#DDD", backgroundColor: selectedDay === dayIndex ? "#C4664A" : "#fff", color: selectedDay === dayIndex ? "#fff" : "#666", cursor: "pointer" }}>{label}</button>
+                  <button
+                    type="button"
+                    key={dayIndex}
+                    onClick={() => setSelectedDay(selectedDay === dayIndex ? null : dayIndex)}
+                    style={{ padding: "5px 12px", borderRadius: "999px", fontSize: "11px", fontWeight: 600, border: "1.5px solid", borderColor: selectedDay === dayIndex ? "#C4664A" : "#DDD", backgroundColor: selectedDay === dayIndex ? "#C4664A" : "#fff", color: selectedDay === dayIndex ? "#fff" : "#666", cursor: "pointer" }}
+                  >
+                    {label}
+                  </button>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Actions */}
+          {/* Website + Book links */}
+          <div style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
+            {rec.website && (
+              <button
+                type="button"
+                onClick={() => {
+                  console.log("[RecModal] website URL:", rec.website);
+                  try { window.open(rec.website, "_blank"); } catch(e) { console.error("[RecModal] window.open error:", e); }
+                }}
+                style={{ padding: "10px 16px", borderRadius: "12px", border: "1.5px solid #EEEEEE", backgroundColor: "#fff", fontSize: "13px", fontWeight: 600, color: "#555", cursor: "pointer" }}
+              >
+                Website ↗
+              </button>
+            )}
+            {rec.bookUrl && (
+              <button
+                type="button"
+                onClick={() => {
+                  console.log("[RecModal] bookUrl:", rec.bookUrl);
+                  try { window.open(rec.bookUrl, "_blank"); } catch(e) { console.error("[RecModal] window.open error:", e); }
+                }}
+                style={{ padding: "10px 16px", borderRadius: "12px", border: "1.5px solid rgba(196,102,74,0.3)", backgroundColor: "rgba(196,102,74,0.05)", fontSize: "13px", fontWeight: 600, color: "#C4664A", cursor: "pointer" }}
+              >
+                Book ↗
+              </button>
+            )}
+          </div>
+
+          {/* Add to itinerary */}
           <div style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
             {isSaved ? (
               <div style={{ flex: 1, padding: "12px", borderRadius: "12px", backgroundColor: "rgba(74,124,89,0.1)", border: "1px solid rgba(74,124,89,0.2)", textAlign: "center", fontSize: "14px", fontWeight: 700, color: "#4a7c59" }}>Saved to trip ✓</div>
             ) : (
               <button
                 type="button"
-                onClick={() => {
-                  if (!showDayPicker && dayPills.length > 0) { setShowDayPicker(true); return; }
-                  onSave(selectedDay);
-                }}
+                onClick={() => onSave(selectedDay)}
                 style={{ flex: 1, padding: "12px", borderRadius: "12px", border: "none", backgroundColor: "#C4664A", fontSize: "14px", fontWeight: 700, color: "#fff", cursor: isSaving ? "default" : "pointer", opacity: isSaving ? 0.7 : 1 }}
               >
-                {isSaving ? "Saving..." : showDayPicker ? (selectedDay !== null ? `Save to Day ${selectedDay} →` : "Save to trip →") : "+ Add to itinerary"}
+                {isSaving ? "Saving..." : selectedDay !== null ? `Add to Day ${selectedDay + 1} →` : "+ Add to itinerary"}
               </button>
             )}
             <button
@@ -1223,32 +1515,59 @@ function RecDetailModal({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
 // ── Recommended tab ───────────────────────────────────────────────────────────
 
-const RECOMMENDATIONS = [
+type RecItem = {
+  title: string;
+  location: string;
+  tags: string;
+  match: string;
+  img: string;
+  saved: number;
+  lat: number;
+  lng: number;
+  description: string;
+  hours: string;
+  ages: string;
+  website: string;
+  bookUrl: string;
+};
+
+const RECOMMENDATIONS: RecItem[] = [
   {
     title: "Cape Manzamo",
     location: "Onna Village",
     tags: "Outdoor · Free · 1 hr",
     match: "Scenic views · Easy walk · All ages",
-    img: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&auto=format&fit=crop&q=80",
+    img: "https://upload.wikimedia.org/wikipedia/commons/5/53/Onna_Okinawa_Japan_Cape-Manzamo-01.jpg",
     saved: 1840,
     lat: 26.3998,
     lng: 127.7159,
+    description: "One of Okinawa's most iconic coastal landmarks — the naturally formed elephant-trunk rock arch sits at the tip of Manzamo Cape. An easy 10-minute walk from the parking area leads to sweeping views over the East China Sea.",
+    hours: "Always open (parking lot: 8:00am – 6:00pm)",
+    ages: "All ages",
+    website: "https://www.visitokinawa.jp/information/cape-manzamo",
+    bookUrl: "https://www.visitokinawa.jp/information/cape-manzamo",
   },
   {
     title: "Shuri Castle",
     location: "Naha",
     tags: "Culture · $8 · 2 hrs",
     match: "History & Culture · Ages 5+ · UNESCO site",
-    img: "https://images.unsplash.com/photo-1513407030348-c983a97b98d8?w=400&auto=format&fit=crop&q=80",
+    img: "https://upload.wikimedia.org/wikipedia/commons/b/b2/Shuri_Castle_-_Light_up.JPG",
     saved: 2210,
     lat: 26.2172,
     lng: 127.7197,
+    description: "The restored palace of the Ryukyu Kingdom, Shuri Castle is a striking red-lacquered fortress on a hilltop in Naha. A UNESCO World Heritage Site that blends Japanese, Chinese, and Southeast Asian influences — currently being restored after a 2019 fire.",
+    hours: "8:30am – 6:00pm (Apr–Jun, Oct–Nov); 8:30am – 7:00pm (Jul–Sep); 8:30am – 5:30pm (Dec–Mar)",
+    ages: "Ages 5+",
+    website: "https://www.shurijo-park.go.jp",
+    bookUrl: "https://www.shurijo-park.go.jp/ticket.html",
   },
   {
     title: "Okinawa World & Cave",
@@ -1259,6 +1578,11 @@ const RECOMMENDATIONS = [
     saved: 1650,
     lat: 26.1613,
     lng: 127.7714,
+    description: "Okinawa World combines the spectacular Gyokusendo Cave — a 5km limestone cavern — with a Ryukyuan culture village, habu snake show, and local crafts demonstrations. The cave walkthrough is a family highlight.",
+    hours: "9:00am – 5:00pm daily",
+    ages: "Ages 4+",
+    website: "https://www.gyokusendo.co.jp/okinawaworld",
+    bookUrl: "https://www.gyokusendo.co.jp/okinawaworld/ticket/",
   },
   {
     title: "American Village Mihama",
@@ -1269,6 +1593,11 @@ const RECOMMENDATIONS = [
     saved: 980,
     lat: 26.3109,
     lng: 127.7540,
+    description: "A retro-American themed shopping and entertainment district right by the beach in Chatan. Great for evening strolls, street food, sunset views over the ocean, and browsing quirky shops and open-air restaurants.",
+    hours: "Shops from 11:00am; restaurants until 11:00pm",
+    ages: "All ages",
+    website: "https://www.okinawa-americanvillage.com",
+    bookUrl: "https://www.okinawa-americanvillage.com",
   },
   {
     title: "Nago Pineapple Park",
@@ -1279,6 +1608,11 @@ const RECOMMENDATIONS = [
     saved: 760,
     lat: 26.6017,
     lng: 127.9711,
+    description: "Ride a pineapple-shaped cart through tropical gardens, taste pineapple wine, and learn about Okinawa's pineapple farming heritage. A quirky, fun family stop in the north on the way to Churaumi Aquarium.",
+    hours: "9:00am – 6:00pm (last entry 5:00pm)",
+    ages: "Ages 3+",
+    website: "https://www.nagopineapplepark.com",
+    bookUrl: "https://www.nagopineapplepark.com",
   },
   {
     title: "Onna Village Snorkeling",
@@ -1289,6 +1623,11 @@ const RECOMMENDATIONS = [
     saved: 1320,
     lat: 26.4969,
     lng: 127.8574,
+    description: "Crystal-clear waters off Onna Village offer some of Okinawa's best snorkeling with coral reefs and tropical fish. Most operators provide full gear and a guide, making it accessible for first-timers and kids from age 6.",
+    hours: "Tours typically 9:00am – 3:00pm (weather dependent)",
+    ages: "Ages 6+",
+    website: "https://www.visitokinawa.jp",
+    bookUrl: "https://www.veltra.com/en/asia/japan/okinawa/",
   },
 ];
 
@@ -1311,7 +1650,7 @@ function RecommendedContent({
   const [pendingRec, setPendingRec] = useState<string | null>(null);
   const [pendingDayIndex, setPendingDayIndex] = useState<number | null>(null);
   const [pendingCategory, setPendingCategory] = useState<string>("");
-  const [detailRec, setDetailRec] = useState<typeof RECOMMENDATIONS[0] | null>(null);
+  const [detailRec, setDetailRec] = useState<RecItem | null>(null);
 
   function generateDayPillsForRec(start: string | null, end: string | null): { dayIndex: number; label: string }[] {
     if (!start) return [];
@@ -1322,13 +1661,13 @@ function RecommendedContent({
       const d = new Date(startD);
       d.setDate(startD.getDate() + i);
       const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      return { dayIndex: i + 1, label: `Day ${i + 1} · ${dateStr}` };
+      return { dayIndex: i, label: `Day ${i + 1} · ${dateStr}` };
     });
   }
   const recDayPills = generateDayPillsForRec(tripStartDate ?? null, tripEndDate ?? null);
   const CATEGORY_OPTIONS_REC = ["Culture", "Food", "Kids", "Lodging", "Outdoor", "Shopping", "Transportation"];
 
-  async function handleSave(rec: typeof RECOMMENDATIONS[0], dayIndex: number | null, category: string) {
+  async function handleSave(rec: RecItem, dayIndex: number | null, category: string) {
     if (savedSet.has(rec.title) || savingTitle === rec.title) return;
     setSavingTitle(rec.title);
     setPendingRec(null);
@@ -1351,6 +1690,15 @@ function RecommendedContent({
       });
       setSavedSet((prev) => new Set([...prev, rec.title]));
       onSaved({ title: rec.title, location: rec.location, img: rec.img, tags: rec.tags });
+      if (dayIndex !== null) {
+        try {
+          const key = ITINERARY_KEY(tripId);
+          const existing: RecAddition[] = JSON.parse(localStorage.getItem(key) ?? "[]");
+          existing.push({ dayIndex, title: rec.title, location: rec.location, img: rec.img });
+          localStorage.setItem(key, JSON.stringify(existing));
+          console.log("[ItineraryWrite] rec saved to day", dayIndex, "(Day", dayIndex + 1, "):", rec.title, "| stored:", existing.length, "total");
+        } catch (e) { console.error("[ItineraryWrite] localStorage write failed:", e); }
+      }
       window.dispatchEvent(new Event("flokk:refresh"));
     } finally {
       setSavingTitle(null);
@@ -1465,7 +1813,7 @@ function RecommendedContent({
   );
 }
 
-function RecCard({ rec, isSaved, isSaving, onToggle, onViewOnMap, onOpenDetail }: { rec: typeof RECOMMENDATIONS[0]; isSaved: boolean; isSaving: boolean; onToggle: () => void; onViewOnMap: (lat: number, lng: number) => void; onOpenDetail: () => void }) {
+function RecCard({ rec, isSaved, isSaving, onToggle, onViewOnMap, onOpenDetail }: { rec: RecItem; isSaved: boolean; isSaving: boolean; onToggle: () => void; onViewOnMap: (lat: number, lng: number) => void; onOpenDetail: () => void }) {
   const [imgFailed, setImgFailed] = useState(false);
   return (
     <div onClick={onOpenDetail} style={{ backgroundColor: "#fff", borderRadius: "12px", boxShadow: "0 1px 6px rgba(0,0,0,0.08)", border: "1px solid #EEEEEE", overflow: "hidden", display: "flex", flexDirection: "column", cursor: "pointer" }}>
@@ -1565,7 +1913,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripStartDate, tr
       </div>
 
       {tab === "saved" && <SavedContent tripId={tripId} />}
-      {tab === "itinerary" && <ItineraryContent flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} />}
+      {tab === "itinerary" && <ItineraryContent flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} />}
       {tab === "packing" && <PackingContent />}
       {tab === "recommended" && (
         <RecommendedContent
