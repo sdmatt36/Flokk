@@ -3,6 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
+
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    setIsDesktop(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return isDesktop;
+}
 import { Plane, Menu, X, LogOut, User } from "lucide-react";
 import { useClerk } from "@clerk/nextjs";
 
@@ -32,6 +44,7 @@ export function AppHeaderClient({
   email: string;
 }) {
   const pathname = usePathname();
+  const isDesktop = useIsDesktop();
   const [menuOpen, setMenuOpen] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const greeting = getGreeting();
@@ -83,7 +96,7 @@ export function AppHeaderClient({
           </Link>
 
           {/* Center: desktop nav */}
-          <nav className="hidden md:flex" style={{ gap: "4px", alignItems: "center" }}>
+          <nav style={{ display: isDesktop ? "flex" : "none", gap: "4px", alignItems: "center" }}>
             {NAV_ITEMS.map(({ label, href }) => {
               const active = isActive(href);
               return (
@@ -110,9 +123,11 @@ export function AppHeaderClient({
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
 
             {/* Greeting — desktop only */}
-            <span className="hidden md:block" style={{ fontSize: "13px", color: "#999" }}>
-              {greeting}, {firstName}
-            </span>
+            {isDesktop && (
+              <span style={{ fontSize: "13px", color: "#999" }}>
+                {greeting}, {firstName}
+              </span>
+            )}
 
             {/* Avatar with dropdown */}
             <div ref={dropdownRef} style={{ position: "relative" }}>
@@ -205,23 +220,23 @@ export function AppHeaderClient({
             </div>
 
             {/* Hamburger — mobile only */}
-            <button
-              className="flex md:hidden"
-              onClick={() => setMenuOpen((v) => !v)}
-              style={{ background: "none", border: "none", padding: "4px", cursor: "pointer", color: "#1a1a1a" }}
-              aria-label="Toggle menu"
-            >
-              {menuOpen ? <X size={22} /> : <Menu size={22} />}
-            </button>
+            {!isDesktop && (
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                style={{ display: "flex", background: "none", border: "none", padding: "4px", cursor: "pointer", color: "#1a1a1a" }}
+                aria-label="Toggle menu"
+              >
+                {menuOpen ? <X size={22} /> : <Menu size={22} />}
+              </button>
+            )}
           </div>
 
         </div>
       </header>
 
       {/* Mobile drawer */}
-      {menuOpen && (
+      {menuOpen && !isDesktop && (
         <div
-          className="md:hidden"
           style={{
             position: "fixed",
             top: "60px",
