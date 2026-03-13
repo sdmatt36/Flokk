@@ -459,7 +459,7 @@ export function SavesScreen() {
               <MapPin size={14} style={{ color: "#C4664A", flexShrink: 0 }} />
               <span style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>Planning Okinawa May &apos;25</span>
             </div>
-            <button onClick={() => router.push('/trips/1')} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: "#C4664A", fontWeight: 600, padding: 0 }}>
+            <button onClick={() => router.push('/trips/cmmet611o0000yn8nz6ss7yg4')} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: "#C4664A", fontWeight: 600, padding: 0 }}>
               Review now →
             </button>
           </div>
