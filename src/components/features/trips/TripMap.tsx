@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Share2, Map as MapIcon } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Share2, Map as MapIcon, ChevronLeft } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 type MarkerDef = { num: number; label: string; lng: number; lat: number };
@@ -90,7 +91,8 @@ function flyToDay(map: any, mapboxgl: any, markers: MarkerDef[]) {
   }
 }
 
-export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed }: { activeDay: number; flyTarget?: { lat: number; lng: number } | null; onFlyTargetConsumed?: () => void }) {
+export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId }: { activeDay: number; flyTarget?: { lat: number; lng: number } | null; onFlyTargetConsumed?: () => void; tripId?: string }) {
+  const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -198,6 +200,23 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed }: { activeD
       {/* Map container — flex:1 + minHeight:0 lets it fill without overflowing */}
       <div style={{ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" }}>
         <div ref={containerRef} style={{ width: "100%", height: "100%" }} />
+
+        {/* Back button */}
+        <button
+          onClick={() => tripId ? router.push(`/trips/${tripId}`) : router.back()}
+          style={{
+            position: "absolute", top: "12px", left: "12px", zIndex: 10,
+            display: "flex", alignItems: "center", gap: "4px",
+            backgroundColor: "#fff", border: "none", borderRadius: "999px",
+            padding: "7px 12px 7px 8px",
+            fontSize: "13px", fontWeight: 600, color: "#1a1a1a",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.18)", cursor: "pointer",
+          }}
+        >
+          <ChevronLeft size={16} strokeWidth={2.5} style={{ color: "#1a1a1a" }} />
+          Back
+        </button>
+
         {toast && (
           <div style={{
             position: "absolute", top: "12px", left: "50%", transform: "translateX(-50%)",

@@ -173,7 +173,7 @@ export default async function HomePage() {
                 backgroundPosition: "center",
               }}
             >
-              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 0%, transparent 35%, rgba(0,0,0,0.6) 65%, rgba(0,0,0,0.92) 100%)", zIndex: 1 }} />
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0) 100%)", zIndex: 1 }} />
               <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "24px 24px 18px 24px", zIndex: 2 }}>
                 <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", textShadow: "0px 2px 10px rgba(0,0,0,0.95)" }}>
                   {activeTrip ? (activeTrip.status === "ACTIVE" ? "Now traveling" : "Up next") : "No trips planned"}
