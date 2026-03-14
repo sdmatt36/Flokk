@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Show, UserButton, SignInButton, SignUpButton } from "@clerk/nextjs";
-import { Plane, Compass, Bookmark, CalendarDays, CreditCard, MapPin, Users, Heart, Clock, Layers, Mail, Map, Calendar, Award, ChevronDown, Sparkles, Instagram } from "lucide-react";
+import { Plane, Compass, Bookmark, CalendarDays, CreditCard, MapPin, Users, Heart, Clock, Layers, Mail, Map, CalendarCheck, Award, ChevronDown, Sparkles, Instagram } from "lucide-react";
 import { Playfair_Display } from "next/font/google";
 import { SiteFooter } from "@/components/ui/SiteFooter";
 
@@ -332,28 +332,53 @@ export default function LandingPage() {
         </div>
 
         {/* What's coming */}
-        <div style={{ backgroundColor: "#F5F5F5", padding: "48px 24px", marginTop: "60px", borderRadius: "20px" }}>
+        <div style={{ backgroundColor: "#1B3A5C", padding: "48px 24px", marginTop: "60px", borderRadius: "20px" }}>
           <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
             <div style={{ textAlign: "center", marginBottom: "32px" }}>
-              <h2 style={{ fontSize: "22px", fontWeight: 700, color: "#1A1A1A", marginBottom: "6px" }}>More coming soon</h2>
-              <p style={{ fontSize: "14px", color: "#717171" }}>Flokk is just getting started. Here&apos;s what&apos;s on the horizon.</p>
+              <h2 style={{ fontSize: "22px", fontWeight: 700, color: "#fff", marginBottom: "6px" }}>More coming soon</h2>
+              <p className="text-white/70" style={{ fontSize: "14px" }}>Flokk is just getting started. Here&apos;s what&apos;s on the horizon.</p>
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", justifyContent: "center", marginBottom: "24px" }}>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6" style={{ marginBottom: "0" }}>
               {[
-                { icon: <CreditCard size={16} style={{ color: "#C4664A", flexShrink: 0 }} />, label: "Book everything in one place" },
-                { icon: <Mail size={16} style={{ color: "#C4664A", flexShrink: 0 }} />, label: "Forward any confirmation email — we'll file it" },
-                { icon: <Map size={16} style={{ color: "#C4664A", flexShrink: 0 }} />, label: "Your itinerary, ready to navigate" },
-                { icon: <Calendar size={16} style={{ color: "#C4664A", flexShrink: 0 }} />, label: "Trip dates land in your calendar automatically" },
-                { icon: <Award size={16} style={{ color: "#C4664A", flexShrink: 0 }} />, label: "See exactly what your points are worth" },
-                { icon: <Users size={16} style={{ color: "#C4664A", flexShrink: 0 }} />, label: "Real itineraries from families like yours" },
-              ].map(({ icon, label }) => (
-                <div key={label} style={{ display: "flex", alignItems: "center", gap: "8px", backgroundColor: "#fff", border: "1px solid #EEEEEE", borderRadius: "20px", padding: "10px 20px" }}>
+                {
+                  icon: <CreditCard size={24} style={{ color: "#C4664A" }} />,
+                  name: "Book everything in one place",
+                  desc: "Flights, hotels, and experiences — booked and filed to your trip automatically.",
+                },
+                {
+                  icon: <Mail size={24} style={{ color: "#C4664A" }} />,
+                  name: "Forward any confirmation email — we'll file it",
+                  desc: "Send any booking confirmation to Flokk and we'll extract every detail.",
+                },
+                {
+                  icon: <Map size={24} style={{ color: "#C4664A" }} />,
+                  name: "Your itinerary, ready to navigate",
+                  desc: "One tap exports your day as a navigable route to Google or Apple Maps.",
+                },
+                {
+                  icon: <CalendarCheck size={24} style={{ color: "#C4664A" }} />,
+                  name: "Trip dates land in your calendar automatically",
+                  desc: "Every booking drops straight into your family calendar — no copy-paste.",
+                },
+                {
+                  icon: <Award size={24} style={{ color: "#C4664A" }} />,
+                  name: "See exactly what your points are worth",
+                  desc: "Your miles and points surfaced alongside every search, so nothing gets left on the table.",
+                },
+                {
+                  icon: <Users size={24} style={{ color: "#C4664A" }} />,
+                  name: "Real itineraries from families like yours",
+                  desc: "Browse trips built by families with kids the same ages, interests, and travel style.",
+                },
+              ].map(({ icon, name, desc }) => (
+                <div key={name} style={{ backgroundColor: "#243F63", borderRadius: "12px", padding: "28px 24px" }}>
                   {icon}
-                  <span style={{ fontSize: "14px", color: "#1A1A1A" }}>{label}</span>
+                  <p style={{ color: "#fff", fontWeight: 600, fontSize: "16px", marginTop: "16px" }}>{name}</p>
+                  <p className="text-white/65" style={{ fontSize: "14px", marginTop: "8px", lineHeight: 1.5 }}>{desc}</p>
                 </div>
               ))}
             </div>
-            <p style={{ textAlign: "center", fontSize: "12px", color: "#999" }}>
+            <p className="text-white/50" style={{ textAlign: "center", fontSize: "14px", marginTop: "32px" }}>
               Beta access is free. Early adopters get priority access to everything above as it ships.
             </p>
           </div>
