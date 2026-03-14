@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Show, UserButton, SignInButton, SignUpButton } from "@clerk/nextjs";
-import { Plane, Compass, Bookmark, CalendarDays, MapPin, Users, Heart, Clock, Layers, ChevronDown, Sparkles, Instagram } from "lucide-react";
+import { Plane, Compass, Bookmark, CalendarDays, MapPin, Users, Heart, ChevronDown, Sparkles, Instagram } from "lucide-react";
 import { Playfair_Display } from "next/font/google";
 import { SiteFooter } from "@/components/ui/SiteFooter";
 
@@ -334,7 +334,8 @@ export default function LandingPage() {
       </section>
 
       {/* What's coming — contained navy block */}
-      <section style={{ backgroundColor: "#1B3A5C" }} className="mx-4 sm:mx-6 lg:mx-8 rounded-2xl py-20 md:py-24">
+      <div className="px-4 sm:px-6 lg:px-8">
+      <section style={{ backgroundColor: "#1B3A5C" }} className="max-w-6xl mx-auto rounded-2xl py-20 md:py-24">
         <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "0 24px" }}>
           <div style={{ textAlign: "center", marginBottom: "40px" }}>
             <h2 className={`${playfair.className} text-4xl md:text-5xl`} style={{ fontWeight: 400, color: "#fff", marginBottom: "12px" }}>More coming soon</h2>
@@ -378,6 +379,7 @@ export default function LandingPage() {
           </p>
         </div>
       </section>
+      </div>
 
       {/* Community Section */}
       <section className="py-24 px-6" style={{ backgroundColor: "#FFFFFF" }}>
@@ -441,7 +443,8 @@ export default function LandingPage() {
       </section>
 
       {/* Stats bar */}
-      <section className="py-16 px-6" style={{ backgroundColor: "#C4664A" }}>
+      <div className="px-4 sm:px-6 lg:px-8">
+      <section className="py-16 max-w-6xl mx-auto rounded-2xl" style={{ backgroundColor: "#C4664A" }}>
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
             <h2 className="text-2xl md:text-3xl font-bold text-white">The numbers don&apos;t lie.</h2>
@@ -449,9 +452,9 @@ export default function LandingPage() {
           </div>
           <div className="grid md:grid-cols-3 gap-4 items-stretch">
             {[
-              { stat: "20+ hrs", label: "The average family spends this researching every trip. You won't.", icon: <Clock size={22} style={{ color: "#C4664A" }} />, scale: false },
-              { stat: "Built for families", label: "Not a generic travel app with a family filter bolted on.", icon: <Users size={22} style={{ color: "#C4664A" }} />, scale: true },
-              { stat: "All in one place", label: "Saves, itineraries, recommendations, and booking. No tab switching.", icon: <Layers size={22} style={{ color: "#C4664A" }} />, scale: false },
+              { stat: "20+ hrs", label: "The average family spends this researching every trip. You won't.", scale: false },
+              { stat: "Built for families", label: "Not a generic travel app with a family filter bolted on.", scale: true },
+              { stat: "All in one place", label: "Saves, itineraries, recommendations, and booking. No tab switching.", scale: false },
             ].map((item) => (
               <div
                 key={item.stat}
@@ -462,7 +465,6 @@ export default function LandingPage() {
                   transform: item.scale ? "scale(1.05)" : "scale(1)",
                 }}
               >
-                {item.icon}
                 <p className="font-black leading-tight" style={{ fontSize: "32px", color: "#1a1a1a" }}>{item.stat}</p>
                 <p className="text-center leading-relaxed" style={{ color: "#717171", fontSize: "13px" }}>{item.label}</p>
               </div>
@@ -470,6 +472,7 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+      </div>
 
       {/* Features */}
       <section className="py-24 px-6" style={{ backgroundColor: "#fff" }}>
