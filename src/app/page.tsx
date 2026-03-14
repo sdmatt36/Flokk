@@ -344,7 +344,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
               {
-                name: "Book everything in one place",
+                name: "Booking Engine",
                 desc: "Flights, hotels, and experiences — booked and filed to your trip automatically.",
               },
               {
@@ -465,7 +465,7 @@ export default function LandingPage() {
                   transform: item.scale ? "scale(1.05)" : "scale(1)",
                 }}
               >
-                <p className="font-black leading-tight" style={{ fontSize: "32px", color: "#1B3A5C" }}>{item.stat}</p>
+                <p className="font-black leading-tight text-center" style={{ fontSize: "32px", color: "#1B3A5C" }}>{item.stat}</p>
                 <p className="text-center leading-relaxed" style={{ color: "#717171", fontSize: "13px" }}>{item.label}</p>
               </div>
             ))}
