@@ -175,7 +175,7 @@ export default function LandingPage() {
             </div>
             <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
               <div style={{ backgroundColor: "#fff", borderRadius: "16px", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", border: "1px solid #EEEEEE", overflow: "hidden", width: "100%", maxWidth: "360px" }}>
-                <div style={{ position: "relative", height: "180px", backgroundImage: "url('https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=800')", backgroundSize: "cover", backgroundPosition: "center" }}>
+                <div style={{ position: "relative", height: "180px", backgroundImage: "url('https://images.unsplash.com/photo-1533900298318-6b8da08a523e?w=640&q=80')", backgroundSize: "cover", backgroundPosition: "center" }}>
                   <div style={{ position: "absolute", bottom: "10px", left: "10px", backgroundColor: "#E1306C", color: "#fff", fontSize: "11px", padding: "3px 10px", borderRadius: "20px", display: "flex", alignItems: "center", gap: "4px" }}>
                     <Instagram size={12} />
                     Instagram
@@ -214,7 +214,7 @@ export default function LandingPage() {
                       <span className="text-xs font-medium" style={{ color: "#999" }}>1.2km from your hotel</span>
                     </div>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800" alt="Travel planning" className="w-full object-cover" style={{ height: "150px" }} />
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/4/4e/Main_tank_of_the_Kuroshio_Sea_in_Okinawa_Churaumi_Aquarium.JPG" alt="Churaumi Aquarium" className="w-full object-cover" style={{ height: "150px" }} />
                     <div className="p-4 space-y-3">
                       <div>
                         <p className="font-bold text-base" style={{ color: "#1a1a1a" }}>Churaumi Aquarium</p>
