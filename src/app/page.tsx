@@ -13,8 +13,7 @@ export default function LandingPage() {
       {/* Nav */}
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-sm border-b" style={{ backgroundColor: "rgba(255,255,255,0.92)", borderColor: "#EEEEEE" }}>
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-          <span className="flex items-center gap-2 text-xl font-bold" style={{ color: "#2d2d2d" }}>
-            <Plane size={20} style={{ color: "#C4664A" }} />
+          <span className="text-xl font-bold" style={{ color: "#2d2d2d" }}>
             Flokk
           </span>
           <div className="flex items-center gap-4">
@@ -212,16 +211,16 @@ export default function LandingPage() {
                   <div className="rounded-2xl overflow-hidden border w-full" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE", maxWidth: "340px" }}>
                     <div className="flex items-center gap-2 px-4 pt-4 pb-2">
                       <MapPin size={13} style={{ color: "#C4664A", flexShrink: 0 }} />
-                      <span className="text-xs font-medium" style={{ color: "#999" }}>600m from your hotel</span>
+                      <span className="text-xs font-medium" style={{ color: "#999" }}>1.2km from your hotel</span>
                     </div>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src="https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800" alt="Travel planning" className="w-full object-cover" style={{ height: "150px" }} />
                     <div className="p-4 space-y-3">
                       <div>
-                        <p className="font-bold text-base" style={{ color: "#1a1a1a" }}>Mercado de San Miguel</p>
-                        <p className="text-xs mt-0.5" style={{ color: "#999" }}>Madrid · Saved 4 months ago from Instagram</p>
+                        <p className="font-bold text-base" style={{ color: "#1a1a1a" }}>Churaumi Aquarium</p>
+                        <p className="text-xs mt-0.5" style={{ color: "#999" }}>Okinawa, Japan · Saved 2 months ago from Google Maps</p>
                       </div>
-                      <p className="text-sm leading-relaxed" style={{ color: "#717171" }}>Opens at 10am — perfect before your museum visit. Kids aged 6+ love the churros counter.</p>
+                      <p className="text-sm leading-relaxed" style={{ color: "#717171" }}>Opens at 8:30am — perfect for morning. Kids under 6 free. Whale sharks year-round.</p>
                       <div className="flex gap-2 pt-1">
                         <button className="flex-1 text-sm font-semibold py-2 rounded-xl text-white" style={{ backgroundColor: "#1a1a1a" }}>Add to Tuesday</button>
                         <button className="px-4 text-sm font-medium rounded-xl border" style={{ borderColor: "#EEEEEE", color: "#717171" }}>Map</button>
