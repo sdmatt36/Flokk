@@ -368,9 +368,9 @@ export default function LandingPage() {
                 desc: "Browse trips built by families with kids the same ages, interests, and travel style.",
               },
             ].map(({ name, desc }) => (
-              <div key={name} style={{ backgroundColor: "#FFFFFF", borderRadius: "12px", padding: "28px 24px", borderTop: "3px solid #C4664A", border: "1px solid #E8E8E8", borderTopColor: "#C4664A", borderTopWidth: "3px" }}>
-                <p style={{ color: "#1B3A5C", fontWeight: 600, fontSize: "16px", marginTop: 0 }}>{name}</p>
-                <p style={{ color: "#717171", fontSize: "14px", marginTop: "8px", lineHeight: 1.5 }}>{desc}</p>
+              <div key={name} style={{ backgroundColor: "#FFFFFF", borderRadius: "12px", padding: "28px 24px", border: "1px solid #E8E8E8", borderTopColor: "#C4664A", borderTopWidth: "3px", textAlign: "center" }}>
+                <p style={{ color: "#1B3A5C", fontWeight: 600, fontSize: "18px", marginTop: 0, textAlign: "center" }}>{name}</p>
+                <p style={{ color: "#717171", fontSize: "14px", marginTop: "8px", lineHeight: 1.5, textAlign: "center" }}>{desc}</p>
               </div>
             ))}
           </div>
