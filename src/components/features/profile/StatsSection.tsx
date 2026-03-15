@@ -89,23 +89,13 @@ function TierCard() {
     <div style={cardStyle}>
 
       {/* Section A — Current tier */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px" }}>
-        <div>
-          <p style={{ fontSize: "30px", fontWeight: 700, color: "#1B3A5C", margin: 0, lineHeight: 1 }}>
-            {cfg.label}
-          </p>
-          <p style={{ fontSize: "14px", color: "#717171", margin: "6px 0 0", lineHeight: 1.5 }}>
-            {cfg.desc}
-          </p>
-        </div>
-        <span style={{
-          flexShrink: 0,
-          padding: "4px 16px", borderRadius: "999px", fontSize: "14px", fontWeight: 600,
-          backgroundColor: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
-          whiteSpace: "nowrap",
-        }}>
+      <div>
+        <p style={{ fontSize: "30px", fontWeight: 700, color: "#1B3A5C", margin: 0, lineHeight: 1 }}>
           {cfg.label}
-        </span>
+        </p>
+        <p style={{ fontSize: "14px", color: "#717171", margin: "6px 0 0", lineHeight: 1.5 }}>
+          {cfg.desc}
+        </p>
       </div>
 
       {/* Progress bar */}
@@ -118,7 +108,7 @@ function TierCard() {
             </div>
             <div style={{ width: "100%", height: "8px", backgroundColor: "#F5F5F5", borderRadius: "999px", overflow: "hidden" }}>
               <div style={{
-                width: `${progressPct}%`, height: "100%",
+                width: `max(${progressPct}%, 4px)`, height: "100%",
                 backgroundColor: "#1B3A5C", borderRadius: "999px",
                 transition: "width 0.5s ease",
               }} />
