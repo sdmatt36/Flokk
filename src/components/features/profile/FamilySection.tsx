@@ -8,20 +8,12 @@ const FREQUENCY_OPTIONS = [
   { value: "SIX_PLUS", label: "6+ per year" },
 ];
 
-const BUDGET_OPTIONS = [
-  { value: "BUDGET", label: "Budget" },
-  { value: "MID", label: "Mid-range" },
-  { value: "PREMIUM", label: "Premium" },
-  { value: "LUXURY", label: "Luxury" },
-];
-
 interface FamilyProfileData {
-  familyName: string | null;
-  homeCity: string | null;
-  homeCountry: string | null;
-  travelFrequency: string | null;
-  budgetRange: string | null;
-  accessibilityNotes: string | null;
+  familyName: string;
+  homeCity: string;
+  homeCountry: string;
+  travelFrequency: string;
+  accessibilityNotes: string;
 }
 
 const fieldStyle: React.CSSProperties = {
@@ -53,7 +45,6 @@ export function FamilySection() {
     homeCity: "",
     homeCountry: "",
     travelFrequency: "",
-    budgetRange: "",
     accessibilityNotes: "",
   });
 
@@ -67,7 +58,6 @@ export function FamilySection() {
             homeCity: familyProfile.homeCity || "",
             homeCountry: familyProfile.homeCountry || "",
             travelFrequency: familyProfile.travelFrequency || "",
-            budgetRange: familyProfile.budgetRange || "",
             accessibilityNotes: familyProfile.accessibilityNotes || "",
           });
         }
@@ -90,7 +80,7 @@ export function FamilySection() {
 
   function field(key: keyof FamilyProfileData) {
     return {
-      value: (form[key] as string) ?? "",
+      value: form[key],
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
         setForm((f) => ({ ...f, [key]: e.target.value })),
     };
@@ -130,15 +120,6 @@ export function FamilySection() {
             <select style={fieldStyle} {...field("travelFrequency")}>
               <option value="">Select...</option>
               {FREQUENCY_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label style={labelStyle}>Budget range</label>
-            <select style={fieldStyle} {...field("budgetRange")}>
-              <option value="">Select...</option>
-              {BUDGET_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>

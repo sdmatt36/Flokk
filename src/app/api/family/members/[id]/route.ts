@@ -24,10 +24,18 @@ export async function PATCH(
 
   const body = await request.json();
 
+  // Support either a combined `name` field or separate `firstName` + `lastName`
+  let resolvedName: string | null | undefined = undefined;
+  if (body.firstName !== undefined || body.lastName !== undefined) {
+    resolvedName = `${body.firstName || ""} ${body.lastName || ""}`.trim() || null;
+  } else if (body.name !== undefined) {
+    resolvedName = body.name || null;
+  }
+
   const updated = await db.familyMember.update({
     where: { id },
     data: {
-      ...(body.name !== undefined && { name: body.name || null }),
+      ...(resolvedName !== undefined && { name: resolvedName }),
       ...(body.birthDate !== undefined && { birthDate: body.birthDate ? new Date(body.birthDate) : null }),
       ...(body.dietaryRequirements !== undefined && {
         dietaryRequirements: { set: body.dietaryRequirements as DietaryReq[] },

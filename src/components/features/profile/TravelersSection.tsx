@@ -49,6 +49,13 @@ function saveExt(id: string, data: MemberExt) {
   try { localStorage.setItem(`flokk_member_ext_${id}`, JSON.stringify(data)); } catch { /* ignore */ }
 }
 
+function parseName(fullName: string | null): { firstName: string; lastName: string } {
+  if (!fullName) return { firstName: "", lastName: "" };
+  const idx = fullName.indexOf(" ");
+  if (idx === -1) return { firstName: fullName, lastName: "" };
+  return { firstName: fullName.slice(0, idx), lastName: fullName.slice(idx + 1) };
+}
+
 function calcAge(birthDate: string | null): string {
   if (!birthDate) return "—";
   const b = new Date(birthDate);
@@ -70,8 +77,8 @@ const inputStyle: React.CSSProperties = {
 };
 
 const labelSt: React.CSSProperties = {
-  display: "block", fontSize: "12px", fontWeight: 500,
-  color: "#717171", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.05em",
+  display: "block", fontSize: "11px", fontWeight: 600,
+  color: "#717171", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.06em",
 };
 
 function InfoPair({ label, value }: { label: string; value: string }) {
@@ -98,8 +105,10 @@ function TravelerCard({
   const [saving, setSaving] = useState(false);
   const [ext, setExt] = useState<MemberExt>(() => loadExt(member.id));
 
+  const parsed = parseName(member.name);
   const [form, setForm] = useState({
-    name: member.name || "",
+    firstName: parsed.firstName,
+    lastName: parsed.lastName,
     birthDate: member.birthDate ? member.birthDate.slice(0, 10) : "",
     dietaryRequirements: [...member.dietaryRequirements],
     mobilityNotes: member.mobilityNotes || "",
@@ -120,7 +129,8 @@ function TravelerCard({
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: form.name,
+        firstName: form.firstName,
+        lastName: form.lastName,
         birthDate: form.birthDate || null,
         dietaryRequirements: form.dietaryRequirements,
         mobilityNotes: form.mobilityNotes,
@@ -134,8 +144,10 @@ function TravelerCard({
   }
 
   function handleCancel() {
+    const p = parseName(member.name);
     setForm({
-      name: member.name || "",
+      firstName: p.firstName,
+      lastName: p.lastName,
       birthDate: member.birthDate ? member.birthDate.slice(0, 10) : "",
       dietaryRequirements: [...member.dietaryRequirements],
       mobilityNotes: member.mobilityNotes || "",
@@ -154,11 +166,13 @@ function TravelerCard({
     </span>
   );
 
+  const displayName = member.name || "Unnamed traveler";
+
   return (
     <div style={{ backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #E8E8E8", padding: "24px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
         <span style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C", flex: 1 }}>
-          {member.name || "Unnamed traveler"}
+          {displayName}
         </span>
         {rolePill}
         <button
@@ -173,7 +187,7 @@ function TravelerCard({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <InfoPair label="Date of birth" value={fmtDate(member.birthDate)} />
           <InfoPair label="Age" value={calcAge(member.birthDate)} />
-          <InfoPair label="Dietary requirements" value={member.dietaryRequirements.map((d) => d.replace("_", " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())).join(", ") || "None"} />
+          <InfoPair label="Dietary requirements" value={member.dietaryRequirements.map((d) => d.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())).join(", ") || "None"} />
           <InfoPair label="Seat preference" value={loadExt(member.id).seatPreference || "—"} />
           <InfoPair label="KTN / TSA PreCheck" value={loadExt(member.id).ktn || "—"} />
           <InfoPair label="Special meal" value={loadExt(member.id).specialMealType || "—"} />
@@ -185,12 +199,21 @@ function TravelerCard({
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label style={labelSt}>Full name</label>
+              <label style={labelSt}>Legal first name</label>
               <input
                 style={inputStyle}
-                value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="Legal name"
+                value={form.firstName}
+                onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
+                placeholder="First name"
+              />
+            </div>
+            <div>
+              <label style={labelSt}>Legal last name</label>
+              <input
+                style={inputStyle}
+                value={form.lastName}
+                onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
+                placeholder="Last name"
               />
             </div>
             <div>
@@ -317,7 +340,6 @@ function TravelerCard({
 export function TravelersSection() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newMemberRole, setNewMemberRole] = useState<"ADULT" | "CHILD" | null>(null);
 
   useEffect(() => {
     fetch("/api/family/members")
@@ -333,10 +355,7 @@ export function TravelersSection() {
       body: JSON.stringify({ role, name: "", birthDate: null, dietaryRequirements: [] }),
     });
     const data = await res.json();
-    if (data.member) {
-      setMembers((m) => [...m, data.member]);
-      setNewMemberRole(null);
-    }
+    if (data.member) setMembers((m) => [...m, data.member]);
   }
 
   if (loading) return <p style={{ color: "#717171", fontSize: "14px" }}>Loading...</p>;
@@ -351,31 +370,28 @@ export function TravelersSection() {
           onDeleted={(id) => setMembers((ms) => ms.filter((x) => x.id !== id))}
         />
       ))}
-
-      {!newMemberRole ? (
-        <div style={{ display: "flex", gap: "8px" }}>
-          <button
-            onClick={() => addMember("ADULT")}
-            style={{
-              border: "1px solid #1B3A5C", color: "#1B3A5C", backgroundColor: "#fff",
-              borderRadius: "8px", padding: "9px 18px", fontSize: "13px",
-              fontWeight: 500, cursor: "pointer",
-            }}
-          >
-            + Add adult
-          </button>
-          <button
-            onClick={() => addMember("CHILD")}
-            style={{
-              border: "1px solid #C4664A", color: "#C4664A", backgroundColor: "#fff",
-              borderRadius: "8px", padding: "9px 18px", fontSize: "13px",
-              fontWeight: 500, cursor: "pointer",
-            }}
-          >
-            + Add child
-          </button>
-        </div>
-      ) : null}
+      <div style={{ display: "flex", gap: "8px" }}>
+        <button
+          onClick={() => addMember("ADULT")}
+          style={{
+            border: "1px solid #1B3A5C", color: "#1B3A5C", backgroundColor: "#fff",
+            borderRadius: "8px", padding: "9px 18px", fontSize: "13px",
+            fontWeight: 500, cursor: "pointer",
+          }}
+        >
+          + Add adult
+        </button>
+        <button
+          onClick={() => addMember("CHILD")}
+          style={{
+            border: "1px solid #C4664A", color: "#C4664A", backgroundColor: "#fff",
+            borderRadius: "8px", padding: "9px 18px", fontSize: "13px",
+            fontWeight: 500, cursor: "pointer",
+          }}
+        >
+          + Add child
+        </button>
+      </div>
     </div>
   );
 }
