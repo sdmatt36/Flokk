@@ -58,7 +58,7 @@ const TIER_UNLOCKS = [
 
 const cardStyle: React.CSSProperties = {
   backgroundColor: "#fff", borderRadius: "12px",
-  border: "1px solid #E8E8E8", padding: "24px",
+  border: "1px solid #E8E8E8", padding: "32px",
 };
 
 // ── Stat Cards ─────────────────────────────────────────────────────────────
@@ -67,12 +67,13 @@ function StatCard({ icon, value, label }: { icon: React.ReactNode; value: string
   return (
     <div style={{
       ...cardStyle,
+      padding: "32px",
       borderLeft: "4px solid #C4664A",
-      display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "8px",
+      display: "flex", flexDirection: "column", alignItems: "flex-start",
     }}>
-      {icon}
-      <p style={{ fontSize: "36px", fontWeight: 700, color: "#1B3A5C", margin: 0, lineHeight: 1 }}>{value}</p>
-      <p style={{ fontSize: "13px", color: "#717171", margin: 0 }}>{label}</p>
+      <div style={{ marginBottom: "12px" }}>{icon}</div>
+      <p style={{ fontSize: "48px", fontWeight: 700, color: "#1B3A5C", margin: 0, lineHeight: 1 }}>{value}</p>
+      <p style={{ fontSize: "13px", color: "#717171", margin: "8px 0 0" }}>{label}</p>
     </div>
   );
 }
@@ -98,13 +99,13 @@ function Badge({ badge }: { badge: BadgeDef }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", opacity: badge.earned ? 1 : 0.4, filter: badge.earned ? "none" : "grayscale(1)" }}>
       <div style={{
-        width: "48px", height: "48px", borderRadius: "50%",
+        width: "56px", height: "56px", borderRadius: "50%",
         backgroundColor: circleBg, border: circleBorder,
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
         {badge.icon}
       </div>
-      <p style={{ fontSize: "11px", fontWeight: 500, textAlign: "center", color: "#1a1a1a", margin: 0, lineHeight: 1.3 }}>{badge.name}</p>
+      <p style={{ fontSize: "12px", fontWeight: 500, textAlign: "center", color: badge.earned ? "#1B3A5C" : "#717171", margin: 0, lineHeight: 1.3 }}>{badge.name}</p>
       <p style={{ fontSize: "10px", color: "#717171", textAlign: "center", margin: 0 }}>
         {badge.earned ? (badge.earnedDate ?? "Earned") : "Locked"}
       </p>
@@ -229,10 +230,10 @@ export function StatsSection() {
   if (loading) return <p style={{ color: "#717171", fontSize: "14px" }}>Loading...</p>;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
 
       {/* A — Stat cards */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-6">
         <StatCard
           icon={<Plane size={20} style={{ color: "#C4664A" }} />}
           value={String(data?.tripsTaken ?? 0)}
@@ -292,12 +293,12 @@ export function StatsSection() {
         </div>
 
         {/* Tier columns */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4" style={{ marginTop: "20px" }}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4" style={{ marginTop: "16px" }}>
           {TIER_UNLOCKS.map((t) => (
             <div key={t.name}>
-              <p style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 8px" }}>{t.name}</p>
+              <p style={{ fontSize: "14px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 8px" }}>{t.name}</p>
               {t.perks.map((perk) => (
-                <p key={perk} style={{ fontSize: "12px", color: "#717171", margin: "0 0 4px", lineHeight: 1.4 }}>
+                <p key={perk} style={{ fontSize: "12px", color: "#717171", margin: "0 0 4px", lineHeight: 1.6 }}>
                   {perk}
                 </p>
               ))}
@@ -309,7 +310,7 @@ export function StatsSection() {
       {/* D — Badges */}
       <div style={cardStyle}>
         <p style={{ fontSize: "15px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 16px" }}>Badges</p>
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-4">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-6">
           {badges.map((b) => <Badge key={b.name} badge={b} />)}
         </div>
       </div>
@@ -326,9 +327,9 @@ export function StatsSection() {
           { num: "0", label: "Destinations contributed", desc: "Destinations where you have shared recommendations" },
         ].map((item, i) => (
           <div key={item.label}>
-            {i > 0 && <div style={{ borderTop: "1px solid #E8E8E8", margin: "12px 0" }} />}
+            {i > 0 && <div style={{ borderTop: "1px solid #E8E8E8", margin: "16px 0" }} />}
             <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-              <span style={{ fontSize: "28px", fontWeight: 700, color: "#1B3A5C", minWidth: "40px" }}>{item.num}</span>
+              <span style={{ fontSize: "36px", fontWeight: 700, color: "#1B3A5C", minWidth: "48px" }}>{item.num}</span>
               <div>
                 <p style={{ fontSize: "14px", fontWeight: 500, color: "#1B3A5C", margin: 0 }}>{item.label}</p>
                 <p style={{ fontSize: "12px", color: "#717171", margin: "2px 0 0" }}>{item.desc}</p>
