@@ -403,13 +403,13 @@ export default function LandingPage() {
             {[
               {
                 img: "https://images.unsplash.com/photo-1478436127897-769e1b3f0f36?w=800&q=80",
-                destination: "Japan — Kyoto & Tokyo",
+                destination: "Kyoto, Japan",
                 family: "Family of 4 · Kids ages 7 & 10",
                 tags: ["Kid-friendly", "10 days", "Gluten-free"],
-                items: ["Arashiyama Bamboo Grove", "teamLab Planets", "Tsukiji Outer Market"],
+                items: ["Fushimi Inari Shrine", "Arashiyama Bamboo Grove", "Kinkaku-ji Golden Pavilion"],
               },
               {
-                img: "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=800&q=80",
+                img: "https://images.unsplash.com/photo-1518259102261-b40117eabbc9?w=800&q=80",
                 destination: "Costa Rica — Guanacaste",
                 family: "Family of 5 · Kids ages 4, 9 & 12",
                 tags: ["Adventure", "7 days", "All-inclusive"],
