@@ -782,29 +782,6 @@ function SavedContent({ tripId: tripIdProp }: { tripId?: string }) {
           if (LEFT_CATS.includes(cat)) left.push({ category: cat, items });
           else right.push({ category: cat, items });
         }
-        // If one column is empty, redistribute so both columns have content
-        if (left.length === 0 && right.length > 0) {
-          if (right.length === 1) {
-            // Single section — split its items across both columns
-            const sec = right[0];
-            const mid = Math.ceil(sec.items.length / 2);
-            left.push({ category: sec.category, items: sec.items.slice(0, mid) });
-            right[0] = { category: sec.category, items: sec.items.slice(mid) };
-          } else {
-            const mid = Math.ceil(right.length / 2);
-            left.push(...right.splice(0, mid));
-          }
-        } else if (right.length === 0 && left.length > 0) {
-          if (left.length === 1) {
-            const sec = left[0];
-            const mid = Math.ceil(sec.items.length / 2);
-            right.push({ category: sec.category, items: sec.items.slice(mid) });
-            left[0] = { category: sec.category, items: sec.items.slice(0, mid) };
-          } else {
-            const mid = Math.ceil(left.length / 2);
-            right.push(...left.splice(0, mid));
-          }
-        }
         setLeftSections(left);
         setRightSections(right);
         setLoading(false);
@@ -902,9 +879,15 @@ function SavedContent({ tripId: tripIdProp }: { tripId?: string }) {
 
   return (
     <div>
-      <div className="grid grid-cols-2 gap-5">
-        <div>{leftSections.map(renderSection)}</div>
-        <div>{rightSections.map(renderSection)}</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          {/* Left column: LODGING + AIRFARE */}
+          {leftSections.map(renderSection)}
+        </div>
+        <div>
+          {/* Right column: RESTAURANTS + ACTIVITIES */}
+          {rightSections.map(renderSection)}
+        </div>
       </div>
 
       {inlineToast && (

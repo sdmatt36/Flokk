@@ -351,28 +351,28 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
               {
-                name: "Booking Engine",
+                name: "Book everything in one place",
                 desc: "Flights, hotels, and experiences — booked and filed to your trip automatically.",
               },
               {
-                name: "Forward any confirmation email — we'll file it",
-                desc: "Send any booking confirmation to Flokk and we'll extract every detail.",
+                name: "Forward it. Done.",
+                desc: "Send any booking confirmation to trips@flokktravel.com — we extract every detail.",
               },
               {
-                name: "Your itinerary, ready to navigate",
-                desc: "One tap exports your day as a navigable route to Google or Apple Maps.",
+                name: "One tap to navigate.",
+                desc: "Export your day as a live route in Google or Apple Maps.",
               },
               {
-                name: "Trip dates land in your calendar automatically",
-                desc: "Every booking drops straight into your family calendar — no copy-paste.",
+                name: "Already in your calendar.",
+                desc: "Every booking drops into your family calendar automatically.",
               },
               {
-                name: "See exactly what your points are worth",
-                desc: "Your miles and points surfaced alongside every search, so nothing gets left on the table.",
+                name: "Know your points.",
+                desc: "Your miles and rewards surfaced alongside every search.",
               },
               {
-                name: "Real itineraries from families like yours",
-                desc: "Browse trips built by families with kids the same ages, interests, and travel style.",
+                name: "Trips that worked.",
+                desc: "Real itineraries from families with kids the same ages and interests as yours.",
               },
             ].map(({ name, desc }) => (
               <div key={name} style={{ backgroundColor: "#FFFFFF", borderRadius: "12px", padding: "28px 24px", border: "1px solid #E8E8E8", borderTopColor: "#C4664A", borderTopWidth: "3px", textAlign: "center" }}>
