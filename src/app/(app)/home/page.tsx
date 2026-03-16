@@ -187,6 +187,11 @@ export default async function HomePage() {
                     {activeTrip.destinationCity}{activeTrip.destinationCountry ? `, ${activeTrip.destinationCountry}` : ""}
                   </p>
                 )}
+                {!activeTrip && (
+                  <p style={{ fontSize: "14px", fontStyle: "italic", color: "rgba(255,255,255,0.65)", marginTop: "8px" }}>
+                    Because 47 browser tabs isn&apos;t a plan.
+                  </p>
+                )}
                 {activeTrip ? (
                   <Link
                     href={`/trips/${activeTrip.id}`}
@@ -195,12 +200,12 @@ export default async function HomePage() {
                     View trip
                   </Link>
                 ) : (
-                  <button
-                    style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: "8px", fontWeight: 600, padding: "10px 20px", borderRadius: "999px", fontSize: "14px", marginTop: "12px", backgroundColor: "#C4664A", color: "#fff", border: "none", cursor: "pointer" }}
+                  <Link
+                    href="/trips"
+                    style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: "8px", fontWeight: 600, padding: "10px 20px", borderRadius: "999px", fontSize: "14px", marginTop: "12px", backgroundColor: "#1B3A5C", color: "#fff", textDecoration: "none" }}
                   >
-                    <Plus size={14} strokeWidth={2.5} />
                     Plan a trip
-                  </button>
+                  </Link>
                 )}
               </div>
             </div>
