@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { MapPin, Tag, Bookmark, BookmarkCheck, Sparkles, Users, ChevronRight, ChevronDown, X, Calendar } from "lucide-react";
 import { CommunityTripMap, type MarkerDef } from "./CommunityTripMap";
 import Link from "next/link";
+import { RecommendationDrawer, type DrawerRec } from "./RecommendationDrawer";
 
 export type ActivityItem = {
   id: string;
   rawTitle: string | null;
   rawDescription: string | null;
+  mediaThumbnailUrl?: string | null;
   categoryTags: string[];
   dayIndex: number | null;
   lat?: number | null;
@@ -34,20 +36,20 @@ const DESTINATION_RECS: Record<string, Array<{
   img: string; saved: number; lat: number; lng: number;
 }>> = {
   Kyoto: [
-    { title: "Kiyomizudera Temple", location: "Higashiyama, Kyoto", tags: "Culture · Free · 1.5 hrs", match: "UNESCO site · Hilltop views · All ages", img: "https://images.unsplash.com/photo-1478436127897-769e1b3f0f36?w=400&auto=format&fit=crop&q=80", saved: 3210, lat: 34.9948, lng: 135.7851 },
-    { title: "Tea Ceremony in Gion", location: "Gion, Kyoto", tags: "Culture · $30 · 1 hr", match: "Traditional experience · Hands-on · Ages 5+", img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&auto=format&fit=crop&q=80", saved: 1870, lat: 35.0033, lng: 135.7764 },
-    { title: "Toei Kyoto Studio Park", location: "Uzumasa, Kyoto", tags: "Kids · $15 · Half day", match: "Samurai & ninja shows · Ages 4+ · Unique to Kyoto", img: "https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=400&auto=format&fit=crop&q=80", saved: 940, lat: 35.0189, lng: 135.7047 },
-    { title: "Nishiki Market Street Food", location: "Central Kyoto", tags: "Food · Free · 1–2 hrs", match: "Street snacks · Covered arcade · All ages", img: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&auto=format&fit=crop&q=80", saved: 2650, lat: 35.0042, lng: 135.7657 },
-    { title: "Kibune Shrine & River Walk", location: "Kibune, Kyoto", tags: "Outdoor · Free · 2 hrs", match: "Nature · Lantern-lit path · All ages", img: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=400&auto=format&fit=crop&q=80", saved: 1140, lat: 35.1113, lng: 135.7488 },
-    { title: "Fushimi Momoyama Castle", location: "Fushimi, Kyoto", tags: "History · $5 · 1.5 hrs", match: "Samurai history · Hilltop · Kids love the walls", img: "https://images.unsplash.com/photo-1513407030348-c983a97b98d8?w=400&auto=format&fit=crop&q=80", saved: 810, lat: 34.9441, lng: 135.7730 },
+    { title: "Kiyomizudera Temple", location: "Higashiyama, Kyoto", tags: "Culture · Free · 1.5 hrs", match: "UNESCO site · Hilltop views · All ages", img: "/images/kiyomizudera-temple.jpg", saved: 3210, lat: 34.9948, lng: 135.7851 },
+    { title: "Tea Ceremony in Gion", location: "Gion, Kyoto", tags: "Culture · $30 · 1 hr", match: "Traditional experience · Hands-on · Ages 5+", img: "/images/tea-ceremony-kyoto.jpg", saved: 1870, lat: 35.0033, lng: 135.7764 },
+    { title: "Toei Kyoto Studio Park", location: "Uzumasa, Kyoto", tags: "Kids · $15 · Half day", match: "Samurai & ninja shows · Ages 4+ · Unique to Kyoto", img: "/images/toei-kyoto-studio.jpg", saved: 940, lat: 35.0189, lng: 135.7047 },
+    { title: "Nishiki Market Street Food", location: "Central Kyoto", tags: "Food · Free · 1–2 hrs", match: "Street snacks · Covered arcade · All ages", img: "/images/nishiki-market.jpg", saved: 2650, lat: 35.0042, lng: 135.7657 },
+    { title: "Kibune Shrine & River Walk", location: "Kibune, Kyoto", tags: "Outdoor · Free · 2 hrs", match: "Nature · Lantern-lit path · All ages", img: "/images/kibune-shrine.jpg", saved: 1140, lat: 35.1113, lng: 135.7488 },
+    { title: "Fushimi Momoyama Castle", location: "Fushimi, Kyoto", tags: "History · $5 · 1.5 hrs", match: "Samurai history · Hilltop · Kids love the walls", img: "/images/fushimi-momoyama-castle.jpg", saved: 810, lat: 34.9441, lng: 135.7730 },
   ],
   Madrid: [
-    { title: "Santiago Bernabéu Stadium Tour", location: "Chamartín, Madrid", tags: "Sports · $35 · 1.5 hrs", match: "Football fans · Ages 6+ · Unique experience", img: "https://images.unsplash.com/photo-1551958219-acbc630e2914?w=400&auto=format&fit=crop&q=80", saved: 2890, lat: 40.4531, lng: -3.6883 },
+    { title: "Santiago Bernabéu Stadium Tour", location: "Chamartín, Madrid", tags: "Sports · $35 · 1.5 hrs", match: "Football fans · Ages 6+ · Unique experience", img: "/images/bernabeu-stadium.jpg", saved: 2890, lat: 40.4531, lng: -3.6883 },
     { title: "Aquópolis Water Park", location: "Villanueva de la Cañada", tags: "Kids · $30 · Full day", match: "Summer essential · Ages 3+ · Waterslides", img: "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&auto=format&fit=crop&q=80", saved: 1560, lat: 40.4449, lng: -3.9972 },
-    { title: "Reina Sofía Museum", location: "Atocha, Madrid", tags: "Culture · $12 · 2 hrs", match: "Guernica · Modern art · Ages 8+", img: "https://images.unsplash.com/photo-1536924940846-227afb31e2a5?w=400&auto=format&fit=crop&q=80", saved: 2140, lat: 40.4080, lng: -3.6944 },
+    { title: "Reina Sofía Museum", location: "Atocha, Madrid", tags: "Culture · $12 · 2 hrs", match: "Guernica · Modern art · Ages 8+", img: "/images/reina-sofia-museum.jpg", saved: 2140, lat: 40.4080, lng: -3.6944 },
     { title: "Parque de Atracciones", location: "Casa de Campo, Madrid", tags: "Kids · $35 · Half day", match: "Rides & roller coasters · Ages 3+ · Family classic", img: "https://images.unsplash.com/photo-1513002749826-77c61bfa41b8?w=400&auto=format&fit=crop&q=80", saved: 1230, lat: 40.4085, lng: -3.7517 },
-    { title: "Flamenco Show at Corral de la Morería", location: "Opera, Madrid", tags: "Culture · $45 · 1.5 hrs", match: "Authentic tablao · Evening · Ages 7+", img: "https://images.unsplash.com/photo-1518834107812-67b0b7c58434?w=400&auto=format&fit=crop&q=80", saved: 1740, lat: 40.4150, lng: -3.7126 },
-    { title: "Chocolatería San Ginés", location: "Sol, Madrid", tags: "Food · $8 · 30 min", match: "Best churros con chocolate in Madrid · All ages", img: "https://images.unsplash.com/photo-1547592180-85f173990554?w=400&auto=format&fit=crop&q=80", saved: 3380, lat: 40.4157, lng: -3.7077 },
+    { title: "Flamenco Show at Corral de la Morería", location: "Opera, Madrid", tags: "Culture · $45 · 1.5 hrs", match: "Authentic tablao · Evening · Ages 7+", img: "/images/flamenco-show.jpg", saved: 1740, lat: 40.4150, lng: -3.7126 },
+    { title: "Chocolatería San Ginés", location: "Sol, Madrid", tags: "Food · $8 · 30 min", match: "Best churros con chocolate in Madrid · All ages", img: "/images/chocolateria-san-gines.jpg", saved: 3380, lat: 40.4157, lng: -3.7077 },
   ],
   Lisbon: [
     { title: "Lisbon Oceanarium", location: "Parque das Nações", tags: "Kids · $20 · 2 hrs", match: "Best aquarium in Europe · Ages 2+ · Otters!", img: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=400&auto=format&fit=crop&q=80", saved: 4110, lat: 38.7633, lng: -9.0933 },
@@ -286,6 +288,7 @@ export function CommunityTripView({
   const [savingSet, setSavingSet] = useState<Set<string>>(new Set());
   const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [showCloneModal, setShowCloneModal] = useState(false);
+  const [drawerRec, setDrawerRec] = useState<DrawerRec | null>(null);
   const [leftHeight, setLeftHeight] = useState<number | null>(null);
   const leftPanelRef = useRef<HTMLDivElement>(null);
 
@@ -407,10 +410,14 @@ export function CommunityTripView({
                             const saving = savingSet.has(item.id);
                             return (
                               <div key={item.id} style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                                {/* Number badge — mirrors Okinawa's icon box */}
-                                <div style={{ width: "40px", height: "40px", borderRadius: "8px", flexShrink: 0, backgroundColor: "rgba(196,102,74,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                  <span style={{ fontSize: "14px", fontWeight: 800, color: "#C4664A" }}>{idx + 1}</span>
-                                </div>
+                                {/* Thumbnail or number badge */}
+                                {item.mediaThumbnailUrl ? (
+                                  <div style={{ width: "56px", height: "56px", borderRadius: "8px", flexShrink: 0, backgroundImage: `url('${item.mediaThumbnailUrl}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                                ) : (
+                                  <div style={{ width: "40px", height: "40px", borderRadius: "8px", flexShrink: 0, backgroundColor: "rgba(196,102,74,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                    <span style={{ fontSize: "14px", fontWeight: 800, color: "#C4664A" }}>{idx + 1}</span>
+                                  </div>
+                                )}
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                   <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", lineHeight: 1.2 }}>{item.rawTitle}</p>
                                   {item.rawDescription && (
@@ -491,33 +498,41 @@ export function CommunityTripView({
               <p style={{ fontSize: "13px", color: "#717171" }}>We&apos;re curating top picks for {destinationCity ?? "this destination"}.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {recs.map((rec) => (
-                <div key={rec.title} style={{ backgroundColor: "#FAFAFA", borderRadius: "12px", border: "1px solid #EEEEEE", overflow: "hidden" }}>
-                  <div className="w-full h-48" style={{ backgroundImage: `url('${rec.img}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
-                  <div style={{ padding: "14px" }}>
-                    <p style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a", marginBottom: "4px" }}>{rec.title}</p>
-                    <p style={{ fontSize: "12px", color: "#717171", marginBottom: "3px", display: "flex", alignItems: "center", gap: "3px" }}>
-                      <MapPin size={10} />
-                      {rec.location}
-                    </p>
-                    <p style={{ fontSize: "12px", color: "#555", marginBottom: "4px" }}>{rec.tags}</p>
-                    <p style={{ fontSize: "12px", color: "#666", marginBottom: "10px", display: "flex", alignItems: "center", gap: "4px" }}>
-                      <Sparkles size={11} style={{ color: "#C4664A", flexShrink: 0 }} />
-                      {rec.match}
-                    </p>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                <div
+                  key={rec.title}
+                  onClick={() => setDrawerRec(rec)}
+                  style={{ backgroundColor: "#fff", borderRadius: "16px", border: "1px solid #F0F0F0", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden", display: "flex", flexDirection: "row", cursor: "pointer" }}
+                >
+                  {/* Left: image */}
+                  <div style={{ width: "112px", minWidth: "112px", height: "112px", flexShrink: 0, backgroundImage: `url('${rec.img}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                  {/* Right: content */}
+                  <div style={{ flex: 1, padding: "12px", display: "flex", flexDirection: "column", justifyContent: "space-between", minWidth: 0 }}>
+                    <div>
+                      <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rec.title}</p>
+                      <p style={{ fontSize: "12px", color: "#717171", marginBottom: "2px" }}>
+                        {rec.location.split(",")[0]} · {rec.tags.split(" · ")[0]}
+                      </p>
+                      <p style={{ fontSize: "12px", color: "#717171" }}>
+                        {rec.tags.split(" · ")[1] ?? ""}{rec.tags.split(" · ")[2] ? " · " + rec.tags.split(" · ")[2] : ""}
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
                       <button
-                        onClick={() => { setTab("itinerary"); setFlyTarget({ lat: rec.lat, lng: rec.lng }); }}
-                        style={{ display: "flex", alignItems: "center", gap: "3px", background: "none", border: "none", padding: 0, fontSize: "12px", fontWeight: 600, color: "#C4664A", cursor: "pointer" }}
+                        type="button"
+                        onClick={e => { e.stopPropagation(); setDrawerRec(rec); }}
+                        style={{ fontSize: "11px", fontWeight: 700, padding: "4px 10px", borderRadius: "999px", backgroundColor: "#C4664A", color: "#fff", border: "none", cursor: "pointer", whiteSpace: "nowrap" }}
                       >
-                        <MapPin size={11} />
-                        View on map
+                        + Itinerary
                       </button>
-                      <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-                        <Users size={11} style={{ color: "#AAAAAA" }} />
-                        <span style={{ fontSize: "11px", color: "#AAAAAA" }}>{rec.saved.toLocaleString()} families saved</span>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); setDrawerRec(rec); }}
+                        style={{ fontSize: "11px", fontWeight: 600, padding: "4px 10px", borderRadius: "999px", backgroundColor: "#fff", color: "#1B3A5C", border: "1.5px solid #E0E0E0", cursor: "pointer", whiteSpace: "nowrap" }}
+                      >
+                        Learn more
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -554,6 +569,13 @@ export function CommunityTripView({
           ))}
         </div>
       </div>
+
+      {/* Recommendation drawer */}
+      <RecommendationDrawer
+        item={drawerRec}
+        dayPills={[]}
+        onClose={() => setDrawerRec(null)}
+      />
 
       {/* Clone modal */}
       {showCloneModal && (

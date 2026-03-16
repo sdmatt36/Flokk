@@ -58,6 +58,7 @@ import {
 } from "lucide-react";
 import { TripMap } from "@/components/features/trips/TripMap";
 import { DropLinkModal } from "@/components/features/home/DropLinkModal";
+import { RecommendationDrawer, type DrawerRec } from "@/components/features/trips/RecommendationDrawer";
 
 type Tab = "saved" | "itinerary" | "recommended" | "packing";
 
@@ -1334,8 +1335,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, onSwitchToRe
                             time="09:00"
                             title="Katsuren Castle Ruins"
                             subtitle="Uruma · 2 hours · History"
-                            icon={<Landmark size={24} style={{ color: "#fff" }} />}
-                            iconBg="#c8b89a"
+                            img="/images/katsuren-castle.jpg"
                             tags={["Ages 6+", "Outdoor", "Free"]}
                             description="UNESCO World Heritage Site. 12th-century Ryukyuan castle ruins on a hilltop peninsula overlooking the Pacific. Easy walk for kids, panoramic views."
                             hours="Open 8:30am–6:00pm. Free entry. Parking available."
@@ -1859,170 +1859,6 @@ function PackingContent({ tripId }: { tripId?: string }) {
   );
 }
 
-// ── Rec detail modal ──────────────────────────────────────────────────────────
-
-function RecDetailModal({
-  rec,
-  isSaved,
-  isSaving,
-  onSave,
-  onViewOnMap,
-  onClose,
-  dayPills,
-}: {
-  rec: RecItem;
-  isSaved: boolean;
-  isSaving: boolean;
-  onSave: (dayIndex: number | null) => void;
-  onViewOnMap: (lat: number, lng: number) => void;
-  onClose: () => void;
-  dayPills: { dayIndex: number; label: string }[];
-}) {
-  const [imgFailed, setImgFailed] = useState(false);
-  const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const category = rec.tags.split(" · ")[0];
-  const price = rec.tags.split(" · ")[1] ?? "";
-  const duration = rec.tags.split(" · ")[2] ?? "";
-
-  return createPortal(
-    <div
-      onClick={onClose}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "560px", maxHeight: "90vh", overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom, 16px)" }}
-      >
-        {/* Hero image */}
-        <div style={{ position: "relative" }}>
-          {imgFailed ? (
-            <div style={{ height: "220px", backgroundColor: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Compass size={36} style={{ color: "#ccc" }} />
-            </div>
-          ) : (
-            <>
-              <div style={{ height: "220px", backgroundImage: `url('${rec.img}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
-              <img src={rec.img} alt="" onError={() => setImgFailed(true)} style={{ display: "none" }} />
-            </>
-          )}
-          <button onClick={onClose} style={{ position: "absolute", top: "12px", right: "12px", width: "32px", height: "32px", borderRadius: "50%", backgroundColor: "rgba(0,0,0,0.5)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "18px", lineHeight: 1 }}>×</button>
-          <span style={{ position: "absolute", bottom: "12px", left: "12px", fontSize: "11px", fontWeight: 700, backgroundColor: "rgba(196,102,74,0.9)", color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>{category}</span>
-        </div>
-
-        {/* Content */}
-        <div style={{ padding: "20px 20px 8px" }}>
-          <p style={{ fontSize: "20px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>{rec.title}</p>
-          <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "12px" }}>
-            <MapPin size={12} style={{ color: "#717171" }} />
-            <span style={{ fontSize: "13px", color: "#717171" }}>{rec.location}</span>
-          </div>
-
-          {/* Stats row */}
-          <div style={{ display: "flex", gap: "20px", marginBottom: "16px", flexWrap: "wrap" }}>
-            {price && <div><p style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a", margin: 0 }}>{price}</p><p style={{ fontSize: "11px", color: "#999", margin: "2px 0 0" }}>price</p></div>}
-            {duration && <div><p style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a", margin: 0 }}>{duration}</p><p style={{ fontSize: "11px", color: "#999", margin: "2px 0 0" }}>duration</p></div>}
-            {rec.ages && <div><p style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a", margin: 0 }}>{rec.ages}</p><p style={{ fontSize: "11px", color: "#999", margin: "2px 0 0" }}>ages</p></div>}
-            <div><p style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a", margin: 0 }}>{rec.saved.toLocaleString()}</p><p style={{ fontSize: "11px", color: "#999", margin: "2px 0 0" }}>families saved</p></div>
-          </div>
-
-          {/* Description */}
-          {rec.description && (
-            <p style={{ fontSize: "14px", color: "#444", lineHeight: 1.6, marginBottom: "16px" }}>{rec.description}</p>
-          )}
-
-          {/* Hours */}
-          {rec.hours && (
-            <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", marginBottom: "12px" }}>
-              <Clock size={13} style={{ color: "#717171", flexShrink: 0, marginTop: "2px" }} />
-              <span style={{ fontSize: "13px", color: "#555" }}>{rec.hours}</span>
-            </div>
-          )}
-
-          {/* Match reason */}
-          <div style={{ backgroundColor: "rgba(196,102,74,0.07)", borderRadius: "10px", padding: "12px 14px", marginBottom: "16px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-              <Sparkles size={13} style={{ color: "#C4664A" }} />
-              <span style={{ fontSize: "12px", fontWeight: 700, color: "#C4664A" }}>Why we picked this for you</span>
-            </div>
-            <p style={{ fontSize: "13px", color: "#555", lineHeight: 1.5 }}>{rec.match}</p>
-          </div>
-
-          {/* Day picker — always shown */}
-          {dayPills.length > 0 && (
-            <div style={{ marginBottom: "16px" }}>
-              <p style={{ fontSize: "12px", fontWeight: 700, color: "#555", marginBottom: "8px" }}>Which day?</p>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                {dayPills.map(({ dayIndex, label }) => (
-                  <button
-                    type="button"
-                    key={dayIndex}
-                    onClick={() => setSelectedDay(selectedDay === dayIndex ? null : dayIndex)}
-                    style={{ padding: "5px 12px", borderRadius: "999px", fontSize: "11px", fontWeight: 600, border: "1.5px solid", borderColor: selectedDay === dayIndex ? "#C4664A" : "#DDD", backgroundColor: selectedDay === dayIndex ? "#C4664A" : "#fff", color: selectedDay === dayIndex ? "#fff" : "#666", cursor: "pointer" }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Website + Book links */}
-          <div style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
-            {rec.website && (
-              <button
-                type="button"
-                onClick={() => {
-                  console.log("[RecModal] website URL:", rec.website);
-                  try { window.open(rec.website, "_blank"); } catch(e) { console.error("[RecModal] window.open error:", e); }
-                }}
-                style={{ padding: "10px 16px", borderRadius: "12px", border: "1.5px solid #EEEEEE", backgroundColor: "#fff", fontSize: "13px", fontWeight: 600, color: "#555", cursor: "pointer" }}
-              >
-                Website ↗
-              </button>
-            )}
-            {rec.bookUrl && (
-              <button
-                type="button"
-                onClick={() => {
-                  console.log("[RecModal] bookUrl:", rec.bookUrl);
-                  try { window.open(rec.bookUrl, "_blank"); } catch(e) { console.error("[RecModal] window.open error:", e); }
-                }}
-                style={{ padding: "10px 16px", borderRadius: "12px", border: "1.5px solid rgba(196,102,74,0.3)", backgroundColor: "rgba(196,102,74,0.05)", fontSize: "13px", fontWeight: 600, color: "#C4664A", cursor: "pointer" }}
-              >
-                Book ↗
-              </button>
-            )}
-          </div>
-
-          {/* Add to itinerary */}
-          <div style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
-            {isSaved ? (
-              <div style={{ flex: 1, padding: "12px", borderRadius: "12px", backgroundColor: "rgba(74,124,89,0.1)", border: "1px solid rgba(74,124,89,0.2)", textAlign: "center", fontSize: "14px", fontWeight: 700, color: "#4a7c59" }}>Saved to trip ✓</div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onSave(selectedDay)}
-                style={{ flex: 1, padding: "12px", borderRadius: "12px", border: "none", backgroundColor: "#C4664A", fontSize: "14px", fontWeight: 700, color: "#fff", cursor: isSaving ? "default" : "pointer", opacity: isSaving ? 0.7 : 1 }}
-              >
-                {isSaving ? "Saving..." : selectedDay !== null ? `Add to Day ${selectedDay + 1} →` : "+ Add to itinerary"}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => { onViewOnMap(rec.lat, rec.lng); onClose(); }}
-              style={{ padding: "12px 16px", borderRadius: "12px", border: "1.5px solid #EEEEEE", backgroundColor: "#fff", fontSize: "14px", fontWeight: 600, color: "#C4664A", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}
-            >
-              <MapPin size={14} style={{ color: "#C4664A" }} />
-              Map
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
 // ── Recommended tab ───────────────────────────────────────────────────────────
 
 type RecItem = {
@@ -2157,7 +1993,7 @@ function RecommendedContent({
   const [pendingRec, setPendingRec] = useState<string | null>(null);
   const [pendingDayIndex, setPendingDayIndex] = useState<number | null>(null);
   const [pendingCategory, setPendingCategory] = useState<string>("");
-  const [detailRec, setDetailRec] = useState<RecItem | null>(null);
+  const [drawerRec, setDrawerRec] = useState<DrawerRec | null>(null);
 
   function generateDayPillsForRec(start: string | null, end: string | null): { dayIndex: number; label: string }[] {
     if (!start) return [];
@@ -2282,8 +2118,7 @@ function RecommendedContent({
                   setPendingDayIndex(null);
                   setPendingCategory(rec.tags.split(" · ")[0]);
                 }}
-                onViewOnMap={(lat, lng) => onViewOnMap(lat, lng)}
-                onOpenDetail={() => setDetailRec(rec)}
+                onOpenDetail={() => setDrawerRec(rec as DrawerRec)}
               />
                   {isPending && (
                     <div style={{ backgroundColor: "#FAFAFA", borderRadius: "0 0 12px 12px", border: "1px solid #EEEEEE", borderTop: "none", padding: "12px 14px", display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -2341,68 +2176,64 @@ function RecommendedContent({
         </button>
       </div>
 
-      {/* Rec detail modal */}
-      {detailRec && (
-        <RecDetailModal
-          rec={detailRec}
-          isSaved={savedSet.has(detailRec.title)}
-          isSaving={savingTitle === detailRec.title}
-          onSave={(dayIndex) => {
-            handleSave(detailRec, dayIndex, detailRec.tags.split(" · ")[0]);
-            setDetailRec(null);
-          }}
-          onViewOnMap={onViewOnMap}
-          onClose={() => setDetailRec(null)}
-          dayPills={recDayPills}
-        />
-      )}
+      {/* Rec detail drawer */}
+      <RecommendationDrawer
+        item={drawerRec}
+        tripId={tripId}
+        dayPills={recDayPills}
+        onClose={() => setDrawerRec(null)}
+        onAddedToDay={(dayIndex, title) => {
+          setSavedSet(prev => new Set([...prev, title]));
+        }}
+      />
     </div>
   );
 }
 
-function RecCard({ rec, isSaved, isSaving, onToggle, onViewOnMap, onOpenDetail }: { rec: RecItem; isSaved: boolean; isSaving: boolean; onToggle: () => void; onViewOnMap: (lat: number, lng: number) => void; onOpenDetail: () => void }) {
+function RecCard({ rec, isSaved, isSaving, onToggle, onOpenDetail }: { rec: RecItem; isSaved: boolean; isSaving: boolean; onToggle: () => void; onOpenDetail: () => void }) {
   const [imgFailed, setImgFailed] = useState(false);
   return (
-    <div onClick={onOpenDetail} style={{ backgroundColor: "#fff", borderRadius: "12px", boxShadow: "0 1px 6px rgba(0,0,0,0.08)", border: "1px solid #EEEEEE", overflow: "hidden", display: "flex", flexDirection: "column", cursor: "pointer" }}>
+    <div
+      onClick={onOpenDetail}
+      style={{ backgroundColor: "#fff", borderRadius: "16px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #F0F0F0", overflow: "hidden", display: "flex", flexDirection: "row", cursor: "pointer" }}
+    >
+      {/* Left: image */}
       {imgFailed ? (
-        <div style={{ width: "100%", height: "180px", backgroundColor: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <Compass size={28} style={{ color: "#999" }} />
+        <div style={{ width: "112px", minWidth: "112px", height: "112px", backgroundColor: "#F5F5F5", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Compass size={24} style={{ color: "#ccc" }} />
         </div>
       ) : (
         <>
-          <div style={{ width: "100%", height: "180px", backgroundImage: `url('${rec.img}')`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />
+          <div style={{ width: "112px", minWidth: "112px", height: "112px", backgroundImage: `url('${rec.img}')`, backgroundSize: "cover", backgroundPosition: "center", flexShrink: 0 }} />
           <img src={rec.img} alt="" onError={() => setImgFailed(true)} style={{ display: "none" }} />
         </>
       )}
-      <div style={{ padding: "12px", flex: 1, display: "flex", flexDirection: "column", gap: "5px" }}>
-        <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", lineHeight: 1.3 }}>{rec.title}</p>
-        <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
-          <MapPin size={10} style={{ color: "#717171" }} />
-          <span style={{ fontSize: "12px", color: "#717171" }}>{rec.location}</span>
+      {/* Right: content */}
+      <div style={{ flex: 1, padding: "12px", display: "flex", flexDirection: "column", justifyContent: "space-between", minWidth: 0 }}>
+        <div>
+          <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rec.title}</p>
+          <p style={{ fontSize: "12px", color: "#717171", marginBottom: "1px" }}>
+            {rec.location.split(",")[0]} · {rec.tags.split(" · ")[0]}
+          </p>
+          <p style={{ fontSize: "12px", color: "#717171" }}>
+            {rec.tags.split(" · ")[1] ?? ""}{rec.tags.split(" · ")[2] ? " · " + rec.tags.split(" · ")[2] : ""}
+          </p>
         </div>
-        <p style={{ fontSize: "12px", color: "#555" }}>{rec.tags}</p>
-        <p style={{ fontSize: "12px", color: "#666", display: "flex", alignItems: "center", gap: "4px" }}>
-          <Sparkles size={11} style={{ color: "#C4664A", flexShrink: 0 }} />
-          {rec.match}
-        </p>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginTop: "4px" }}>
-          <span
-            onClick={e => { e.stopPropagation(); if (!isSaved && !isSaving) onToggle(); }}
-            style={{ fontSize: "12px", fontWeight: 600, color: isSaved ? "#4a7c59" : isSaving ? "#717171" : "#C4664A", backgroundColor: isSaved ? "rgba(74,124,89,0.1)" : isSaving ? "rgba(0,0,0,0.05)" : "transparent", border: isSaved ? "1px solid rgba(74,124,89,0.2)" : isSaving ? "1px solid #ddd" : "none", borderRadius: "20px", padding: (isSaved || isSaving) ? "3px 10px" : "0", cursor: (isSaved || isSaving) ? "default" : "pointer" }}
-          >
-            {isSaved ? "Saved ✓" : isSaving ? "Saving..." : "+ Save to trip"}
-          </span>
+        <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
           <button
-            onClick={e => { e.stopPropagation(); onViewOnMap(rec.lat, rec.lng); }}
-            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "#C4664A", display: "flex", alignItems: "center", gap: "3px" }}
+            type="button"
+            onClick={e => { e.stopPropagation(); if (!isSaved && !isSaving) onToggle(); }}
+            style={{ fontSize: "11px", fontWeight: 700, padding: "4px 10px", borderRadius: "999px", backgroundColor: isSaved ? "rgba(74,124,89,0.1)" : "#C4664A", color: isSaved ? "#4a7c59" : "#fff", border: isSaved ? "1px solid rgba(74,124,89,0.2)" : "none", cursor: isSaved ? "default" : "pointer", whiteSpace: "nowrap" }}
           >
-            <MapPin size={11} style={{ color: "#C4664A" }} />
-            View on map
+            {isSaved ? "Saved ✓" : isSaving ? "Saving…" : "+ Itinerary"}
           </button>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
-          <Users size={11} style={{ color: "#BBBBBB", flexShrink: 0 }} />
-          <span style={{ fontSize: "11px", color: "#BBBBBB" }}>{rec.saved.toLocaleString()} families saved this</span>
+          <button
+            type="button"
+            onClick={e => { e.stopPropagation(); onOpenDetail(); }}
+            style={{ fontSize: "11px", fontWeight: 600, padding: "4px 10px", borderRadius: "999px", backgroundColor: "#fff", color: "#1B3A5C", border: "1.5px solid #E0E0E0", cursor: "pointer", whiteSpace: "nowrap" }}
+          >
+            Learn more
+          </button>
         </div>
       </div>
     </div>
