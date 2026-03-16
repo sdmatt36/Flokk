@@ -139,13 +139,13 @@ export default function LandingPage() {
         <p className="text-center text-sm font-semibold tracking-widest uppercase mb-6" style={{ color: "#717171" }}>From the community</p>
         <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
-            { img: "https://images.unsplash.com/photo-1560703649-e3055f28bcf8?w=600&q=80", label: "Saved from Instagram", sub: "Santorini · Bucket list" },
-            { img: "https://plus.unsplash.com/premium_photo-1661963188432-5de8a11f21a7?w=600&q=80", label: "Tokyo with Kids", sub: "Itinerary · 8 days" },
-            { img: "https://plus.unsplash.com/premium_photo-1661914240950-b0124f20a5c1?w=600&q=80", label: "Villa Rental · Tuscany", sub: "Summer 2026 · Shortlist" },
+            { img: "https://images.unsplash.com/photo-1560703649-e3055f28bcf8?w=600&q=80", label: "Saved from Instagram", sub: "Santorini · Bucket list", objPos: "center 60%" },
+            { img: "https://plus.unsplash.com/premium_photo-1661963188432-5de8a11f21a7?w=600&q=80", label: "Tokyo with Kids", sub: "Itinerary · 8 days", objPos: "center center" },
+            { img: "https://plus.unsplash.com/premium_photo-1661914240950-b0124f20a5c1?w=600&q=80", label: "Villa Rental · Tuscany", sub: "Summer 2026 · Shortlist", objPos: "center center" },
           ].map((card) => (
             <div key={card.label} className="rounded-2xl overflow-hidden shadow-sm border" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={card.img} alt={card.label} className="w-full h-36 object-cover" />
+              <img src={card.img} alt={card.label} className="w-full h-36 object-cover" style={{ objectPosition: card.objPos ?? "center center" }} />
               <div className="p-4">
                 <p className="font-semibold text-sm" style={{ color: "#1a1a1a" }}>{card.label}</p>
                 <p className="text-xs mt-0.5" style={{ color: "#999" }}>{card.sub}</p>
@@ -410,6 +410,7 @@ export default function LandingPage() {
               },
               {
                 img: "https://images.unsplash.com/photo-1746280359493-fb43a6d9bcc8?w=800&q=80",
+                objPos: "center center",
                 destination: "Costa Rica — Guanacaste",
                 family: "Family of 5 · Kids ages 4, 9 & 12",
                 tags: ["Adventure", "7 days", "All-inclusive"],
@@ -418,7 +419,7 @@ export default function LandingPage() {
             ].map((trip) => (
               <div key={trip.destination} className="rounded-2xl overflow-hidden border shadow-sm" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE" }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={trip.img} alt={trip.destination} className="w-full h-44 object-cover" />
+                <img src={trip.img} alt={trip.destination} className="w-full h-44 object-cover" style={{ objectPosition: trip.objPos ?? "center center" }} />
                 <div className="p-5 space-y-3">
                   <div>
                     <p className="font-bold text-base" style={{ color: "#1a1a1a" }}>{trip.destination}</p>
