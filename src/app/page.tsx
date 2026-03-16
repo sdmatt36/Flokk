@@ -167,7 +167,7 @@ export default function LandingPage() {
           {/* Costa Rica card */}
           <div className="rounded-2xl overflow-hidden shadow-sm border" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://images.unsplash.com/photo-1536708880921-03a9306ec47d?w=800&q=80" alt="Costa Rica beach and jungle, Guanacaste" className="w-full object-cover" style={{ height: "192px" }} />
+            <img src="https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?w=800&q=80" alt="Costa Rica tropical coastline, Guanacaste" className="w-full object-cover" style={{ height: "192px" }} />
             <div className="p-4">
               <p className="font-semibold text-sm" style={{ color: "#1a1a1a" }}>Costa Rica — Guanacaste</p>
               <p className="text-xs mt-0.5" style={{ color: "#999" }}>Family of 5 · Kids ages 4, 9 &amp; 12</p>
@@ -344,7 +344,7 @@ export default function LandingPage() {
             <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center" }}>
               <div style={{ backgroundColor: "#fff", borderRadius: "16px", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", border: "1px solid #EEEEEE", overflow: "hidden", width: "100%", maxWidth: "340px" }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="https://images.unsplash.com/photo-1511739001486-6bfe10ce785f?w=800&q=80" alt="Eiffel Tower, Paris at dusk" style={{ width: "100%", height: "140px", objectFit: "cover", display: "block" }} />
+                <img src="https://images.unsplash.com/photo-1543349689-9a4d426bee8e?w=800&q=80" alt="Eiffel Tower, Paris at dusk" style={{ width: "100%", height: "140px", objectFit: "cover", objectPosition: "center 30%", display: "block" }} />
                 <div style={{ padding: "16px 20px 20px" }}>
                 <span style={{ fontSize: "11px", backgroundColor: "rgba(196,102,74,0.1)", color: "#C4664A", borderRadius: "20px", padding: "3px 10px", fontWeight: 700 }}>Culture</span>
                 <p style={{ fontSize: "22px", fontWeight: 700, color: "#1a1a1a", margin: "12px 0 8px" }}>Eiffel Tower</p>
