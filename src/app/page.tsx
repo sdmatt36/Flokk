@@ -139,9 +139,9 @@ export default function LandingPage() {
         <p className="text-center text-sm font-semibold tracking-widest uppercase mb-6" style={{ color: "#717171" }}>From the community</p>
         <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
-            { img: "https://images.unsplash.com/photo-1560703649-e3055f28bcf8?w=600&q=80", label: "Saved from Instagram", sub: "Santorini · Bucket list", objPos: "center 60%" },
+            { img: "https://images.unsplash.com/photo-1560703649-e3055f28bcf8?w=600&q=80", label: "Saved from Instagram", sub: "Santorini · Bucket list", objPos: "center 65%" },
             { img: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=600&q=80", label: "Tokyo with Kids", sub: "Itinerary · 8 days", objPos: "center center" },
-            { img: "https://images.unsplash.com/photo-1523531294919-4bcd7c65e216?w=600&q=80", label: "Villa Rental · Tuscany", sub: "Summer 2026 · Shortlist", objPos: "center center" },
+            { img: "https://images.unsplash.com/photo-1662624477903-7962aa7ff4ae?w=600&q=80", label: "Villa Rental · Tuscany", sub: "Summer 2026 · Shortlist", objPos: "center 60%" },
           ].map((card) => (
             <div key={card.label} className="rounded-2xl overflow-hidden shadow-sm border" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -307,7 +307,7 @@ export default function LandingPage() {
             <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center" }}>
               <div style={{ backgroundColor: "#fff", borderRadius: "16px", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", border: "1px solid #EEEEEE", overflow: "hidden", width: "100%", maxWidth: "340px" }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="https://images.unsplash.com/photo-1662624477903-7962aa7ff4ae?w=800&q=80" alt="Angkor Wat, Cambodia" style={{ width: "100%", height: "140px", objectFit: "cover", objectPosition: "center center", display: "block" }} />
+                <img src="https://images.unsplash.com/photo-1693276206317-a78574082bfc?w=800&q=80" alt="Angkor Wat, Cambodia" style={{ width: "100%", height: "140px", objectFit: "cover", objectPosition: "center center", display: "block" }} />
                 <div style={{ padding: "16px 20px 20px" }}>
                 <span style={{ fontSize: "11px", backgroundColor: "rgba(196,102,74,0.1)", color: "#C4664A", borderRadius: "20px", padding: "3px 10px", fontWeight: 700 }}>Culture</span>
                 <p style={{ fontSize: "22px", fontWeight: 700, color: "#1a1a1a", margin: "12px 0 8px" }}>Angkor Wat</p>
