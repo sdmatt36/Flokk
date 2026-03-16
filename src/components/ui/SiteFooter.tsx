@@ -53,11 +53,8 @@ export function SiteFooter() {
             <div style={{ marginBottom: "4px" }}>
               <span style={{ fontSize: "18px", fontWeight: 800, color: "#fff" }}>Flokk</span>
             </div>
-            <p style={{ fontSize: "14px", fontStyle: "italic", color: "rgba(255,255,255,0.55)", margin: "0 0 8px" }}>
+            <p style={{ fontSize: "14px", fontStyle: "italic", color: "rgba(255,255,255,0.8)", margin: 0 }}>
               Because 47 browser tabs isn&apos;t a plan.
-            </p>
-            <p style={{ fontSize: "13px", lineHeight: 1.6, color: "rgba(255,255,255,0.55)", maxWidth: "200px" }}>
-              Family travel, finally in one place.
             </p>
           </div>
 
