@@ -135,60 +135,23 @@ export default function LandingPage() {
       </section>
 
       {/* From the community strip — separate section, no overlap with hero */}
-      <section style={{ backgroundColor: "#FAFAFA", paddingTop: "4rem", paddingBottom: "4rem", paddingLeft: "1.5rem", paddingRight: "1.5rem", position: "relative", zIndex: 0 }}>
-        <p className="text-center text-sm font-semibold tracking-widest uppercase" style={{ color: "#717171", marginBottom: "12px" }}>From the community</p>
-        <div className="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4" style={{ marginTop: "32px" }}>
-          {/* Japan card */}
-          <div className="rounded-2xl overflow-hidden shadow-sm border" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://images.unsplash.com/photo-1478436127897-769e1b3f0f36?w=800&q=80" alt="Japan — Kyoto & Tokyo" className="w-full object-cover" style={{ height: "192px" }} />
-            <div className="p-4">
-              <p className="font-semibold text-sm" style={{ color: "#1a1a1a" }}>Japan — Kyoto &amp; Tokyo</p>
-              <p className="text-xs mt-0.5" style={{ color: "#999" }}>Family of 4 · Kids ages 7 &amp; 10</p>
-              <div className="flex flex-wrap gap-2 mt-3">
-                {["Kid-friendly", "10 days", "Gluten-free"].map((tag) => (
-                  <span key={tag} className="bg-[#F5F5F5] text-[#717171] text-xs rounded-full px-3 py-1">{tag}</span>
-                ))}
+      <section style={{ backgroundColor: "#FAFAFA", paddingTop: "5rem", paddingBottom: "5rem", paddingLeft: "1.5rem", paddingRight: "1.5rem", position: "relative", zIndex: 0 }}>
+        <p className="text-center text-sm font-semibold tracking-widest uppercase mb-6" style={{ color: "#717171" }}>From the community</p>
+        <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[
+            { img: "https://picsum.photos/seed/santorini/400/300", label: "Saved from Instagram", sub: "Santorini · Bucket list" },
+            { img: "https://picsum.photos/seed/tokyo/400/300", label: "Tokyo with Kids", sub: "Itinerary · 8 days" },
+            { img: "https://picsum.photos/seed/tuscany/400/300", label: "Villa Rental · Tuscany", sub: "Summer 2026 · Shortlist" },
+          ].map((card) => (
+            <div key={card.label} className="rounded-2xl overflow-hidden shadow-sm border" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={card.img} alt={card.label} className="w-full h-36 object-cover" />
+              <div className="p-4">
+                <p className="font-semibold text-sm" style={{ color: "#1a1a1a" }}>{card.label}</p>
+                <p className="text-xs mt-0.5" style={{ color: "#999" }}>{card.sub}</p>
               </div>
-              <ul className="mt-3 space-y-1">
-                {["Arashiyama Bamboo Grove", "teamLab Planets", "Tsukiji Outer Market"].map((h) => (
-                  <li key={h} className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#C4664A] flex-shrink-0" />
-                    <span className="text-sm text-[#717171]">{h}</span>
-                  </li>
-                ))}
-              </ul>
-              <button className="mt-4 w-full border border-[#1B3A5C] text-[#1B3A5C] text-sm font-medium rounded-xl py-2 hover:bg-[#1B3A5C] hover:text-white transition-colors">
-                Use this as my starting point
-              </button>
             </div>
-          </div>
-
-          {/* Costa Rica card */}
-          <div className="rounded-2xl overflow-hidden shadow-sm border" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE" }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="https://images.unsplash.com/photo-1536708880921-03a9306ec47d?w=800&q=80" alt="Costa Rica beach and jungle, Guanacaste" className="w-full object-cover" style={{ height: "192px" }} />
-            <div className="p-4">
-              <p className="font-semibold text-sm" style={{ color: "#1a1a1a" }}>Costa Rica — Guanacaste</p>
-              <p className="text-xs mt-0.5" style={{ color: "#999" }}>Family of 5 · Kids ages 4, 9 &amp; 12</p>
-              <div className="flex flex-wrap gap-2 mt-3">
-                {["Adventure", "7 days", "All-inclusive"].map((tag) => (
-                  <span key={tag} className="bg-[#F5F5F5] text-[#717171] text-xs rounded-full px-3 py-1">{tag}</span>
-                ))}
-              </div>
-              <ul className="mt-3 space-y-1">
-                {["Monteverde Cloud Forest", "Manuel Antonio Beach", "Arenal Volcano"].map((h) => (
-                  <li key={h} className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#C4664A] flex-shrink-0" />
-                    <span className="text-sm text-[#717171]">{h}</span>
-                  </li>
-                ))}
-              </ul>
-              <button className="mt-4 w-full border border-[#1B3A5C] text-[#1B3A5C] text-sm font-medium rounded-xl py-2 hover:bg-[#1B3A5C] hover:text-white transition-colors">
-                Use this as my starting point
-              </button>
-            </div>
-          </div>
+          ))}
         </div>
       </section>
 
