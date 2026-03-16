@@ -206,7 +206,7 @@ export default function LandingPage() {
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em", color: "#C4664A", marginBottom: "12px" }}>Step 2 — Surface</p>
               <h3 className={playfair.className} style={{ fontSize: "32px", fontWeight: 700, color: "#1a1a1a", lineHeight: 1.2, marginBottom: "16px" }}>The right save, at exactly the right moment.</h3>
-              <p style={{ fontSize: "16px", color: "#717171", lineHeight: 1.75 }}>You saved that market six months ago. Now you&apos;re planning Madrid. Flokk surfaces it — 600 metres from your hotel, open before your museum visit, with a churros counter your kids will love.</p>
+              <p style={{ fontSize: "16px", color: "#717171", lineHeight: 1.75 }}>You saved that aquarium six months ago. Now you&apos;re planning Okinawa. Flokk surfaces it — 600 metres from your hotel, open before your museum visit, and on the way to dinner!</p>
             </div>
             <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", overflow: "hidden" }}>
               <div className="md:p-2">
