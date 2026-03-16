@@ -138,27 +138,57 @@ export default function LandingPage() {
       <section style={{ backgroundColor: "#FAFAFA", paddingTop: "4rem", paddingBottom: "4rem", paddingLeft: "1.5rem", paddingRight: "1.5rem", position: "relative", zIndex: 0 }}>
         <p className="text-center text-sm font-semibold tracking-widest uppercase" style={{ color: "#717171", marginBottom: "12px" }}>From the community</p>
         <div className="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4" style={{ marginTop: "32px" }}>
-          {[
-            {
-              img: "https://images.unsplash.com/photo-1478436127897-769e1b3f0f36?w=800&q=80",
-              label: "Japan — Kyoto & Tokyo",
-              sub: "Family of 4 · Kids ages 7 & 10",
-            },
-            {
-              img: "https://images.unsplash.com/photo-1518259102261-b40117eabbc9?w=800&q=80",
-              label: "Costa Rica — Guanacaste",
-              sub: "Family of 5 · Kids ages 4, 9 & 12",
-            },
-          ].map((card) => (
-            <div key={card.label} className="rounded-2xl overflow-hidden shadow-sm border" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE" }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={card.img} alt={card.label} className="w-full h-36 object-cover" />
-              <div className="p-4">
-                <p className="font-semibold text-sm" style={{ color: "#1a1a1a" }}>{card.label}</p>
-                <p className="text-xs mt-0.5" style={{ color: "#999" }}>{card.sub}</p>
+          {/* Japan card */}
+          <div className="rounded-2xl overflow-hidden shadow-sm border" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="https://images.unsplash.com/photo-1478436127897-769e1b3f0f36?w=800&q=80" alt="Japan — Kyoto & Tokyo" className="w-full object-cover" style={{ height: "192px" }} />
+            <div className="p-4">
+              <p className="font-semibold text-sm" style={{ color: "#1a1a1a" }}>Japan — Kyoto &amp; Tokyo</p>
+              <p className="text-xs mt-0.5" style={{ color: "#999" }}>Family of 4 · Kids ages 7 &amp; 10</p>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {["Kid-friendly", "10 days", "Gluten-free"].map((tag) => (
+                  <span key={tag} className="bg-[#F5F5F5] text-[#717171] text-xs rounded-full px-3 py-1">{tag}</span>
+                ))}
               </div>
+              <ul className="mt-3 space-y-1">
+                {["Arashiyama Bamboo Grove", "teamLab Planets", "Tsukiji Outer Market"].map((h) => (
+                  <li key={h} className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#C4664A] flex-shrink-0" />
+                    <span className="text-sm text-[#717171]">{h}</span>
+                  </li>
+                ))}
+              </ul>
+              <button className="mt-4 w-full border border-[#1B3A5C] text-[#1B3A5C] text-sm font-medium rounded-xl py-2 hover:bg-[#1B3A5C] hover:text-white transition-colors">
+                Use this as my starting point
+              </button>
             </div>
-          ))}
+          </div>
+
+          {/* Costa Rica card */}
+          <div className="rounded-2xl overflow-hidden shadow-sm border" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="https://images.unsplash.com/photo-1501854140801-50d01698950b?w=800&q=80" alt="Costa Rica tropical beach and jungle" className="w-full object-cover" style={{ height: "192px" }} />
+            <div className="p-4">
+              <p className="font-semibold text-sm" style={{ color: "#1a1a1a" }}>Costa Rica — Guanacaste</p>
+              <p className="text-xs mt-0.5" style={{ color: "#999" }}>Family of 5 · Kids ages 4, 9 &amp; 12</p>
+              <div className="flex flex-wrap gap-2 mt-3">
+                {["Adventure", "7 days", "All-inclusive"].map((tag) => (
+                  <span key={tag} className="bg-[#F5F5F5] text-[#717171] text-xs rounded-full px-3 py-1">{tag}</span>
+                ))}
+              </div>
+              <ul className="mt-3 space-y-1">
+                {["Monteverde Cloud Forest", "Manuel Antonio Beach", "Arenal Volcano"].map((h) => (
+                  <li key={h} className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#C4664A] flex-shrink-0" />
+                    <span className="text-sm text-[#717171]">{h}</span>
+                  </li>
+                ))}
+              </ul>
+              <button className="mt-4 w-full border border-[#1B3A5C] text-[#1B3A5C] text-sm font-medium rounded-xl py-2 hover:bg-[#1B3A5C] hover:text-white transition-colors">
+                Use this as my starting point
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -314,13 +344,13 @@ export default function LandingPage() {
             <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center" }}>
               <div style={{ backgroundColor: "#fff", borderRadius: "16px", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", border: "1px solid #EEEEEE", overflow: "hidden", width: "100%", maxWidth: "340px" }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="https://images.unsplash.com/photo-1490806843957-31f4c9a91c65?w=800&q=80" alt="Shuri Castle, Okinawa, Japan" style={{ width: "100%", height: "140px", objectFit: "cover", display: "block" }} />
+                <img src="https://images.unsplash.com/photo-1499856871958-5b9627545d1a?w=800&q=80" alt="Eiffel Tower, Paris" style={{ width: "100%", height: "140px", objectFit: "cover", display: "block" }} />
                 <div style={{ padding: "16px 20px 20px" }}>
                 <span style={{ fontSize: "11px", backgroundColor: "rgba(196,102,74,0.1)", color: "#C4664A", borderRadius: "20px", padding: "3px 10px", fontWeight: 700 }}>Culture</span>
-                <p style={{ fontSize: "22px", fontWeight: 700, color: "#1a1a1a", margin: "12px 0 8px" }}>Shuri Castle</p>
+                <p style={{ fontSize: "22px", fontWeight: 700, color: "#1a1a1a", margin: "12px 0 8px" }}>Eiffel Tower</p>
                 <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", marginBottom: "16px" }}>
                   <Sparkles size={14} style={{ color: "#C4664A", flexShrink: 0, marginTop: "2px" }} />
-                  <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.5 }}>History & Culture · Ages 5+ · UNESCO site · 2,210 families saved</p>
+                  <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.5 }}>History & Culture · All ages · Iconic landmark · 2,847 families saved</p>
                 </div>
                 <button style={{ width: "100%", padding: "10px", borderRadius: "12px", border: "1.5px solid #C4664A", backgroundColor: "transparent", color: "#C4664A", fontSize: "14px", fontWeight: 600, cursor: "pointer" }}>
                   Save to trip
