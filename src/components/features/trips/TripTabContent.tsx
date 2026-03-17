@@ -1862,6 +1862,7 @@ function PackingContent({ tripId }: { tripId?: string }) {
 // ── Recommended tab ───────────────────────────────────────────────────────────
 
 type RecItem = {
+  city: string;
   title: string;
   location: string;
   tags: string;
@@ -1878,7 +1879,9 @@ type RecItem = {
 };
 
 const RECOMMENDATIONS: RecItem[] = [
+  // ── Okinawa ─────────────────────────────────────────────────────────────────
   {
+    city: "Okinawa",
     title: "Cape Manzamo",
     location: "Onna Village",
     tags: "Outdoor · Free · 1 hr",
@@ -1894,6 +1897,7 @@ const RECOMMENDATIONS: RecItem[] = [
     bookUrl: "https://www.visitokinawa.jp/information/cape-manzamo",
   },
   {
+    city: "Okinawa",
     title: "Shuri Castle",
     location: "Naha",
     tags: "Culture · $8 · 2 hrs",
@@ -1909,6 +1913,7 @@ const RECOMMENDATIONS: RecItem[] = [
     bookUrl: "https://www.shurijo-park.go.jp/ticket.html",
   },
   {
+    city: "Okinawa",
     title: "Okinawa World & Cave",
     location: "Nanjo",
     tags: "Activity · $25 · Half day",
@@ -1924,6 +1929,7 @@ const RECOMMENDATIONS: RecItem[] = [
     bookUrl: "https://www.gyokusendo.co.jp/okinawaworld/ticket/",
   },
   {
+    city: "Okinawa",
     title: "American Village Mihama",
     location: "Chatan",
     tags: "Food · Free · 2–3 hrs",
@@ -1939,6 +1945,7 @@ const RECOMMENDATIONS: RecItem[] = [
     bookUrl: "https://www.okinawa-americanvillage.com",
   },
   {
+    city: "Okinawa",
     title: "Nago Pineapple Park",
     location: "Nago",
     tags: "Kids · $15 · 1.5 hrs",
@@ -1954,6 +1961,7 @@ const RECOMMENDATIONS: RecItem[] = [
     bookUrl: "https://www.nagopineapplepark.com",
   },
   {
+    city: "Okinawa",
     title: "Onna Village Snorkeling",
     location: "Onna Village",
     tags: "Outdoor · $45 · Half day",
@@ -1967,6 +1975,103 @@ const RECOMMENDATIONS: RecItem[] = [
     ages: "Ages 6+",
     website: "https://www.visitokinawa.jp",
     bookUrl: "https://www.veltra.com/en/asia/japan/okinawa/",
+  },
+  // ── Kyoto ───────────────────────────────────────────────────────────────────
+  {
+    city: "Kyoto",
+    title: "Kiyomizudera Temple",
+    location: "Higashiyama, Kyoto",
+    tags: "Culture · Free · 1.5 hrs",
+    match: "UNESCO site · Hilltop views · All ages",
+    img: "/images/kiyomizudera-temple.jpg",
+    saved: 3210,
+    lat: 34.9948,
+    lng: 135.7851,
+    description: "One of Japan's most celebrated temples, Kiyomizudera perches on a forested hillside above eastern Kyoto. The wooden stage extending over the cliffside offers sweeping views across the city, especially stunning in cherry blossom and autumn leaf seasons.",
+    hours: "6:00am – 6:00pm (open until 9:30pm during special illumination events)",
+    ages: "All ages",
+    website: "https://www.kiyomizudera.or.jp",
+    bookUrl: "https://www.kiyomizudera.or.jp/en/",
+  },
+  {
+    city: "Kyoto",
+    title: "Tea Ceremony in Gion",
+    location: "Gion, Kyoto",
+    tags: "Culture · $30 · 1 hr",
+    match: "Traditional experience · Hands-on · Ages 5+",
+    img: "/images/tea-ceremony-kyoto.jpg",
+    saved: 1870,
+    lat: 35.0033,
+    lng: 135.7764,
+    description: "Experience the meditative art of Japanese tea ceremony in one of Gion's preserved machiya townhouses. Wear a kimono, learn proper etiquette from a tea master, and savour matcha with seasonal wagashi sweets — a highlight for families with curious kids.",
+    hours: "Sessions daily 10:00am – 5:00pm; book in advance",
+    ages: "Ages 5+",
+    website: "https://en.kyoto.travel/activity/detail/1",
+    bookUrl: "https://www.viator.com/Kyoto/d332-ttd",
+  },
+  {
+    city: "Kyoto",
+    title: "Toei Kyoto Studio Park",
+    location: "Uzumasa, Kyoto",
+    tags: "Kids · $15 · Half day",
+    match: "Samurai & ninja shows · Ages 4+ · Unique to Kyoto",
+    img: "/images/toei-kyoto-studio.jpg",
+    saved: 940,
+    lat: 35.0189,
+    lng: 135.7047,
+    description: "Japan's only open-air film studio park lets you walk through Edo-period streets, watch live samurai sword-fight shows, and even dress up as a ninja or princess. Active film and TV sets mean you might catch actual filming happening.",
+    hours: "9:00am – 5:00pm (closed some Wednesdays; check schedule)",
+    ages: "Ages 4+",
+    website: "https://www.toei-eigamura.com/global/en/",
+    bookUrl: "https://www.toei-eigamura.com/global/en/ticket/",
+  },
+  {
+    city: "Kyoto",
+    title: "Nishiki Market Street Food",
+    location: "Central Kyoto",
+    tags: "Food · Free · 1–2 hrs",
+    match: "Street snacks · Covered arcade · All ages",
+    img: "/images/nishiki-market.jpg",
+    saved: 2650,
+    lat: 35.0042,
+    lng: 135.7657,
+    description: "Dubbed 'Kyoto's Kitchen', this 400-year-old covered shopping street stretches five blocks and is packed with vendors selling pickled vegetables, fresh tofu, grilled skewers, and Kyoto specialties. Perfect for a leisurely morning snack crawl with kids.",
+    hours: "Most shops 9:00am – 6:00pm (some close Wednesday)",
+    ages: "All ages",
+    website: "https://www.nishiki-market.com",
+    bookUrl: "https://www.nishiki-market.com",
+  },
+  {
+    city: "Kyoto",
+    title: "Kibune Shrine & River Walk",
+    location: "Kibune, Kyoto",
+    tags: "Outdoor · Free · 2 hrs",
+    match: "Nature · Lantern-lit path · All ages",
+    img: "/images/kibune-shrine.jpg",
+    saved: 1140,
+    lat: 35.1113,
+    lng: 135.7488,
+    description: "A scenic 30-minute bus ride from central Kyoto leads to the misty Kibune valley, where stone lanterns line the path to Kibune Shrine. In summer, restaurants serve kaiseki meals on platforms built over the cool mountain stream.",
+    hours: "Shrine: 6:00am – 8:00pm; Kawadoko dining: May–Sept",
+    ages: "All ages",
+    website: "https://kifune.or.jp/en/",
+    bookUrl: "https://kifune.or.jp/en/",
+  },
+  {
+    city: "Kyoto",
+    title: "Fushimi Momoyama Castle",
+    location: "Fushimi, Kyoto",
+    tags: "History · $5 · 1.5 hrs",
+    match: "Samurai history · Hilltop · Kids love the walls",
+    img: "/images/fushimi-momoyama-castle.jpg",
+    saved: 810,
+    lat: 34.9441,
+    lng: 135.7730,
+    description: "Toyotomi Hideyoshi's hilltop castle commands panoramic views over southern Kyoto and is surprisingly crowd-free compared to Nijo or Himeji. Walk the stone walls, explore the replica keep, and enjoy the quiet park atmosphere — a great off-the-beaten-path pick.",
+    hours: "9:00am – 5:00pm (closed Tuesdays)",
+    ages: "Ages 4+",
+    website: "https://www.kyokanko.or.jp",
+    bookUrl: "https://www.kyokanko.or.jp",
   },
 ];
 
@@ -2050,16 +2155,13 @@ function RecommendedContent({
     }
   }
 
-  // Filter recommendations by destination.
-  // WHERE: destinationCity (case-insensitive partial) OR destinationCountry (case-insensitive partial).
-  // If neither param is provided, return empty array.
+  // Filter recommendations by destination city — match rec.city exactly (case-insensitive).
+  // If no destinationCity is provided, return empty array so we show the "no recs yet" state.
   const hasDestination = !!(destinationCity || destinationCountry);
   const cityLower = (destinationCity ?? "").toLowerCase().trim();
-  const countryLower = (destinationCountry ?? "").toLowerCase().trim();
-  const filteredRecs = !hasDestination ? [] : RECOMMENDATIONS.filter(rec => {
-    const locLower = rec.location.toLowerCase();
-    return (cityLower && locLower.includes(cityLower)) || (countryLower && locLower.includes(countryLower));
-  });
+  const filteredRecs = !hasDestination ? [] : RECOMMENDATIONS.filter(rec =>
+    rec.city.toLowerCase() === cityLower
+  );
   const matchesDestination = filteredRecs.length > 0;
 
   // Group by category (first segment of tags), sort categories and items alphabetically
