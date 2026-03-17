@@ -150,17 +150,19 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
         </p>
 
         {/* Location */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "3px",
-            marginBottom: "6px",
-          }}
-        >
-          <MapPin size={10} style={{ color: "#717171", flexShrink: 0 }} />
-          <span style={{ fontSize: "12px", color: "#717171" }}>{save.location}</span>
-        </div>
+        {save.location && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "3px",
+              marginBottom: "6px",
+            }}
+          >
+            <MapPin size={10} style={{ color: "#717171", flexShrink: 0 }} />
+            <span style={{ fontSize: "12px", color: "#717171" }}>{save.location}</span>
+          </div>
+        )}
 
         {/* Tags */}
         <div
