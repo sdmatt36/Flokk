@@ -89,7 +89,7 @@ function TripCard({ trip }: { trip: Trip }) {
 
   return (
     <Link href={`/trips/${trip.id}`} style={{ textDecoration: "none", display: "block" }}>
-      <div style={{ backgroundColor: "#fff", borderRadius: "20px", overflow: "hidden", border: "1.5px solid #EEEEEE", boxShadow: "0 2px 8px rgba(0,0,0,0.07)", transition: "box-shadow 0.15s" }}>
+      <div className="hover:shadow-lg transition-shadow" style={{ backgroundColor: "#fff", borderRadius: "20px", overflow: "hidden", border: "1.5px solid #EEEEEE", boxShadow: "0 2px 8px rgba(0,0,0,0.07)" }}>
         {/* Hero image */}
         <div style={{ height: "140px", position: "relative", overflow: "hidden", backgroundImage: `url('${hero}')`, backgroundSize: "cover", backgroundPosition: "center" }}>
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.55) 100%)" }} />
@@ -213,12 +213,12 @@ export function TripsPageClient({ trips }: { trips: Trip[] }) {
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#FFFFFF", paddingBottom: "80px" }}>
-      <div style={{ maxWidth: "480px", margin: "0 auto", padding: "32px 24px 0" }}>
+      <div style={{ maxWidth: "1280px", margin: "0 auto", padding: "32px 24px 0" }}>
 
         {/* Header */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "20px" }}>
           <div>
-            <h1 style={{ fontSize: "28px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>
+            <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "28px", fontWeight: 800, color: "#1B3A5C", marginBottom: "4px" }}>
               Your trips
             </h1>
             <p style={{ fontSize: "14px", color: "#717171" }}>
@@ -276,7 +276,7 @@ export function TripsPageClient({ trips }: { trips: Trip[] }) {
 
         {/* Trip cards */}
         {displayed.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {displayed.map((trip) => (
               <TripCard key={trip.id} trip={trip} />
             ))}

@@ -170,7 +170,7 @@ export default function DiscoverPage() {
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#FFFFFF", paddingBottom: "80px" }}>
-      <div style={{ maxWidth: "720px", margin: "0 auto", padding: "32px 24px 0" }}>
+      <div style={{ maxWidth: "1280px", margin: "0 auto", padding: "32px 24px 0" }}>
 
         {/* Header */}
         <div style={{ marginBottom: "24px" }}>
@@ -229,6 +229,7 @@ export default function DiscoverPage() {
             {filtered.map((rec) => (
               <div
                 key={rec.id}
+                className="hover:shadow-md transition-shadow cursor-pointer"
                 style={{
                   backgroundColor: "#fff",
                   borderRadius: "16px",
@@ -305,6 +306,7 @@ export default function DiscoverPage() {
             {COMMUNITY_TRIPS.map((trip) => (
               <div
                 key={trip.slug}
+                className="hover:opacity-95 transition-opacity cursor-pointer"
                 style={{
                   flexShrink: 0,
                   width: "220px",
