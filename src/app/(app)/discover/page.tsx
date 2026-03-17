@@ -4,7 +4,19 @@ import { useState } from "react";
 import Link from "next/link";
 import { MapPin, Compass, Sparkles, BookOpen, Clock, ChevronRight } from "lucide-react";
 
-const RECOMMENDATIONS = [
+type Recommendation = {
+  id: string;
+  city: string;
+  country: string;
+  tag: string;
+  region: string;
+  why: string;
+  pickReason: string;
+  img: string;
+  communityTripId: string | null;
+};
+
+const RECOMMENDATIONS: Recommendation[] = [
   {
     id: "r1",
     city: "Kyoto",
@@ -14,6 +26,7 @@ const RECOMMENDATIONS = [
     why: "UNESCO temples, bamboo forests, and night food markets — ideal for curious kids.",
     pickReason: "Matches your love of history and slow travel with kids.",
     img: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=600&auto=format&fit=crop&q=80",
+    communityTripId: "cmtrip-kyoto-may25",
   },
   {
     id: "r2",
@@ -24,6 +37,7 @@ const RECOMMENDATIONS = [
     why: "Mild weather, safe neighborhoods, easy transit, and some of Europe's best pastries.",
     pickReason: "Highly rated by families who value walkability and great food.",
     img: "https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=600&auto=format&fit=crop&q=80",
+    communityTripId: "cmtrip-lisbon-jul25",
   },
   {
     id: "r3",
@@ -34,6 +48,7 @@ const RECOMMENDATIONS = [
     why: "Dramatic cliffs, turquoise water, and villages your kids will remember forever.",
     pickReason: "A top pick for families who've loved coastal destinations.",
     img: "https://images.unsplash.com/photo-1533587851505-d119e13fa0d7?w=600&auto=format&fit=crop&q=80",
+    communityTripId: null,
   },
   {
     id: "r4",
@@ -44,6 +59,7 @@ const RECOMMENDATIONS = [
     why: "Fairy-tale architecture, walkable old town, and budget-friendly family dining.",
     pickReason: "Families who loved Vienna and Budapest consistently rate Prague next.",
     img: "https://images.unsplash.com/photo-1541849546-216549ae216d?w=600&auto=format&fit=crop&q=80",
+    communityTripId: null,
   },
   {
     id: "r5",
@@ -54,6 +70,7 @@ const RECOMMENDATIONS = [
     why: "World-class museums, late-night tapas culture, and kid-friendly parks everywhere.",
     pickReason: "Perfect for food-first families who want culture on the side.",
     img: "https://images.unsplash.com/photo-1539037116277-4db20889f2d4?w=600&auto=format&fit=crop&q=80",
+    communityTripId: "cmtrip-madrid-jun25",
   },
   {
     id: "r6",
@@ -64,6 +81,7 @@ const RECOMMENDATIONS = [
     why: "Gaudí, beaches, and a food scene that makes everyone happy — including picky eaters.",
     pickReason: "Ranked #1 by families who want cities with beach access.",
     img: "https://images.unsplash.com/photo-1583422409516-2895a77efded?w=600&auto=format&fit=crop&q=80",
+    communityTripId: null,
   },
   {
     id: "r7",
@@ -74,6 +92,7 @@ const RECOMMENDATIONS = [
     why: "Rice terraces, temple ceremonies, and warm shallow seas that kids adore.",
     pickReason: "A consistent favorite for families seeking beach + culture in Asia.",
     img: "https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=600&auto=format&fit=crop&q=80",
+    communityTripId: null,
   },
   {
     id: "r8",
@@ -84,53 +103,89 @@ const RECOMMENDATIONS = [
     why: "World-class skiing, hot springs, and farm-to-table dairy that kids go wild for.",
     pickReason: "Top pick for active families after a Japan alpine experience.",
     img: "https://images.unsplash.com/photo-1542931287-023b922fa89b?w=600&auto=format&fit=crop&q=80",
+    communityTripId: null,
   },
 ];
 
+function getDestinationHref(rec: Recommendation): string {
+  if (rec.communityTripId) {
+    return `/trips/${rec.communityTripId}`;
+  }
+  return `/trips/new?destination=${encodeURIComponent(rec.city)}&country=${encodeURIComponent(rec.country)}`;
+}
+
 const FILTERS = ["All", "Culture", "Food", "Outdoor", "Adventure", "Beach", "City Break", "Asia", "Europe"];
 
-const COMMUNITY_TRIPS = [
+type CommunityTrip = {
+  tripId: string | null;
+  heroImage: string;
+  title: string;
+  destination: string;
+  destCity: string;
+  destCountry: string;
+  duration: string;
+  tags: string[];
+  highlights: string[];
+  familyName: string;
+};
+
+const COMMUNITY_TRIPS: CommunityTrip[] = [
   {
-    slug: "tokyo-with-kids",
-    heroImage: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=400&auto=format&fit=crop&q=80",
-    title: "10 Days in Tokyo",
-    destination: "Tokyo, Japan",
-    duration: "10 days",
-    tags: ["Culture", "Food"],
-    highlights: ["teamLab Borderless", "Shibuya Crossing", "Tsukiji Market"],
-    familyName: "The Nakamura Family",
-  },
-  {
-    slug: "barcelona-family",
-    heroImage: "https://images.unsplash.com/photo-1583422409516-2895a77efded?w=400&auto=format&fit=crop&q=80",
-    title: "Barcelona with Tweens",
-    destination: "Barcelona, Spain",
+    tripId: "cmtrip-kyoto-may25",
+    heroImage: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=400&auto=format&fit=crop&q=80",
+    title: "Kyoto with Kids",
+    destination: "Kyoto, Japan",
+    destCity: "Kyoto",
+    destCountry: "Japan",
     duration: "7 days",
-    tags: ["Outdoor", "Food"],
-    highlights: ["Sagrada Família", "Park Güell", "La Barceloneta"],
-    familyName: "The Rivera Family",
+    tags: ["Culture", "Food"],
+    highlights: ["Fushimi Inari", "Arashiyama", "Nishiki Market"],
+    familyName: "The Tanaka Family",
   },
   {
-    slug: "lisbon-escape",
+    tripId: "cmtrip-madrid-jun25",
+    heroImage: "https://images.unsplash.com/photo-1539037116277-4db20889f2d4?w=400&auto=format&fit=crop&q=80",
+    title: "Madrid Long Weekend",
+    destination: "Madrid, Spain",
+    destCity: "Madrid",
+    destCountry: "Spain",
+    duration: "4 days",
+    tags: ["Food", "Culture"],
+    highlights: ["El Prado", "Retiro Park", "Mercado San Miguel"],
+    familyName: "The Garcia Family",
+  },
+  {
+    tripId: "cmtrip-lisbon-jul25",
     heroImage: "https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=400&auto=format&fit=crop&q=80",
     title: "Long Weekend in Lisbon",
     destination: "Lisbon, Portugal",
+    destCity: "Lisbon",
+    destCountry: "Portugal",
     duration: "4 days",
     tags: ["City Break", "Food"],
     highlights: ["Alfama trams", "Pastéis de Belém", "Sintra day trip"],
     familyName: "The Andersons",
   },
   {
-    slug: "bali-family-month",
+    tripId: null,
     heroImage: "https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=400&auto=format&fit=crop&q=80",
     title: "Bali Slow Travel",
     destination: "Bali, Indonesia",
+    destCity: "Bali",
+    destCountry: "Indonesia",
     duration: "14 days",
     tags: ["Beach", "Culture"],
     highlights: ["Ubud rice terraces", "Seminyak beach", "Tirta Empul"],
     familyName: "The Park Family",
   },
 ];
+
+function getCommunityTripHref(trip: CommunityTrip): string {
+  if (trip.tripId) {
+    return `/trips/${trip.tripId}`;
+  }
+  return `/trips/new?destination=${encodeURIComponent(trip.destCity)}&country=${encodeURIComponent(trip.destCountry)}`;
+}
 
 const TRAVEL_INTEL = [
   {
@@ -227,49 +282,60 @@ export default function DiscoverPage() {
         {filtered.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: "16px" }}>
             {filtered.map((rec) => (
-              <div
+              <Link
                 key={rec.id}
-                className="hover:shadow-md transition-shadow cursor-pointer"
-                style={{
-                  backgroundColor: "#fff",
-                  borderRadius: "16px",
-                  overflow: "hidden",
-                  border: "1px solid #EEEEEE",
-                  boxShadow: "0 1px 8px rgba(0,0,0,0.06)",
-                }}
+                href={getDestinationHref(rec)}
+                style={{ textDecoration: "none", display: "block" }}
               >
-                {/* Image */}
                 <div
+                  className="hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
                   style={{
-                    height: "160px",
-                    backgroundImage: `url(${rec.img})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                    position: "relative",
+                    backgroundColor: "#fff",
+                    borderRadius: "16px",
+                    overflow: "hidden",
+                    border: "1px solid #EEEEEE",
+                    boxShadow: "0 1px 8px rgba(0,0,0,0.06)",
                   }}
                 >
-                  <div style={{ position: "absolute", top: "10px", left: "10px" }}>
-                    <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: "#C4664A", color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>
-                      {rec.tag}
-                    </span>
+                  {/* Image */}
+                  <div
+                    style={{
+                      height: "160px",
+                      backgroundImage: `url(${rec.img})`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                      position: "relative",
+                    }}
+                  >
+                    <div style={{ position: "absolute", top: "10px", left: "10px" }}>
+                      <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: "#C4664A", color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>
+                        {rec.tag}
+                      </span>
+                    </div>
+                    {rec.communityTripId && (
+                      <div style={{ position: "absolute", top: "10px", right: "10px" }}>
+                        <span style={{ fontSize: "10px", fontWeight: 700, backgroundColor: "rgba(27,58,92,0.85)", backdropFilter: "blur(4px)", color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>
+                          Community trip
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {/* Content */}
+                  <div style={{ padding: "14px 16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
+                      <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
+                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>
+                        {rec.city}, {rec.country}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "10px" }}>{rec.why}</p>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
+                      <Sparkles size={11} style={{ color: "#C4664A", flexShrink: 0, marginTop: "2px" }} />
+                      <p style={{ fontSize: "11px", color: "#C4664A", lineHeight: 1.4, fontWeight: 500 }}>{rec.pickReason}</p>
+                    </div>
                   </div>
                 </div>
-                {/* Content */}
-                <div style={{ padding: "14px 16px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
-                    <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
-                    <span style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>
-                      {rec.city}, {rec.country}
-                    </span>
-                  </div>
-                  <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "10px" }}>{rec.why}</p>
-                  {/* Pick reason */}
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
-                    <Sparkles size={11} style={{ color: "#C4664A", flexShrink: 0, marginTop: "2px" }} />
-                    <p style={{ fontSize: "11px", color: "#C4664A", lineHeight: 1.4, fontWeight: 500 }}>{rec.pickReason}</p>
-                  </div>
-                </div>
-              </div>
+              </Link>
             ))}
           </div>
         ) : (
@@ -288,9 +354,12 @@ export default function DiscoverPage() {
               </h2>
               <p style={{ fontSize: "13px", color: "#717171" }}>Real itineraries from the Flokk community</p>
             </div>
-            <button style={{ background: "none", border: "none", fontSize: "12px", color: "#C4664A", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "2px", flexShrink: 0 }}>
-              See all <ChevronRight size={13} />
-            </button>
+            <Link
+              href="/trips/new"
+              style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: "2px", flexShrink: 0 }}
+            >
+              Add yours <ChevronRight size={13} />
+            </Link>
           </div>
           <div
             style={{
@@ -304,49 +373,53 @@ export default function DiscoverPage() {
             className="hide-scrollbar"
           >
             {COMMUNITY_TRIPS.map((trip) => (
-              <div
-                key={trip.slug}
-                className="hover:opacity-95 transition-opacity cursor-pointer"
-                style={{
-                  flexShrink: 0,
-                  width: "220px",
-                  backgroundColor: "#fff",
-                  borderRadius: "16px",
-                  overflow: "hidden",
-                  border: "1px solid #EEEEEE",
-                  boxShadow: "0 1px 6px rgba(0,0,0,0.06)",
-                }}
+              <Link
+                key={trip.tripId ?? trip.title}
+                href={getCommunityTripHref(trip)}
+                style={{ textDecoration: "none", flexShrink: 0 }}
               >
                 <div
+                  className="hover:shadow-md transition-shadow duration-200"
                   style={{
-                    height: "120px",
-                    backgroundImage: `url(${trip.heroImage})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                    position: "relative",
+                    width: "220px",
+                    backgroundColor: "#fff",
+                    borderRadius: "16px",
+                    overflow: "hidden",
+                    border: "1px solid #EEEEEE",
+                    boxShadow: "0 1px 6px rgba(0,0,0,0.06)",
                   }}
                 >
-                  <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.5) 100%)" }} />
-                  <div style={{ position: "absolute", bottom: "8px", left: "10px", right: "10px" }}>
-                    <p style={{ fontSize: "13px", fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>{trip.title}</p>
+                  <div
+                    style={{
+                      height: "120px",
+                      backgroundImage: `url(${trip.heroImage})`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                      position: "relative",
+                    }}
+                  >
+                    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.5) 100%)" }} />
+                    <div style={{ position: "absolute", bottom: "8px", left: "10px", right: "10px" }}>
+                      <p style={{ fontSize: "13px", fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>{trip.title}</p>
+                    </div>
+                  </div>
+                  <div style={{ padding: "10px 12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
+                      <MapPin size={11} style={{ color: "#C4664A", flexShrink: 0 }} />
+                      <span style={{ fontSize: "11px", color: "#2d2d2d", fontWeight: 600 }}>{trip.destination}</span>
+                    </div>
+                    <p style={{ fontSize: "11px", color: "#717171", marginBottom: "6px" }}>{trip.duration} · {trip.tags.join(", ")}</p>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                      {trip.highlights.slice(0, 2).map(h => (
+                        <span key={h} style={{ fontSize: "10px", backgroundColor: "rgba(196,102,74,0.08)", color: "#C4664A", borderRadius: "6px", padding: "2px 7px", fontWeight: 500 }}>
+                          {h}
+                        </span>
+                      ))}
+                    </div>
+                    <p style={{ fontSize: "10px", color: "#AAAAAA", marginTop: "8px" }}>by {trip.familyName}</p>
                   </div>
                 </div>
-                <div style={{ padding: "10px 12px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
-                    <MapPin size={11} style={{ color: "#C4664A", flexShrink: 0 }} />
-                    <span style={{ fontSize: "11px", color: "#2d2d2d", fontWeight: 600 }}>{trip.destination}</span>
-                  </div>
-                  <p style={{ fontSize: "11px", color: "#717171", marginBottom: "6px" }}>{trip.duration} · {trip.tags.join(", ")}</p>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                    {trip.highlights.slice(0, 2).map(h => (
-                      <span key={h} style={{ fontSize: "10px", backgroundColor: "rgba(196,102,74,0.08)", color: "#C4664A", borderRadius: "6px", padding: "2px 7px", fontWeight: 500 }}>
-                        {h}
-                      </span>
-                    ))}
-                  </div>
-                  <p style={{ fontSize: "10px", color: "#AAAAAA", marginTop: "8px" }}>by {trip.familyName}</p>
-                </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -362,6 +435,7 @@ export default function DiscoverPage() {
             {TRAVEL_INTEL.map((article) => (
               <div
                 key={article.id}
+                className="hover:shadow-md transition-shadow duration-200"
                 style={{
                   display: "flex",
                   gap: "14px",
@@ -407,7 +481,7 @@ export default function DiscoverPage() {
             Ready to start planning one of these?
           </p>
           <Link
-            href="/trips"
+            href="/trips/new"
             style={{
               display: "inline-block",
               padding: "12px 28px",
