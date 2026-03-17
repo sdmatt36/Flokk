@@ -138,3 +138,7 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}

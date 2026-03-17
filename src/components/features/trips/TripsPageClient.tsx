@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { MapPin, Calendar, Plus, Map } from "lucide-react";
+import { MapPin, Calendar, Plus, Map, Search, Plane, Globe } from "lucide-react";
 
 type Trip = {
   id: string;
@@ -29,6 +29,19 @@ const STATUS_COLOR: Record<string, string> = {
   COMPLETED: "#717171",
 };
 
+const PLACEHOLDERS = [
+  "Where to next?",
+  "Plan 5 days in Tokyo with kids...",
+  "Beach trip in May under $3k...",
+  "Weekend getaway from home...",
+  "Best cities for kids who love history...",
+];
+
+function diffCalendarDays(a: Date, b: Date): number {
+  const ms = 1000 * 60 * 60 * 24;
+  return Math.round((b.getTime() - a.getTime()) / ms);
+}
+
 function formatDateRange(start: string | null, end: string | null) {
   if (!start) return null;
   const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
@@ -43,18 +56,58 @@ function TripCard({ trip }: { trip: Trip }) {
   const dateRange = formatDateRange(trip.startDate, trip.endDate);
   const statusColor = STATUS_COLOR[trip.status] ?? "#717171";
 
+  // Countdown
+  const daysUntil = trip.startDate
+    ? diffCalendarDays(new Date(), new Date(trip.startDate))
+    : null;
+  const showCountdown =
+    daysUntil !== null &&
+    daysUntil > 0 &&
+    daysUntil <= 365 &&
+    trip.status !== "COMPLETED";
+
+  const countdownLabel =
+    daysUntil === 1
+      ? "Tomorrow"
+      : daysUntil! <= 30
+      ? `${daysUntil} days away`
+      : `${Math.round(daysUntil! / 7)} weeks away`;
+
+  // Completion bar
+  const totalDays =
+    trip.startDate && trip.endDate
+      ? diffCalendarDays(new Date(trip.startDate), new Date(trip.endDate)) + 1
+      : null;
+  const plannedDays =
+    totalDays && trip.savedCount > 0
+      ? Math.min(trip.savedCount, totalDays)
+      : 0;
+  const completionPercent =
+    totalDays && totalDays > 0
+      ? Math.min(100, Math.round((plannedDays / totalDays) * 100))
+      : 0;
+
   return (
     <Link href={`/trips/${trip.id}`} style={{ textDecoration: "none", display: "block" }}>
       <div style={{ backgroundColor: "#fff", borderRadius: "20px", overflow: "hidden", border: "1.5px solid #EEEEEE", boxShadow: "0 2px 8px rgba(0,0,0,0.07)", transition: "box-shadow 0.15s" }}>
         {/* Hero image */}
         <div style={{ height: "140px", position: "relative", overflow: "hidden", backgroundImage: `url('${hero}')`, backgroundSize: "cover", backgroundPosition: "center" }}>
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.55) 100%)" }} />
+
+          {/* Countdown chip */}
+          {showCountdown && (
+            <div style={{ position: "absolute", top: "12px", left: "12px", zIndex: 2, backgroundColor: "rgba(27,58,92,0.85)", backdropFilter: "blur(4px)", borderRadius: "999px", padding: "5px 12px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 600, color: "#fff" }}>{countdownLabel}</span>
+            </div>
+          )}
+
           {/* Trip title */}
           <div style={{ position: "absolute", bottom: "12px", left: "16px", right: "60px", zIndex: 2 }}>
             <p style={{ fontSize: "20px", fontWeight: 800, color: "#fff", lineHeight: 1.2, textShadow: "0 1px 6px rgba(0,0,0,0.5)" }}>
               {trip.title}
             </p>
           </div>
+
           {/* Status pill */}
           <div style={{ position: "absolute", top: "12px", right: "12px", zIndex: 2, backgroundColor: "rgba(255,255,255,0.92)", borderRadius: "20px", padding: "3px 10px" }}>
             <span style={{ fontSize: "11px", fontWeight: 700, color: statusColor }}>
@@ -64,31 +117,53 @@ function TripCard({ trip }: { trip: Trip }) {
         </div>
 
         {/* Details */}
-        <div style={{ padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-            {(trip.destinationCity || trip.destinationCountry) && (
-              <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
-                <span style={{ fontSize: "13px", color: "#2d2d2d", fontWeight: 600 }}>
-                  {[trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ")}
-                </span>
-              </div>
-            )}
-            {dateRange && (
-              <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-                <Calendar size={12} style={{ color: "#717171", flexShrink: 0 }} />
-                <span style={{ fontSize: "13px", color: "#717171" }}>{dateRange}</span>
-              </div>
-            )}
+        <div style={{ padding: "12px 16px 14px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+              {(trip.destinationCity || trip.destinationCountry) && (
+                <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                  <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
+                  <span style={{ fontSize: "13px", color: "#2d2d2d", fontWeight: 600 }}>
+                    {[trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ")}
+                  </span>
+                </div>
+              )}
+              {dateRange && (
+                <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                  <Calendar size={12} style={{ color: "#717171", flexShrink: 0 }} />
+                  <span style={{ fontSize: "13px", color: "#717171" }}>{dateRange}</span>
+                </div>
+              )}
+            </div>
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+              <p style={{ fontSize: "20px", fontWeight: 800, color: "#C4664A", lineHeight: 1 }}>
+                {trip.savedCount}
+              </p>
+              <p style={{ fontSize: "11px", color: "#717171", marginTop: "2px" }}>
+                {trip.savedCount === 1 ? "place" : "places"}
+              </p>
+            </div>
           </div>
-          <div style={{ textAlign: "right" }}>
-            <p style={{ fontSize: "20px", fontWeight: 800, color: "#C4664A", lineHeight: 1 }}>
-              {trip.savedCount}
-            </p>
-            <p style={{ fontSize: "11px", color: "#717171", marginTop: "2px" }}>
-              {trip.savedCount === 1 ? "place" : "places"}
-            </p>
-          </div>
+
+          {/* Completion bar */}
+          {totalDays !== null && totalDays > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "10px" }}>
+              <div style={{ flex: 1, height: "6px", backgroundColor: "#F0F0F0", borderRadius: "999px", overflow: "hidden" }}>
+                <div
+                  style={{
+                    height: "100%",
+                    backgroundColor: "#C4664A",
+                    borderRadius: "999px",
+                    width: `${completionPercent}%`,
+                    transition: "width 0.5s ease",
+                  }}
+                />
+              </div>
+              <span style={{ fontSize: "11px", color: "#717171", whiteSpace: "nowrap", flexShrink: 0 }}>
+                {plannedDays}/{totalDays} days planned
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </Link>
@@ -96,12 +171,29 @@ function TripCard({ trip }: { trip: Trip }) {
 }
 
 export function TripsPageClient({ trips }: { trips: Trip[] }) {
-  const now = new Date();
   const upcoming = trips.filter((t) => t.status !== "COMPLETED");
   const past = trips.filter((t) => t.status === "COMPLETED");
 
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const displayed = tab === "upcoming" ? upcoming : past;
+
+  // TODO: wire to Trip Wizard when built
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPlaceholderIndex((i) => (i + 1) % PLACEHOLDERS.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const totalDaysAbroad = trips.reduce((sum, t) => {
+    if (!t.startDate || !t.endDate) return sum;
+    return sum + diffCalendarDays(new Date(t.startDate), new Date(t.endDate)) + 1;
+  }, 0);
+
+  const countriesCount = new Set(
+    trips.map((t) => t.destinationCountry).filter(Boolean)
+  ).size;
 
   const tabStyle = (active: boolean) => ({
     paddingTop: "10px",
@@ -137,24 +229,39 @@ export function TripsPageClient({ trips }: { trips: Trip[] }) {
           </div>
           <Link
             href="/trips/new"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              backgroundColor: "#C4664A",
-              color: "#fff",
-              borderRadius: "20px",
-              padding: "8px 16px",
-              fontSize: "14px",
-              fontWeight: 600,
-              textDecoration: "none",
-              flexShrink: 0,
-              marginTop: "4px",
-            }}
+            style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: "#C4664A", color: "#fff", borderRadius: "20px", padding: "8px 16px", fontSize: "14px", fontWeight: 600, textDecoration: "none", flexShrink: 0, marginTop: "4px" }}
           >
             <Plus size={15} />
             New trip
           </Link>
+        </div>
+
+        {/* Search bar — TODO: wire to Trip Wizard when built */}
+        <div style={{ position: "relative", marginBottom: "24px" }}>
+          <div style={{ position: "absolute", top: 0, bottom: 0, left: "16px", display: "flex", alignItems: "center", pointerEvents: "none" }}>
+            <Search size={16} style={{ color: "#717171" }} />
+          </div>
+          <input
+            type="text"
+            placeholder={PLACEHOLDERS[placeholderIndex]}
+            style={{
+              width: "100%",
+              paddingLeft: "44px",
+              paddingRight: "16px",
+              paddingTop: "14px",
+              paddingBottom: "14px",
+              borderRadius: "16px",
+              border: "1.5px solid #EEEEEE",
+              backgroundColor: "#fff",
+              fontSize: "14px",
+              color: "#1B3A5C",
+              outline: "none",
+              boxSizing: "border-box" as const,
+              transition: "border-color 0.2s",
+            }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "#C4664A"; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = "#EEEEEE"; }}
+          />
         </div>
 
         {/* Tab bar */}
@@ -197,6 +304,35 @@ export function TripsPageClient({ trips }: { trips: Trip[] }) {
                 Plan a trip
               </Link>
             )}
+          </div>
+        )}
+
+        {/* Travel stats strip */}
+        {trips.length > 0 && (
+          <div style={{ marginTop: "32px", paddingTop: "24px", borderTop: "1px solid #F0F0F0" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+              <div style={{ textAlign: "center", padding: "16px 8px", borderRadius: "16px", backgroundColor: "rgba(27,58,92,0.04)" }}>
+                <Plane size={16} style={{ color: "#C4664A", display: "block", margin: "0 auto 8px" }} />
+                <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "24px", fontWeight: 600, color: "#1B3A5C" }}>
+                  {trips.length}
+                </div>
+                <div style={{ fontSize: "11px", color: "#717171", marginTop: "2px" }}>trips taken</div>
+              </div>
+              <div style={{ textAlign: "center", padding: "16px 8px", borderRadius: "16px", backgroundColor: "rgba(27,58,92,0.04)" }}>
+                <Globe size={16} style={{ color: "#C4664A", display: "block", margin: "0 auto 8px" }} />
+                <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "24px", fontWeight: 600, color: "#1B3A5C" }}>
+                  {countriesCount}
+                </div>
+                <div style={{ fontSize: "11px", color: "#717171", marginTop: "2px" }}>countries</div>
+              </div>
+              <div style={{ textAlign: "center", padding: "16px 8px", borderRadius: "16px", backgroundColor: "rgba(27,58,92,0.04)" }}>
+                <Calendar size={16} style={{ color: "#C4664A", display: "block", margin: "0 auto 8px" }} />
+                <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "24px", fontWeight: 600, color: "#1B3A5C" }}>
+                  {totalDaysAbroad}
+                </div>
+                <div style={{ fontSize: "11px", color: "#717171", marginTop: "2px" }}>days abroad</div>
+              </div>
+            </div>
           </div>
         )}
 
