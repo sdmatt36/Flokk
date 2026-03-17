@@ -41,10 +41,12 @@ export function RecommendationDrawer({
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
   const [addedDay, setAddedDay] = useState<number | null>(null);
+  // Drag-to-dismiss state
+  const [dragStartY, setDragStartY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Reset when item changes
   useEffect(() => {
     setHeartFilled(false);
     setShowDayPicker(false);
@@ -53,7 +55,6 @@ export function RecommendationDrawer({
     setAddedDay(null);
   }, [item?.title]);
 
-  // Escape key to close
   useEffect(() => {
     if (!item) return;
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
@@ -80,7 +81,6 @@ export function RecommendationDrawer({
           }),
         });
       }
-      // Write to localStorage for immediate itinerary display
       const key = `flokk_itinerary_additions_${tripId ?? "default"}`;
       try {
         const existing = JSON.parse(localStorage.getItem(key) ?? "[]");
@@ -105,32 +105,44 @@ export function RecommendationDrawer({
   const price = item.tags.split(" · ")[1] ?? "";
   const duration = item.tags.split(" · ")[2] ?? "";
 
-  const content = (
+  const drawerBody = (
     <>
-      {/* Backdrop */}
+      {/* Mobile backdrop */}
       <div
-        className="fixed inset-0 z-40 bg-black/40"
+        className="fixed inset-0 bg-black/50 z-40 md:hidden"
         onClick={onClose}
         style={{ touchAction: "none" }}
       />
-
-      {/* Drawer — bottom sheet mobile, right panel desktop */}
+      {/* Desktop backdrop */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-50 bg-white overflow-y-auto md:bottom-0 md:top-0 md:left-auto md:right-0 md:w-[400px]"
-        style={{
-          borderRadius: "20px 20px 0 0",
-          maxHeight: "70vh",
-          boxShadow: "0 -4px 32px rgba(0,0,0,0.12)",
-          // Desktop: full-height right panel
-          ...(typeof window !== "undefined" && window.innerWidth >= 768 ? {
-            borderRadius: "0",
-            maxHeight: "100vh",
-          } : {}),
-        }}
+        className="fixed inset-0 bg-black/30 z-40 hidden md:block"
+        onClick={onClose}
+      />
+
+      {/* Drawer panel */}
+      <div
+        className={[
+          "fixed z-50 bg-white",
+          // Mobile: bottom sheet
+          "bottom-0 left-0 right-0 rounded-t-2xl max-h-[82vh] overflow-y-auto",
+          // Desktop: right panel
+          "md:bottom-0 md:top-0 md:left-auto md:right-0 md:w-[420px] md:rounded-none md:rounded-l-2xl md:h-full md:overflow-y-auto",
+          "shadow-2xl",
+        ].join(" ")}
         onClick={e => e.stopPropagation()}
       >
-        {/* Drag handle — mobile */}
-        <div className="flex justify-center pt-3 pb-1 md:hidden">
+        {/* Drag handle — mobile only */}
+        <div
+          className="flex justify-center pt-3 pb-1 md:hidden cursor-grab active:cursor-grabbing"
+          onTouchStart={e => { setDragStartY(e.touches[0].clientY); setIsDragging(true); }}
+          onTouchEnd={e => {
+            if (isDragging) {
+              const delta = e.changedTouches[0].clientY - dragStartY;
+              if (delta > 80) onClose();
+              setIsDragging(false);
+            }
+          }}
+        >
           <div style={{ width: "40px", height: "4px", borderRadius: "2px", backgroundColor: "#E0E0E0" }} />
         </div>
 
@@ -140,10 +152,10 @@ export function RecommendationDrawer({
           style={{
             position: "absolute", top: "14px", right: "14px", zIndex: 10,
             width: "30px", height: "30px", borderRadius: "50%",
-            backgroundColor: "rgba(255,255,255,0.85)", backdropFilter: "blur(4px)",
+            backgroundColor: "rgba(255,255,255,0.9)", backdropFilter: "blur(4px)",
             border: "none", cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
+            boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
           }}
         >
           <X size={14} style={{ color: "#555" }} />
@@ -173,14 +185,7 @@ export function RecommendationDrawer({
             onClick={() => setHeartFilled(v => !v)}
             style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", flexShrink: 0, marginTop: "2px" }}
           >
-            <Heart
-              size={20}
-              style={{
-                color: heartFilled ? "#C4664A" : "#ccc",
-                fill: heartFilled ? "#C4664A" : "none",
-                transition: "all 0.15s",
-              }}
-            />
+            <Heart size={20} style={{ color: heartFilled ? "#C4664A" : "#ccc", fill: heartFilled ? "#C4664A" : "none", transition: "all 0.15s" }} />
           </button>
         </div>
 
@@ -231,23 +236,18 @@ export function RecommendationDrawer({
           </a>
         </div>
 
-        {/* Spacer */}
+        {/* Spacer before sticky CTA */}
         <div style={{ height: "80px" }} />
 
         {/* Sticky CTA */}
-        <div style={{
-          position: "sticky", bottom: 0,
-          backgroundColor: "#fff",
-          borderTop: "1px solid #F0F0F0",
-          padding: "14px 20px",
-          paddingBottom: "calc(14px + env(safe-area-inset-bottom, 0px))",
-        }}>
+        <div
+          className="sticky bottom-0 bg-white border-t border-gray-100 px-5 pt-4"
+          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom, 1rem))" }}
+        >
           {added ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "13px", borderRadius: "12px", backgroundColor: "rgba(74,124,89,0.1)", border: "1px solid rgba(74,124,89,0.2)" }}>
               <CheckCircle size={15} style={{ color: "#4a7c59" }} />
-              <span style={{ fontSize: "14px", fontWeight: 700, color: "#4a7c59" }}>
-                Added to Day {addedDay! + 1} ✓
-              </span>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "#4a7c59" }}>Added to Day {addedDay! + 1} ✓</span>
             </div>
           ) : !showDayPicker ? (
             <button
@@ -293,5 +293,5 @@ export function RecommendationDrawer({
     </>
   );
 
-  return createPortal(content, document.body);
+  return createPortal(drawerBody, document.body);
 }

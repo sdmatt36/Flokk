@@ -93,6 +93,7 @@ export default async function TripDetailPage({
   }));
 
   const startDateIso = trip.startDate ? trip.startDate.toISOString() : null;
+  const endDateIso = trip.endDate ? trip.endDate.toISOString() : null;
 
   const viewerMembers = (user.familyProfile?.members ?? []).map((m) => ({
     role: m.role as "ADULT" | "CHILD",
@@ -214,6 +215,7 @@ export default async function TripDetailPage({
         <CommunityTripView
           items={serializedItems}
           startDate={startDateIso}
+          endDate={endDateIso}
           tripId={trip.id}
           tripTitle={trip.title}
           destinationCity={trip.destinationCity ?? null}

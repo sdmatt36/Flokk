@@ -270,6 +270,7 @@ function CloneModal({
 export function CommunityTripView({
   items,
   startDate,
+  endDate,
   tripId,
   tripTitle,
   destinationCity,
@@ -277,6 +278,7 @@ export function CommunityTripView({
 }: {
   items: ActivityItem[];
   startDate: string | null;
+  endDate?: string | null;
   tripId: string;
   tripTitle: string;
   destinationCity: string | null;
@@ -304,6 +306,18 @@ export function CommunityTripView({
   const days = buildDays(items, startDate);
   const mapCenter = computeCenter(items);
   const allMarkers = buildAllMarkers(days);
+
+  const recDayPills: { dayIndex: number; label: string }[] = (() => {
+    if (!startDate) return [];
+    const startD = new Date(startDate);
+    const endD = endDate ? new Date(endDate) : startD;
+    const n = Math.round((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    return Array.from({ length: n }, (_, i) => {
+      const d = new Date(startD);
+      d.setDate(startD.getDate() + i);
+      return { dayIndex: i, label: `Day ${i + 1} · ${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}` };
+    });
+  })();
 
   const recs = DESTINATION_RECS[destinationCity ?? ""] ?? [];
   const relatedTrips = RELATED_TRIPS_BY_DEST[destinationCity ?? ""] ?? [];
@@ -573,7 +587,8 @@ export function CommunityTripView({
       {/* Recommendation drawer */}
       <RecommendationDrawer
         item={drawerRec}
-        dayPills={[]}
+        tripId={tripId}
+        dayPills={recDayPills}
         onClose={() => setDrawerRec(null)}
       />
 
