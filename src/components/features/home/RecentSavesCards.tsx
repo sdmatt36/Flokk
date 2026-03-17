@@ -56,7 +56,7 @@ export function RecentSavesCards({ items }: { items: RecentSaveItem[] }) {
 
   return (
     <>
-      <div className="grid grid-cols-3 md:grid-cols-3 sm:grid-cols-1 items-start" style={{ gap: "16px" }}>
+      <div className="grid grid-cols-3 md:grid-cols-3 sm:grid-cols-1" style={{ gap: "16px", alignItems: "start" }}>
         {items.map((item) => {
           const tags = item.categoryTags ?? [];
           const loc = getLocation(item);
@@ -91,7 +91,7 @@ export function RecentSavesCards({ items }: { items: RecentSaveItem[] }) {
                   </div>
                 )}
                 <div style={{ padding: "12px" }}>
-                  <p className="line-clamp-1" style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "2px", lineHeight: 1.3 }}>
+                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "2px", lineHeight: 1.3, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" }}>
                     {item.rawTitle ?? "Saved place"}
                   </p>
                   {loc && (
