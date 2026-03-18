@@ -2174,14 +2174,21 @@ function RecommendedContent({
       </div>
 
       {/* Community contribution banner */}
-      <div style={{ marginTop: "28px", backgroundColor: "#1B3A5C", borderRadius: "14px", padding: "20px 20px 20px 24px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ marginTop: "28px", backgroundColor: "#1B3A5C", borderRadius: "14px", padding: "20px 20px 20px 24px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}
+      >
         <div>
           <p style={{ fontSize: "15px", fontWeight: 700, color: "#fff", marginBottom: "4px" }}>Been here? Help the next family.</p>
           <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", lineHeight: 1.5 }}>
             Your first-hand tips get surfaced to families just like yours — and earn you Pioneer tier points.
           </p>
         </div>
-        <Link href="/profile?tab=stats" style={{ flexShrink: 0, backgroundColor: "#C4664A", color: "#fff", border: "none", borderRadius: "20px", padding: "8px 16px", fontSize: "13px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none" }}>
+        <Link
+          href="/profile?tab=stats"
+          onClick={(e) => e.stopPropagation()}
+          style={{ flexShrink: 0, backgroundColor: "#C4664A", color: "#fff", border: "none", borderRadius: "20px", padding: "8px 16px", fontSize: "13px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none" }}
+        >
           Contribute →
         </Link>
       </div>
