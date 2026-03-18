@@ -5,7 +5,31 @@ import { useState } from "react";
 
 const CATEGORIES = ["All", "Product", "Travel", "Family", "Tips"];
 
-const POSTS = [
+interface BlogPost {
+  category: string;
+  title: string;
+  excerpt: string;
+  date: string;
+  readTime: string;
+  hero: boolean;
+  imageUrl?: string;
+}
+
+const CATEGORY_BG: Record<string, string> = {
+  Product: "rgba(196,102,74,0.08)",
+  Travel: "rgba(14,165,233,0.08)",
+  Tips: "rgba(245,158,11,0.08)",
+  Family: "rgba(34,197,94,0.08)",
+};
+
+const CATEGORY_TEXT: Record<string, string> = {
+  Product: "#C4664A",
+  Travel: "#0284c7",
+  Tips: "#d97706",
+  Family: "#15803d",
+};
+
+const POSTS: BlogPost[] = [
   {
     category: "Product",
     title: "Why we built Flokk instead of using a spreadsheet",
@@ -59,7 +83,7 @@ export default function BlogPage() {
       <section style={{ backgroundColor: "#1B3A5C", padding: "80px 24px" }}>
         <div style={{ maxWidth: "1280px", margin: "0 auto", textAlign: "center" }}>
           <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", marginBottom: "16px" }}>Blog</p>
-          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "clamp(32px, 5vw, 52px)", fontWeight: 600, color: "#fff", maxWidth: "640px", margin: "0 auto 24px", lineHeight: 1.2 }}>
+          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "clamp(32px, 5vw, 52px)", fontWeight: 600, color: "#fff", margin: "0 auto 24px", lineHeight: 1.2, whiteSpace: "nowrap" }}>
             Travel better. Plan smarter.
           </h1>
           <p style={{ fontSize: "18px", color: "rgba(255,255,255,0.7)", maxWidth: "500px", margin: "0 auto", lineHeight: 1.6 }}>
@@ -112,7 +136,9 @@ export default function BlogPage() {
                   <span style={{ fontSize: "13px", color: "#999" }}>{filtered[0].readTime}</span>
                 </div>
               </div>
-              <div style={{ backgroundColor: "#E8EEF5", borderRadius: "16px", height: "240px" }} />
+              <div style={{ backgroundColor: CATEGORY_BG[filtered[0].category] ?? "rgba(27,58,92,0.06)", borderRadius: "16px", height: "240px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: CATEGORY_TEXT[filtered[0].category] ?? "#717171", opacity: 0.6 }}>{filtered[0].category}</span>
+              </div>
             </div>
           )}
 
@@ -120,7 +146,14 @@ export default function BlogPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
             {filtered.slice(1).map((post) => (
               <div key={post.title} style={{ border: "1px solid #F0F0F0", borderRadius: "16px", overflow: "hidden" }}>
-                <div style={{ backgroundColor: "#E8EEF5", height: "160px" }} />
+                {post.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={post.imageUrl} alt={post.title} style={{ width: "100%", height: "160px", objectFit: "cover" }} />
+                ) : (
+                  <div style={{ backgroundColor: CATEGORY_BG[post.category] ?? "rgba(27,58,92,0.06)", height: "160px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: CATEGORY_TEXT[post.category] ?? "#717171", opacity: 0.6 }}>{post.category}</span>
+                  </div>
+                )}
                 <div style={{ padding: "24px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
                     <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "rgba(27,58,92,0.08)", color: "#1B3A5C", padding: "3px 8px", borderRadius: "999px" }}>{post.category}</span>

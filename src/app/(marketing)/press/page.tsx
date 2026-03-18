@@ -1,7 +1,7 @@
 const STATS = [
   { value: "Early Access", label: "Launch stage" },
   { value: "2026", label: "Founded" },
-  { value: "Kamakura, JP", label: "Headquarters" },
+  { value: "Global", label: "Headquarters" },
   { value: "Bootstrapped", label: "Funding" },
 ];
 
@@ -46,7 +46,7 @@ export default function PressPage() {
             <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "28px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 20px" }}>Boilerplate</h2>
             <div style={{ backgroundColor: "#F9F9F9", borderRadius: "16px", padding: "32px", border: "1px solid #EEEEEE", marginBottom: "48px" }}>
               <p style={{ fontSize: "15px", color: "#444", lineHeight: 1.8, margin: "0 0 16px" }}>
-                <strong>Flokk</strong> is an AI-powered family travel planning platform that turns scattered saves &mdash; Instagram posts, TikTok reels, Google Maps pins &mdash; into real, personalized trip itineraries. Founded in 2026 and based in Kamakura, Japan, Flokk is independently built and bootstrapped.
+                <strong>Flokk</strong> is an AI-powered family travel planning platform that turns scattered saves &mdash; Instagram posts, TikTok reels, Google Maps pins &mdash; into real, personalized trip itineraries. Founded in 2026, Flokk is independently built, bootstrapped, and distributed globally.
               </p>
               <p style={{ fontSize: "15px", color: "#444", lineHeight: 1.8, margin: 0 }}>
                 Flokk is available at <strong>flokktravel.com</strong> and currently in early access.

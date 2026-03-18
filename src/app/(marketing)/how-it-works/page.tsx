@@ -8,8 +8,8 @@ export default function HowItWorksPage() {
       <section style={{ backgroundColor: "#1B3A5C", padding: "80px 24px" }}>
         <div style={{ maxWidth: "1280px", margin: "0 auto", textAlign: "center" }}>
           <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", marginBottom: "16px" }}>How it works</p>
-          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "clamp(32px, 5vw, 52px)", fontWeight: 600, color: "#fff", maxWidth: "760px", margin: "0 auto 24px", lineHeight: 1.2 }}>
-            Trip planning is a second job.<br />We're here to fire you from it.
+          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "clamp(32px, 5vw, 52px)", fontWeight: 600, color: "#fff", maxWidth: "900px", margin: "0 auto 24px", lineHeight: 1.2 }}>
+            Trip planning is a second job. We're here to fire you from it.
           </h1>
           <p style={{ fontSize: "18px", color: "rgba(255,255,255,0.7)", maxWidth: "600px", margin: "0 auto", lineHeight: 1.6 }}>
             The 10+ hours buried in Instagram saves, fighting tab-creep, and losing recommendations in group chats. We built Flokk to end that.

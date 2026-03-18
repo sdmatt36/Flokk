@@ -8,7 +8,6 @@ const FOOTER_COLS = [
       { label: "How it works", href: "/how-it-works" },
       { label: "Features", href: "/features" },
       { label: "Pricing", href: "/pricing" },
-      { label: "Changelog", href: "/changelog" },
     ],
   },
   {
@@ -26,7 +25,6 @@ const FOOTER_COLS = [
       { label: "Help center", href: "/help" },
       { label: "Community", href: "/community-info" },
       { label: "Contact", href: "/contact" },
-      { label: "Status", href: "/status" },
     ],
   },
   {
@@ -35,7 +33,6 @@ const FOOTER_COLS = [
       { label: "Privacy", href: "/privacy" },
       { label: "Terms", href: "/terms" },
       { label: "Cookies", href: "/cookies" },
-      { label: "Accessibility", href: "/accessibility" },
     ],
   },
 ];

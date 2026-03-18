@@ -50,7 +50,7 @@ export default function AboutPage() {
               Flokk is the product I wanted. One place to save anything, that remembers what my kids like, that knows where I'm going, and that helps me build a plan that actually works when we get there.
             </p>
             <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
-              We're independent, fully bootstrapped, and based in Kamakura, Japan. We build slowly and deliberately, and we care a lot about getting this right.
+              We're independent, fully bootstrapped, and distributed across time zones. We build slowly and deliberately, and we care a lot about getting this right.
             </p>
           </div>
         </div>
