@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { MapPin } from "lucide-react";
 
 // TO ADD PHOTOS:
@@ -14,17 +15,17 @@ import { MapPin } from "lucide-react";
 const FOUNDERS = [
   {
     name: "Matt Greene",
-    title: "Co-founder",
-    image: null as string | null, // replace with '/images/team/matt.jpg' when photo is added
-    linkedin: "https://linkedin.com/in/mattgreene",
+    title: "Co-Founder",
+    image: "/images/team/matt.jpeg",
+    linkedin: "https://www.linkedin.com/in/mattgreene36/",
     favoriteSpot: "Okinawa, Japan",
   },
   {
     name: "Jenifer Dasho",
-    title: "Co-founder",
-    image: null as string | null,
-    linkedin: "", // add when known
-    favoriteSpot: "", // add when known
+    title: "Co-Founder",
+    image: "/images/team/dasho.jpeg",
+    linkedin: "https://www.linkedin.com/in/jenifer-luisi-dasho-22b7564/",
+    favoriteSpot: "",
   },
 ];
 
@@ -61,38 +62,24 @@ const BELIEFS = [
 interface Person {
   name: string;
   title: string;
-  image: string | null;
+  image: string;
   linkedin: string;
   favoriteSpot: string;
 }
 
-function PersonCard({ person }: { person: Person }) {
-  const initials = person.name.split(" ").map((n) => n[0]).join("");
+function FounderCard({ person }: { person: Person }) {
   return (
     <div className="group">
-      {/* Photo */}
-      <div className="relative mb-4">
-        {person.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={person.image}
-            alt={person.name}
-            className="w-full aspect-square object-cover object-top rounded-2xl"
-          />
-        ) : (
-          <div
-            className="w-full aspect-square rounded-2xl flex items-center justify-center"
-            style={{ backgroundColor: "rgba(27,58,92,0.08)" }}
-          >
-            <span
-              className="font-['Playfair_Display'] text-3xl font-semibold"
-              style={{ color: "rgba(27,58,92,0.4)" }}
-            >
-              {initials}
-            </span>
-          </div>
-        )}
-        {/* LinkedIn — appears on hover */}
+      {/* Photo — circular crop */}
+      <div className="relative mb-4 overflow-hidden rounded-full aspect-square">
+        <Image
+          src={person.image}
+          alt={person.name}
+          fill
+          className="object-cover object-top"
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+        />
+        {/* LinkedIn badge — hover reveal */}
         {person.linkedin && (
           <a
             href={person.linkedin}
@@ -108,11 +95,24 @@ function PersonCard({ person }: { person: Person }) {
         )}
       </div>
       {/* Info */}
-      <div>
+      <div className="text-center">
         <p className="font-semibold text-[#1B3A5C] text-base leading-tight">{person.name}</p>
         <p className="text-sm text-[#717171] mt-0.5">{person.title}</p>
+        {person.linkedin && (
+          <a
+            href={person.linkedin}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 mt-2 text-xs text-[#0077B5] hover:underline"
+          >
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+            </svg>
+            LinkedIn
+          </a>
+        )}
         {person.favoriteSpot && (
-          <div className="flex items-center gap-1.5 mt-2">
+          <div className="flex items-center justify-center gap-1.5 mt-2">
             <MapPin className="w-3 h-3 text-[#C4664A] flex-shrink-0" />
             <span className="text-xs text-[#717171]">{person.favoriteSpot}</span>
           </div>
@@ -159,7 +159,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Team */}
+      {/* Team — positioned ABOVE "What we believe" */}
       <section style={{ backgroundColor: "rgba(27,58,92,0.04)", padding: "80px 24px" }}>
         <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
 
@@ -172,9 +172,9 @@ export default function AboutPage() {
           {/* Founders */}
           <div style={{ marginBottom: "48px" }}>
             <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#717171", marginBottom: "24px" }}>Founders</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-8" style={{ maxWidth: "480px" }}>
               {FOUNDERS.map((person) => (
-                <PersonCard key={person.name} person={person} />
+                <FounderCard key={person.name} person={person} />
               ))}
             </div>
           </div>
@@ -185,7 +185,7 @@ export default function AboutPage() {
               <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#717171", marginBottom: "24px" }}>Advisors & Team</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {ADVISORS.map((person) => (
-                  <PersonCard key={person.name} person={person} />
+                  <FounderCard key={person.name} person={person} />
                 ))}
               </div>
             </div>
@@ -205,12 +205,12 @@ export default function AboutPage() {
       </section>
 
       {/* Beliefs */}
-      <section style={{ backgroundColor: "rgba(27,58,92,0.04)", padding: "80px 24px" }}>
+      <section style={{ backgroundColor: "#fff", padding: "80px 24px" }}>
         <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
           <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "36px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 48px", textAlign: "center" }}>What we believe</h2>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "24px" }}>
             {BELIEFS.map((b) => (
-              <div key={b.title} style={{ backgroundColor: "#fff", borderRadius: "16px", padding: "32px", border: "1px solid #F0F0F0" }}>
+              <div key={b.title} style={{ backgroundColor: "#F9F9F9", borderRadius: "16px", padding: "32px", border: "1px solid #F0F0F0" }}>
                 <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 12px" }}>{b.title}</h3>
                 <p style={{ fontSize: "15px", color: "#717171", lineHeight: 1.7, margin: 0 }}>{b.body}</p>
               </div>

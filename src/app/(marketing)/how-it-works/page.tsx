@@ -131,19 +131,19 @@ export default function HowItWorksPage() {
       <section style={{ backgroundColor: "rgba(27,58,92,0.04)", padding: "80px 24px" }}>
         <div style={{ maxWidth: "1280px", margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "64px", alignItems: "center" }}>
           {/* Stacked community trip cards */}
-          <div style={{ position: "relative", maxWidth: "380px", paddingTop: "32px" }}>
-            {/* Back card — Kyoto */}
-            <div style={{ position: "absolute", top: 0, left: "20px", right: "20px", backgroundColor: "#fff", borderRadius: "16px", padding: "16px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #F0F0F0", opacity: 0.5, transform: "rotate(-2deg)" }}>
+          <div style={{ position: "relative", maxWidth: "380px" }}>
+            {/* Back card — Kyoto, rotated left, peeks from behind */}
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "#fff", borderRadius: "16px", padding: "20px", boxShadow: "0 1px 6px rgba(0,0,0,0.06)", border: "1px solid #EBEBEB", opacity: 0.45, transform: "rotate(-3deg) translate(-6px, 8px)" }}>
               <p style={{ fontWeight: 600, color: "#1B3A5C", fontSize: "14px", margin: "0 0 4px" }}>Kyoto with Kids</p>
               <p style={{ fontSize: "12px", color: "#717171", margin: 0 }}>6 days · Family of 4</p>
             </div>
-            {/* Middle card — Madrid */}
-            <div style={{ position: "absolute", top: "10px", left: "10px", right: "10px", backgroundColor: "#fff", borderRadius: "16px", padding: "16px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #F0F0F0", opacity: 0.75, transform: "rotate(1deg)" }}>
+            {/* Middle card — Madrid, rotated right, peeks from behind */}
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "#fff", borderRadius: "16px", padding: "20px", boxShadow: "0 1px 6px rgba(0,0,0,0.06)", border: "1px solid #EBEBEB", opacity: 0.7, transform: "rotate(2.5deg) translate(6px, 4px)" }}>
               <p style={{ fontWeight: 600, color: "#1B3A5C", fontSize: "14px", margin: "0 0 4px" }}>Madrid Long Weekend</p>
               <p style={{ fontSize: "12px", color: "#717171", margin: 0 }}>4 days · Kids 7 & 10</p>
             </div>
-            {/* Front card — Okinawa */}
-            <div style={{ position: "relative", zIndex: 10, backgroundColor: "#fff", borderRadius: "16px", padding: "20px", boxShadow: "0 4px 16px rgba(0,0,0,0.1)", border: "1px solid #F0F0F0" }}>
+            {/* Front card — Okinawa, in normal flow, determines container height */}
+            <div style={{ position: "relative", zIndex: 10, backgroundColor: "#fff", borderRadius: "16px", padding: "20px", boxShadow: "0 4px 20px rgba(0,0,0,0.12)", border: "1px solid #F0F0F0" }}>
               <p style={{ fontWeight: 600, color: "#1B3A5C", fontSize: "14px", margin: "0 0 4px" }}>Okinawa May '25</p>
               <p style={{ fontSize: "12px", color: "#717171", margin: "0 0 12px" }}>5 days · Beach + Culture</p>
               <div style={{ display: "flex", gap: "8px" }}>
