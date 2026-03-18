@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
+import { Menu, X, LogOut } from "lucide-react";
+import { useClerk, UserButton } from "@clerk/nextjs";
 
 function useIsDesktop() {
   const [isDesktop, setIsDesktop] = useState(false);
@@ -15,8 +17,6 @@ function useIsDesktop() {
   }, []);
   return isDesktop;
 }
-import { Menu, X, LogOut, User } from "lucide-react";
-import { useClerk } from "@clerk/nextjs";
 
 const NAV_ITEMS = [
   { label: "Home", href: "/home" },
@@ -33,36 +33,19 @@ function getGreeting() {
 }
 
 export function AppHeaderClient({
-  initials,
   firstName,
   fullName,
   email,
-  imageUrl,
 }: {
-  initials: string;
   firstName: string;
   fullName: string;
   email: string;
-  imageUrl: string;
 }) {
   const pathname = usePathname();
   const isDesktop = useIsDesktop();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [avatarOpen, setAvatarOpen] = useState(false);
   const greeting = getGreeting();
   const { signOut } = useClerk();
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setAvatarOpen(false);
-      }
-    }
-    if (avatarOpen) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [avatarOpen]);
 
   function isActive(href: string) {
     if (href === "/home") return pathname === "/home";
@@ -120,7 +103,7 @@ export function AppHeaderClient({
             })}
           </nav>
 
-          {/* Right: greeting + avatar (desktop) + hamburger (mobile) */}
+          {/* Right: greeting + UserButton (desktop) + hamburger (mobile) */}
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
 
             {/* Greeting — desktop only */}
@@ -130,102 +113,16 @@ export function AppHeaderClient({
               </span>
             )}
 
-            {/* Avatar with dropdown */}
-            <div ref={dropdownRef} style={{ position: "relative" }}>
-              <button
-                type="button"
-                onClick={() => setAvatarOpen((v) => !v)}
-                style={{
-                  width: "40px",
-                  height: "40px",
-                  borderRadius: "50%",
-                  backgroundColor: "#C4664A",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                  border: avatarOpen ? "2px solid #C4664A" : "2px solid transparent",
-                  cursor: "pointer",
-                  outline: "none",
-                  boxShadow: avatarOpen ? "0 0 0 3px rgba(196,102,74,0.2)" : "none",
-                  transition: "box-shadow 0.15s",
-                  overflow: "hidden",
-                  padding: 0,
+            {/* Clerk UserButton — handles avatar, photo, profile modal, sign out */}
+            {isDesktop && (
+              <UserButton
+                appearance={{
+                  elements: {
+                    avatarBox: { width: "36px", height: "36px" },
+                  },
                 }}
-              >
-                {imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={imageUrl} alt={fullName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                ) : (
-                  <span style={{ fontSize: "14px", fontWeight: 700, color: "#fff" }}>{initials}</span>
-                )}
-              </button>
-
-              {/* Dropdown */}
-              {avatarOpen && (
-                <div style={{
-                  position: "absolute",
-                  top: "calc(100% + 8px)",
-                  right: 0,
-                  backgroundColor: "#fff",
-                  border: "1px solid #EEEEEE",
-                  borderRadius: "14px",
-                  boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
-                  minWidth: "220px",
-                  zIndex: 200,
-                  overflow: "hidden",
-                }}>
-                  {/* User info */}
-                  <div style={{ padding: "16px", borderBottom: "1px solid #F0F0F0" }}>
-                    <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", margin: 0 }}>{fullName}</p>
-                    <p style={{ fontSize: "12px", color: "#717171", margin: "2px 0 0" }}>{email}</p>
-                  </div>
-                  {/* Links */}
-                  <div style={{ padding: "8px" }}>
-                    <Link
-                      href="/profile"
-                      onClick={() => setAvatarOpen(false)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        padding: "10px 12px",
-                        borderRadius: "8px",
-                        fontSize: "14px",
-                        color: "#1a1a1a",
-                        textDecoration: "none",
-                        fontWeight: 500,
-                      }}
-                    >
-                      <User size={16} style={{ color: "#717171" }} />
-                      Edit profile
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => signOut({ redirectUrl: "/" })}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        padding: "10px 12px",
-                        borderRadius: "8px",
-                        fontSize: "14px",
-                        color: "#e53e3e",
-                        fontWeight: 500,
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        width: "100%",
-                        textAlign: "left",
-                      }}
-                    >
-                      <LogOut size={16} style={{ color: "#e53e3e" }} />
-                      Sign out
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+              />
+            )}
 
             {/* Hamburger — mobile only */}
             {!isDesktop && (
@@ -283,7 +180,7 @@ export function AppHeaderClient({
             );
           })}
 
-          {/* Sign out at bottom of mobile drawer */}
+          {/* User info + sign out at bottom of mobile drawer */}
           <div style={{ marginTop: "auto", paddingTop: "16px", borderTop: "1px solid #F0F0F0" }}>
             <div style={{ padding: "0 16px 8px" }}>
               <p style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a1a", margin: 0 }}>{fullName}</p>
