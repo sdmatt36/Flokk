@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { FamilySection } from "@/components/features/profile/FamilySection";
@@ -20,6 +20,14 @@ const NAV_ITEMS = [
 ];
 
 export default function ProfilePage() {
+  return (
+    <Suspense fallback={null}>
+      <ProfilePageContent />
+    </Suspense>
+  );
+}
+
+function ProfilePageContent() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") ?? "family";
   const [activeSection, setActiveSection] = useState(initialTab);
