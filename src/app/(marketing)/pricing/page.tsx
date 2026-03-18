@@ -29,7 +29,7 @@ const FAQS = [
   },
   {
     q: "What does Pro cost?",
-    a: "Pro is $7.99 / month or $59.99 / year (save 37%). Pricing is per household, not per traveler.",
+    a: "Pro is $4.99 / month or $59.99 / year (save 17%). Pricing is per household, not per traveler.",
   },
   {
     q: "Can I cancel at any time?",
@@ -37,11 +37,11 @@ const FAQS = [
   },
   {
     q: "Is there a family or group plan?",
-    a: "The household plan covers your whole travel group. We don&apos;t charge per seat. A separate collaborative plan for larger groups is on our roadmap.",
+    a: "The household plan covers your whole travel group. We don't charge per seat. A separate collaborative plan for larger groups is on our roadmap.",
   },
   {
     q: "What happens to my saves if I downgrade?",
-    a: "Your data is always yours. If you downgrade, we keep all your saves and trips. You just won&apos;t be able to add new ones beyond the free tier limits.",
+    a: "Your data is always yours. If you downgrade, we keep all your saves and trips. You just won't be able to add new ones beyond the free tier limits.",
   },
 ];
 
@@ -58,7 +58,7 @@ export default function PricingPage() {
             Simple pricing, no surprises.
           </h1>
           <p style={{ fontSize: "18px", color: "rgba(255,255,255,0.7)", maxWidth: "500px", margin: "0 auto", lineHeight: 1.6 }}>
-            Start free. Upgrade when you&apos;re ready. One plan for your whole household.
+            Start free. Upgrade when you're ready. One plan for your whole household.
           </p>
         </div>
       </section>
@@ -86,22 +86,29 @@ export default function PricingPage() {
           </div>
 
           {/* Pro */}
-          <div style={{ border: "2px solid #C4664A", borderRadius: "20px", padding: "40px", position: "relative", backgroundColor: "#FDFAF9" }}>
-            <div style={{ position: "absolute", top: "20px", right: "20px", backgroundColor: "#C4664A", color: "#fff", fontSize: "11px", fontWeight: 700, padding: "4px 10px", borderRadius: "999px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Most popular</div>
-            <p style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#C4664A", margin: "0 0 16px" }}>Pro</p>
-            <div style={{ display: "flex", alignItems: "baseline", gap: "4px", marginBottom: "8px" }}>
-              <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "48px", fontWeight: 700, color: "#1B3A5C" }}>$7.99</span>
-              <span style={{ fontSize: "14px", color: "#717171" }}>/ month</span>
+          <div style={{ position: "relative" }}>
+            <div style={{ border: "2px solid #C4664A", borderRadius: "20px", padding: "40px", position: "relative", backgroundColor: "#FDFAF9" }}>
+              <div style={{ position: "absolute", top: "20px", right: "20px", backgroundColor: "#C4664A", color: "#fff", fontSize: "11px", fontWeight: 700, padding: "4px 10px", borderRadius: "999px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Most popular</div>
+              <p style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#C4664A", margin: "0 0 16px" }}>Pro</p>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "4px", marginBottom: "8px" }}>
+                <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "48px", fontWeight: 700, color: "#1B3A5C" }}>$4.99</span>
+                <span style={{ fontSize: "14px", color: "#717171" }}>/ month</span>
+              </div>
+              <p style={{ fontSize: "14px", color: "#717171", margin: "0 0 32px" }}>Or $59.99 / year — save 17%.</p>
+              <button disabled style={{ display: "block", width: "100%", textAlign: "center", backgroundColor: "rgba(196,102,74,0.5)", color: "#fff", padding: "12px 24px", borderRadius: "999px", fontSize: "15px", fontWeight: 700, border: "none", cursor: "not-allowed", marginBottom: "32px", opacity: 0.6 }}>Notify me at launch</button>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {PRO_FEATURES.map((f) => (
+                  <div key={f} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <Check size={16} style={{ color: "#C4664A", flexShrink: 0 }} />
+                    <span style={{ fontSize: "14px", color: "#444" }}>{f}</span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <p style={{ fontSize: "14px", color: "#717171", margin: "0 0 32px" }}>Or $59.99 / year &mdash; save 37%.</p>
-            <Link href="/sign-up" style={{ display: "block", textAlign: "center", backgroundColor: "#C4664A", color: "#fff", padding: "12px 24px", borderRadius: "999px", fontSize: "15px", fontWeight: 700, textDecoration: "none", marginBottom: "32px" }}>Start Pro free for 14 days</Link>
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {PRO_FEATURES.map((f) => (
-                <div key={f} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <Check size={16} style={{ color: "#C4664A", flexShrink: 0 }} />
-                  <span style={{ fontSize: "14px", color: "#444" }}>{f}</span>
-                </div>
-              ))}
+            {/* Coming soon overlay */}
+            <div style={{ position: "absolute", inset: 0, backgroundColor: "rgba(255,255,255,0.65)", backdropFilter: "blur(2px)", borderRadius: "20px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
+              <span style={{ backgroundColor: "#1B3A5C", color: "#fff", fontSize: "11px", fontWeight: 700, padding: "6px 16px", borderRadius: "999px", textTransform: "uppercase", letterSpacing: "0.1em" }}>Coming soon</span>
+              <p style={{ fontSize: "13px", color: "#717171", marginTop: "10px", textAlign: "center", padding: "0 24px", lineHeight: 1.5 }}>Pro is in development. Join the free tier now and we'll notify you at launch.</p>
             </div>
           </div>
         </div>

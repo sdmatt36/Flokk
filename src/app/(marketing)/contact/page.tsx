@@ -35,10 +35,10 @@ export default function ContactPage() {
         <div style={{ maxWidth: "1280px", margin: "0 auto", textAlign: "center" }}>
           <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", marginBottom: "16px" }}>Contact</p>
           <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "clamp(32px, 5vw, 52px)", fontWeight: 600, color: "#fff", maxWidth: "640px", margin: "0 auto 24px", lineHeight: 1.2 }}>
-            We&apos;d love to hear from you.
+            We'd love to hear from you.
           </h1>
           <p style={{ fontSize: "18px", color: "rgba(255,255,255,0.7)", maxWidth: "500px", margin: "0 auto", lineHeight: 1.6 }}>
-            We&apos;re a small team. We read every message and respond within 24 hours on weekdays.
+            We're a small team. We read every message and respond within 24 hours on weekdays.
           </p>
         </div>
       </section>
@@ -65,7 +65,7 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <p style={{ fontSize: "13px", fontWeight: 700, color: "#1B3A5C", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Location</p>
-                  <p style={{ fontSize: "15px", color: "#717171", margin: 0 }}>Kamakura, Japan</p>
+                  <p style={{ fontSize: "15px", color: "#717171", margin: 0 }}>Global — We are everywhere.</p>
                 </div>
               </div>
               <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
@@ -93,7 +93,7 @@ export default function ContactPage() {
                   <span style={{ fontSize: "28px", color: "#C4664A" }}>&#10003;</span>
                 </div>
                 <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "28px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 12px" }}>Message sent</h2>
-                <p style={{ fontSize: "16px", color: "#717171", lineHeight: 1.6 }}>Thanks for reaching out. We&apos;ll get back to you within 24 hours.</p>
+                <p style={{ fontSize: "16px", color: "#717171", lineHeight: 1.6 }}>Thanks for reaching out. We'll get back to you within 24 hours.</p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>

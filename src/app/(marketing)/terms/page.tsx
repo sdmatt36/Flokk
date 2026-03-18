@@ -13,7 +13,7 @@ const SECTIONS = [
   },
   {
     title: "Acceptable use",
-    body: "You agree to use Flokk only for lawful purposes. You may not use the service to distribute spam, malware, or illegal content; impersonate others; attempt to gain unauthorized access to our systems; or interfere with other users&apos; access to the service.",
+    body: "You agree to use Flokk only for lawful purposes. You may not use the service to distribute spam, malware, or illegal content; impersonate others; attempt to gain unauthorized access to our systems; or interfere with other users' access to the service.",
   },
   {
     title: "Your content",

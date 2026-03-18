@@ -134,7 +134,7 @@ export default function HelpPage() {
       <section style={{ backgroundColor: "rgba(27,58,92,0.04)", padding: "64px 24px", textAlign: "center" }}>
         <div style={{ maxWidth: "640px", margin: "0 auto" }}>
           <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "28px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 16px" }}>Still need help?</h2>
-          <p style={{ fontSize: "16px", color: "#717171", margin: "0 0 28px" }}>We&apos;re a small team and we read every message. Get in touch and we&apos;ll get back to you within 24 hours.</p>
+          <p style={{ fontSize: "16px", color: "#717171", margin: "0 0 28px" }}>We're a small team and we read every message. Get in touch and we'll get back to you within 24 hours.</p>
           <Link href="/contact" style={{ display: "inline-block", backgroundColor: "#C4664A", color: "#fff", padding: "12px 28px", borderRadius: "999px", fontSize: "15px", fontWeight: 700, textDecoration: "none" }}>Contact us &rarr;</Link>
         </div>
       </section>

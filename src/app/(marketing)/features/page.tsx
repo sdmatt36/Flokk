@@ -42,7 +42,7 @@ export default function FeaturesPage() {
         <div style={{ maxWidth: "1280px", margin: "0 auto", textAlign: "center" }}>
           <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", marginBottom: "16px" }}>Features</p>
           <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "clamp(32px, 5vw, 52px)", fontWeight: 600, color: "#fff", maxWidth: "760px", margin: "0 auto 24px", lineHeight: 1.2 }}>
-            Everything you need. Nothing you don&apos;t.
+            Everything you need. Nothing you don't.
           </h1>
           <p style={{ fontSize: "18px", color: "rgba(255,255,255,0.7)", maxWidth: "600px", margin: "0 auto", lineHeight: 1.6 }}>
             Flokk is built around one idea: saving a place should mean you actually get to go there. Every feature exists to close that gap.
@@ -57,12 +57,12 @@ export default function FeaturesPage() {
             <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", marginBottom: "8px" }}>Save</p>
             <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "36px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 16px" }}>Capture everything that inspires you</h2>
             <p style={{ fontSize: "16px", color: "#717171", maxWidth: "560px", lineHeight: 1.7 }}>
-              No more screenshots you&apos;ll never find again. No more texting yourself links. Flokk is the one place where inspiration becomes a plan.
+              No more screenshots you'll never find again. No more texting yourself links. Flokk is the one place where inspiration becomes a plan.
             </p>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
             {[
-              { title: "Share-sheet integration", desc: "Works from every app on your phone. Share to Flokk the same way you&apos;d share to WhatsApp." },
+              { title: "Share-sheet integration", desc: "Works from every app on your phone. Share to Flokk the same way you'd share to WhatsApp." },
               { title: "Auto-extraction", desc: "We pull the venue name, address, cuisine type, price range, and any notes from the source automatically." },
               { title: "Smart categories", desc: "Restaurants, hotels, activities, sights. Every save is auto-tagged so your library stays organized." },
             ].map((item) => (
@@ -107,14 +107,14 @@ export default function FeaturesPage() {
             <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", marginBottom: "8px" }}>Personalize</p>
             <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "36px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 16px" }}>Built around your family, not a generic traveler</h2>
             <p style={{ fontSize: "16px", color: "#717171", maxWidth: "560px", lineHeight: 1.7 }}>
-              Flokk knows your kids&apos; ages, your dietary preferences, and what you care about most when you travel. That context shapes every recommendation.
+              Flokk knows your kids' ages, your dietary preferences, and what you care about most when you travel. That context shapes every recommendation.
             </p>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
             {[
               { title: "Family profiles", desc: "Add travelers once. Ages, interests, dietary needs, and accessibility requirements are factored into every suggestion." },
               { title: "Interest matching", desc: "Into street food, museums, hiking? We weight recommendations to match what your family actually enjoys." },
-              { title: "Trip history", desc: "Past trips inform future ones. We know where you&apos;ve been and won&apos;t keep suggesting the same places." },
+              { title: "Trip history", desc: "Past trips inform future ones. We know where you've been and won't keep suggesting the same places." },
             ].map((item) => (
               <div key={item.title} style={{ backgroundColor: "#F9F9F9", borderRadius: "16px", padding: "28px" }}>
                 <h3 style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C", margin: "0 0 10px" }}>{item.title}</h3>

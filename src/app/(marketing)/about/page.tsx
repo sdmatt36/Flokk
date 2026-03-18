@@ -30,7 +30,7 @@ export default function AboutPage() {
             Built by a family that got tired of losing the list.
           </h1>
           <p style={{ fontSize: "18px", color: "rgba(255,255,255,0.7)", maxWidth: "580px", margin: "0 auto", lineHeight: 1.6 }}>
-            Flokk started as a personal problem. It became an obsession. Now it&apos;s a product families can actually use.
+            Flokk started as a personal problem. It became an obsession. Now it's a product families can actually use.
           </p>
         </div>
       </section>
@@ -41,16 +41,16 @@ export default function AboutPage() {
           <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "36px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 32px" }}>The story</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
-              My family moves a lot. We&apos;ve lived in three countries and taken more trips than I can count. Every time we plan one, the same thing happens: I spend hours scrolling Instagram saves, Googling restaurants I already found once, and trying to remember which TikTok had that hotel in it.
+              My family moves a lot. We've lived in three countries and taken more trips than I can count. Every time we plan one, the same thing happens: I spend hours scrolling Instagram saves, Googling restaurants I already found once, and trying to remember which TikTok had that hotel in it.
             </p>
             <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
-              The information is out there. The problem is that it&apos;s everywhere. In saves, in screenshots, in group chats, in browser tabs. None of it is connected, and none of it knows anything about my family.
+              The information is out there. The problem is that it's everywhere. In saves, in screenshots, in group chats, in browser tabs. None of it is connected, and none of it knows anything about my family.
             </p>
             <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
-              Flokk is the product I wanted. One place to save anything, that remembers what my kids like, that knows where I&apos;m going, and that helps me build a plan that actually works when we get there.
+              Flokk is the product I wanted. One place to save anything, that remembers what my kids like, that knows where I'm going, and that helps me build a plan that actually works when we get there.
             </p>
             <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
-              We&apos;re independent, fully bootstrapped, and based in Kamakura, Japan. We build slowly and deliberately, and we care a lot about getting this right.
+              We're independent, fully bootstrapped, and based in Kamakura, Japan. We build slowly and deliberately, and we care a lot about getting this right.
             </p>
           </div>
         </div>

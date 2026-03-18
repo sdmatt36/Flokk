@@ -58,7 +58,7 @@ export default function CookiesPage() {
       <section style={{ backgroundColor: "#fff", padding: "64px 24px" }}>
         <div style={{ maxWidth: "720px", margin: "0 auto" }}>
           <p style={{ fontSize: "16px", color: "#717171", lineHeight: 1.8, margin: "0 0 48px" }}>
-            Flokk uses a small number of cookies. We use them only when necessary and we don&apos;t use advertising cookies. Here&apos;s what we use and why.
+            Flokk uses a small number of cookies. We use them only when necessary and we don't use advertising cookies. Here's what we use and why.
           </p>
 
           {/* Cookie types */}

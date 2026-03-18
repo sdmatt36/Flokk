@@ -9,7 +9,7 @@ const POSTS = [
   {
     category: "Product",
     title: "Why we built Flokk instead of using a spreadsheet",
-    excerpt: "Every family has a system. Ours was a shared note with 200 unorganized links. Here&apos;s why that stopped working.",
+    excerpt: "Every family has a system. Ours was a shared note with 200 unorganized links. Here's why that stopped working.",
     date: "March 2026",
     readTime: "5 min read",
     hero: true,
@@ -41,7 +41,7 @@ const POSTS = [
   {
     category: "Product",
     title: "What happens when you share a TikTok into Flokk",
-    excerpt: "A look under the hood at how we extract useful data from social media links so you don&apos;t have to.",
+    excerpt: "A look under the hood at how we extract useful data from social media links so you don't have to.",
     date: "January 2026",
     readTime: "3 min read",
     hero: false,
