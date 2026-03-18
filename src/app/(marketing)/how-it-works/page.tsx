@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { MapPin } from "lucide-react";
 
 export default function HowItWorksPage() {
   return (
@@ -65,7 +64,6 @@ export default function HowItWorksPage() {
             </div>
             <div style={{ backgroundColor: "#fff", borderRadius: "20px", padding: "32px", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", border: "1px solid #F0F0F0" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-                <MapPin size={16} style={{ color: "#C4664A" }} />
                 <span style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A" }}>400m from your hotel</span>
               </div>
               <p style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", margin: "0 0 8px" }}>Le Comptoir du Relais · Paris</p>

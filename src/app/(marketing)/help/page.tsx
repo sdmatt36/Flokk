@@ -2,11 +2,9 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Bookmark, Map, Users, Settings, CreditCard, HelpCircle } from "lucide-react";
 
 const CATEGORIES = [
   {
-    icon: Bookmark,
     title: "Saving content",
     articles: [
       "How to save a link from Instagram",
@@ -16,7 +14,6 @@ const CATEGORIES = [
     ],
   },
   {
-    icon: Map,
     title: "Planning trips",
     articles: [
       "Creating your first trip",
@@ -26,7 +23,6 @@ const CATEGORIES = [
     ],
   },
   {
-    icon: Users,
     title: "Family profiles",
     articles: [
       "Setting up your family profile",
@@ -36,7 +32,6 @@ const CATEGORIES = [
     ],
   },
   {
-    icon: Settings,
     title: "Account & settings",
     articles: [
       "Updating your email or password",
@@ -46,7 +41,6 @@ const CATEGORIES = [
     ],
   },
   {
-    icon: CreditCard,
     title: "Billing",
     articles: [
       "How the free tier works",
@@ -56,7 +50,6 @@ const CATEGORIES = [
     ],
   },
   {
-    icon: HelpCircle,
     title: "Troubleshooting",
     articles: [
       "A link didn't save correctly",
@@ -107,13 +100,9 @@ export default function HelpPage() {
         <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
             {CATEGORIES.map((cat) => {
-              const Icon = cat.icon;
               return (
                 <div key={cat.title} style={{ border: "1px solid #F0F0F0", borderRadius: "16px", padding: "28px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
-                    <div style={{ width: "40px", height: "40px", borderRadius: "12px", backgroundColor: "rgba(27,58,92,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Icon size={18} style={{ color: "#1B3A5C" }} />
-                    </div>
+                  <div style={{ marginBottom: "20px" }}>
                     <h2 style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C", margin: 0 }}>{cat.title}</h2>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>

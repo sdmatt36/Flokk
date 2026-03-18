@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Twitter, Instagram, Youtube } from "lucide-react";
 
 const FOOTER_COLS = [
   {
@@ -68,15 +67,9 @@ export function MarketingFooter() {
             &copy; 2026 Flokk. All rights reserved.
           </span>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            <a href="https://twitter.com" aria-label="Twitter" style={{ color: "rgba(255,255,255,0.5)" }}>
-              <Twitter size={16} />
-            </a>
-            <a href="https://instagram.com" aria-label="Instagram" style={{ color: "rgba(255,255,255,0.5)" }}>
-              <Instagram size={16} />
-            </a>
-            <a href="https://youtube.com" aria-label="YouTube" style={{ color: "rgba(255,255,255,0.5)" }}>
-              <Youtube size={16} />
-            </a>
+            <a href="https://twitter.com" style={{ fontSize: "13px", color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>Twitter</a>
+            <a href="https://instagram.com" style={{ fontSize: "13px", color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>Instagram</a>
+            <a href="https://youtube.com" style={{ fontSize: "13px", color: "rgba(255,255,255,0.5)", textDecoration: "none" }}>YouTube</a>
           </div>
         </div>
       </div>

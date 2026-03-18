@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
 
 const MORE_FEATURES = [
   {
@@ -149,10 +148,7 @@ export default function FeaturesPage() {
                       <h3 style={{ fontSize: "16px", fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>{feature.title}</h3>
                       <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.5)", margin: 0 }}>{feature.teaser}</p>
                     </div>
-                    <ChevronDown
-                      size={18}
-                      style={{ color: "rgba(255,255,255,0.4)", flexShrink: 0, transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
-                    />
+                    <span style={{ color: "rgba(255,255,255,0.4)", flexShrink: 0, fontSize: "16px", lineHeight: 1, transition: "transform 0.2s", display: "inline-block", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
                   </div>
                   {isOpen && (
                     <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>

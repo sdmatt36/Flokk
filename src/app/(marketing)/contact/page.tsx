@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { Mail, MapPin, Clock } from "lucide-react";
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -53,32 +52,17 @@ export default function ContactPage() {
           <div>
             <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "28px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 32px" }}>Get in touch</h2>
             <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
-              <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
-                <div style={{ width: "40px", height: "40px", borderRadius: "12px", backgroundColor: "rgba(27,58,92,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Mail size={18} style={{ color: "#1B3A5C" }} />
-                </div>
-                <div>
-                  <p style={{ fontSize: "13px", fontWeight: 700, color: "#1B3A5C", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Email</p>
-                  <p style={{ fontSize: "15px", color: "#717171", margin: 0 }}>hello@flokktravel.com</p>
-                </div>
+              <div>
+                <p style={{ fontSize: "13px", fontWeight: 700, color: "#1B3A5C", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Email</p>
+                <p style={{ fontSize: "15px", color: "#717171", margin: 0 }}>hello@flokktravel.com</p>
               </div>
-              <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
-                <div style={{ width: "40px", height: "40px", borderRadius: "12px", backgroundColor: "rgba(27,58,92,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <MapPin size={18} style={{ color: "#1B3A5C" }} />
-                </div>
-                <div>
-                  <p style={{ fontSize: "13px", fontWeight: 700, color: "#1B3A5C", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Location</p>
-                  <p style={{ fontSize: "15px", color: "#717171", margin: 0 }}>Global — We are everywhere.</p>
-                </div>
+              <div>
+                <p style={{ fontSize: "13px", fontWeight: 700, color: "#1B3A5C", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Location</p>
+                <p style={{ fontSize: "15px", color: "#717171", margin: 0 }}>Global — We are everywhere.</p>
               </div>
-              <div style={{ display: "flex", gap: "16px", alignItems: "flex-start" }}>
-                <div style={{ width: "40px", height: "40px", borderRadius: "12px", backgroundColor: "rgba(27,58,92,0.08)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Clock size={18} style={{ color: "#1B3A5C" }} />
-                </div>
-                <div>
-                  <p style={{ fontSize: "13px", fontWeight: 700, color: "#1B3A5C", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Response time</p>
-                  <p style={{ fontSize: "15px", color: "#717171", margin: 0 }}>Within 24 hours on weekdays (JST)</p>
-                </div>
+              <div>
+                <p style={{ fontSize: "13px", fontWeight: 700, color: "#1B3A5C", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Response time</p>
+                <p style={{ fontSize: "15px", color: "#717171", margin: 0 }}>Within 24 hours on weekdays (JST)</p>
               </div>
             </div>
 

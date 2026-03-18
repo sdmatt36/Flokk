@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Show, UserButton, SignInButton, SignUpButton } from "@clerk/nextjs";
-import { Plane, Compass, Bookmark, CalendarDays, MapPin, Users, Heart, ChevronDown, Sparkles, Instagram } from "lucide-react";
 import { Playfair_Display } from "next/font/google";
 import { SiteFooter } from "@/components/ui/SiteFooter";
 
@@ -104,7 +103,6 @@ export default function LandingPage() {
               <div className="hidden md:block" style={{ transform: "rotate(2.5deg)", filter: "drop-shadow(0 20px 40px rgba(0,0,0,0.14))" }}>
                 <div className="rounded-2xl overflow-hidden border" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE", maxWidth: "320px" }}>
                   <div className="flex items-center gap-2 px-4 pt-4 pb-2">
-                    <MapPin size={13} style={{ color: "#C4664A", flexShrink: 0 }} />
                     <span className="text-xs font-medium" style={{ color: "#999" }}>600m from your hotel</span>
                   </div>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -179,15 +177,13 @@ export default function LandingPage() {
             <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
               <div style={{ backgroundColor: "#fff", borderRadius: "16px", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", border: "1px solid #EEEEEE", overflow: "hidden", width: "100%", maxWidth: "360px" }}>
                 <div style={{ position: "relative", height: "180px", backgroundImage: "url('https://images.unsplash.com/photo-1533900298318-6b8da08a523e?w=640&q=80')", backgroundSize: "cover", backgroundPosition: "center" }}>
-                  <div style={{ position: "absolute", bottom: "10px", left: "10px", backgroundColor: "#E1306C", color: "#fff", fontSize: "11px", padding: "3px 10px", borderRadius: "20px", display: "flex", alignItems: "center", gap: "4px" }}>
-                    <Instagram size={12} />
+                  <div style={{ position: "absolute", bottom: "10px", left: "10px", backgroundColor: "#E1306C", color: "#fff", fontSize: "11px", padding: "3px 10px", borderRadius: "20px" }}>
                     Instagram
                   </div>
                 </div>
                 <div style={{ padding: "14px 16px" }}>
                   <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a", marginBottom: "4px" }}>Mercado de San Miguel</p>
                   <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "8px" }}>
-                    <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
                     <span style={{ fontSize: "13px", color: "#717171" }}>Madrid, Spain</span>
                   </div>
                   <div style={{ display: "flex", gap: "6px", marginBottom: "8px", flexWrap: "wrap" }}>
@@ -213,7 +209,6 @@ export default function LandingPage() {
                 <div className="md:[transform:rotate(1.5deg)]" style={{ filter: "drop-shadow(0 16px 32px rgba(0,0,0,0.12))" }}>
                   <div className="rounded-2xl overflow-hidden border w-full" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE", maxWidth: "340px" }}>
                     <div className="flex items-center gap-2 px-4 pt-4 pb-2">
-                      <MapPin size={13} style={{ color: "#C4664A", flexShrink: 0 }} />
                       <span className="text-xs font-medium" style={{ color: "#999" }}>1.2km from your hotel</span>
                     </div>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -251,12 +246,12 @@ export default function LandingPage() {
                       <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>Day 1 — Sun, May 4</p>
                       <p style={{ fontSize: "11px", color: "#717171", marginTop: "2px" }}>☀️ 29°C · $420</p>
                     </div>
-                    <ChevronDown size={16} style={{ color: "#C4664A", transform: "rotate(180deg)" }} />
+                    <span style={{ color: "#C4664A", fontSize: "14px", lineHeight: 1 }}>▴</span>
                   </div>
                   <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column" }}>
                     <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                      <div style={{ width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "#F5F5F5", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <Plane size={16} style={{ color: "#C4664A" }} />
+                      <div style={{ width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "rgba(196,102,74,0.1)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <span style={{ fontSize: "10px", fontWeight: 700, color: "#C4664A" }}>FLT</span>
                       </div>
                       <div>
                         <p style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a1a" }}>JAL 917 → Naha</p>
@@ -267,8 +262,8 @@ export default function LandingPage() {
                       <p style={{ fontSize: "11px", color: "#999" }}>↓ 3h 10m travel time</p>
                     </div>
                     <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-                      <div style={{ width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "#F5F5F5", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <Bookmark size={16} style={{ color: "#C4664A" }} />
+                      <div style={{ width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "rgba(196,102,74,0.1)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <span style={{ fontSize: "10px", fontWeight: 700, color: "#C4664A" }}>HTL</span>
                       </div>
                       <div>
                         <p style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a1a" }}>Halekulani Okinawa</p>
@@ -283,7 +278,7 @@ export default function LandingPage() {
                     <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>Day 2 — Mon, May 5</p>
                     <p style={{ fontSize: "11px", color: "#717171", marginTop: "2px" }}>Katsuren Castle Ruins</p>
                   </div>
-                  <ChevronDown size={16} style={{ color: "#717171" }} />
+                  <span style={{ color: "#717171", fontSize: "14px", lineHeight: 1 }}>▾</span>
                 </div>
                 {/* Day 3 — collapsed */}
                 <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -291,7 +286,7 @@ export default function LandingPage() {
                     <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>Day 3 — Tue, May 6</p>
                     <p style={{ fontSize: "11px", color: "#717171", marginTop: "2px" }}>Free day · Okinawa</p>
                   </div>
-                  <ChevronDown size={16} style={{ color: "#717171" }} />
+                  <span style={{ color: "#717171", fontSize: "14px", lineHeight: 1 }}>▾</span>
                 </div>
               </div>
             </div>
@@ -311,10 +306,7 @@ export default function LandingPage() {
                 <div style={{ padding: "16px 20px 20px" }}>
                 <span style={{ fontSize: "11px", backgroundColor: "rgba(196,102,74,0.1)", color: "#C4664A", borderRadius: "20px", padding: "3px 10px", fontWeight: 700 }}>Culture</span>
                 <p style={{ fontSize: "22px", fontWeight: 700, color: "#1a1a1a", margin: "12px 0 8px" }}>Angkor Wat</p>
-                <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", marginBottom: "16px" }}>
-                  <Sparkles size={14} style={{ color: "#C4664A", flexShrink: 0, marginTop: "2px" }} />
-                  <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.5 }}>History & Culture · Ages 5+ · UNESCO site · 3,104 families saved</p>
-                </div>
+                <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.5, marginBottom: "16px" }}>History & Culture · Ages 5+ · UNESCO site · 3,104 families saved</p>
                 <button style={{ width: "100%", padding: "10px", borderRadius: "12px", border: "1.5px solid #C4664A", backgroundColor: "transparent", color: "#C4664A", fontSize: "14px", fontWeight: 600, cursor: "pointer" }}>
                   Save to trip
                 </button>
@@ -435,7 +427,7 @@ export default function LandingPage() {
                   <ul className="space-y-1">
                     {trip.items.map((item) => (
                       <li key={item} className="flex items-center gap-2 text-sm" style={{ color: "#717171" }}>
-                        <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
+                        <span style={{ width: "5px", height: "5px", borderRadius: "50%", backgroundColor: "#C4664A", flexShrink: 0, display: "inline-block" }} />
                         {item}
                       </li>
                     ))}
@@ -491,32 +483,27 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-2 gap-5">
             {[
               {
-                icon: <MapPin size={26} style={{ color: "#C4664A" }} />,
                 title: "Smart saves",
                 hook: "Share a link. We handle the rest.",
                 desc: "Share any link from Instagram, TikTok, Google Maps, Airbnb, Booking.com, email — anywhere. We automatically extract the name, location, and context. Your saves become searchable, filterable, and trip-ready.",
               },
               {
-                icon: <Users size={26} style={{ color: "#C4664A" }} />,
                 title: "Personalized for your crew",
                 hook: "Your family isn't generic. Your recommendations shouldn't be either.",
                 desc: "Set up your family once — ages, interests, dietary needs, travel style, and more. Every recommendation and filter adapts to you automatically.",
               },
               {
-                icon: <CalendarDays size={26} style={{ color: "#C4664A" }} />,
                 title: "Day-by-day itineraries",
                 hook: "See what's close, what fits, and what your kids will actually enjoy.",
                 desc: "Drag and drop your saves into a trip timeline. See what's close to your hotel, what's kid-friendly, and what fits your day.",
               },
               {
-                icon: <Heart size={26} style={{ color: "#C4664A" }} />,
                 title: "Trusted community",
                 hook: "Families who've been there. With kids the same age. Same dietary needs.",
                 desc: "Recommendations from families who've been there — with kids the same age, the same dietary needs, the same travel style.",
               },
             ].map((f) => (
               <div key={f.title} className="rounded-2xl p-8 border" style={{ backgroundColor: "#FFFFFF", borderColor: "#EEEEEE", borderLeft: "4px solid #C4664A" }}>
-                <div className="mb-4">{f.icon}</div>
                 <h3 className="font-black mb-2" style={{ fontSize: "22px", color: "#1a1a1a" }}>{f.title}</h3>
                 <p className="font-semibold text-sm mb-3" style={{ color: "#C4664A" }}>{f.hook}</p>
                 <p className="text-sm leading-relaxed" style={{ color: "#717171" }}>{f.desc}</p>

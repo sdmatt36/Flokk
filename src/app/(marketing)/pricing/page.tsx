@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Check } from "lucide-react";
 
 const FREE_FEATURES = [
   "Up to 50 saves",
@@ -78,7 +77,7 @@ export default function PricingPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               {FREE_FEATURES.map((f) => (
                 <div key={f} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <Check size={16} style={{ color: "#C4664A", flexShrink: 0 }} />
+                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#C4664A", flexShrink: 0, display: "inline-block" }} />
                   <span style={{ fontSize: "14px", color: "#444" }}>{f}</span>
                 </div>
               ))}
@@ -99,7 +98,7 @@ export default function PricingPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 {PRO_FEATURES.map((f) => (
                   <div key={f} style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <Check size={16} style={{ color: "#C4664A", flexShrink: 0 }} />
+                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#C4664A", flexShrink: 0, display: "inline-block" }} />
                     <span style={{ fontSize: "14px", color: "#444" }}>{f}</span>
                   </div>
                 ))}
