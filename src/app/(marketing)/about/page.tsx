@@ -8,7 +8,7 @@ import Image from "next/image";
 
 // TO ADD A NEW TEAM MEMBER OR ADVISOR:
 // Add a new object to ADVISORS array with:
-// name, title, image (or null), linkedin, favoriteSpot
+// name, title, image (or null), linkedin
 
 const FOUNDERS = [
   {
@@ -32,7 +32,6 @@ const ADVISORS: typeof FOUNDERS = [
   //   title: 'Advisor — Travel & Hospitality',
   //   image: '/images/team/advisor.jpg',
   //   linkedin: 'https://linkedin.com/in/...',
-  //   favoriteSpot: 'Destination, Country',
   // },
 ];
 
@@ -117,52 +116,59 @@ export default function AboutPage() {
         <div style={{ maxWidth: "1280px", margin: "0 auto", textAlign: "center" }}>
           <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", marginBottom: "16px" }}>About</p>
           <h1 className="font-['Playfair_Display'] text-3xl sm:text-4xl md:text-5xl font-semibold text-white max-w-2xl mx-auto leading-tight text-center" style={{ marginBottom: "24px" }}>
-            Built by a family that got tired of losing the list.
+            We love travel.<br />
+            <em style={{ fontStyle: "italic", color: "#C4664A" }}>Planning it, less so.</em>
           </h1>
           <p style={{ fontSize: "18px", color: "rgba(255,255,255,0.7)", maxWidth: "580px", margin: "0 auto", lineHeight: 1.6 }}>
-            Flokk started as a personal problem. It became an obsession. Now it's a product families can actually use.
+            A flock moves together. That&rsquo;s the whole idea.
           </p>
         </div>
       </section>
 
-      {/* Founder story */}
+      {/* The story */}
       <section style={{ backgroundColor: "#fff", padding: "80px 24px" }}>
         <div style={{ maxWidth: "720px", margin: "0 auto" }}>
           <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "36px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 32px" }}>The story</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
-              My family moves a lot. We've lived in three countries and taken more trips than I can count. Every time we plan one, the same thing happens: I spend hours scrolling Instagram saves, Googling restaurants I already found once, and trying to remember which TikTok had that hotel in it.
+              Between us, we&rsquo;ve moved countries, raised kids on aeroplanes and ferry rides, and spent more evenings than we&rsquo;d like staring at 50 open browser tabs trying to remember which one had the good restaurant in it.
             </p>
             <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
-              The information is out there. The problem is that it's everywhere. In saves, in screenshots, in group chats, in browser tabs. None of it is connected, and none of it knows anything about my family.
+              We&rsquo;ve done the world schooling thing. We&rsquo;ve done weekend trips, long-haul adventures, road trips through national parks. We&rsquo;ve been the family asking &ldquo;did anyone screenshot that?&rdquo; in a group chat at 11pm the night before a flight.
             </p>
             <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
-              Flokk is the product I wanted. One place to save anything, that remembers what my kids like, that knows where I'm going, and that helps me build a plan that actually works when we get there.
-            </p>
-            <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
-              We're independent, fully bootstrapped, and distributed across time zones. We build slowly and deliberately, and we care a lot about getting this right.
+              The information was always there. It was just <strong>everywhere</strong> &mdash; saves in one app, bookings in another, itineraries in a Google Doc nobody could share cleanly, and a graveyard of TikToks and Instagram posts we&rsquo;d never find again when it actually mattered.
             </p>
           </div>
         </div>
       </section>
 
-      {/* Team — positioned ABOVE "What we believe" */}
+      {/* Team */}
       <section style={{ backgroundColor: "rgba(27,58,92,0.04)", padding: "80px 24px" }}>
         <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
 
-          {/* Section header */}
-          <div style={{ marginBottom: "48px", textAlign: "center" }}>
-            <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", marginBottom: "12px" }}>The team</p>
-            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "36px", fontWeight: 600, color: "#1B3A5C", margin: 0 }}>The people behind Flokk</h2>
-          </div>
+          {/* Section heading — upgraded from eyebrow */}
+          <h2 className="font-['Playfair_Display'] text-4xl font-bold text-[#1B3A5C] text-center" style={{ marginBottom: "64px" }}>
+            The team
+          </h2>
 
-          {/* Founders */}
-          <div style={{ marginBottom: "48px" }}>
-            <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#717171", marginBottom: "24px" }}>Founders</p>
-            <div className="flex flex-col sm:flex-row gap-16 justify-center items-start w-full">
+          {/* Two-column: founder cards LEFT, quote RIGHT */}
+          <div style={{ display: "flex", gap: "80px", alignItems: "flex-start", flexWrap: "wrap", justifyContent: "center", marginBottom: "48px" }}>
+            {/* LEFT — founder cards */}
+            <div className="flex flex-col sm:flex-row gap-16 items-start">
               {FOUNDERS.map((person) => (
                 <FounderCard key={person.name} person={person} />
               ))}
+            </div>
+
+            {/* RIGHT — quote block */}
+            <div style={{ flex: 1, minWidth: "280px", maxWidth: "440px", paddingTop: "8px" }}>
+              <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "21px", fontStyle: "italic", color: "#1B3A5C", lineHeight: 1.7, margin: "0 0 20px" }}>
+                &ldquo;You saved that restaurant from an Instagram reel six months ago. It&rsquo;s 400 metres from your hotel. Your kids like pizza. It has a kids menu. Want to add it to Tuesday?&rdquo;
+              </p>
+              <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A" }}>
+                The moment Flokk exists to create
+              </p>
             </div>
           </div>
 
@@ -191,13 +197,37 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Beliefs */}
+      {/* Who we are */}
       <section style={{ backgroundColor: "#fff", padding: "80px 24px" }}>
+        <div style={{ maxWidth: "720px", margin: "0 auto" }}>
+          <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", marginBottom: "24px" }}>Who we are</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
+              We are a small team. There is no PR department crafting an origin story. The story is that we kept planning trips the same broken way &mdash; saves in one place, bookings in another, itineraries in a Google Doc nobody could share cleanly, 50 open tabs &mdash; and eventually got annoyed enough to build something better.
+            </p>
+            <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
+              We welcome every kind of family. The ones who travel twice a year. The ones who&rsquo;ve barely left the country and are planning their first real trip with kids. Road trippers to amazing national parks. The digital nomad families who plan continuously because they have no choice. <strong>You don&rsquo;t have to travel like us to get it.</strong> You just have to have ever lost a saved activity or restaurant in your Instagram saves folder and felt personally attacked by it.
+            </p>
+            <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
+              We build slowly and deliberately. We care a lot about getting this right &mdash; which means not shipping things that don&rsquo;t work (fingers crossed), not gating content that should be free, and not recommending things we wouldn&rsquo;t book ourselves.
+            </p>
+            <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
+              Flokk is the product we wanted. We hope it&rsquo;s the one you&rsquo;ve been looking for too.
+            </p>
+            <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: "17px", color: "#717171", paddingTop: "24px", marginTop: "4px", borderTop: "1px solid #EEEEEE" }}>
+              &ldquo;A flock moves together. That&rsquo;s the whole idea.&rdquo;
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Beliefs */}
+      <section style={{ backgroundColor: "rgba(27,58,92,0.04)", padding: "80px 24px" }}>
         <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
           <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "36px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 48px", textAlign: "center" }}>What we believe</h2>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "24px" }}>
             {BELIEFS.map((b) => (
-              <div key={b.title} style={{ backgroundColor: "#F9F9F9", borderRadius: "16px", padding: "32px", border: "1px solid #F0F0F0" }}>
+              <div key={b.title} style={{ backgroundColor: "#fff", borderRadius: "16px", padding: "32px", border: "1px solid #F0F0F0" }}>
                 <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 12px" }}>{b.title}</h3>
                 <p style={{ fontSize: "15px", color: "#717171", lineHeight: 1.7, margin: 0 }}>{b.body}</p>
               </div>

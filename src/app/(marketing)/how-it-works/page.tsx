@@ -12,7 +12,7 @@ export default function HowItWorksPage() {
             Trip planning is a second job. We're here to fire you from it.
           </h1>
           <p style={{ fontSize: "18px", color: "rgba(255,255,255,0.7)", maxWidth: "600px", margin: "0 auto", lineHeight: 1.6 }}>
-            The 10+ hours buried in Instagram saves, fighting tab-creep, and losing recommendations in group chats. We built Flokk to end that.
+            The 20+ hours buried in Instagram saves, fighting tab-creep, and losing recommendations in group chats. We built Flokk to end that.
           </p>
         </div>
       </section>
