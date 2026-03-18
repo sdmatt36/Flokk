@@ -1,5 +1,4 @@
 import Image from "next/image";
-import { MapPin } from "lucide-react";
 
 // TO ADD PHOTOS:
 // 1. Add photo file to /public/images/team/
@@ -17,14 +16,12 @@ const FOUNDERS = [
     title: "Co-Founder",
     image: "/images/team/matt.jpeg",
     linkedin: "https://www.linkedin.com/in/mattgreene36/",
-    favoriteSpot: "Okinawa, Japan",
   },
   {
     name: "Jenifer Dasho",
     title: "Co-Founder",
     image: "/images/team/dasho.jpeg",
     linkedin: "https://www.linkedin.com/in/jenifer-luisi-dasho-22b7564/",
-    favoriteSpot: "",
   },
 ];
 
@@ -63,14 +60,13 @@ interface Person {
   title: string;
   image: string;
   linkedin: string;
-  favoriteSpot: string;
 }
 
 function FounderCard({ person }: { person: Person }) {
   return (
     <div className="group">
       {/* Photo — circular crop */}
-      <div className="relative mb-4 overflow-hidden rounded-full aspect-square">
+      <div className="relative mb-4 overflow-hidden rounded-full w-40 h-40">
         <Image
           src={person.image}
           alt={person.name}
@@ -94,26 +90,19 @@ function FounderCard({ person }: { person: Person }) {
       </div>
       {/* Info */}
       <div className="text-center">
-        <p className="font-semibold text-[#1B3A5C] text-base leading-tight">{person.name}</p>
+        <p className="font-semibold text-[#1B3A5C] text-base leading-tight whitespace-nowrap">{person.name}</p>
         <p className="text-sm text-[#717171] mt-0.5">{person.title}</p>
         {person.linkedin && (
           <a
             href={person.linkedin}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 mt-2 text-xs text-[#0077B5] hover:underline"
+            className="inline-flex items-center justify-center mt-2 text-[#0077B5]"
           >
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
               <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
             </svg>
-            LinkedIn
           </a>
-        )}
-        {person.favoriteSpot && (
-          <div className="flex items-center justify-center gap-1.5 mt-2">
-            <MapPin className="w-3 h-3 text-[#C4664A] flex-shrink-0" />
-            <span className="text-xs text-[#717171]">{person.favoriteSpot}</span>
-          </div>
         )}
       </div>
     </div>
@@ -162,7 +151,7 @@ export default function AboutPage() {
         <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
 
           {/* Section header */}
-          <div style={{ marginBottom: "48px" }}>
+          <div style={{ marginBottom: "48px", textAlign: "center" }}>
             <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", marginBottom: "12px" }}>The team</p>
             <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "36px", fontWeight: 600, color: "#1B3A5C", margin: 0 }}>The people behind Flokk</h2>
           </div>
@@ -170,7 +159,7 @@ export default function AboutPage() {
           {/* Founders */}
           <div style={{ marginBottom: "48px" }}>
             <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#717171", marginBottom: "24px" }}>Founders</p>
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-8" style={{ maxWidth: "480px" }}>
+            <div className="flex flex-col sm:flex-row gap-16 justify-center items-start w-full">
               {FOUNDERS.map((person) => (
                 <FounderCard key={person.name} person={person} />
               ))}
