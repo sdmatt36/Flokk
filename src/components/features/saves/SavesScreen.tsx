@@ -13,6 +13,7 @@ import {
   Calendar,
   X,
   Plane,
+  Trash2,
 } from "lucide-react";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
@@ -24,6 +25,8 @@ type Save = {
   source: string;
   tags: string[];
   assigned: string | null;
+  tripId: string | null;
+  dayIndex: number | null;
   distance: string | null;
   img: string | null;
 };
@@ -39,6 +42,8 @@ type ApiItem = {
   categoryTags: string[];
   sourceType: string;
   savedAt: string;
+  tripId: string | null;
+  dayIndex: number | null;
   trip: { id: string; title: string } | null;
 };
 
@@ -55,6 +60,8 @@ function mapApiItem(item: ApiItem): Save {
     source: SOURCE_LABEL_MAP[item.sourceType] ?? item.sourceType,
     tags: item.categoryTags,
     assigned: item.trip?.title ?? null,
+    tripId: item.tripId ?? null,
+    dayIndex: item.dayIndex ?? null,
     distance: null,
     img: item.mediaThumbnailUrl || null,
   };
@@ -70,16 +77,34 @@ type SaveCardProps = {
   onTripClick: (tripName: string) => void;
   onCardClick: (id: string) => void;
   availableTrips: { id: string; title: string }[];
+  onDeleted?: (id: string) => void;
 };
 
-function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips }: SaveCardProps) {
+function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted }: SaveCardProps) {
   const visibleTags = save.tags.slice(0, 3);
   const extraTags = save.tags.length - visibleTags.length;
   const isDropdownOpen = openDropdown === save.id;
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (!confirm("Remove this save?")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/saves/${save.id}`, { method: "DELETE" });
+      if (res.ok) onDeleted?.(save.id);
+    } catch {
+      // silent
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <div onClick={() => onCardClick(save.id)} style={{ cursor: "pointer" }}>
     <div
+      className="group"
       style={{
         backgroundColor: "#FAFAFA",
         borderRadius: "12px",
@@ -87,8 +112,19 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
         overflow: "visible",
         display: "flex",
         flexDirection: "column",
+        position: "relative",
       }}
     >
+      {/* Delete button */}
+      <button
+        onClick={handleDelete}
+        disabled={deleting}
+        className="absolute top-2 right-2 z-10 bg-white/90 backdrop-blur-sm rounded-full shadow-sm border border-gray-100 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100 opacity-100"
+        style={{ padding: "5px", lineHeight: 0, cursor: deleting ? "default" : "pointer" }}
+      >
+        <Trash2 size={13} style={{ color: deleting ? "#ccc" : "#9ca3af" }} />
+      </button>
+
       {/* Thumbnail */}
       {save.img ? (
         <div
@@ -161,6 +197,14 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
           >
             <MapPin size={10} style={{ color: "#717171", flexShrink: 0 }} />
             <span style={{ fontSize: "12px", color: "#717171" }}>{save.location}</span>
+          </div>
+        )}
+
+        {/* Itinerary badge */}
+        {save.dayIndex != null && (
+          <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "6px" }}>
+            <div style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#4a7c59", flexShrink: 0 }} />
+            <span style={{ fontSize: "11px", color: "#4a7c59", fontWeight: 600 }}>On itinerary</span>
           </div>
         )}
 
@@ -336,7 +380,7 @@ function SectionHeader({ icon, title, badge, count, action }: {
 
 // ─── CardGrid ─────────────────────────────────────────────────────────────────
 
-function CardGrid({ cards, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips }: {
+function CardGrid({ cards, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted }: {
   cards: Save[];
   openDropdown: string | null;
   setOpenDropdown: (id: string | null) => void;
@@ -344,11 +388,12 @@ function CardGrid({ cards, openDropdown, setOpenDropdown, assignTrip, onTripClic
   onTripClick: (tripName: string) => void;
   onCardClick: (id: string) => void;
   availableTrips: { id: string; title: string }[];
+  onDeleted?: (id: string) => void;
 }) {
   return (
     <div className="grid grid-cols-3 lg:grid-cols-3 md:grid-cols-2 sm:grid-cols-1" style={{ gap: "16px" }}>
       {cards.map((save) => (
-        <SaveCard key={save.id} save={save} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={onTripClick} onCardClick={onCardClick} availableTrips={availableTrips} />
+        <SaveCard key={save.id} save={save} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={onTripClick} onCardClick={onCardClick} availableTrips={availableTrips} onDeleted={onDeleted} />
       ))}
     </div>
   );
@@ -397,6 +442,10 @@ export function SavesScreen() {
 
   const handleTagsUpdated = (itemId: string, tags: string[]) => {
     setSaves((prev) => prev.map((s) => (s.id === itemId ? { ...s, tags } : s)));
+  };
+
+  const handleItemDeleted = (deletedId: string) => {
+    setSaves((prev) => prev.filter((s) => s.id !== deletedId));
   };
 
   // Card matching: search + category filter (ignores assigned/unassigned axis)
@@ -531,7 +580,7 @@ export function SavesScreen() {
               count={cards.length}
               action={{ label: "View trip →", onClick: () => router.push('/trips/cmmet611o0000yn8nz6ss7yg4') }}
             />
-            <CardGrid cards={cards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={(name) => router.push('/trips/cmmet611o0000yn8nz6ss7yg4')} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} />
+            <CardGrid cards={cards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={(name) => router.push('/trips/cmmet611o0000yn8nz6ss7yg4')} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} />
           </div>
         ))}
 
@@ -544,7 +593,7 @@ export function SavesScreen() {
               count={unorganizedCards.length}
               action={{ label: "Assign all →", onClick: () => setActiveFilter("Unorganized") }}
             />
-            <CardGrid cards={unorganizedCards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={(name) => router.push('/trips/cmmet611o0000yn8nz6ss7yg4')} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} />
+            <CardGrid cards={unorganizedCards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={(name) => router.push('/trips/cmmet611o0000yn8nz6ss7yg4')} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} />
           </div>
         )}
 

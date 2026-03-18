@@ -67,6 +67,24 @@ export async function POST(request: Request) {
       mediaThumbnailUrl = meta.image ?? null;
     }
 
+    // Duplicate detection — skip if title couldn't be resolved
+    if (rawTitle) {
+      const existing = await db.savedItem.findFirst({
+        where: {
+          familyProfileId: user.familyProfile.id,
+          rawTitle: { equals: rawTitle, mode: "insensitive" },
+        },
+      });
+      if (existing) {
+        return NextResponse.json({
+          success: false,
+          duplicate: true,
+          existingId: existing.id,
+          message: "Already saved",
+        });
+      }
+    }
+
     const savedItem = await db.savedItem.create({
       data: {
         familyProfileId: user.familyProfile.id,
