@@ -1,40 +1,45 @@
-import Link from "next/link";
-import { Bookmark, Map, Users, Zap, Bell, Share2 } from "lucide-react";
+"use client";
 
-const FEATURES = [
+import Link from "next/link";
+import { useState } from "react";
+import { ChevronDown } from "lucide-react";
+
+const MORE_FEATURES = [
   {
-    icon: Bookmark,
     title: "Universal save",
+    teaser: "Share from any app.",
     description: "Share any URL into Flokk from any app. Instagram, TikTok, Google Maps, or any website. We extract the name, location, and category automatically.",
   },
   {
-    icon: Map,
     title: "Smart trip matching",
+    teaser: "Your saves, surfaced at the right moment.",
     description: "When you plan a trip, Flokk surfaces saves that are near your destination and relevant to your family. No searching, no scrolling.",
   },
   {
-    icon: Users,
     title: "Family profiles",
+    teaser: "Set it once. Use it everywhere.",
     description: "Tell us about your travel group once. Ages, interests, dietary needs. We factor it in every time we make a recommendation.",
   },
   {
-    icon: Zap,
     title: "AI itinerary builder",
+    teaser: "A real schedule in minutes.",
     description: "Drag your saves into a day-by-day plan. Flokk checks proximity, opening hours, and realistic timing so the schedule actually holds.",
   },
   {
-    icon: Bell,
     title: "Trip reminders",
+    teaser: "Nothing falls through the cracks.",
     description: "As your trip approaches, we resurface the saves you almost forgot and remind you to book ahead for popular spots.",
   },
   {
-    icon: Share2,
     title: "One-tap export",
+    teaser: "Your plan, in Apple Maps or Google Maps.",
     description: "Export your full itinerary to Apple Maps or Google Maps with a single tap. No copy-pasting addresses.",
   },
 ];
 
 export default function FeaturesPage() {
+  const [expandedCard, setExpandedCard] = useState<string | null>(null);
+
   return (
     <div>
       {/* Hero */}
@@ -62,9 +67,9 @@ export default function FeaturesPage() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
             {[
-              { title: "Share-sheet integration", desc: "Works from every app on your phone. Share to Flokk the same way you'd share to WhatsApp." },
-              { title: "Auto-extraction", desc: "We pull the venue name, address, cuisine type, price range, and any notes from the source automatically." },
-              { title: "Smart categories", desc: "Restaurants, hotels, activities, sights. Every save is auto-tagged so your library stays organized." },
+              { title: "Save from anywhere", desc: "Whether it's an Instagram reel, a TikTok, a Google Maps pin, or a link someone sent in a group chat — share it to Flokk and it lands in your library, organized and ready to use." },
+              { title: "Personal travel library", desc: "Every place you've ever saved, in one searchable place. Filter by destination, category, or trip. Never lose a recommendation again." },
+              { title: "Smart tagging", desc: "We read the source, infer the category, and tag it automatically. Restaurants, hotels, activities, and sights are sorted before you even open the app." },
             ].map((item) => (
               <div key={item.title} style={{ backgroundColor: "#F9F9F9", borderRadius: "16px", padding: "28px" }}>
                 <h3 style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C", margin: "0 0 10px" }}>{item.title}</h3>
@@ -85,11 +90,12 @@ export default function FeaturesPage() {
               A trip plan that fits your days, your hotel location, and your group. Built in minutes, not hours.
             </p>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "24px" }}>
             {[
-              { title: "Proximity-aware scheduling", desc: "We know where your hotel is. We group nearby saves and warn you when a plan has too much travel between stops." },
-              { title: "Day-by-day view", desc: "Drag saves into morning, afternoon, and evening slots. See the full shape of each day at a glance." },
-              { title: "Export to maps", desc: "One tap sends your full itinerary to Apple Maps or Google Maps, ready to navigate." },
+              { title: "Trip builder", desc: "Drag your saves into a day-by-day itinerary. Set your hotel, your dates, and let Flokk build a logical schedule around what you've already found." },
+              { title: "Recommendations for your family", desc: "Flokk knows what worked for families like yours in the same destination. It fills in the gaps in your itinerary with places that actually fit." },
+              { title: "Proximity awareness", desc: "We know where your hotel is. Saves get clustered by location so each day minimizes transit and maximizes time." },
+              { title: "Itinerary export", desc: "Send the full plan to Apple Maps or Google Maps in one tap. Day-by-day directions, no manual entry." },
             ].map((item) => (
               <div key={item.title} style={{ backgroundColor: "#fff", borderRadius: "16px", padding: "28px", boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
                 <h3 style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C", margin: "0 0 10px" }}>{item.title}</h3>
@@ -112,9 +118,9 @@ export default function FeaturesPage() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
             {[
-              { title: "Family profiles", desc: "Add travelers once. Ages, interests, dietary needs, and accessibility requirements are factored into every suggestion." },
-              { title: "Interest matching", desc: "Into street food, museums, hiking? We weight recommendations to match what your family actually enjoys." },
-              { title: "Trip history", desc: "Past trips inform future ones. We know where you've been and won't keep suggesting the same places." },
+              { title: "Family profiles", desc: "Add the people traveling with you — ages, interests, dietary needs. Flokk uses this to filter and rank every recommendation, every time." },
+              { title: "Behavioral learning", desc: "The more you use Flokk, the better it gets. It learns from which saves you keep, which you drop, and how your family actually travels." },
+              { title: "Community intelligence", desc: "Recommendations aren't just algorithmic. They're informed by what real families with similar kids and interests found worth doing." },
             ].map((item) => (
               <div key={item.title} style={{ backgroundColor: "#F9F9F9", borderRadius: "16px", padding: "28px" }}>
                 <h3 style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C", margin: "0 0 10px" }}>{item.title}</h3>
@@ -125,20 +131,41 @@ export default function FeaturesPage() {
         </div>
       </section>
 
-      {/* Feature card grid */}
+      {/* And a lot more — expandable cards */}
       <section style={{ backgroundColor: "#1B3A5C", padding: "80px 24px" }}>
         <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
           <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "36px", fontWeight: 600, color: "#fff", margin: "0 0 48px", textAlign: "center" }}>And a lot more</h2>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
-            {FEATURES.map((feature) => {
-              const Icon = feature.icon;
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
+            {MORE_FEATURES.map((feature) => {
+              const isOpen = expandedCard === feature.title;
               return (
-                <div key={feature.title} style={{ backgroundColor: "rgba(255,255,255,0.06)", borderRadius: "16px", padding: "28px", border: "1px solid rgba(255,255,255,0.1)" }}>
-                  <div style={{ marginBottom: "16px" }}>
-                    <Icon size={20} style={{ color: "#C4664A" }} />
+                <div
+                  key={feature.title}
+                  onClick={() => setExpandedCard(isOpen ? null : feature.title)}
+                  style={{ backgroundColor: "rgba(255,255,255,0.06)", borderRadius: "16px", padding: "24px", border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer", transition: "background 0.15s" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+                    <div>
+                      <h3 style={{ fontSize: "16px", fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>{feature.title}</h3>
+                      <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.5)", margin: 0 }}>{feature.teaser}</p>
+                    </div>
+                    <ChevronDown
+                      size={18}
+                      style={{ color: "rgba(255,255,255,0.4)", flexShrink: 0, transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
+                    />
                   </div>
-                  <h3 style={{ fontSize: "16px", fontWeight: 700, color: "#fff", margin: "0 0 10px" }}>{feature.title}</h3>
-                  <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.65)", lineHeight: 1.6, margin: 0 }}>{feature.description}</p>
+                  {isOpen && (
+                    <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+                      <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.65)", lineHeight: 1.6, margin: "0 0 16px" }}>{feature.description}</p>
+                      <Link
+                        href="/sign-up"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
+                      >
+                        Try it in the app &rarr;
+                      </Link>
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -27,10 +27,27 @@ export default function HowItWorksPage() {
               See something on Instagram? A restaurant your friend mentioned? A hotel in a TikTok reel? Share it to Flokk the same way you'd share it to a text message. We pull the location, category, and context automatically.
             </p>
           </div>
-          <div style={{ backgroundColor: "#F9F9F9", borderRadius: "20px", padding: "40px", display: "flex", flexDirection: "column", gap: "12px" }}>
-            {["Instagram reel \u2192 saved", "TikTok restaurant \u2192 saved", "Google Maps pin \u2192 saved", "Any URL \u2192 saved"].map((item) => (
-              <div key={item} style={{ backgroundColor: "#fff", borderRadius: "12px", padding: "14px 18px", fontSize: "14px", color: "#1B3A5C", fontWeight: 500, boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-                {item}
+          {/* Share-sheet panel */}
+          <div style={{ borderRadius: "20px", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.1)", border: "1px solid #E8E8E8" }}>
+            <div style={{ backgroundColor: "#1B3A5C", padding: "16px 20px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.3)" }} />
+              <span style={{ fontSize: "13px", fontWeight: 600, color: "rgba(255,255,255,0.8)" }}>Share to Flokk</span>
+            </div>
+            {[
+              { source: "IG", label: "Trattoria da Enzo al 29 · Rome", type: "Restaurant" },
+              { source: "TK", label: "Hotel Costes · Paris", type: "Hotel" },
+              { source: "GM", label: "Nishiki Market · Kyoto", type: "Market" },
+              { source: "↗", label: "Things to do in Lisbon with kids", type: "Article" },
+            ].map((row) => (
+              <div key={row.label} style={{ backgroundColor: "#fff", padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid #F5F5F5" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div style={{ width: "32px", height: "32px", borderRadius: "8px", backgroundColor: "rgba(27,58,92,0.06)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 700, color: "#1B3A5C", flexShrink: 0 }}>{row.source}</div>
+                  <div>
+                    <p style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 2px" }}>{row.label}</p>
+                    <p style={{ fontSize: "11px", color: "#717171", margin: 0 }}>{row.type}</p>
+                  </div>
+                </div>
+                <span style={{ fontSize: "11px", fontWeight: 700, color: "#fff", backgroundColor: "#C4664A", padding: "3px 10px", borderRadius: "999px", flexShrink: 0, marginLeft: "12px" }}>Saved</span>
               </div>
             ))}
           </div>
@@ -40,18 +57,25 @@ export default function HowItWorksPage() {
       {/* Step 2 — light tint, visual left, content right */}
       <section style={{ backgroundColor: "rgba(27,58,92,0.04)", padding: "80px 24px" }}>
         <div style={{ maxWidth: "1280px", margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "64px", alignItems: "center" }}>
-          <div style={{ backgroundColor: "#fff", borderRadius: "20px", padding: "32px", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", border: "1px solid #F0F0F0", maxWidth: "400px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-              <MapPin size={16} style={{ color: "#C4664A" }} />
-              <span style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A" }}>400m from your hotel</span>
+          {/* Magic moment card with pulsing location dot */}
+          <div style={{ position: "relative", maxWidth: "400px" }}>
+            <div style={{ position: "absolute", top: "-14px", left: "50%", transform: "translateX(-50%)", zIndex: 10, display: "flex", alignItems: "center", justifyContent: "center", width: "28px", height: "28px" }}>
+              <span className="animate-ping" style={{ position: "absolute", width: "28px", height: "28px", borderRadius: "50%", backgroundColor: "rgba(196,102,74,0.35)", display: "block" }} />
+              <span style={{ position: "relative", width: "14px", height: "14px", borderRadius: "50%", backgroundColor: "#C4664A", display: "block", boxShadow: "0 0 0 3px #fff" }} />
             </div>
-            <p style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", margin: "0 0 8px" }}>Le Comptoir du Relais · Paris</p>
-            <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.6, margin: "0 0 16px" }}>
-              Saved 6 months ago from Instagram. Your kids love pasta. It has a kids menu. Want to add it to Tuesday?
-            </p>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button style={{ padding: "8px 16px", backgroundColor: "#C4664A", color: "#fff", border: "none", borderRadius: "20px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Add to Tuesday</button>
-              <button style={{ padding: "8px 16px", backgroundColor: "#fff", color: "#1B3A5C", border: "1.5px solid #E0E0E0", borderRadius: "20px", fontSize: "13px", cursor: "pointer" }}>View on map</button>
+            <div style={{ backgroundColor: "#fff", borderRadius: "20px", padding: "32px", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", border: "1px solid #F0F0F0" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                <MapPin size={16} style={{ color: "#C4664A" }} />
+                <span style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A" }}>400m from your hotel</span>
+              </div>
+              <p style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", margin: "0 0 8px" }}>Le Comptoir du Relais · Paris</p>
+              <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.6, margin: "0 0 16px" }}>
+                Saved 6 months ago from Instagram. Your kids love pasta. It has a kids menu. Want to add it to Tuesday?
+              </p>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button style={{ padding: "8px 16px", backgroundColor: "#C4664A", color: "#fff", border: "none", borderRadius: "20px", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Add to Tuesday</button>
+                <button style={{ padding: "8px 16px", backgroundColor: "#fff", color: "#1B3A5C", border: "1.5px solid #E0E0E0", borderRadius: "20px", fontSize: "13px", cursor: "pointer" }}>View on map</button>
+              </div>
             </div>
           </div>
           <div>
@@ -74,10 +98,29 @@ export default function HowItWorksPage() {
               Drag saves and recommendations into a day-by-day itinerary. Proximity warnings, time estimates, and smart suggestions based on what families like yours loved. Export to Apple Maps or Google Maps with one tap.
             </p>
           </div>
-          <div style={{ backgroundColor: "#F9F9F9", borderRadius: "20px", padding: "32px" }}>
-            {["Day 1 \u00b7 Arrive & settle", "Day 2 \u00b7 Museums + pasta lunch", "Day 3 \u00b7 Day trip to Versailles", "Day 4 \u00b7 Markets + departure"].map((day, i) => (
-              <div key={i} style={{ backgroundColor: "#fff", borderRadius: "12px", padding: "14px 18px", fontSize: "14px", color: "#1B3A5C", fontWeight: 500, marginBottom: "10px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
-                {day}
+          {/* Itinerary UI panel */}
+          <div style={{ borderRadius: "20px", overflow: "hidden", boxShadow: "0 4px 24px rgba(0,0,0,0.08)", border: "1px solid #EEEEEE" }}>
+            <div style={{ backgroundColor: "#1B3A5C", padding: "20px 24px" }}>
+              <p style={{ fontSize: "15px", fontWeight: 700, color: "#fff", margin: "0 0 4px" }}>Paris · 4 days</p>
+              <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.6)", margin: 0 }}>June 14 – 18 · Family of 4</p>
+            </div>
+            {[
+              { day: "Day 1", label: "Arrive & settle", items: ["Check into hotel · Marais", "Dinner: Bistrot Paul Bert"] },
+              { day: "Day 2", label: "Museums + pasta lunch", items: ["Musée d'Orsay · 10am", "Le Comptoir du Relais · 1pm", "Tuileries Garden"] },
+              { day: "Day 3", label: "Day trip to Versailles", items: ["Château de Versailles · 9am", "Palace gardens walk"] },
+              { day: "Day 4", label: "Markets + departure", items: ["Marché Bastille · 8am", "Charles de Gaulle · 3pm"] },
+            ].map((d, i) => (
+              <div key={d.day} style={{ backgroundColor: i % 2 === 0 ? "#fff" : "#FAFAFA", padding: "16px 24px", borderBottom: "1px solid #F0F0F0" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                  <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#C4664A" }}>{d.day}</span>
+                  <span style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C" }}>{d.label}</span>
+                </div>
+                {d.items.map((item) => (
+                  <div key={item} style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                    <div style={{ width: "5px", height: "5px", borderRadius: "50%", backgroundColor: "#C4664A", flexShrink: 0 }} />
+                    <span style={{ fontSize: "12px", color: "#717171" }}>{item}</span>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
