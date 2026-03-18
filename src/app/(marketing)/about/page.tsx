@@ -131,7 +131,7 @@ export default function AboutPage() {
           <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "36px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 32px" }}>The story</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
-              Between us, we&rsquo;ve moved countries, raised kids on aeroplanes and ferry rides, and spent more evenings than we&rsquo;d like staring at 50 open browser tabs trying to remember which one had the good restaurant in it.
+              Between us, we&rsquo;ve moved countries, raised kids on airplanes and ferry rides, and spent more evenings than we&rsquo;d like staring at 50 open browser tabs trying to remember which one had the good restaurant in it.
             </p>
             <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
               We&rsquo;ve done the world schooling thing. We&rsquo;ve done weekend trips, long-haul adventures, road trips through national parks. We&rsquo;ve been the family asking &ldquo;did anyone screenshot that?&rdquo; in a group chat at 11pm the night before a flight.
