@@ -1,4 +1,3 @@
-import Link from "next/link";
 import Image from "next/image";
 import { MapPin } from "lucide-react";
 
@@ -85,7 +84,6 @@ function FounderCard({ person }: { person: Person }) {
             href={person.linkedin}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
             className="absolute top-3 right-3 bg-white rounded-full p-2 shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200"
           >
             <svg className="w-4 h-4 text-[#0077B5]" fill="currentColor" viewBox="0 0 24 24">
@@ -219,16 +217,6 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Proudly independent */}
-      <section style={{ backgroundColor: "#1B3A5C", padding: "64px 24px" }}>
-        <div style={{ maxWidth: "1280px", margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "40px", flexWrap: "wrap" }}>
-          <div>
-            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "32px", fontWeight: 600, color: "#fff", margin: "0 0 8px" }}>Proudly independent.</h2>
-            <p style={{ fontSize: "16px", color: "rgba(255,255,255,0.7)", margin: 0 }}>No investors. No ads. No BS.</p>
-          </div>
-          <Link href="/contact" style={{ display: "inline-block", backgroundColor: "#C4664A", color: "#fff", padding: "14px 32px", borderRadius: "999px", fontSize: "15px", fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>Get in touch &rarr;</Link>
-        </div>
-      </section>
     </div>
   );
 }
