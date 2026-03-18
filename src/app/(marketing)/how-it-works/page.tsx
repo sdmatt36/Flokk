@@ -131,24 +131,24 @@ export default function HowItWorksPage() {
       <section style={{ backgroundColor: "rgba(27,58,92,0.04)", padding: "80px 24px" }}>
         <div style={{ maxWidth: "1280px", margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "64px", alignItems: "center" }}>
           {/* Stacked community trip cards */}
-          <div className="relative max-w-xs mx-auto" style={{ height: "180px" }}>
+          <div style={{ position: "relative", maxWidth: "380px", paddingTop: "32px" }}>
             {/* Back card — Kyoto */}
-            <div className="absolute bg-white rounded-2xl p-4 shadow-sm border border-gray-100 left-4 right-4 top-6 opacity-50" style={{ transform: "rotate(-2deg)" }}>
-              <p className="font-semibold text-[#1B3A5C] text-sm" style={{ margin: "0 0 4px" }}>Kyoto with Kids</p>
-              <p className="text-xs text-[#717171]" style={{ margin: 0 }}>6 days · Family of 4</p>
+            <div style={{ position: "absolute", top: 0, left: "20px", right: "20px", backgroundColor: "#fff", borderRadius: "16px", padding: "16px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #F0F0F0", opacity: 0.5, transform: "rotate(-2deg)" }}>
+              <p style={{ fontWeight: 600, color: "#1B3A5C", fontSize: "14px", margin: "0 0 4px" }}>Kyoto with Kids</p>
+              <p style={{ fontSize: "12px", color: "#717171", margin: 0 }}>6 days · Family of 4</p>
             </div>
             {/* Middle card — Madrid */}
-            <div className="absolute bg-white rounded-2xl p-4 shadow-sm border border-gray-100 left-2 right-2 top-3 opacity-75" style={{ transform: "rotate(1deg)" }}>
-              <p className="font-semibold text-[#1B3A5C] text-sm" style={{ margin: "0 0 4px" }}>Madrid Long Weekend</p>
-              <p className="text-xs text-[#717171]" style={{ margin: 0 }}>4 days · Kids 7 & 10</p>
+            <div style={{ position: "absolute", top: "10px", left: "10px", right: "10px", backgroundColor: "#fff", borderRadius: "16px", padding: "16px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #F0F0F0", opacity: 0.75, transform: "rotate(1deg)" }}>
+              <p style={{ fontWeight: 600, color: "#1B3A5C", fontSize: "14px", margin: "0 0 4px" }}>Madrid Long Weekend</p>
+              <p style={{ fontSize: "12px", color: "#717171", margin: 0 }}>4 days · Kids 7 & 10</p>
             </div>
             {/* Front card — Okinawa */}
-            <div className="absolute bg-white rounded-2xl p-4 shadow-lg border border-gray-100 left-0 right-0 top-0 z-10">
-              <p className="font-semibold text-[#1B3A5C] text-sm" style={{ margin: "0 0 4px" }}>Okinawa May '25</p>
-              <p className="text-xs text-[#717171] mt-0.5" style={{ margin: "0 0 12px" }}>5 days · Beach + Culture</p>
-              <div className="mt-3 flex gap-2">
-                <button className="text-xs px-3 bg-[#C4664A] text-white rounded-full font-medium" style={{ padding: "6px 12px", border: "none", cursor: "pointer" }}>Add to my trips</button>
-                <button className="text-xs border border-gray-200 text-[#1B3A5C] rounded-full" style={{ padding: "6px 12px", backgroundColor: "#fff", cursor: "pointer" }}>Preview</button>
+            <div style={{ position: "relative", zIndex: 10, backgroundColor: "#fff", borderRadius: "16px", padding: "20px", boxShadow: "0 4px 16px rgba(0,0,0,0.1)", border: "1px solid #F0F0F0" }}>
+              <p style={{ fontWeight: 600, color: "#1B3A5C", fontSize: "14px", margin: "0 0 4px" }}>Okinawa May '25</p>
+              <p style={{ fontSize: "12px", color: "#717171", margin: "0 0 12px" }}>5 days · Beach + Culture</p>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button style={{ fontSize: "12px", padding: "6px 12px", backgroundColor: "#C4664A", color: "#fff", borderRadius: "999px", border: "none", fontWeight: 600, cursor: "pointer" }}>Add to my trips</button>
+                <button style={{ fontSize: "12px", padding: "6px 12px", border: "1.5px solid #E0E0E0", color: "#1B3A5C", borderRadius: "999px", backgroundColor: "#fff", cursor: "pointer" }}>Preview</button>
               </div>
             </div>
           </div>

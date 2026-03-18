@@ -160,24 +160,18 @@ export default function AboutPage() {
       </section>
 
       {/* Team */}
-      <section className="py-20 px-4 border-t border-gray-100">
-        <div className="max-w-[1280px] mx-auto">
+      <section style={{ backgroundColor: "rgba(27,58,92,0.04)", padding: "80px 24px" }}>
+        <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
 
           {/* Section header */}
-          <div className="mb-12">
-            <p className="text-[#C4664A] text-sm font-semibold uppercase tracking-widest mb-3">
-              The team
-            </p>
-            <h2 className="font-['Playfair_Display'] text-3xl font-semibold text-[#1B3A5C]">
-              The people behind Flokk
-            </h2>
+          <div style={{ marginBottom: "48px" }}>
+            <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", marginBottom: "12px" }}>The team</p>
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "36px", fontWeight: 600, color: "#1B3A5C", margin: 0 }}>The people behind Flokk</h2>
           </div>
 
           {/* Founders */}
-          <div className="mb-16">
-            <p className="text-xs font-semibold text-[#717171] uppercase tracking-widest mb-6">
-              Founders
-            </p>
+          <div style={{ marginBottom: "48px" }}>
+            <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#717171", marginBottom: "24px" }}>Founders</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {FOUNDERS.map((person) => (
                 <PersonCard key={person.name} person={person} />
@@ -188,9 +182,7 @@ export default function AboutPage() {
           {/* Advisors & Team — shown when populated */}
           {ADVISORS.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-[#717171] uppercase tracking-widest mb-6">
-                Advisors & Team
-              </p>
+              <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#717171", marginBottom: "24px" }}>Advisors & Team</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {ADVISORS.map((person) => (
                   <PersonCard key={person.name} person={person} />
@@ -202,11 +194,9 @@ export default function AboutPage() {
           {/* Coming soon placeholder — shows when advisors empty */}
           {ADVISORS.length === 0 && (
             <div>
-              <p className="text-xs font-semibold text-[#717171] uppercase tracking-widest mb-6">
-                Advisors & Team
-              </p>
-              <div className="border-2 border-dashed border-gray-200 rounded-2xl p-10 text-center">
-                <p className="text-[#717171] text-sm">Growing the team — check back soon.</p>
+              <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#717171", marginBottom: "24px" }}>Advisors & Team</p>
+              <div style={{ border: "2px dashed #E0E0E0", borderRadius: "16px", padding: "40px 24px", textAlign: "center", backgroundColor: "#fff" }}>
+                <p style={{ fontSize: "14px", color: "#717171", margin: 0 }}>Growing the team — check back soon.</p>
               </div>
             </div>
           )}

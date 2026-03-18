@@ -54,7 +54,7 @@ export default function PricingPage() {
       <section style={{ backgroundColor: "#1B3A5C", padding: "80px 24px" }}>
         <div style={{ maxWidth: "1280px", margin: "0 auto", textAlign: "center" }}>
           <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", marginBottom: "16px" }}>Pricing</p>
-          <h1 className="font-['Playfair_Display'] text-3xl sm:text-4xl md:text-5xl font-semibold text-white max-w-xl mx-auto leading-tight text-center" style={{ marginBottom: "24px" }}>
+          <h1 className="font-['Playfair_Display'] text-2xl sm:text-4xl md:text-5xl font-semibold text-white max-w-xl mx-auto leading-tight text-center" style={{ marginBottom: "24px", whiteSpace: "nowrap" }}>
             Simple pricing, no surprises.
           </h1>
           <p style={{ fontSize: "18px", color: "rgba(255,255,255,0.7)", maxWidth: "500px", margin: "0 auto", lineHeight: 1.6 }}>
