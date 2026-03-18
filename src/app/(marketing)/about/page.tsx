@@ -90,7 +90,6 @@ function FounderCard({ person }: { person: Person }) {
       {/* Info */}
       <div className="text-center">
         <p className="font-semibold text-[#1B3A5C] text-base leading-tight whitespace-nowrap">{person.name}</p>
-        <p className="text-sm text-[#717171] mt-0.5">{person.title}</p>
         {person.linkedin && (
           <a
             href={person.linkedin}
