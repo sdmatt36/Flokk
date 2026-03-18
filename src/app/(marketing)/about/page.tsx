@@ -46,7 +46,7 @@ const BELIEFS = [
   },
   {
     title: "Family travel is its own category.",
-    body: "Travelling with kids is fundamentally different from travelling solo or as a couple. The tools that serve one don\u2019t serve the other. Flokk was built exclusively for families \u2014 but we welcome everyone.",
+    body: "Travelling with kids is fundamentally different from travelling solo or as a couple. The tools that serve one don\u2019t serve the other. Flokk was built for families \u2014 but we welcome everyone.",
   },
   {
     title: "The best tip you\u2019ll ever get is from a family who just got back.",
