@@ -2659,6 +2659,19 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               <Plane size={12} /> Flight
             </button>
             <button
+              onClick={() => setShowActivityModal(true)}
+              style={{
+                display: "flex", alignItems: "center", gap: "4px",
+                padding: "6px 12px",
+                backgroundColor: "transparent", color: "#1B3A5C",
+                border: "1.5px solid #1B3A5C", borderRadius: "20px",
+                fontSize: "12px", fontWeight: 700, cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <Compass size={12} /> Activity
+            </button>
+            <button
               onClick={() => setDropLinkOpen(true)}
               style={{
                 display: "flex", alignItems: "center", gap: "4px",
