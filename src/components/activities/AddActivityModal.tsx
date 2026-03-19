@@ -6,10 +6,26 @@ import { X } from "lucide-react";
 
 type ActivityStatus = "interested" | "confirmed" | "booked";
 
+export type ExistingActivity = {
+  id: string;
+  title: string;
+  date: string;
+  time?: string | null;
+  endTime?: string | null;
+  venueName?: string | null;
+  website?: string | null;
+  price?: number | null;
+  currency?: string | null;
+  notes?: string | null;
+  status: string;
+  confirmationCode?: string | null;
+};
+
 interface Props {
   tripId: string;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (updated?: ExistingActivity) => void;
+  existingActivity?: ExistingActivity;
 }
 
 const STATUS_OPTIONS: { value: ActivityStatus; label: string }[] = [
@@ -41,18 +57,21 @@ const labelStyle: React.CSSProperties = {
   display: "block",
 };
 
-export function AddActivityModal({ tripId, onClose, onSaved }: Props) {
-  const [title, setTitle] = useState("");
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
-  const [endTime, setEndTime] = useState("");
-  const [venueName, setVenueName] = useState("");
-  const [website, setWebsite] = useState("");
-  const [price, setPrice] = useState("");
-  const [notes, setNotes] = useState("");
-  const [status, setStatus] = useState<ActivityStatus>("interested");
-  const [confirmationCode, setConfirmationCode] = useState("");
-  const [showMore, setShowMore] = useState(false);
+export function AddActivityModal({ tripId, onClose, onSaved, existingActivity }: Props) {
+  const isEditing = !!existingActivity;
+  const [title, setTitle] = useState(existingActivity?.title ?? "");
+  const [date, setDate] = useState(existingActivity?.date ?? "");
+  const [time, setTime] = useState(existingActivity?.time ?? "");
+  const [endTime, setEndTime] = useState(existingActivity?.endTime ?? "");
+  const [venueName, setVenueName] = useState(existingActivity?.venueName ?? "");
+  const [website, setWebsite] = useState(existingActivity?.website ?? "");
+  const [price, setPrice] = useState(existingActivity?.price != null ? String(existingActivity.price) : "");
+  const [notes, setNotes] = useState(existingActivity?.notes ?? "");
+  const [status, setStatus] = useState<ActivityStatus>((existingActivity?.status as ActivityStatus) ?? "interested");
+  const [confirmationCode, setConfirmationCode] = useState(existingActivity?.confirmationCode ?? "");
+  const [showMore, setShowMore] = useState(
+    !!(existingActivity?.endTime || existingActivity?.price != null || existingActivity?.confirmationCode || existingActivity?.notes)
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -66,28 +85,37 @@ export function AddActivityModal({ tripId, onClose, onSaved }: Props) {
     setSaving(true);
     setError("");
     try {
-      const res = await fetch(`/api/trips/${tripId}/activities`, {
-        method: "POST",
+      const payload = {
+        title: title.trim(),
+        date,
+        time: time || null,
+        endTime: endTime || null,
+        venueName: venueName.trim() || null,
+        website: website.trim() || null,
+        price: price || null,
+        notes: notes.trim() || null,
+        status,
+        confirmationCode: confirmationCode.trim() || null,
+      };
+
+      const url = isEditing
+        ? `/api/trips/${tripId}/activities/${existingActivity!.id}`
+        : `/api/trips/${tripId}/activities`;
+
+      const res = await fetch(url, {
+        method: isEditing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          date,
-          time: time || null,
-          endTime: endTime || null,
-          venueName: venueName.trim() || null,
-          website: website.trim() || null,
-          price: price || null,
-          notes: notes.trim() || null,
-          status,
-          confirmationCode: confirmationCode.trim() || null,
-        }),
+        body: JSON.stringify(payload),
       });
+
       if (!res.ok) {
         const d = await res.json();
         setError(d.error ?? "Failed to save activity");
         return;
       }
-      onSaved();
+
+      const saved = await res.json();
+      onSaved(saved);
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -118,7 +146,7 @@ export function AddActivityModal({ tripId, onClose, onSaved }: Props) {
       >
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
-          <p style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a" }}>Add an activity</p>
+          <p style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a" }}>{isEditing ? "Edit activity" : "Add an activity"}</p>
           <button
             onClick={onClose}
             style={{ background: "none", border: "none", cursor: "pointer", color: "#717171", padding: "4px", lineHeight: 1 }}
@@ -303,7 +331,7 @@ export function AddActivityModal({ tripId, onClose, onSaved }: Props) {
               fontFamily: "inherit",
             }}
           >
-            {saving ? "Saving..." : "Save activity →"}
+            {saving ? "Saving..." : isEditing ? "Save changes →" : "Save activity →"}
           </button>
         </div>
       </div>

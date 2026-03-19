@@ -57,12 +57,13 @@ import {
   Star,
   Bookmark,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import { TripMap } from "@/components/features/trips/TripMap";
 import { DropLinkModal } from "@/components/features/home/DropLinkModal";
 import { RecommendationDrawer, type DrawerRec } from "@/components/features/trips/RecommendationDrawer";
 import { AddFlightModal } from "@/components/flights/AddFlightModal";
-import { AddActivityModal } from "@/components/activities/AddActivityModal";
+import { AddActivityModal, type ExistingActivity } from "@/components/activities/AddActivityModal";
 import { parseDateForDisplay } from "@/lib/dates";
 
 type Tab = "saved" | "itinerary" | "recommended" | "packing" | "notes" | "vault";
@@ -2402,7 +2403,7 @@ function FlightCard({ flight, onDelete, onMarkBooked }: { flight: Flight; onDele
 
 // ── Activity card ─────────────────────────────────────────────────────────────
 
-function ActivityCard({ activity, onDelete, onMarkBooked }: { activity: Activity; onDelete: () => void; onMarkBooked?: () => void }) {
+function ActivityCard({ activity, onDelete, onEdit, onMarkBooked }: { activity: Activity; onDelete: () => void; onEdit: () => void; onMarkBooked?: () => void }) {
   const isBooked = activity.status === "booked";
   const isConfirmed = activity.status === "confirmed";
   const statusColor = isBooked ? "#6B8F71" : isConfirmed ? "#1B3A5C" : "#717171";
@@ -2446,13 +2447,22 @@ function ActivityCard({ activity, onDelete, onMarkBooked }: { activity: Activity
             <p style={{ fontSize: "12px", color: "#888", marginTop: "6px", fontStyle: "italic" }}>{activity.notes}</p>
           )}
         </div>
-        <button
-          onClick={onDelete}
-          style={{ flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: "#ccc", padding: "2px", lineHeight: 1 }}
-          title="Remove activity"
-        >
-          <Trash2 size={16} />
-        </button>
+        <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+          <button
+            onClick={onEdit}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#ccc", padding: "2px", lineHeight: 1 }}
+            title="Edit activity"
+          >
+            <Pencil size={15} />
+          </button>
+          <button
+            onClick={onDelete}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#ccc", padding: "2px", lineHeight: 1 }}
+            title="Remove activity"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -2474,6 +2484,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [dropLinkOpen, setDropLinkOpen] = useState(false);
   const [showFlightModal, setShowFlightModal] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<ExistingActivity | null>(null);
   const [flights, setFlights] = useState<Flight[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
 
@@ -2737,11 +2748,20 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         />
       )}
 
-      {showActivityModal && tripId && (
+      {(showActivityModal || editingActivity) && tripId && (
         <AddActivityModal
           tripId={tripId}
-          onClose={() => setShowActivityModal(false)}
-          onSaved={() => { setShowActivityModal(false); fetchActivities(); }}
+          existingActivity={editingActivity ?? undefined}
+          onClose={() => { setShowActivityModal(false); setEditingActivity(null); }}
+          onSaved={(updated) => {
+            setShowActivityModal(false);
+            setEditingActivity(null);
+            if (updated && editingActivity) {
+              setActivities(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a));
+            } else {
+              fetchActivities();
+            }
+          }}
         />
       )}
 
@@ -2770,7 +2790,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                 </button>
               </div>
               {activities.map(a => (
-                <ActivityCard key={a.id} activity={a} onDelete={() => handleDeleteActivity(a.id)} onMarkBooked={() => handleMarkActivityBooked(a.id)} />
+                <ActivityCard key={a.id} activity={a} onDelete={() => handleDeleteActivity(a.id)} onEdit={() => setEditingActivity(a)} onMarkBooked={() => handleMarkActivityBooked(a.id)} />
               ))}
               {activities.length === 0 && (
                 <p style={{ fontSize: "13px", color: "#bbb", fontStyle: "italic", marginBottom: "8px" }}>No activities yet. Add baseball games, tours, events…</p>

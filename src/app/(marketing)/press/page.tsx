@@ -41,15 +41,12 @@ export default function PressPage() {
             ))}
           </div>
 
-          {/* Boilerplate */}
+          {/* About Flokk */}
           <div style={{ maxWidth: "720px" }}>
-            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "28px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 20px" }}>Boilerplate</h2>
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "28px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 20px" }}>About Flokk</h2>
             <div style={{ backgroundColor: "#F9F9F9", borderRadius: "16px", padding: "32px", border: "1px solid #EEEEEE", marginBottom: "48px" }}>
-              <p style={{ fontSize: "15px", color: "#444", lineHeight: 1.8, margin: "0 0 16px" }}>
-                <strong>Flokk</strong> is an AI-powered family travel planning platform that turns scattered saves &mdash; Instagram posts, TikTok reels, Google Maps pins &mdash; into real, personalized trip itineraries. Founded in 2026, Flokk is independently built, bootstrapped, and distributed globally.
-              </p>
               <p style={{ fontSize: "15px", color: "#444", lineHeight: 1.8, margin: 0 }}>
-                Flokk is available at <strong>flokktravel.com</strong> and currently in early access.
+                <strong>Flokk</strong> is a family travel platform that rescues the inspiration scattered across your Instagram saves, TikTok reels, and Google Maps stars — and turns it into real, personalized itineraries built around your family. Every recommendation is backed by real trips from real families who&apos;ve already been there. Founded in 2026, independently built and bootstrapped, available globally at <strong>flokktravel.com</strong>.
               </p>
             </div>
 

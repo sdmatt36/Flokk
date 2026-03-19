@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { MapPin, Calendar, Plus, Map, Search, Plane, Globe } from "lucide-react";
+import { MapPin, Calendar, Plus, Map, Search, Plane, Globe, Pencil } from "lucide-react";
 
 type Trip = {
   id: string;
@@ -55,6 +55,26 @@ function TripCard({ trip }: { trip: Trip }) {
   const hero = trip.heroImageUrl ?? DEFAULT_HERO;
   const dateRange = formatDateRange(trip.startDate, trip.endDate);
   const statusColor = STATUS_COLOR[trip.status] ?? "#717171";
+  const [displayTitle, setDisplayTitle] = useState(trip.title);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(trip.title);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isRenaming) inputRef.current?.select();
+  }, [isRenaming]);
+
+  async function commitRename() {
+    const trimmed = draftTitle.trim();
+    if (!trimmed || trimmed === displayTitle) { setIsRenaming(false); setDraftTitle(displayTitle); return; }
+    setDisplayTitle(trimmed);
+    setIsRenaming(false);
+    await fetch(`/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: trimmed }),
+    });
+  }
 
   // Countdown
   const daysUntil = trip.startDate
@@ -102,10 +122,31 @@ function TripCard({ trip }: { trip: Trip }) {
           )}
 
           {/* Trip title */}
-          <div style={{ position: "absolute", bottom: "12px", left: "16px", right: "60px", zIndex: 2 }}>
-            <p style={{ fontSize: "20px", fontWeight: 800, color: "#fff", lineHeight: 1.2, textShadow: "0 1px 6px rgba(0,0,0,0.5)" }}>
-              {trip.title}
-            </p>
+          <div style={{ position: "absolute", bottom: "12px", left: "16px", right: "60px", zIndex: 2, display: "flex", alignItems: "center", gap: "6px" }}>
+            {isRenaming ? (
+              <input
+                ref={inputRef}
+                value={draftTitle}
+                onChange={e => setDraftTitle(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={e => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") { setIsRenaming(false); setDraftTitle(displayTitle); } }}
+                onClick={e => e.preventDefault()}
+                style={{ fontSize: "18px", fontWeight: 800, color: "#fff", background: "rgba(0,0,0,0.35)", border: "1.5px solid rgba(255,255,255,0.6)", borderRadius: "8px", padding: "3px 8px", outline: "none", width: "100%", fontFamily: "inherit" }}
+              />
+            ) : (
+              <>
+                <p style={{ fontSize: "20px", fontWeight: 800, color: "#fff", lineHeight: 1.2, textShadow: "0 1px 6px rgba(0,0,0,0.5)", margin: 0 }}>
+                  {displayTitle}
+                </p>
+                <button
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); setDraftTitle(displayTitle); setIsRenaming(true); }}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.7)", padding: "2px", lineHeight: 1, flexShrink: 0 }}
+                  title="Rename trip"
+                >
+                  <Pencil size={13} />
+                </button>
+              </>
+            )}
           </div>
 
           {/* Status pill */}
