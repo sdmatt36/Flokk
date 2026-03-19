@@ -2616,6 +2616,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [showAddKeyInfo, setShowAddKeyInfo] = useState(false);
   const [newContact, setNewContact] = useState({ name: "", role: "", phone: "", whatsapp: "", email: "" });
   const [newDoc, setNewDoc] = useState({ label: "", type: "link", url: "", content: "" });
+  const [isUploading, setIsUploading] = useState(false);
   const [newKeyInfo, setNewKeyInfo] = useState({ label: "", value: "" });
 
   useEffect(() => {
@@ -3046,20 +3047,43 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                 <input type="text" value={newDoc.label} onChange={e => setNewDoc(p => ({ ...p, label: e.target.value }))} placeholder="Label *" style={{ border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "9px 12px", fontSize: "13px", outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
                 {/* Type toggle */}
                 <div style={{ display: "flex", gap: "8px" }}>
-                  {(["link", "note"] as const).map(t => (
-                    <button key={t} onClick={() => setNewDoc(p => ({ ...p, type: t }))} style={{ flex: 1, padding: "8px", borderRadius: "10px", border: `1.5px solid ${newDoc.type === t ? "#1B3A5C" : "#E8E8E8"}`, backgroundColor: newDoc.type === t ? "#1B3A5C" : "#fff", color: newDoc.type === t ? "#fff" : "#717171", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                      {t === "link" ? "🔗 Link / URL" : "📝 Note"}
+                  {(["link", "file", "note"] as const).map(t => (
+                    <button key={t} onClick={() => setNewDoc(p => ({ ...p, type: t, url: t !== "link" ? p.url : p.url }))} style={{ flex: 1, padding: "8px", borderRadius: "10px", border: `1.5px solid ${newDoc.type === t ? "#1B3A5C" : "#E8E8E8"}`, backgroundColor: newDoc.type === t ? "#1B3A5C" : "#fff", color: newDoc.type === t ? "#fff" : "#717171", fontSize: "11px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                      {t === "link" ? "🔗 Link" : t === "file" ? "📎 File" : "📝 Note"}
                     </button>
                   ))}
                 </div>
                 {newDoc.type === "link" ? (
                   <input type="url" value={newDoc.url} onChange={e => setNewDoc(p => ({ ...p, url: e.target.value }))} placeholder="https://..." style={{ border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "9px 12px", fontSize: "13px", outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                ) : newDoc.type === "file" ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <input
+                      type="file"
+                      onChange={async e => {
+                        const file = e.target.files?.[0];
+                        if (!file || !tripId) return;
+                        setIsUploading(true);
+                        try {
+                          const fd = new FormData();
+                          fd.append("file", file);
+                          const res = await fetch(`/api/trips/${tripId}/vault/upload`, { method: "POST", body: fd });
+                          if (!res.ok) throw new Error("Upload failed");
+                          const { url, fileName } = await res.json();
+                          setNewDoc(p => ({ ...p, url, label: p.label || fileName }));
+                        } catch (err) { console.error(err); }
+                        finally { setIsUploading(false); }
+                      }}
+                      style={{ border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "9px 12px", fontSize: "13px", fontFamily: "inherit", width: "100%", boxSizing: "border-box", backgroundColor: "#fff" }}
+                    />
+                    {isUploading && <p style={{ fontSize: "12px", color: "#717171", fontStyle: "italic" }}>Uploading…</p>}
+                    {newDoc.url && !isUploading && <p style={{ fontSize: "12px", color: "#6B8F71", fontWeight: 600 }}>✓ File uploaded — add a label and save</p>}
+                  </div>
                 ) : (
                   <textarea value={newDoc.content} onChange={e => setNewDoc(p => ({ ...p, content: e.target.value }))} placeholder="Paste your note, confirmation number, or details here..." rows={4} style={{ border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "9px 12px", fontSize: "13px", outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box", resize: "vertical" }} />
                 )}
                 <div style={{ display: "flex", gap: "8px" }}>
                   <button
-                    disabled={!newDoc.label.trim()}
+                    disabled={!newDoc.label.trim() || isUploading}
                     onClick={async () => {
                       if (!newDoc.label.trim() || !tripId) return;
                       const res = await fetch(`/api/trips/${tripId}/vault/documents`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newDoc) });
@@ -3069,7 +3093,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                       setShowAddDoc(false);
                       setNewDoc({ label: "", type: "link", url: "", content: "" });
                     }}
-                    style={{ flex: 1, padding: "10px", borderRadius: "10px", border: "none", backgroundColor: newDoc.label.trim() ? "#1B3A5C" : "#E0E0E0", color: newDoc.label.trim() ? "#fff" : "#aaa", fontSize: "13px", fontWeight: 700, cursor: newDoc.label.trim() ? "pointer" : "default", fontFamily: "inherit" }}
+                    style={{ flex: 1, padding: "10px", borderRadius: "10px", border: "none", backgroundColor: newDoc.label.trim() && !isUploading ? "#1B3A5C" : "#E0E0E0", color: newDoc.label.trim() && !isUploading ? "#fff" : "#aaa", fontSize: "13px", fontWeight: 700, cursor: newDoc.label.trim() && !isUploading ? "pointer" : "default", fontFamily: "inherit" }}
                   >
                     Save document
                   </button>
@@ -3088,10 +3112,14 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                   <div key={d.id} style={{ backgroundColor: "#fff", border: "1px solid #EEEEEE", borderRadius: "12px", padding: "14px 16px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                        <span style={{ fontSize: "13px" }}>{d.type === "link" ? "🔗" : "📝"}</span>
+                        <span style={{ fontSize: "13px" }}>{d.type === "link" ? "🔗" : d.type === "file" ? "📎" : "📝"}</span>
                         <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{d.label}</span>
                       </div>
-                      {d.url && <a href={d.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#1B3A5C", wordBreak: "break-all" }}>{d.url}</a>}
+                      {d.type === "file" && d.url ? (
+                        <a href={d.url} target="_blank" rel="noopener noreferrer" download style={{ fontSize: "12px", color: "#1B3A5C", fontWeight: 600 }}>{d.label} — Download ↓</a>
+                      ) : d.url ? (
+                        <a href={d.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#1B3A5C", wordBreak: "break-all" }}>{d.url}</a>
+                      ) : null}
                       {d.content && <p style={{ fontSize: "12px", color: "#555", marginTop: "4px", whiteSpace: "pre-wrap" }}>{d.content}</p>}
                     </div>
                     <button onClick={async () => { await fetch(`/api/trips/${tripId}/vault/documents/${d.id}`, { method: "DELETE" }); setDocuments(p => p.filter(x => x.id !== d.id)); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px", flexShrink: 0 }} title="Delete">
