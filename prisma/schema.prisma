@@ -211,6 +211,9 @@ model Trip {
   flights          Flight[]
   manualActivities ManualActivity[]
   tripNotes        TripNote[]
+  contacts         TripContact[]
+  documents        TripDocument[]
+  keyInfo          TripKeyInfo[]
 }
 
 enum TripStatus {
@@ -594,6 +597,43 @@ model TripNote {
   checked   Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// =============================================================================
+// TRIP VAULT
+// =============================================================================
+
+model TripContact {
+  id        String   @id @default(cuid())
+  tripId    String
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  name      String
+  role      String?
+  phone     String?
+  whatsapp  String?
+  email     String?
+  notes     String?
+  createdAt DateTime @default(now())
+}
+
+model TripDocument {
+  id        String   @id @default(cuid())
+  tripId    String
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  label     String
+  type      String   @default("link")
+  url       String?
+  content   String?
+  createdAt DateTime @default(now())
+}
+
+model TripKeyInfo {
+  id        String   @id @default(cuid())
+  tripId    String
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  label     String
+  value     String
+  createdAt DateTime @default(now())
 }
 
 // =============================================================================
