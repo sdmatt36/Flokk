@@ -6,6 +6,7 @@ import { MapPin, Tag, Bookmark, BookmarkCheck, Sparkles, Users, ChevronRight, Ch
 import { CommunityTripMap, type MarkerDef } from "./CommunityTripMap";
 import Link from "next/link";
 import { RecommendationDrawer, type DrawerRec } from "./RecommendationDrawer";
+import { parseDateForDisplay } from "@/lib/dates";
 
 export type ActivityItem = {
   id: string;
@@ -84,6 +85,9 @@ const RELATED_TRIPS_BY_DEST: Record<string, RelatedTrip[]> = {
   ],
 };
 
+const DAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTH_NAMES_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 function buildDays(items: ActivityItem[], startDate: string | null): DayEntry[] {
   const byDay = new Map<number, ActivityItem[]>();
   for (const item of items) {
@@ -93,14 +97,14 @@ function buildDays(items: ActivityItem[], startDate: string | null): DayEntry[] 
     byDay.set(item.dayIndex, arr);
   }
   const dayNums = Array.from(byDay.keys()).sort((a, b) => a - b);
-  return dayNums.map((d) => {
-    let dateLabel = `Day ${d}`;
+  return dayNums.map((dayNum) => {
+    let dateLabel = `Day ${dayNum}`;
     if (startDate) {
-      const base = new Date(startDate);
-      base.setDate(base.getDate() + (d - 1));
-      dateLabel = base.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+      const start = parseDateForDisplay(startDate);
+      const base = new Date(start.getFullYear(), start.getMonth(), start.getDate() + (dayNum - 1));
+      dateLabel = `${DAY_NAMES_SHORT[base.getDay()]} ${MONTH_NAMES_SHORT[base.getMonth()]} ${base.getDate()}`;
     }
-    return { dayNum: d, dateLabel, items: byDay.get(d) ?? [] };
+    return { dayNum, dateLabel, items: byDay.get(dayNum) ?? [] };
   });
 }
 
@@ -310,15 +314,15 @@ export function CommunityTripView({
 
   const recDayPills: { dayIndex: number; label: string }[] = (() => {
     if (!startDate) return [];
-    const startD = new Date(startDate);
+    const startD = parseDateForDisplay(startDate);
     if (isNaN(startD.getTime())) return [];
-    const endD = endDate ? new Date(endDate) : startD;
+    const endD = endDate ? parseDateForDisplay(endDate) : startD;
     if (isNaN(endD.getTime())) return [];
     const diffDays = Math.round((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24));
     const n = Math.max(1, diffDays + 1);
     return Array.from({ length: n }, (_, i) => {
-      const d = new Date(startD.getTime() + i * 86400000);
-      return { dayIndex: i, label: `Day ${i + 1} · ${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}` };
+      const d = new Date(startD.getFullYear(), startD.getMonth(), startD.getDate() + i);
+      return { dayIndex: i, label: `Day ${i + 1} · ${MONTH_NAMES_SHORT[d.getMonth()]} ${d.getDate()}` };
     });
   })();
 

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { MapPin, X } from "lucide-react";
+import { parseDateForDisplay } from "@/lib/dates";
 
 type Trip = { id: string; title: string; startDate: string | null; endDate: string | null };
 
@@ -18,16 +19,17 @@ type ExtractedCard = {
 
 const SAVE_LATER = "__later__";
 
+const MONTH_NAMES_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 function generateDayPills(startDate: string | null, endDate: string | null): { dayIndex: number; label: string }[] {
   if (!startDate) return [];
-  const start = new Date(startDate);
+  const start = parseDateForDisplay(startDate);
   if (isNaN(start.getTime())) return [];
-  const end = endDate ? new Date(endDate) : start;
+  const end = endDate ? parseDateForDisplay(endDate) : start;
   const numDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
   return Array.from({ length: numDays }, (_, i) => {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    const dateStr = `${MONTH_NAMES_SHORT[d.getMonth()]} ${d.getDate()}`;
     return { dayIndex: i + 1, label: `Day ${i + 1} · ${dateStr}` };
   });
 }

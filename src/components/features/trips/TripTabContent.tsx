@@ -62,6 +62,7 @@ import { TripMap } from "@/components/features/trips/TripMap";
 import { DropLinkModal } from "@/components/features/home/DropLinkModal";
 import { RecommendationDrawer, type DrawerRec } from "@/components/features/trips/RecommendationDrawer";
 import { AddFlightModal } from "@/components/flights/AddFlightModal";
+import { parseDateForDisplay } from "@/lib/dates";
 
 type Tab = "saved" | "itinerary" | "recommended" | "packing";
 
@@ -475,15 +476,6 @@ const TRIP_DAYS = [
   { dayIndex: 3, label: "Day 4", date: "Wed May 7" },
   { dayIndex: 4, label: "Day 5", date: "Thu May 8" },
 ];
-
-function parseDateForDisplay(iso: string): Date {
-  // Dates are stored as midnight local time (JST = T15:00:00.000Z).
-  // Adding 12h before reading UTC fields gives the correct calendar day
-  // regardless of the server's timezone (works for any UTC offset within ±12h).
-  const d = new Date(iso);
-  const shifted = new Date(d.getTime() + 12 * 60 * 60 * 1000);
-  return new Date(shifted.getUTCFullYear(), shifted.getUTCMonth(), shifted.getUTCDate());
-}
 
 function generateTripDays(
   startDate: string | null,
@@ -2117,15 +2109,16 @@ function RecommendedContent({
 
   function generateDayPillsForRec(start: string | null, end: string | null): { dayIndex: number; label: string }[] {
     if (!start) return [];
-    const startD = new Date(start);
+    const startD = parseDateForDisplay(start);
     if (isNaN(startD.getTime())) return [];
-    const endD = end ? new Date(end) : startD;
+    const endD = end ? parseDateForDisplay(end) : startD;
     if (isNaN(endD.getTime())) return [];
     const diffDays = Math.round((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24));
     const n = Math.max(1, diffDays + 1);
+    const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     return Array.from({ length: n }, (_, i) => {
-      const d = new Date(startD.getTime() + i * 86400000);
-      const dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const d = new Date(startD.getFullYear(), startD.getMonth(), startD.getDate() + i);
+      const dateStr = `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
       return { dayIndex: i, label: `Day ${i + 1} · ${dateStr}` };
     });
   }

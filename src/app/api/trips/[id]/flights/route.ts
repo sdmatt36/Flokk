@@ -53,13 +53,17 @@ export async function POST(
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  // Calculate dayIndex from trip startDate
+  // Calculate dayIndex from trip startDate.
+  // Dates are stored as midnight JST (T15:00:00.000Z). Add 12h before extracting
+  // UTC fields to get the correct calendar day regardless of server timezone.
   let dayIndex: number | null = null;
   const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true } });
   if (trip?.startDate) {
-    const start = new Date(trip.startDate);
-    start.setHours(0, 0, 0, 0);
-    const dep = new Date(departureDate + "T00:00:00");
+    const rawStart = new Date(trip.startDate);
+    const shiftedStart = new Date(rawStart.getTime() + 12 * 60 * 60 * 1000);
+    const start = new Date(shiftedStart.getUTCFullYear(), shiftedStart.getUTCMonth(), shiftedStart.getUTCDate());
+    const [dy, dm, dd] = departureDate.split("-").map(Number);
+    const dep = new Date(dy, dm - 1, dd);
     const diff = Math.round((dep.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     dayIndex = diff + 1; // Day 1 = trip start date
   }
