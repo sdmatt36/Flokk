@@ -24,7 +24,7 @@ export default function PressPage() {
             Flokk in the press
           </h1>
           <p style={{ fontSize: "18px", color: "rgba(255,255,255,0.7)", maxWidth: "500px", margin: "0 auto", lineHeight: 1.6 }}>
-            Resources, boilerplate, and contact info for journalists and media.
+            Media resources, assets, and company information for press and partners.
           </p>
         </div>
       </section>
