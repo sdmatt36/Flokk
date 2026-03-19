@@ -84,6 +84,7 @@ type Flight = {
   seatNumbers?: string | null;
   notes?: string | null;
   dayIndex?: number | null;
+  status?: string;
 };
 
 // ── Shared sub-components ────────────────────────────────────────────────────
@@ -1325,7 +1326,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                 {tripDays.map(({ dayIndex, label, date }, i) => {
                   const isOpen = openDay === i;
                   const dayItems = recAdditions.filter(a => a.dayIndex === dayIndex);
-                  const dayFlights = flights.filter(f => f.dayIndex === dayIndex);
+                  const dayFlights = flights.filter(f => f.dayIndex === dayIndex && f.status === "booked");
                   return (
                     <div key={i} style={{ borderBottom: i < tripDays.length - 1 ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
 
@@ -2274,11 +2275,12 @@ function RecCard({ rec, isSaved, onToggle, onOpenDetail }: { rec: RecItem; isSav
 
 // ── Flight card ───────────────────────────────────────────────────────────────
 
-function FlightCard({ flight, onDelete }: { flight: Flight; onDelete: () => void }) {
+function FlightCard({ flight, onDelete, onMarkBooked }: { flight: Flight; onDelete: () => void; onMarkBooked?: () => void }) {
   const cabinLabel: Record<string, string> = { economy: "Economy", premium_economy: "Prem. Economy", business: "Business", first: "First" };
   const typeLabel: Record<string, string> = { outbound: "Outbound", return: "Return", connection: "Connection" };
+  const isBooked = flight.status === "booked";
   return (
-    <div style={{ backgroundColor: "#fff", border: "1.5px solid #EEEEEE", borderRadius: "14px", padding: "14px 16px", marginBottom: "10px" }}>
+    <div style={{ backgroundColor: "#fff", border: `1.5px solid ${isBooked ? "#D8E4F0" : "#EEEEEE"}`, borderRadius: "14px", padding: "14px 16px", marginBottom: "10px" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* Route row */}
@@ -2289,6 +2291,9 @@ function FlightCard({ flight, onDelete }: { flight: Flight; onDelete: () => void
             <span style={{ fontSize: "11px", backgroundColor: "rgba(196,102,74,0.1)", color: "#C4664A", borderRadius: "999px", padding: "2px 8px", fontWeight: 600 }}>
               {typeLabel[flight.type] ?? flight.type}
             </span>
+            <span style={{ fontSize: "11px", backgroundColor: isBooked ? "rgba(27,58,92,0.1)" : "rgba(0,0,0,0.06)", color: isBooked ? "#1B3A5C" : "#888", borderRadius: "999px", padding: "2px 8px", fontWeight: 600 }}>
+              {isBooked ? "Booked" : "Saved"}
+            </span>
           </div>
           {/* Cities */}
           <p style={{ fontSize: "12px", color: "#717171", marginBottom: "6px" }}>{flight.fromCity} → {flight.toCity}</p>
@@ -2298,10 +2303,12 @@ function FlightCard({ flight, onDelete }: { flight: Flight; onDelete: () => void
               <p style={{ fontSize: "11px", color: "#aaa", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Departs</p>
               <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>{flight.departureDate} · {flight.departureTime}</p>
             </div>
-            <div>
-              <p style={{ fontSize: "11px", color: "#aaa", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Arrives</p>
-              <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>{flight.arrivalDate} · {flight.arrivalTime}</p>
-            </div>
+            {(flight.arrivalDate || flight.arrivalTime) && (
+              <div>
+                <p style={{ fontSize: "11px", color: "#aaa", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Arrives</p>
+                <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>{flight.arrivalDate ?? ""}{flight.arrivalDate && flight.arrivalTime ? " · " : ""}{flight.arrivalTime ?? ""}</p>
+              </div>
+            )}
             {flight.duration && (
               <div>
                 <p style={{ fontSize: "11px", color: "#aaa", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Duration</p>
@@ -2310,11 +2317,20 @@ function FlightCard({ flight, onDelete }: { flight: Flight; onDelete: () => void
             )}
           </div>
           {/* Meta */}
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            <span style={{ fontSize: "12px", color: "#555" }}>{flight.airline} · {flight.flightNumber}</span>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+            {flight.airline && <span style={{ fontSize: "12px", color: "#555" }}>{flight.airline} · {flight.flightNumber}</span>}
+            {!flight.airline && <span style={{ fontSize: "12px", color: "#555" }}>{flight.flightNumber}</span>}
             <span style={{ fontSize: "12px", color: "#555" }}>· {cabinLabel[flight.cabinClass] ?? flight.cabinClass}</span>
             {flight.confirmationCode && <span style={{ fontSize: "12px", color: "#555" }}>· {flight.confirmationCode}</span>}
             {flight.seatNumbers && <span style={{ fontSize: "12px", color: "#555" }}>· Seats: {flight.seatNumbers}</span>}
+            {!isBooked && onMarkBooked && (
+              <button
+                onClick={onMarkBooked}
+                style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+              >
+                Mark as booked →
+              </button>
+            )}
           </div>
           {flight.notes && (
             <p style={{ fontSize: "12px", color: "#888", marginTop: "6px", fontStyle: "italic" }}>{flight.notes}</p>
@@ -2368,6 +2384,17 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
     fetch(`/api/trips/${tripId}/flights/${flightId}`, { method: "DELETE" })
       .then(() => fetchFlights())
       .catch(e => console.error("[deleteFlight]", e));
+  }
+
+  function handleMarkBooked(flightId: string) {
+    if (!tripId) return;
+    fetch(`/api/trips/${tripId}/flights/${flightId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "booked" }),
+    })
+      .then(() => setFlights(prev => prev.map(f => f.id === flightId ? { ...f, status: "booked" } : f)))
+      .catch(e => console.error("[markBooked]", e));
   }
 
   const tripAsModalEntry = tripId
@@ -2487,7 +2514,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                 <span style={{ fontSize: "11px", color: "#bbb", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>{flights.length}</span>
               </div>
               {flights.map(f => (
-                <FlightCard key={f.id} flight={f} onDelete={() => handleDeleteFlight(f.id)} />
+                <FlightCard key={f.id} flight={f} onDelete={() => handleDeleteFlight(f.id)} onMarkBooked={() => handleMarkBooked(f.id)} />
               ))}
             </div>
           )}

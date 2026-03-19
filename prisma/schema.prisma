@@ -542,14 +542,15 @@ model Flight {
   toCity            String
   departureDate     String
   departureTime     String
-  arrivalDate       String
-  arrivalTime       String
+  arrivalDate       String?
+  arrivalTime       String?
   duration          String?
   cabinClass        String   @default("economy")
   confirmationCode  String?
   seatNumbers       String?
   notes             String?
   dayIndex          Int?
+  status            String   @default("saved")
   createdAt         DateTime @default(now())
 }
 

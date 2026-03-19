@@ -46,18 +46,29 @@ export async function POST(
     confirmationCode,
     seatNumbers,
     notes,
-    dayIndex,
+    status,
   } = body;
 
-  if (!airline || !flightNumber || !fromAirport || !toAirport || !departureDate || !departureTime || !arrivalDate || !arrivalTime) {
+  if (!flightNumber || !fromAirport || !toAirport || !departureDate || !departureTime) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  }
+
+  // Calculate dayIndex from trip startDate
+  let dayIndex: number | null = null;
+  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true } });
+  if (trip?.startDate) {
+    const start = new Date(trip.startDate);
+    start.setHours(0, 0, 0, 0);
+    const dep = new Date(departureDate + "T00:00:00");
+    const diff = Math.round((dep.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    dayIndex = diff + 1; // Day 1 = trip start date
   }
 
   const flight = await db.flight.create({
     data: {
       tripId,
       type: type ?? "outbound",
-      airline,
+      airline: airline ?? "",
       flightNumber,
       fromAirport,
       fromCity: fromCity ?? fromAirport,
@@ -65,14 +76,15 @@ export async function POST(
       toCity: toCity ?? toAirport,
       departureDate,
       departureTime,
-      arrivalDate,
-      arrivalTime,
+      arrivalDate: arrivalDate ?? null,
+      arrivalTime: arrivalTime ?? null,
       duration: duration ?? null,
       cabinClass: cabinClass ?? "economy",
       confirmationCode: confirmationCode ?? null,
       seatNumbers: seatNumbers ?? null,
       notes: notes ?? null,
-      dayIndex: dayIndex ?? null,
+      dayIndex,
+      status: status ?? "saved",
     },
   });
 

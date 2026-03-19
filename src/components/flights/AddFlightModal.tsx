@@ -26,6 +26,7 @@ const FLIGHT_TYPES = [
 export function AddFlightModal({ tripId, onClose, onSaved }: AddFlightModalProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [isBooked, setIsBooked] = useState(false);
 
   const [type, setType] = useState("outbound");
   const [airline, setAirline] = useState("");
@@ -45,9 +46,11 @@ export function AddFlightModal({ tripId, onClose, onSaved }: AddFlightModalProps
   const fromCity = AIRPORTS.find((a) => a.code === fromAirport)?.city ?? fromAirport;
   const toCity = AIRPORTS.find((a) => a.code === toAirport)?.city ?? toAirport;
 
+  const canSave = flightNumber.trim() !== "" && fromAirport !== "" && toAirport !== "" && departureDate !== "" && departureTime !== "";
+
   async function handleSave() {
-    if (!airline || !flightNumber || !fromAirport || !toAirport || !departureDate || !departureTime || !arrivalDate || !arrivalTime) {
-      setError("Please fill in all required fields.");
+    if (!canSave) {
+      setError("Please fill in flight number, airports, and departure date/time.");
       return;
     }
     setSaving(true);
@@ -66,13 +69,14 @@ export function AddFlightModal({ tripId, onClose, onSaved }: AddFlightModalProps
           toCity,
           departureDate,
           departureTime,
-          arrivalDate,
-          arrivalTime,
+          arrivalDate: arrivalDate || null,
+          arrivalTime: arrivalTime || null,
           duration: duration || null,
           cabinClass,
           confirmationCode: confirmationCode || null,
           seatNumbers: seatNumbers || null,
           notes: notes || null,
+          status: isBooked ? "booked" : "saved",
         }),
       });
       if (!res.ok) throw new Error("Failed to save flight");
@@ -99,9 +103,41 @@ export function AddFlightModal({ tripId, onClose, onSaved }: AddFlightModalProps
         style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "560px", maxHeight: "90vh", overflowY: "auto", padding: "24px 20px 40px", paddingBottom: "max(40px, env(safe-area-inset-bottom))" }}
       >
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
           <p style={{ fontSize: "17px", fontWeight: 800, color: "#1a1a1a" }}>Add Flight</p>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#999", padding: "4px", lineHeight: 1 }}>×</button>
+        </div>
+
+        {/* Confirmed booking toggle */}
+        <div style={{ backgroundColor: "#F5F8FC", border: "1.5px solid #D8E4F0", borderRadius: "12px", padding: "12px 14px", marginBottom: "18px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "2px" }}>Confirmed booking</p>
+            <p style={{ fontSize: "12px", color: "#717171" }}>Booked flights appear in your itinerary</p>
+          </div>
+          <button
+            onClick={() => setIsBooked(!isBooked)}
+            style={{
+              flexShrink: 0,
+              width: "48px", height: "26px",
+              borderRadius: "999px",
+              border: "none",
+              cursor: "pointer",
+              backgroundColor: isBooked ? "#1B3A5C" : "#D1D5DB",
+              position: "relative",
+              transition: "background-color 0.2s",
+            }}
+          >
+            <span style={{
+              position: "absolute",
+              top: "3px",
+              left: isBooked ? "25px" : "3px",
+              width: "20px", height: "20px",
+              borderRadius: "50%",
+              backgroundColor: "#fff",
+              transition: "left 0.2s",
+              display: "block",
+            }} />
+          </button>
         </div>
 
         {/* Flight Type */}
@@ -117,7 +153,7 @@ export function AddFlightModal({ tripId, onClose, onSaved }: AddFlightModalProps
         {/* Airline + Flight Number */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
           <div>
-            <label style={labelStyle}>Airline *</label>
+            <label style={labelStyle}>Airline</label>
             <select value={airline} onChange={(e) => setAirline(e.target.value)} style={selectStyle}>
               <option value="">Select airline</option>
               {AIRLINES.map((a) => (
@@ -171,14 +207,14 @@ export function AddFlightModal({ tripId, onClose, onSaved }: AddFlightModalProps
           </div>
         </div>
 
-        {/* Arrival */}
+        {/* Arrival (optional) */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
           <div>
-            <label style={labelStyle}>Arrival Date *</label>
+            <label style={labelStyle}>Arrival Date <span style={{ textTransform: "none", fontWeight: 400, fontSize: "10px" }}>(optional)</span></label>
             <input type="date" value={arrivalDate} onChange={(e) => setArrivalDate(e.target.value)} style={inputStyle} />
           </div>
           <div>
-            <label style={labelStyle}>Arrival Time *</label>
+            <label style={labelStyle}>Arrival Time <span style={{ textTransform: "none", fontWeight: 400, fontSize: "10px" }}>(optional)</span></label>
             <input type="time" value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} style={inputStyle} />
           </div>
         </div>
@@ -247,8 +283,8 @@ export function AddFlightModal({ tripId, onClose, onSaved }: AddFlightModalProps
 
         <button
           onClick={handleSave}
-          disabled={saving}
-          style={{ width: "100%", padding: "14px", borderRadius: "12px", backgroundColor: saving ? "#ccc" : "#1B3A5C", color: "#fff", fontSize: "15px", fontWeight: 700, border: "none", cursor: saving ? "not-allowed" : "pointer" }}
+          disabled={saving || !canSave}
+          style={{ width: "100%", padding: "14px", borderRadius: "12px", backgroundColor: saving || !canSave ? "#ccc" : "#1B3A5C", color: "#fff", fontSize: "15px", fontWeight: 700, border: "none", cursor: saving || !canSave ? "not-allowed" : "pointer" }}
         >
           {saving ? "Saving…" : "Save Flight"}
         </button>
