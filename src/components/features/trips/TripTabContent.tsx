@@ -1131,7 +1131,7 @@ function TaskModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-type RecAddition = { dayIndex: number; title: string; location: string; img: string; savedItemId?: string };
+type RecAddition = { dayIndex: number; title: string; location: string; img: string; savedItemId?: string; lat?: number | null; lng?: number | null };
 
 const ITINERARY_KEY = (tripId?: string) => `flokk_itinerary_additions_${tripId ?? "default"}`;
 
@@ -1248,7 +1248,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     if (!tripId) return;
     fetch(`/api/trips/${tripId}/itinerary`)
       .then(r => r.json())
-      .then(({ items }: { items: Array<{ id: string; rawTitle: string | null; rawDescription: string | null; mediaThumbnailUrl: string | null; dayIndex: number | null }> }) => {
+      .then(({ items }: { items: Array<{ id: string; rawTitle: string | null; rawDescription: string | null; mediaThumbnailUrl: string | null; dayIndex: number | null; lat?: number | null; lng?: number | null }> }) => {
         if (!items?.length) return;
         setRecAdditions(items.map(item => ({
           dayIndex: item.dayIndex ?? 0,
@@ -1256,6 +1256,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           location: item.rawDescription ?? "",
           img: item.mediaThumbnailUrl ?? "",
           savedItemId: item.id,
+          lat: item.lat ?? null,
+          lng: item.lng ?? null,
         })));
       })
       .catch(e => console.error("[ItineraryRead] API fetch failed:", e));
@@ -1448,7 +1450,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
 
         {/* Right panel: map — stacks below on mobile, sticky sidebar on desktop */}
         <div style={{ width: isDesktop ? "42%" : "100%", position: isDesktop ? "sticky" : "relative", top: 0, height: isDesktop ? (leftHeight ? `${leftHeight}px` : "500px") : "300px", minHeight: "260px", maxHeight: "600px" }}>
-          <TripMap activeDay={openDay >= 0 ? openDay : 0} flyTarget={flyTarget} onFlyTargetConsumed={onFlyTargetConsumed} tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} />
+          <TripMap activeDay={openDay >= 0 ? openDay : 0} flyTarget={flyTarget} onFlyTargetConsumed={onFlyTargetConsumed} tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} savedItems={recAdditions.filter(a => a.lat != null && a.lng != null) as { title: string; lat: number; lng: number; dayIndex?: number | null }[]} />
         </div>{/* end right panel */}
 
       </div>

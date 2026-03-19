@@ -66,7 +66,9 @@ function flyToDay(map: any, mapboxgl: any, markers: MarkerDef[], center: [number
   }
 }
 
-export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, destinationCity, destinationCountry }: { activeDay: number; flyTarget?: { lat: number; lng: number } | null; onFlyTargetConsumed?: () => void; tripId?: string; destinationCity?: string | null; destinationCountry?: string | null }) {
+type MapSavedItem = { title: string; lat: number; lng: number; dayIndex?: number | null };
+
+export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, destinationCity, destinationCountry, savedItems = [] }: { activeDay: number; flyTarget?: { lat: number; lng: number } | null; onFlyTargetConsumed?: () => void; tripId?: string; destinationCity?: string | null; destinationCountry?: string | null; savedItems?: MapSavedItem[] }) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -131,13 +133,15 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
     return () => observer.disconnect();
   }, []);
 
-  // Respond to day changes driven by parent
+  // Respond to day changes driven by parent — show pins for items on that day
   useEffect(() => {
     if (!initializedRef.current || !mapRef.current) return;
-    // No hardcoded markers — fly to destination center when day changes
-    addMarkersInternal([]);
-    flyToDay(mapRef.current, mapboxRef.current, [], destCoords);
-  }, [activeDay]); // eslint-disable-line react-hooks/exhaustive-deps
+    const dayMarkers: MarkerDef[] = savedItems
+      .filter(s => s.dayIndex === activeDay && s.lat != null && s.lng != null)
+      .map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng }));
+    addMarkersInternal(dayMarkers);
+    flyToDay(mapRef.current, mapboxRef.current, dayMarkers, destCoords);
+  }, [activeDay, savedItems]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fly to a specific coordinate when flyTarget is set
   useEffect(() => {
