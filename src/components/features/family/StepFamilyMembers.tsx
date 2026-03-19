@@ -6,12 +6,26 @@ import type { OnboardingData, FamilyMemberInput } from "@/app/(app)/onboarding/p
 
 const DIETARY_OPTIONS = [
   { value: "VEGETARIAN", label: "Vegetarian" },
+  { value: "PESCATARIAN", label: "Pescatarian" },
   { value: "VEGAN", label: "Vegan" },
   { value: "HALAL", label: "Halal" },
   { value: "KOSHER", label: "Kosher" },
   { value: "GLUTEN_FREE", label: "Gluten Free" },
   { value: "NUT_FREE", label: "Nut Free" },
   { value: "DAIRY_FREE", label: "Dairy Free" },
+];
+
+const FOOD_ALLERGIES = [
+  { value: "gluten",    label: "Gluten / Coeliac" },
+  { value: "peanuts",   label: "Peanuts" },
+  { value: "tree_nuts", label: "Tree nuts" },
+  { value: "dairy",     label: "Dairy / Lactose" },
+  { value: "eggs",      label: "Eggs" },
+  { value: "shellfish", label: "Shellfish" },
+  { value: "fish",      label: "Fish" },
+  { value: "soy",       label: "Soy" },
+  { value: "sesame",    label: "Sesame" },
+  { value: "sulphites", label: "Sulphites" },
 ];
 
 interface Props {
@@ -31,6 +45,16 @@ function MemberCard({ member, index, onChange, onRemove }: {
       ...member,
       dietaryRequirements: current.includes(val)
         ? current.filter((d) => d !== val)
+        : [...current, val],
+    });
+  };
+
+  const toggleAllergy = (val: string) => {
+    const current = member.foodAllergies;
+    onChange({
+      ...member,
+      foodAllergies: current.includes(val)
+        ? current.filter((a) => a !== val)
         : [...current, val],
     });
   };
@@ -101,17 +125,54 @@ function MemberCard({ member, index, onChange, onRemove }: {
           })}
         </div>
       </div>
+
+      <div className="space-y-2">
+        <label className="text-xs font-semibold" style={{ color: "#717171" }}>
+          Food allergies <span className="font-normal" style={{ color: "#717171" }}>(optional)</span>
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {FOOD_ALLERGIES.map((opt) => {
+            const active = member.foodAllergies.includes(opt.value);
+            return (
+              <button
+                key={opt.value}
+                onClick={() => toggleAllergy(opt.value)}
+                className="px-3 py-1.5 rounded-full text-xs font-medium border transition-all"
+                style={{
+                  borderColor: active ? "#1B3A5C" : "#EEEEEE",
+                  backgroundColor: active ? "#1B3A5C" : "#fff",
+                  color: active ? "#fff" : "#717171",
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <textarea
+          value={member.allergyNotes ?? ""}
+          onChange={(e) => onChange({ ...member, allergyNotes: e.target.value })}
+          placeholder="Other allergies or notes (e.g. severe peanut allergy, carries EpiPen)"
+          rows={2}
+          style={{
+            width: "100%", padding: "8px 12px", borderRadius: "10px",
+            border: "1.5px solid #EEEEEE", backgroundColor: "#FFFFFF",
+            fontSize: "13px", color: "#2d2d2d", outline: "none",
+            resize: "vertical", fontFamily: "inherit", boxSizing: "border-box",
+          }}
+        />
+      </div>
     </div>
   );
 }
 
 export function StepFamilyMembers({ data, onNext }: Props) {
   const [members, setMembers] = useState<FamilyMemberInput[]>(
-    data.members.length > 0 ? data.members : [{ role: "ADULT", dietaryRequirements: [] }]
+    data.members.length > 0 ? data.members : [{ role: "ADULT", dietaryRequirements: [], foodAllergies: [] }]
   );
 
   const addMember = (role: "ADULT" | "CHILD") => {
-    setMembers((prev) => [...prev, { role, dietaryRequirements: [] }]);
+    setMembers((prev) => [...prev, { role, dietaryRequirements: [], foodAllergies: [] }]);
   };
 
   const updateMember = (index: number, m: FamilyMemberInput) => {

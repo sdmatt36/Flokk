@@ -12,6 +12,8 @@ export type FamilyMemberInput = {
   name?: string;
   birthDate?: string;
   dietaryRequirements: string[];
+  foodAllergies: string[];
+  allergyNotes?: string;
 };
 
 export type OnboardingData = {

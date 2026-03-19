@@ -26,77 +26,157 @@ interface LoyaltyEntry {
   programType: string;
 }
 
-interface CategoryState {
-  added: LoyaltyEntry[];
-  search: string;
-}
+export function LoyaltySection() {
+  const [loyaltyPrograms, setLoyaltyPrograms] = useState<LoyaltyEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeCategory, setActiveCategory] = useState<"airline" | "hotel" | "car">("airline");
+  const [selectedProgram, setSelectedProgram] = useState<string | null>(null);
+  const [memberNumber, setMemberNumber] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
-function LoyaltyCategory({
-  title,
-  programs,
-  programType,
-  state,
-  onChange,
-  onAdd,
-  onRemove,
-  onUpdateNumber,
-}: {
-  title: string;
-  programs: string[];
-  programType: string;
-  state: CategoryState;
-  onChange: (s: CategoryState) => void;
-  onAdd: (name: string, memberNumber: string, programType: string) => Promise<void>;
-  onRemove: (id: string) => Promise<void>;
-  onUpdateNumber: (id: string, memberNumber: string) => void;
-}) {
-  const addedNames = new Set(state.added.map((e) => e.program));
+  useEffect(() => {
+    fetch("/api/profile/loyalty")
+      .then((r) => r.json())
+      .then((data: Array<{ id: string; programName: string; memberNumber: string; programType: string }>) => {
+        if (!Array.isArray(data)) return;
+        setLoyaltyPrograms(
+          data.map((p) => ({
+            id: p.id,
+            program: p.programName,
+            memberNumber: p.memberNumber,
+            programType: p.programType,
+          }))
+        );
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
-  async function addProgram(name: string) {
-    if (addedNames.has(name)) return;
-    await onAdd(name, "", programType);
+  const handleAddLoyalty = async () => {
+    if (!selectedProgram || !memberNumber.trim()) return;
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/profile/loyalty", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          programName: selectedProgram,
+          memberNumber: memberNumber.trim(),
+          programType: activeCategory,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      const saved = await res.json();
+      setLoyaltyPrograms((prev) => [
+        ...prev,
+        {
+          id: saved.id,
+          program: saved.programName,
+          memberNumber: saved.memberNumber,
+          programType: saved.programType,
+        },
+      ]);
+      setMemberNumber("");
+      setSelectedProgram(null);
+    } catch (err) {
+      console.error("Loyalty save error:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  async function handleRemove(id: string) {
+    await fetch(`/api/profile/loyalty?id=${id}`, { method: "DELETE" });
+    setLoyaltyPrograms((prev) => prev.filter((e) => e.id !== id));
   }
 
-  async function handleAdd() {
-    const name = state.search.trim();
-    if (!name) return;
-    onChange({ ...state, search: "" });
-    await onAdd(name, "", programType);
+  function handleUpdateNumber(id: string, newMemberNumber: string) {
+    setLoyaltyPrograms((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, memberNumber: newMemberNumber } : e))
+    );
   }
+
+  const PROGRAMS_BY_CATEGORY = {
+    airline: AIRLINES,
+    hotel: HOTELS,
+    car: CAR_RENTAL,
+  };
+
+  const CATEGORY_LABELS = {
+    airline: "Airlines",
+    hotel: "Hotels",
+    car: "Car Rental",
+  };
+
+  const currentPrograms = loyaltyPrograms.filter((e) => e.programType === activeCategory);
+  const addedNames = new Set(currentPrograms.map((e) => e.program));
+  const availablePrograms = PROGRAMS_BY_CATEGORY[activeCategory].filter((p) => !addedNames.has(p));
+
+  if (loading) return <p style={{ color: "#717171", fontSize: "14px" }}>Loading...</p>;
 
   return (
-    <div style={{ marginBottom: "32px" }}>
-      <p style={{ fontSize: "15px", fontWeight: 600, color: "#1B3A5C", marginBottom: "12px" }}>{title}</p>
+    <div style={{ backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #E8E8E8", padding: "24px" }}>
+      {/* Category tabs */}
+      <div style={{ display: "flex", gap: "8px", marginBottom: "24px" }}>
+        {(["airline", "hotel", "car"] as const).map((cat) => (
+          <button
+            key={cat}
+            onClick={() => {
+              setActiveCategory(cat);
+              setSelectedProgram(null);
+              setMemberNumber("");
+            }}
+            style={{
+              padding: "6px 14px",
+              borderRadius: "999px",
+              fontSize: "13px",
+              fontWeight: 500,
+              border: `1px solid ${activeCategory === cat ? "#1B3A5C" : "#E8E8E8"}`,
+              backgroundColor: activeCategory === cat ? "#1B3A5C" : "#fff",
+              color: activeCategory === cat ? "#fff" : "#717171",
+              cursor: "pointer",
+            }}
+          >
+            {CATEGORY_LABELS[cat]}
+          </button>
+        ))}
+      </div>
 
-      {state.added.length > 0 && (
+      {/* Added programs */}
+      {currentPrograms.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
-          {state.added.map((entry) => (
-            <div key={entry.id} style={{
-              display: "flex", alignItems: "center", gap: "12px",
-              backgroundColor: "#fff", border: "1px solid #E8E8E8",
-              borderRadius: "8px", padding: "10px 14px",
-            }}>
+          {currentPrograms.map((entry) => (
+            <div
+              key={entry.id}
+              style={{
+                display: "flex", alignItems: "center", gap: "12px",
+                backgroundColor: "#fff", border: "1px solid #E8E8E8",
+                borderRadius: "8px", padding: "10px 14px",
+              }}
+            >
               <span style={{ flex: "0 0 auto", fontSize: "14px", fontWeight: 500, color: "#1B3A5C", minWidth: "160px" }}>
                 {entry.program}
               </span>
               <input
                 value={entry.memberNumber}
-                onChange={(e) => onUpdateNumber(entry.id, e.target.value)}
+                onChange={(e) => handleUpdateNumber(entry.id, e.target.value)}
                 onBlur={async (e) => {
-                  // PATCH member number on blur
                   await fetch(`/api/profile/loyalty?id=${entry.id}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ memberNumber: e.target.value }),
                   });
                 }}
-                placeholder="Member number (optional)"
+                placeholder="Member number"
                 style={{
                   flex: 1, border: "none", outline: "none", fontSize: "14px",
                   color: "#1a1a1a", backgroundColor: "transparent",
                 }}
               />
-              <button onClick={() => onRemove(entry.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}>
+              <button
+                onClick={() => handleRemove(entry.id)}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}
+              >
                 <X size={15} style={{ color: "#717171" }} />
               </button>
             </div>
@@ -104,15 +184,24 @@ function LoyaltyCategory({
         </div>
       )}
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "12px" }}>
-        {programs.filter((p) => !addedNames.has(p)).map((p) => (
+      {/* Program pill selection */}
+      <p style={{ fontSize: "13px", fontWeight: 600, color: "#717171", marginBottom: "8px" }}>
+        Select a program
+      </p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "16px" }}>
+        {availablePrograms.map((p) => (
           <button
             key={p}
-            onClick={() => addProgram(p)}
+            onClick={() => setSelectedProgram(selectedProgram === p ? null : p)}
             style={{
-              border: "1px solid #E8E8E8", borderRadius: "999px",
-              padding: "5px 12px", fontSize: "13px", color: "#717171",
-              backgroundColor: "#fff", cursor: "pointer",
+              border: `1px solid ${selectedProgram === p ? "#1B3A5C" : "#E8E8E8"}`,
+              borderRadius: "999px",
+              padding: "5px 12px",
+              fontSize: "13px",
+              color: selectedProgram === p ? "#1B3A5C" : "#717171",
+              backgroundColor: selectedProgram === p ? "#EEF2F7" : "#fff",
+              cursor: "pointer",
+              fontWeight: selectedProgram === p ? 600 : 400,
             }}
           >
             {p}
@@ -120,109 +209,64 @@ function LoyaltyCategory({
         ))}
       </div>
 
-      <div style={{ display: "flex", gap: "8px" }}>
-        <input
-          value={state.search}
-          onChange={(e) => onChange({ ...state, search: e.target.value })}
-          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-          placeholder="Search programs..."
-          style={{
-            flex: 1, padding: "8px 12px", border: "1px solid #E8E8E8",
-            borderRadius: "8px", fontSize: "14px", color: "#1a1a1a", outline: "none",
-          }}
-        />
-        <button
-          onClick={handleAdd}
-          style={{
-            padding: "8px 16px", backgroundColor: "#1B3A5C", color: "#fff",
-            border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 500, cursor: "pointer",
-          }}
-        >
-          + Add
-        </button>
-      </div>
-    </div>
-  );
-}
+      {/* Member number + Add button — shown when a program is selected */}
+      {selectedProgram && (
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "4px" }}>
+          <div style={{ flex: 1, position: "relative" }}>
+            <p style={{ fontSize: "12px", color: "#717171", marginBottom: "4px" }}>
+              Member number for <strong>{selectedProgram}</strong>
+            </p>
+            <input
+              value={memberNumber}
+              onChange={(e) => setMemberNumber(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAddLoyalty()}
+              placeholder="Enter member number"
+              autoFocus
+              style={{
+                width: "100%", padding: "8px 12px", border: "1px solid #E8E8E8",
+                borderRadius: "8px", fontSize: "14px", color: "#1a1a1a", outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+          <button
+            onClick={handleAddLoyalty}
+            disabled={isSaving || !memberNumber.trim()}
+            style={{
+              padding: "8px 16px",
+              backgroundColor: memberNumber.trim() ? "#1B3A5C" : "#E8E8E8",
+              color: memberNumber.trim() ? "#fff" : "#aaa",
+              border: "none",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 500,
+              cursor: memberNumber.trim() && !isSaving ? "pointer" : "not-allowed",
+              flexShrink: 0,
+              marginTop: "20px",
+            }}
+          >
+            {isSaving ? "Saving..." : "+ Add"}
+          </button>
+        </div>
+      )}
 
-const emptyState = (): CategoryState => ({ added: [], search: "" });
-
-export function LoyaltySection() {
-  const [airlines, setAirlines] = useState<CategoryState>(emptyState);
-  const [hotels, setHotels] = useState<CategoryState>(emptyState);
-  const [cars, setCars] = useState<CategoryState>(emptyState);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch("/api/profile/loyalty")
-      .then((r) => r.json())
-      .then((data: Array<{ id: string; programName: string; memberNumber: string; programType: string }>) => {
-        if (!Array.isArray(data)) return;
-        const toEntry = (p: { id: string; programName: string; memberNumber: string; programType: string }): LoyaltyEntry => ({
-          id: p.id,
-          program: p.programName,
-          memberNumber: p.memberNumber,
-          programType: p.programType,
-        });
-        setAirlines((s) => ({ ...s, added: data.filter((p) => p.programType === "airline").map(toEntry) }));
-        setHotels((s) => ({ ...s, added: data.filter((p) => p.programType === "hotel").map(toEntry) }));
-        setCars((s) => ({ ...s, added: data.filter((p) => p.programType === "car").map(toEntry) }));
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  async function handleAdd(programName: string, memberNumber: string, programType: string) {
-    const res = await fetch("/api/profile/loyalty", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ programName, memberNumber, programType }),
-    });
-    if (!res.ok) return;
-    const saved = await res.json();
-    const entry: LoyaltyEntry = {
-      id: saved.id,
-      program: saved.programName,
-      memberNumber: saved.memberNumber,
-      programType: saved.programType,
-    };
-    if (programType === "airline") setAirlines((s) => ({ ...s, added: [...s.added, entry] }));
-    else if (programType === "hotel") setHotels((s) => ({ ...s, added: [...s.added, entry] }));
-    else setCars((s) => ({ ...s, added: [...s.added, entry] }));
-  }
-
-  async function handleRemove(id: string) {
-    await fetch(`/api/profile/loyalty?id=${id}`, { method: "DELETE" });
-    const removeById = (s: CategoryState): CategoryState => ({
-      ...s, added: s.added.filter((e) => e.id !== id),
-    });
-    setAirlines(removeById);
-    setHotels(removeById);
-    setCars(removeById);
-  }
-
-  function handleUpdateNumber(id: string, memberNumber: string) {
-    const update = (s: CategoryState): CategoryState => ({
-      ...s, added: s.added.map((e) => e.id === id ? { ...e, memberNumber } : e),
-    });
-    setAirlines(update);
-    setHotels(update);
-    setCars(update);
-  }
-
-  if (loading) return <p style={{ color: "#717171", fontSize: "14px" }}>Loading...</p>;
-
-  const sharedProps = {
-    onAdd: handleAdd,
-    onRemove: handleRemove,
-    onUpdateNumber: handleUpdateNumber,
-  };
-
-  return (
-    <div style={{ backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #E8E8E8", padding: "24px" }}>
-      <LoyaltyCategory title="Airlines" programs={AIRLINES} programType="airline" state={airlines} onChange={setAirlines} {...sharedProps} />
-      <LoyaltyCategory title="Hotels" programs={HOTELS} programType="hotel" state={hotels} onChange={setHotels} {...sharedProps} />
-      <LoyaltyCategory title="Car Rental" programs={CAR_RENTAL} programType="car" state={cars} onChange={setCars} {...sharedProps} />
+      {/* Custom program search */}
+      {!selectedProgram && (
+        <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+          <input
+            placeholder="Not listed? Type program name..."
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.target as HTMLInputElement).value.trim()) {
+                setSelectedProgram((e.target as HTMLInputElement).value.trim());
+              }
+            }}
+            style={{
+              flex: 1, padding: "8px 12px", border: "1px solid #E8E8E8",
+              borderRadius: "8px", fontSize: "14px", color: "#1a1a1a", outline: "none",
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

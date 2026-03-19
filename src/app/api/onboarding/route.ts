@@ -9,6 +9,8 @@ const MemberSchema = z.object({
   name: z.string().optional(),
   birthDate: z.string().optional(),
   dietaryRequirements: z.array(z.nativeEnum(DietaryReq)),
+  foodAllergies: z.array(z.string()).optional(),
+  allergyNotes: z.string().optional(),
 });
 
 const OnboardingSchema = z.object({
@@ -60,6 +62,8 @@ export async function POST(request: Request) {
             role: m.role,
             birthDate: m.birthDate ? new Date(m.birthDate) : null,
             dietaryRequirements: m.dietaryRequirements,
+            foodAllergies: m.foodAllergies ?? [],
+            allergyNotes: m.allergyNotes ?? null,
           })),
         },
         interests: {

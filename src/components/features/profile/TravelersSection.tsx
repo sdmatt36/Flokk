@@ -6,10 +6,24 @@ const DIETARY_OPTIONS = [
   { value: "HALAL", label: "Halal" },
   { value: "KOSHER", label: "Kosher" },
   { value: "VEGETARIAN", label: "Vegetarian" },
+  { value: "PESCATARIAN", label: "Pescatarian" },
   { value: "VEGAN", label: "Vegan" },
   { value: "GLUTEN_FREE", label: "Gluten-free" },
   { value: "NUT_FREE", label: "Nut-free" },
   { value: "DAIRY_FREE", label: "Dairy-free" },
+];
+
+const FOOD_ALLERGIES = [
+  { value: "gluten",    label: "Gluten / Coeliac" },
+  { value: "peanuts",   label: "Peanuts" },
+  { value: "tree_nuts", label: "Tree nuts" },
+  { value: "dairy",     label: "Dairy / Lactose" },
+  { value: "eggs",      label: "Eggs" },
+  { value: "shellfish", label: "Shellfish" },
+  { value: "fish",      label: "Fish" },
+  { value: "soy",       label: "Soy" },
+  { value: "sesame",    label: "Sesame" },
+  { value: "sulphites", label: "Sulphites" },
 ];
 
 const SEAT_OPTIONS = ["Window", "Middle", "Aisle", "No preference"];
@@ -22,6 +36,8 @@ interface Member {
   birthDate: string | null;
   dietaryRequirements: string[];
   mobilityNotes: string | null;
+  foodAllergies: string[];
+  allergyNotes: string | null;
 }
 
 interface MemberExt {
@@ -103,6 +119,7 @@ function TravelerCard({
 }) {
   const [editing, setEditing] = useState(initEdit ?? false);
   const [saving, setSaving] = useState(false);
+  const [savingAllergies, setSavingAllergies] = useState(false);
   const [ext, setExt] = useState<MemberExt>(() => loadExt(member.id));
 
   const parsed = parseName(member.name);
@@ -114,6 +131,9 @@ function TravelerCard({
     mobilityNotes: member.mobilityNotes || "",
   });
 
+  const [selectedAllergies, setSelectedAllergies] = useState<string[]>(member.foodAllergies ?? []);
+  const [allergyNotes, setAllergyNotes] = useState(member.allergyNotes ?? "");
+
   function toggleDiet(val: string) {
     setForm((f) => ({
       ...f,
@@ -121,6 +141,32 @@ function TravelerCard({
         ? f.dietaryRequirements.filter((d) => d !== val)
         : [...f.dietaryRequirements, val],
     }));
+  }
+
+  function toggleAllergy(val: string) {
+    setSelectedAllergies((prev) =>
+      prev.includes(val) ? prev.filter((a) => a !== val) : [...prev, val]
+    );
+  }
+
+  async function handleSaveAllergies() {
+    setSavingAllergies(true);
+    try {
+      await fetch("/api/profile/travel-docs", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: member.id, field: "foodAllergies", value: selectedAllergies }),
+      });
+      await fetch("/api/profile/travel-docs", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: member.id, field: "allergyNotes", value: allergyNotes }),
+      });
+    } catch (err) {
+      console.error("Allergy save error:", err);
+    } finally {
+      setSavingAllergies(false);
+    }
   }
 
   async function handleSave() {
@@ -153,6 +199,8 @@ function TravelerCard({
       mobilityNotes: member.mobilityNotes || "",
     });
     setExt(loadExt(member.id));
+    setSelectedAllergies(member.foodAllergies ?? []);
+    setAllergyNotes(member.allergyNotes ?? "");
     setEditing(false);
   }
 
@@ -325,6 +373,56 @@ function TravelerCard({
             </div>
           </div>
 
+          {/* Food allergies */}
+          <div>
+            <label style={labelSt}>Food allergies</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "4px", marginBottom: "10px" }}>
+              {FOOD_ALLERGIES.map((opt) => {
+                const active = selectedAllergies.includes(opt.value);
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => toggleAllergy(opt.value)}
+                    style={{
+                      padding: "5px 12px", borderRadius: "999px", fontSize: "13px",
+                      border: `1px solid ${active ? "#C4664A" : "#E8E8E8"}`,
+                      backgroundColor: active ? "#C4664A" : "#fff",
+                      color: active ? "#fff" : "#717171",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            <textarea
+              value={allergyNotes}
+              onChange={(e) => setAllergyNotes(e.target.value)}
+              placeholder="Other allergies or notes (e.g. severe peanut allergy, carries EpiPen)"
+              rows={2}
+              style={{
+                ...inputStyle,
+                resize: "vertical",
+                fontFamily: "inherit",
+                marginBottom: "8px",
+              }}
+            />
+            <button
+              onClick={handleSaveAllergies}
+              disabled={savingAllergies}
+              style={{
+                backgroundColor: "#fff", color: "#1B3A5C",
+                border: "1px solid #1B3A5C", borderRadius: "8px",
+                padding: "7px 16px", fontSize: "13px",
+                fontWeight: 500, cursor: savingAllergies ? "not-allowed" : "pointer",
+                opacity: savingAllergies ? 0.7 : 1,
+              }}
+            >
+              {savingAllergies ? "Saving..." : "Save allergies"}
+            </button>
+          </div>
+
           <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
             <button
               onClick={handleSave}
@@ -370,10 +468,10 @@ export function TravelersSection() {
     const res = await fetch("/api/family/members", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role, name: "", birthDate: null, dietaryRequirements: [] }),
+      body: JSON.stringify({ role, name: "", birthDate: null, dietaryRequirements: [], foodAllergies: [], allergyNotes: null }),
     });
     const data = await res.json();
-    if (data.member) setMembers((m) => [...m, data.member]);
+    if (data.member) setMembers((m) => [...m, { foodAllergies: [], allergyNotes: null, ...data.member }]);
   }
 
   if (loading) return <p style={{ color: "#717171", fontSize: "14px" }}>Loading...</p>;

@@ -127,6 +127,8 @@ model FamilyMember {
   redress             String?
   ktn                 String?
   visaNotes           String?
+  foodAllergies       String[]  @default([])
+  allergyNotes        String?
 }
 
 enum MemberRole {
@@ -138,6 +140,7 @@ enum DietaryReq {
   HALAL
   KOSHER
   VEGETARIAN
+  PESCATARIAN
   VEGAN
   GLUTEN_FREE
   NUT_FREE

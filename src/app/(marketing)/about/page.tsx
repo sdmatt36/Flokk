@@ -25,15 +25,6 @@ const FOUNDERS = [
   },
 ];
 
-const ADVISORS: typeof FOUNDERS = [
-  // Empty for now — add advisors here when ready
-  // {
-  //   name: 'Advisor Name',
-  //   title: 'Advisor — Travel & Hospitality',
-  //   image: '/images/team/advisor.jpg',
-  //   linkedin: 'https://linkedin.com/in/...',
-  // },
-];
 
 const BELIEFS = [
   {
@@ -130,13 +121,16 @@ export default function AboutPage() {
           <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "36px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 32px" }}>The story</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
-              Between us, we&rsquo;ve lived in numerous countries, raised kids on planes, trains and Ubers, and spent more evenings than we&rsquo;d like digging through scattered saves trying to remember where we&rsquo;d seen the good restaurant.
+              Last week we were sitting with friends who&rsquo;d just come back from Okinawa. We&rsquo;re going in May. Naturally we asked everything &mdash; which hotel, the driver they used every day, the cave tour guide, the pizza place their kids wouldn&rsquo;t stop talking about.
             </p>
             <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
-              We&rsquo;ve done the world schooling thing. We&rsquo;ve done weekend trips, long-haul adventures, road trips through national parks. We&rsquo;ve been the family asking &ldquo;did anyone screenshot that?&rdquo; in a group chat at 11pm the night before a flight.
+              &ldquo;Yeah, we&rsquo;ll send it over.&rdquo; And they will. But it&rsquo;ll arrive the way it always does &mdash; a voice note here, a screenshot there, a phone number in a WhatsApp message at 11pm with no context attached to it. By the time we&rsquo;re actually in planning mode, we&rsquo;ll be starting from scratch anyway.
             </p>
             <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
-              The information was always there. It was just <strong>everywhere</strong> &mdash; saves in one app, bookings in another, itineraries in a Google Doc nobody could share cleanly, and a graveyard of TikToks and Instagram posts we&rsquo;d never find again when it actually mattered.
+              We&rsquo;ve been on both sides of that conversation more times than we can count. The friends who want to share everything they know, and the friends trying to piece it all together into something usable. There&rsquo;s always a gap between what people want to give you and what actually makes it into your hands in a useful form.
+            </p>
+            <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
+              Flokk closes that gap. One trip, shared in one tap. The hotel, the guide, the driver, the itinerary, the restaurants &mdash; all of it organised, ready to add to your own plan, and bookable without ever leaving the app. That&rsquo;s the product. That&rsquo;s why we built it.
             </p>
           </div>
         </div>
@@ -163,35 +157,14 @@ export default function AboutPage() {
             {/* RIGHT — quote block */}
             <div style={{ flex: 1, minWidth: "280px", maxWidth: "440px", paddingTop: "8px" }}>
               <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "21px", fontStyle: "italic", color: "#1B3A5C", lineHeight: 1.7, margin: "0 0 20px" }}>
-                &ldquo;You saved that restaurant from an Instagram reel six months ago. It&rsquo;s 400 metres from your hotel. Your kids like pizza. It has a kids menu. Want to add it to Tuesday?&rdquo;
+                &ldquo;There&rsquo;s always a gap between what your well-travelled friends know and what actually makes it into your hands. We closed it.&rdquo;
               </p>
               <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A" }}>
-                The moment Flokk exists to create
+                Why we built Flokk
               </p>
             </div>
           </div>
 
-          {/* Advisors & Team — shown when populated */}
-          {ADVISORS.length > 0 && (
-            <div>
-              <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#717171", marginBottom: "24px" }}>Advisors & Team</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {ADVISORS.map((person) => (
-                  <FounderCard key={person.name} person={person} />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Coming soon placeholder — shows when advisors empty */}
-          {ADVISORS.length === 0 && (
-            <div>
-              <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#717171", marginBottom: "24px" }}>Advisors & Team</p>
-              <div style={{ border: "2px dashed #E0E0E0", borderRadius: "16px", padding: "40px 24px", textAlign: "center", backgroundColor: "#fff" }}>
-                <p style={{ fontSize: "14px", color: "#717171", margin: 0 }}>Growing the team — check back soon.</p>
-              </div>
-            </div>
-          )}
 
         </div>
       </section>

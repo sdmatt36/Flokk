@@ -25,8 +25,14 @@ export async function PATCH(req: Request) {
 
   // For date fields, convert string to Date or null
   const dateFields = ["passportIssueDate", "passportExpiryDate"];
+  // For array fields (e.g. foodAllergies), use Prisma's { set: value } syntax
+  const arrayFields = ["foodAllergies"];
   const data: Record<string, unknown> = {
-    [field]: dateFields.includes(field) ? (value ? new Date(value) : null) : value,
+    [field]: dateFields.includes(field)
+      ? (value ? new Date(value) : null)
+      : arrayFields.includes(field)
+        ? { set: Array.isArray(value) ? value : [] }
+        : value,
   };
 
   const updated = await db.familyMember.update({
