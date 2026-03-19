@@ -2649,19 +2649,6 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               <Plane size={12} /> Flight
             </button>
             <button
-              onClick={() => setShowActivityModal(true)}
-              style={{
-                display: "flex", alignItems: "center", gap: "4px",
-                padding: "6px 12px",
-                backgroundColor: "transparent", color: "#1B3A5C",
-                border: "1.5px solid #1B3A5C", borderRadius: "20px",
-                fontSize: "12px", fontWeight: 700, cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <Compass size={12} /> Activity
-            </button>
-            <button
               onClick={() => setDropLinkOpen(true)}
               style={{
                 display: "flex", alignItems: "center", gap: "4px",
@@ -2720,15 +2707,23 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               ))}
             </div>
           )}
-          {activities.length > 0 && (
+          {tripId && (
             <div style={{ marginBottom: "20px" }}>
               <div style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "10px", paddingBottom: "8px", borderBottom: "1px solid #EEEEEE", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span>Activities</span>
-                <span style={{ fontSize: "11px", color: "#bbb", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>{activities.length}</span>
+                <span>Activities {activities.length > 0 && <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#bbb" }}>{activities.length}</span>}</span>
+                <button
+                  onClick={() => setShowActivityModal(true)}
+                  style={{ fontSize: "12px", color: "#C4664A", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+                >
+                  + Add activity
+                </button>
               </div>
               {activities.map(a => (
                 <ActivityCard key={a.id} activity={a} onDelete={() => handleDeleteActivity(a.id)} onMarkBooked={() => handleMarkActivityBooked(a.id)} />
               ))}
+              {activities.length === 0 && (
+                <p style={{ fontSize: "13px", color: "#bbb", fontStyle: "italic", marginBottom: "8px" }}>No activities yet. Add baseball games, tours, events…</p>
+              )}
             </div>
           )}
           <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} />
