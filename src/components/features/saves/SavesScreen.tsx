@@ -361,7 +361,7 @@ function SectionHeader({ icon, title, badge, count, action }: {
   title: string;
   badge?: string;
   count: number;
-  action: { label: string; onClick: () => void };
+  action?: { label: string; onClick: () => void };
 }) {
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: "12px", borderBottom: "1px solid rgba(0,0,0,0.06)", marginBottom: "12px" }}>
@@ -371,9 +371,11 @@ function SectionHeader({ icon, title, badge, count, action }: {
         {badge && <span style={{ fontSize: "14px" }}>{badge}</span>}
         <span style={{ fontSize: "12px", color: "#717171" }}>{count} {count === 1 ? "save" : "saves"}</span>
       </div>
-      <button onClick={action.onClick} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "#C4664A", fontWeight: 600, padding: 0, flexShrink: 0 }}>
-        {action.label}
-      </button>
+      {action && (
+        <button onClick={action.onClick} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "#C4664A", fontWeight: 600, padding: 0, flexShrink: 0 }}>
+          {action.label}
+        </button>
+      )}
     </div>
   );
 }
@@ -485,7 +487,7 @@ export function SavesScreen() {
   const hasNoResults = tripGroupEntries.length === 0 && unorganizedCards.length === 0;
 
   // Flag emoji per destination (expandable)
-  const TRIP_FLAGS: Record<string, string> = { "Okinawa May '25": "🇯🇵" };
+  const TRIP_FLAGS: Record<string, string> = {};
 
   return (
     <div
@@ -500,7 +502,7 @@ export function SavesScreen() {
             Your saves
           </h1>
           <p style={{ fontSize: "13px", color: "#717171", marginBottom: "16px" }}>
-            47 saves across 8 destinations
+Your saved places, all in one spot
           </p>
           {/* Search bar */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px", backgroundColor: "#fff", borderRadius: "12px", border: "1px solid rgba(0,0,0,0.1)", padding: "0 14px", height: "44px" }}>
@@ -520,21 +522,29 @@ export function SavesScreen() {
           </div>
         </div>
 
-        {/* ACTIVE TRIP BANNER */}
-        <div style={{ backgroundColor: "rgba(196,102,74,0.08)", borderLeft: "3px solid #C4664A", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <MapPin size={14} style={{ color: "#C4664A", flexShrink: 0 }} />
-              <span style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>Planning Okinawa May &apos;25</span>
+        {/* ACTIVE TRIP BANNER — only shown when the user has a trip */}
+        {availableTrips.length > 0 && (() => {
+          const activeTrip = availableTrips[0];
+          const unassignedCount = saves.filter((s) => s.assigned === null).length;
+          return (
+            <div style={{ backgroundColor: "rgba(196,102,74,0.08)", borderLeft: "3px solid #C4664A", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <MapPin size={14} style={{ color: "#C4664A", flexShrink: 0 }} />
+                  <span style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>Planning {activeTrip.title}</span>
+                </div>
+                <button onClick={() => router.push(`/trips/${activeTrip.id}`)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: "#C4664A", fontWeight: 600, padding: 0 }}>
+                  Review now →
+                </button>
+              </div>
+              {unassignedCount > 0 && (
+                <p style={{ fontSize: "12px", color: "#717171", marginTop: "4px", marginLeft: "20px" }}>
+                  You have {unassignedCount} unorganized {unassignedCount === 1 ? "save" : "saves"} — review them for this trip?
+                </p>
+              )}
             </div>
-            <button onClick={() => router.push('/trips/cmmet611o0000yn8nz6ss7yg4')} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: "#C4664A", fontWeight: 600, padding: 0 }}>
-              Review now →
-            </button>
-          </div>
-          <p style={{ fontSize: "12px", color: "#717171", marginTop: "4px", marginLeft: "20px" }}>
-            You have 8 saves in Okinawa — review them for this trip?
-          </p>
-        </div>
+          );
+        })()}
 
         {/* FILTER STRIP */}
         <div style={{ display: "flex", overflowX: "auto", gap: "8px", marginBottom: "24px", paddingBottom: "4px", scrollbarWidth: "none" }}>
@@ -571,18 +581,22 @@ export function SavesScreen() {
         )}
 
         {/* SECTION 1: Trip-grouped saves */}
-        {tripGroupEntries.map(([tripName, cards]) => (
-          <div key={tripName} style={{ marginBottom: "32px" }}>
-            <SectionHeader
-              icon={<Plane size={16} style={{ color: "#C4664A" }} />}
-              title={tripName}
-              badge={TRIP_FLAGS[tripName]}
-              count={cards.length}
-              action={{ label: "View trip →", onClick: () => router.push('/trips/cmmet611o0000yn8nz6ss7yg4') }}
-            />
-            <CardGrid cards={cards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={(name) => router.push('/trips/cmmet611o0000yn8nz6ss7yg4')} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} />
-          </div>
-        ))}
+        {tripGroupEntries.map(([tripName, cards]) => {
+          const matchedTrip = availableTrips.find((t) => t.title === tripName);
+          const handleViewTrip = () => { if (matchedTrip) router.push(`/trips/${matchedTrip.id}`); };
+          return (
+            <div key={tripName} style={{ marginBottom: "32px" }}>
+              <SectionHeader
+                icon={<Plane size={16} style={{ color: "#C4664A" }} />}
+                title={tripName}
+                badge={TRIP_FLAGS[tripName]}
+                count={cards.length}
+                action={matchedTrip ? { label: "View trip →", onClick: handleViewTrip } : undefined}
+              />
+              <CardGrid cards={cards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={handleViewTrip} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} />
+            </div>
+          );
+        })}
 
         {/* SECTION 2: Unorganized saves */}
         {showUnorganized && (
@@ -593,7 +607,7 @@ export function SavesScreen() {
               count={unorganizedCards.length}
               action={{ label: "Assign all →", onClick: () => setActiveFilter("Unorganized") }}
             />
-            <CardGrid cards={unorganizedCards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={(name) => router.push('/trips/cmmet611o0000yn8nz6ss7yg4')} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} />
+            <CardGrid cards={unorganizedCards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={(name) => { const t = availableTrips.find((tr) => tr.title === name); if (t) router.push(`/trips/${t.id}`); }} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} />
           </div>
         )}
 

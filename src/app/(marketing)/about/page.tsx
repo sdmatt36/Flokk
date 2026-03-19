@@ -130,7 +130,7 @@ export default function AboutPage() {
           <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "36px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 32px" }}>The story</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
-              Between us, we&rsquo;ve lived in numerous countries, raised kids on planes, trains and Ubers, and spent more evenings than we&rsquo;d like staring at 50 open browser tabs trying to remember which one had the good restaurant in it.
+              Between us, we&rsquo;ve lived in numerous countries, raised kids on planes, trains and Ubers, and spent more evenings than we&rsquo;d like digging through scattered saves trying to remember where we&rsquo;d seen the good restaurant.
             </p>
             <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
               We&rsquo;ve done the world schooling thing. We&rsquo;ve done weekend trips, long-haul adventures, road trips through national parks. We&rsquo;ve been the family asking &ldquo;did anyone screenshot that?&rdquo; in a group chat at 11pm the night before a flight.
@@ -202,7 +202,7 @@ export default function AboutPage() {
           <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", marginBottom: "24px" }}>Who we are</p>
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
-              We are a small team. There is no PR department crafting an origin story. The story is that we kept planning trips the same broken way &mdash; saves in one place, bookings in another, itineraries in a Google Doc nobody could share cleanly, 50 open tabs &mdash; and eventually got annoyed enough to build something better.
+              We are a small team. There is no PR department crafting an origin story. The story is that we kept planning trips the same broken way &mdash; saves in one place, bookings in another, itineraries in a Google Doc nobody could share cleanly &mdash; and eventually got annoyed enough to build something better.
             </p>
             <p style={{ fontSize: "17px", color: "#444", lineHeight: 1.8 }}>
               We welcome every kind of family. The ones who travel twice a year. The ones who&rsquo;ve barely left the country and are planning their first real trip with kids. Road trippers to amazing national parks. The digital nomad families who plan continuously because they have no choice. <strong>You don&rsquo;t have to travel like us to get it.</strong> You just have to have ever lost a saved activity or restaurant in your Instagram saves folder and felt personally attacked by it.

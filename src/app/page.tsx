@@ -75,7 +75,7 @@ export default function LandingPage() {
                   <span style={{ color: "#C4664A" }}>finally in one place.</span>
                 </h1>
                 <p className="text-lg font-medium italic" style={{ color: "#C4664A", marginTop: "16px", marginBottom: "8px" }}>
-                  Because 47 browser tabs isn&apos;t a plan.
+                  Everything you saved, finally working together.
                 </p>
                 <p className="text-xl leading-relaxed" style={{ color: "#717171" }}>
                   The restaurants you saved on Instagram. The hotel from that email thread. The budget in a spreadsheet nobody&apos;s updated. The itinerary lost in WhatsApp. Flokk brings it all together — and connects you to real trips from families who&apos;ve already been there.

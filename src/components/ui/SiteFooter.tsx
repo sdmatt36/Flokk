@@ -50,7 +50,7 @@ export function SiteFooter() {
               <span style={{ fontSize: "18px", fontWeight: 800, color: "#fff" }}>Flokk</span>
             </div>
             <p style={{ fontSize: "14px", fontStyle: "italic", color: "rgba(255,255,255,0.8)", margin: 0 }}>
-              Because 47 browser tabs isn&apos;t a plan.
+              Everything you saved, finally working together.
             </p>
           </div>
 

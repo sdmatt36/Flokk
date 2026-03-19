@@ -288,7 +288,7 @@ export function TripsPageClient({ trips }: { trips: Trip[] }) {
               {tab === "upcoming" ? "No upcoming trips" : "No past trips yet"}
             </p>
             <p style={{ fontSize: "14px", fontStyle: "italic", color: "#C4664A", marginBottom: "8px" }}>
-              Because 47 browser tabs isn&apos;t a plan.
+              Everything you saved, finally working together.
             </p>
             <p style={{ fontSize: "14px", color: "#717171", lineHeight: 1.5, marginBottom: "16px" }}>
               {tab === "upcoming"

@@ -174,7 +174,7 @@ export default async function HomePage() {
                 )}
                 {!activeTrip && (
                   <p style={{ fontSize: "14px", fontStyle: "italic", color: "rgba(255,255,255,0.65)", marginTop: "8px" }}>
-                    Because 47 browser tabs isn&apos;t a plan.
+                    Everything you saved, finally working together.
                   </p>
                 )}
                 {activeTrip ? (
