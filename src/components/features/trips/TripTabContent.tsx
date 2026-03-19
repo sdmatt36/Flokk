@@ -1403,17 +1403,27 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
 
                           {/* Activities (confirmed/booked) for this day */}
                           {dayActivities.map(a => (
-                            <div key={a.id} style={{ backgroundColor: "#F5FBF5", border: "1.5px solid #C8E0CA", borderRadius: "10px", padding: "10px 12px", marginBottom: "8px", display: "flex", alignItems: "center", gap: "10px" }}>
-                              <Compass size={14} style={{ color: "#6B8F71", flexShrink: 0 }} />
+                            <div key={a.id} style={{ backgroundColor: "#F5FBF5", border: "1.5px solid #C8E0CA", borderRadius: "10px", padding: "10px 12px", marginBottom: "8px", display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                              <Compass size={14} style={{ color: "#6B8F71", flexShrink: 0, marginTop: "2px" }} />
                               <div style={{ flex: 1, minWidth: 0 }}>
-                                <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>{a.title}</p>
-                                <p style={{ fontSize: "12px", color: "#717171" }}>
-                                  {a.time ?? ""}{a.endTime ? ` – ${a.endTime}` : ""}{a.venueName ? ` · ${a.venueName}` : ""}
-                                </p>
+                                <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a", marginBottom: "2px" }}>{a.title}</p>
+                                {(a.time || a.venueName) && (
+                                  <p style={{ fontSize: "12px", color: "#717171", marginBottom: "4px" }}>
+                                    {a.time ?? ""}{a.endTime ? ` – ${a.endTime}` : ""}{a.venueName ? ` · ${a.venueName}` : ""}
+                                  </p>
+                                )}
+                                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                                  <span style={{ fontSize: "11px", color: a.status === "booked" ? "#4a7c59" : "#1B3A5C", fontWeight: 600, backgroundColor: a.status === "booked" ? "rgba(107,143,113,0.12)" : "rgba(27,58,92,0.08)", borderRadius: "999px", padding: "2px 8px" }}>
+                                    {a.status === "booked" ? "Booked" : "Confirmed"}
+                                  </span>
+                                  {a.confirmationCode && (
+                                    <span style={{ fontSize: "11px", color: "#555", fontFamily: "monospace" }}>{a.confirmationCode}</span>
+                                  )}
+                                  {a.website && (
+                                    <a href={a.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600 }}>Book tickets →</a>
+                                  )}
+                                </div>
                               </div>
-                              {a.confirmationCode && (
-                                <span style={{ fontSize: "11px", color: "#4a7c59", fontWeight: 600, backgroundColor: "rgba(107,143,113,0.12)", borderRadius: "999px", padding: "2px 8px", whiteSpace: "nowrap" }}>{a.confirmationCode}</span>
-                              )}
                             </div>
                           ))}
 
