@@ -452,12 +452,35 @@ const TRIP_DAYS = [
   { dayIndex: 4, label: "Day 5", date: "Thu May 8" },
 ];
 
-function SavedDayPickerModal({ itemTitle, onConfirm, onClose }: {
+function generateTripDays(
+  startDate: string | null,
+  endDate: string | null
+): { dayIndex: number; label: string; date: string }[] {
+  if (!startDate) return TRIP_DAYS;
+  const start = new Date(startDate);
+  if (isNaN(start.getTime())) return TRIP_DAYS;
+  const end = endDate ? new Date(endDate) : start;
+  if (isNaN(end.getTime())) return TRIP_DAYS;
+  const diff = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  const n = Math.max(1, diff + 1);
+  const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(start.getTime() + i * 86400000);
+    const dateStr = `${DAY_NAMES[d.getDay()]} ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
+    return { dayIndex: i, label: `Day ${i + 1}`, date: dateStr };
+  });
+}
+
+function SavedDayPickerModal({ itemTitle, tripStartDate, tripEndDate, onConfirm, onClose }: {
   itemTitle: string;
+  tripStartDate?: string | null;
+  tripEndDate?: string | null;
   onConfirm: (dayIndex: number) => void;
   onClose: () => void;
 }) {
   const [selected, setSelected] = useState<number | null>(null);
+  const days = generateTripDays(tripStartDate ?? null, tripEndDate ?? null);
   return createPortal(
     <div
       onClick={onClose}
@@ -473,7 +496,7 @@ function SavedDayPickerModal({ itemTitle, onConfirm, onClose }: {
         </div>
         <p style={{ fontSize: "13px", color: "#717171", marginBottom: "16px" }}>Add <strong>{itemTitle}</strong> to your itinerary</p>
         <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "20px" }}>
-          {TRIP_DAYS.map(({ dayIndex, label, date }) => (
+          {days.map(({ dayIndex, label, date }) => (
             <button
               key={dayIndex}
               type="button"
@@ -501,7 +524,7 @@ function SavedDayPickerModal({ itemTitle, onConfirm, onClose }: {
             fontSize: "15px", fontWeight: 700, cursor: selected !== null ? "pointer" : "default",
           }}
         >
-          {selected !== null ? `Add to ${TRIP_DAYS[selected].label} →` : "Select a day"}
+          {selected !== null ? `Add to ${days[selected]?.label ?? `Day ${selected + 1}`} →` : "Select a day"}
         </button>
       </div>
     </div>,
@@ -750,7 +773,7 @@ function apiToDisplayItem(item: ApiSavedItem): SavedDisplayItem {
   };
 }
 
-function SavedContent({ tripId: tripIdProp }: { tripId?: string }) {
+function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitle }: { tripId?: string; tripStartDate?: string | null; tripEndDate?: string | null; tripTitle?: string }) {
   const isDesktop = useIsDesktop();
   const [dayPickerItem, setDayPickerItem] = useState<SavedDisplayItem | null>(null);
   const [lodgingDateItem, setLodgingDateItem] = useState<SavedDisplayItem | null>(null);
@@ -852,8 +875,11 @@ function SavedContent({ tripId: tripIdProp }: { tripId?: string }) {
 
   const hasSaves = leftSections.length > 0 || rightSections.length > 0;
 
+  const tripAsModalEntry = tripIdProp
+    ? [{ id: tripIdProp, title: tripTitle ?? "This trip", startDate: tripStartDate ?? null, endDate: tripEndDate ?? null }]
+    : [];
+
   if (!hasSaves) {
-    const emptyTrip = tripIdProp ? [{ id: tripIdProp, title: "This trip", startDate: null, endDate: null }] : [];
     return (
       <>
         <div style={{ padding: "40px 24px", textAlign: "center" }}>
@@ -871,8 +897,9 @@ function SavedContent({ tripId: tripIdProp }: { tripId?: string }) {
         </div>
         {dropLinkOpen && (
           <DropLinkModal
-            trips={emptyTrip}
+            trips={tripAsModalEntry}
             initialTripId={tripIdProp}
+            lockedTripId={tripIdProp}
             onClose={() => setDropLinkOpen(false)}
             onSaved={() => { setDropLinkOpen(false); fetchSaves(); }}
           />
@@ -895,6 +922,32 @@ function SavedContent({ tripId: tripIdProp }: { tripId?: string }) {
         );
       })()}
 
+      {/* Drop a link button */}
+      {tripIdProp && (
+        <button
+          onClick={() => setDropLinkOpen(true)}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+            width: "100%", padding: "12px", marginTop: "8px",
+            border: "1.5px dashed rgba(196,102,74,0.4)", borderRadius: "12px",
+            backgroundColor: "transparent", color: "#C4664A",
+            fontSize: "13px", fontWeight: 600, cursor: "pointer",
+          }}
+        >
+          <Plus size={14} />
+          Drop a link
+        </button>
+      )}
+      {dropLinkOpen && (
+        <DropLinkModal
+          trips={tripAsModalEntry}
+          initialTripId={tripIdProp}
+          lockedTripId={tripIdProp}
+          onClose={() => setDropLinkOpen(false)}
+          onSaved={() => { setDropLinkOpen(false); fetchSaves(); }}
+        />
+      )}
+
       {inlineToast && (
         <div style={{ position: "fixed", bottom: "80px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#1a1a1a", color: "#fff", fontSize: "13px", fontWeight: 600, padding: "10px 20px", borderRadius: "999px", zIndex: 9999, pointerEvents: "none", whiteSpace: "nowrap" }}>
           {inlineToast}
@@ -903,6 +956,8 @@ function SavedContent({ tripId: tripIdProp }: { tripId?: string }) {
       {dayPickerItem && (
         <SavedDayPickerModal
           itemTitle={dayPickerItem.title}
+          tripStartDate={tripStartDate}
+          tripEndDate={tripEndDate}
           onConfirm={(dayIndex) => {
             try {
               const key = ITINERARY_KEY(tripIdProp);
@@ -2268,56 +2323,100 @@ type SavedRec = {
   tags: string;
 };
 
-export function TripTabContent({ initialTab = "saved", tripId, tripStartDate, tripEndDate, destinationCity, destinationCountry }: { initialTab?: Tab; tripId?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null }) {
+export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [itineraryVersion, setItineraryVersion] = useState(0);
+  const [dropLinkOpen, setDropLinkOpen] = useState(false);
+
+  const tripAsModalEntry = tripId
+    ? [{ id: tripId, title: tripTitle ?? "This trip", startDate: tripStartDate ?? null, endDate: tripEndDate ?? null }]
+    : [];
 
   return (
     <div style={{ padding: "0 24px", overflowX: "hidden", maxWidth: "900px", margin: "0 auto" }}>
-      {/* Tab bar */}
+      {/* Tab bar + Add button */}
       <div
         style={{
           display: "flex",
+          alignItems: "center",
           borderBottom: "1px solid rgba(0,0,0,0.08)",
           marginBottom: "20px",
-          overflowX: "auto",
-          WebkitOverflowScrolling: "touch" as const,
-          scrollbarWidth: "none" as const,
-          msOverflowStyle: "none" as const,
         }}
       >
-        {(["Saved", "Itinerary", "Recommended", "Packing"] as const).map((label) => {
-          const key = label.toLowerCase() as Tab;
-          const active = tab === key;
-          return (
-            <button
-              key={label}
-              onClick={() => setTab(key)}
-              style={{
-                flexShrink: 0,
-                paddingTop: "10px",
-                paddingBottom: "12px",
-                paddingLeft: "16px",
-                paddingRight: "16px",
-                fontSize: "14px",
-                fontWeight: active ? 700 : 500,
-                color: active ? "#C4664A" : "#717171",
-                backgroundColor: "transparent",
-                border: "none",
-                borderBottom: active ? "2.5px solid #C4664A" : "2.5px solid transparent",
-                marginBottom: "-1px",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {label}
-            </button>
-          );
-        })}
+        <div
+          style={{
+            display: "flex",
+            flex: 1,
+            overflowX: "auto",
+            WebkitOverflowScrolling: "touch" as const,
+            scrollbarWidth: "none" as const,
+            msOverflowStyle: "none" as const,
+          }}
+        >
+          {(["Saved", "Itinerary", "Recommended", "Packing"] as const).map((label) => {
+            const key = label.toLowerCase() as Tab;
+            const active = tab === key;
+            return (
+              <button
+                key={label}
+                onClick={() => setTab(key)}
+                style={{
+                  flexShrink: 0,
+                  paddingTop: "10px",
+                  paddingBottom: "12px",
+                  paddingLeft: "16px",
+                  paddingRight: "16px",
+                  fontSize: "14px",
+                  fontWeight: active ? 700 : 500,
+                  color: active ? "#C4664A" : "#717171",
+                  backgroundColor: "transparent",
+                  border: "none",
+                  borderBottom: active ? "2.5px solid #C4664A" : "2.5px solid transparent",
+                  marginBottom: "-1px",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        {/* Add to trip button */}
+        {tripId && (
+          <button
+            onClick={() => setDropLinkOpen(true)}
+            style={{
+              flexShrink: 0,
+              display: "flex", alignItems: "center", gap: "4px",
+              padding: "6px 14px",
+              backgroundColor: "#C4664A", color: "#fff",
+              border: "none", borderRadius: "20px",
+              fontSize: "12px", fontWeight: 700, cursor: "pointer",
+              marginLeft: "12px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <Plus size={13} /> Add
+          </button>
+        )}
       </div>
 
-      {tab === "saved" && <SavedContent tripId={tripId} />}
+      {dropLinkOpen && (
+        <DropLinkModal
+          trips={tripAsModalEntry}
+          initialTripId={tripId}
+          lockedTripId={tripId}
+          onClose={() => setDropLinkOpen(false)}
+          onSaved={() => {
+            setDropLinkOpen(false);
+            window.dispatchEvent(new Event("flokk:refresh"));
+          }}
+        />
+      )}
+
+      {tab === "saved" && <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} />}
       {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} onSwitchToRecommended={() => setTab("recommended")} />}
       {tab === "packing" && <PackingContent tripId={tripId} />}
       {tab === "recommended" && (

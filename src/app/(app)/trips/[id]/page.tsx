@@ -225,6 +225,7 @@ export default async function TripDetailPage({
         <TripTabContent
           initialTab={initialTab}
           tripId={trip.id}
+          tripTitle={trip.title}
           tripStartDate={trip.startDate ? trip.startDate.toISOString() : null}
           tripEndDate={trip.endDate ? trip.endDate.toISOString() : null}
           destinationCity={trip.destinationCity ?? null}

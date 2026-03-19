@@ -21,8 +21,9 @@ const SAVE_LATER = "__later__";
 function generateDayPills(startDate: string | null, endDate: string | null): { dayIndex: number; label: string }[] {
   if (!startDate) return [];
   const start = new Date(startDate);
+  if (isNaN(start.getTime())) return [];
   const end = endDate ? new Date(endDate) : start;
-  const numDays = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const numDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
   return Array.from({ length: numDays }, (_, i) => {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
@@ -33,66 +34,6 @@ function generateDayPills(startDate: string | null, endDate: string | null): { d
 
 const CATEGORY_OPTIONS = ["Culture", "Food", "Kids", "Lodging", "Outdoor", "Shopping", "Transportation"];
 
-function mockExtract(url: string): ExtractedCard {
-  const lower = url.toLowerCase();
-  if (/instagram/.test(lower)) {
-    return {
-      title: "Dotonbori Street Food Walk",
-      location: "Osaka, Japan",
-      tags: ["Food", "Street Food"],
-      img: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=80",
-      source: "Instagram",
-      description: "Night market walk along the famous Dotonbori canal — takoyaki, ramen, and more.",
-      lat: 34.6687,
-      lng: 135.5011,
-    };
-  }
-  if (/tiktok/.test(lower)) {
-    return {
-      title: "Hidden Waterfall Trail",
-      location: "Bali, Indonesia",
-      tags: ["Outdoor", "Activity"],
-      img: "https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=600&q=80",
-      source: "TikTok",
-      description: "Off-the-beaten-path waterfall hike most tourists miss. 45 min from Ubud.",
-      lat: -8.5069,
-      lng: 115.2625,
-    };
-  }
-  if (/maps\.google|maps\.app|goo\.gl/.test(lower)) {
-    return {
-      title: "Fushimi Inari Taisha",
-      location: "Kyoto, Japan",
-      tags: ["Culture", "History"],
-      img: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=600&q=80",
-      source: "Google Maps",
-      description: "Iconic shrine with thousands of vermilion torii gates — best visited at dawn.",
-      lat: 34.9671,
-      lng: 135.7727,
-    };
-  }
-  if (/airbnb/.test(lower)) {
-    return {
-      title: "Traditional Machiya Townhouse",
-      location: "Kyoto, Japan",
-      tags: ["Lodging"],
-      img: "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=600&q=80",
-      source: "Airbnb",
-      description: "Restored 100-year-old machiya in Gion district. Private courtyard, sleeps 4.",
-      lat: 35.0116,
-      lng: 135.7681,
-    };
-  }
-  return {
-    title: "Local Hidden Gem",
-    location: "Tokyo, Japan",
-    tags: ["Activity"],
-    img: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=600&q=80",
-    source: "Web",
-    description: "Saved from the web — details auto-extracted and ready to review.",
-  };
-}
-
 type Step = "input" | "loading" | "preview";
 
 export function DropLinkModal({
@@ -100,11 +41,13 @@ export function DropLinkModal({
   onClose,
   onSaved,
   initialTripId,
+  lockedTripId,
 }: {
   trips: Trip[];
   onClose: () => void;
   onSaved: (tripTitle: string | null) => void;
   initialTripId?: string;
+  lockedTripId?: string;
 }) {
   const [step, setStep] = useState<Step>("input");
   const [url, setUrl] = useState("");
@@ -112,8 +55,9 @@ export function DropLinkModal({
   const [extracted, setExtracted] = useState<ExtractedCard | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
-  // Pre-select initialTripId if provided, otherwise first trip, otherwise save-later
-  const [selectedId, setSelectedId] = useState<string>(initialTripId ?? trips[0]?.id ?? SAVE_LATER);
+  const [selectedId, setSelectedId] = useState<string>(
+    lockedTripId ?? initialTripId ?? trips[0]?.id ?? SAVE_LATER
+  );
   const [pulseId, setPulseId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -136,7 +80,7 @@ export function DropLinkModal({
   }
 
   // ── Step 1: URL submission ──────────────────────────────────────────────────
-  function handleSubmitUrl() {
+  async function handleSubmitUrl() {
     const trimmed = url.trim();
     if (!trimmed) {
       setUrlError("Please paste a link first.");
@@ -146,29 +90,74 @@ export function DropLinkModal({
     setUrl(normalised);
     setUrlError("");
     setStep("loading");
-    setTimeout(() => {
-      const card = mockExtract(normalised);
+
+    try {
+      const res = await fetch("/api/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: normalised }),
+      });
+
+      const data = res.ok ? await res.json() : {};
+
+      const card: ExtractedCard = {
+        title: data.title ?? "Saved link",
+        location: "",
+        tags: data.category ? [data.category] : [],
+        img: data.image ?? "",
+        source: data.platformLabel ?? "Web",
+        description: data.description ?? "",
+      };
+
       setExtracted(card);
       setEditedTitle(card.title);
-      setSelectedCategory(card.tags[0] ?? "");
-      // Pre-populate check-in/check-out from URL params
-      try {
-        const parsed = new URL(normalised);
-        const ci = parsed.searchParams.get("check_in") || parsed.searchParams.get("checkin") || parsed.searchParams.get("arrival") || "";
-        const co = parsed.searchParams.get("check_out") || parsed.searchParams.get("checkout") || parsed.searchParams.get("departure") || "";
-        if (ci) setCheckinDate(ci);
-        if (co) setCheckoutDate(co);
-      } catch { /* ignore invalid URLs */ }
+      setSelectedCategory(data.category ?? "");
+      if (data.checkin) setCheckinDate(data.checkin);
+      if (data.checkout) setCheckoutDate(data.checkout);
+
+      // Also try URL params for checkin/checkout if API didn't find them
+      if (!data.checkin && !data.checkout) {
+        try {
+          const parsed = new URL(normalised);
+          const ci =
+            parsed.searchParams.get("check_in") ??
+            parsed.searchParams.get("checkin") ??
+            parsed.searchParams.get("arrival") ??
+            "";
+          const co =
+            parsed.searchParams.get("check_out") ??
+            parsed.searchParams.get("checkout") ??
+            parsed.searchParams.get("departure") ??
+            "";
+          if (ci) setCheckinDate(ci);
+          if (co) setCheckoutDate(co);
+        } catch { /* ignore */ }
+      }
+
       setStep("preview");
-    }, 1500);
+    } catch {
+      // On network error, show basic card
+      const card: ExtractedCard = {
+        title: "Saved link",
+        location: "",
+        tags: [],
+        img: "",
+        source: "Web",
+        description: "",
+      };
+      setExtracted(card);
+      setEditedTitle(card.title);
+      setStep("preview");
+    }
   }
 
   // ── Step 3: Save ────────────────────────────────────────────────────────────
   async function handleSave() {
     if (!extracted) return;
     setSaving(true);
-    const isLater = selectedId === SAVE_LATER;
-    const tripTitle = isLater ? null : (trips.find((t) => t.id === selectedId)?.title ?? null);
+    const effectiveId = lockedTripId ?? selectedId;
+    const isLater = effectiveId === SAVE_LATER;
+    const tripTitle = isLater ? null : (trips.find((t) => t.id === effectiveId)?.title ?? null);
 
     try {
       const res = await fetch("/api/saves", {
@@ -176,10 +165,10 @@ export function DropLinkModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           url,
-          tripId: isLater ? undefined : selectedId,
+          tripId: isLater ? undefined : effectiveId,
           title: editedTitle,
           description: extracted.description,
-          thumbnailUrl: extracted.img,
+          thumbnailUrl: extracted.img || undefined,
           tags: selectedCategory ? [selectedCategory] : extracted.tags,
           lat: extracted.lat,
           lng: extracted.lng,
@@ -196,11 +185,8 @@ export function DropLinkModal({
         return;
       }
 
-      // Fire toast BEFORE closing so parent state is set while modal still exists
       onSaved(tripTitle);
-      // Close modal with animation
       animateClose(() => {
-        // Refresh server data after modal fully unmounts
         window.dispatchEvent(new Event("flokk:refresh"));
       });
     } catch (err) {
@@ -209,22 +195,26 @@ export function DropLinkModal({
     }
   }
 
+  const effectiveId = lockedTripId ?? selectedId;
   const urlLower = url.toLowerCase();
   const isLodging =
     /airbnb\.com|booking\.com|hotels\.com|vrbo\.com/.test(urlLower) ||
     extracted?.source === "Airbnb" ||
+    extracted?.source === "Booking.com" ||
+    extracted?.source === "Hotels.com" ||
+    extracted?.source === "Expedia" ||
     extracted?.tags?.includes("Lodging") ||
     selectedCategory === "Lodging" ||
     selectedCategory?.toLowerCase().includes("lodg") ||
     selectedCategory?.toLowerCase().includes("hotel");
 
-  const selectedTrip = trips.find((t) => t.id === selectedId);
+  const selectedTrip = trips.find((t) => t.id === effectiveId);
   const ctaLabel = saving
     ? "Saving..."
-    : selectedId === SAVE_LATER
+    : effectiveId === SAVE_LATER
       ? "Save for later →"
       : selectedDayIndex !== null
-        ? `Save to Day ${selectedDayIndex + 1} · ${selectedTrip?.title ?? ""} →`
+        ? `Save to Day ${selectedDayIndex} · ${selectedTrip?.title ?? ""} →`
         : `Save to ${selectedTrip?.title ?? ""} →`;
 
   return (
@@ -255,7 +245,7 @@ export function DropLinkModal({
           opacity: visible ? 1 : 0,
         }}
       >
-        {/* Header — fixed inside modal */}
+        {/* Header */}
         <div style={{ padding: "20px 24px 0", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
             <div>
@@ -264,7 +254,9 @@ export function DropLinkModal({
               </p>
               {step === "input" && (
                 <p style={{ fontSize: "14px", color: "#717171", marginTop: "4px" }}>
-                  Paste anything — Instagram, TikTok, Google Maps, Airbnb, anywhere.
+                  {lockedTripId
+                    ? `Saving to: ${selectedTrip?.title ?? "this trip"}`
+                    : "Paste anything — Instagram, TikTok, Google Maps, Airbnb, anywhere."}
                 </p>
               )}
             </div>
@@ -290,6 +282,7 @@ export function DropLinkModal({
                 onChange={(e) => { setUrl(e.target.value); setUrlError(""); }}
                 onKeyDown={(e) => { if (e.key === "Enter") handleSubmitUrl(); }}
                 placeholder="Paste a link..."
+                autoFocus
                 style={{
                   width: "100%",
                   padding: "14px 16px",
@@ -332,7 +325,6 @@ export function DropLinkModal({
             </div>
           )}
 
-
           {/* ── STEP 2 ── */}
           {step === "loading" && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", padding: "32px 0" }}>
@@ -355,12 +347,19 @@ export function DropLinkModal({
 
               {/* Card preview */}
               <div style={{ border: "1px solid #EEEEEE", borderRadius: "14px", overflow: "hidden" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={extracted.img}
-                  alt={extracted.title}
-                  style={{ width: "100%", height: "160px", objectFit: "cover", display: "block" }}
-                />
+                {extracted.img ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={extracted.img}
+                    alt={extracted.title}
+                    style={{ width: "100%", height: "160px", objectFit: "cover", display: "block" }}
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                  />
+                ) : (
+                  <div style={{ height: "80px", backgroundColor: "#F5F0EB", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ fontSize: "12px", color: "#aaa" }}>{extracted.source}</span>
+                  </div>
+                )}
                 <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
                   <span style={{
                     alignSelf: "flex-start",
@@ -416,18 +415,22 @@ export function DropLinkModal({
                     </button>
                   )}
 
-                  <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                    <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
-                    <span style={{ fontSize: "13px", color: "#717171" }}>{extracted.location}</span>
-                  </div>
+                  {extracted.location && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                      <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
+                      <span style={{ fontSize: "13px", color: "#717171" }}>{extracted.location}</span>
+                    </div>
+                  )}
 
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                    {extracted.tags.map((tag) => (
-                      <span key={tag} style={{ fontSize: "11px", backgroundColor: "rgba(0,0,0,0.05)", color: "#666", borderRadius: "20px", padding: "3px 10px" }}>
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
+                  {extracted.tags.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                      {extracted.tags.map((tag) => (
+                        <span key={tag} style={{ fontSize: "11px", backgroundColor: "rgba(0,0,0,0.05)", color: "#666", borderRadius: "20px", padding: "3px 10px" }}>
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -435,87 +438,95 @@ export function DropLinkModal({
                 Looks right? You can edit any details above.
               </p>
 
-              {/* Trip assignment */}
-              <div>
-                <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "10px" }}>
-                  Which trip is this for?
-                </p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                  {trips.map((trip) => {
-                    const active = selectedId === trip.id;
-                    const pulsing = pulseId === trip.id;
-                    return (
-                      <button
-                        type="button"
-                        key={trip.id}
-                        onClick={() => {
-                          if (active) {
-                            setPulseId(trip.id);
-                            setTimeout(() => setPulseId(null), 200);
-                          } else {
-                            setSelectedId(trip.id);
-                            setSelectedDayIndex(null);
-                          }
-                        }}
-                        style={{
-                          padding: "8px 16px",
-                          borderRadius: "999px",
-                          fontSize: "13px",
-                          fontWeight: 600,
-                          border: "1.5px solid",
-                          borderColor: active ? "#C4664A" : "#E0E0E0",
-                          backgroundColor: active ? "#C4664A" : "#fff",
-                          color: active ? "#fff" : "#555",
-                          cursor: "pointer",
-                          transition: pulsing ? "box-shadow 0s" : "box-shadow 0.3s ease-out, background-color 0.15s, border-color 0.15s",
-                          boxShadow: pulsing ? "0 0 0 4px rgba(196,102,74,0.45)" : "0 0 0 0px rgba(196,102,74,0)",
-                        }}
-                      >
-                        {trip.title}
-                      </button>
-                    );
-                  })}
-                  {/* Save for later */}
-                  {(() => {
-                    const active = selectedId === SAVE_LATER;
-                    const pulsing = pulseId === SAVE_LATER;
-                    return (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (active) {
-                            setPulseId(SAVE_LATER);
-                            setTimeout(() => setPulseId(null), 200);
-                          } else {
-                            setSelectedId(SAVE_LATER);
-                          }
-                        }}
-                        style={{
-                          padding: "8px 16px",
-                          borderRadius: "999px",
-                          fontSize: "13px",
-                          fontWeight: 600,
-                          border: "1.5px solid",
-                          borderColor: active ? "#C4664A" : "#E0E0E0",
-                          backgroundColor: active ? "#C4664A" : "#fff",
-                          color: active ? "#fff" : "#555",
-                          cursor: "pointer",
-                          transition: pulsing ? "box-shadow 0s" : "box-shadow 0.3s ease-out, background-color 0.15s, border-color 0.15s",
-                          boxShadow: pulsing ? "0 0 0 4px rgba(196,102,74,0.45)" : "0 0 0 0px rgba(196,102,74,0)",
-                        }}
-                      >
-                        Save for later
-                      </button>
-                    );
-                  })()}
+              {/* Trip assignment — hidden when lockedTripId is set */}
+              {lockedTripId ? (
+                <div style={{ padding: "10px 14px", backgroundColor: "rgba(196,102,74,0.06)", borderRadius: "10px", border: "1px solid rgba(196,102,74,0.15)" }}>
+                  <p style={{ fontSize: "13px", color: "#717171" }}>
+                    Saving to: <strong style={{ color: "#1a1a1a" }}>{selectedTrip?.title ?? "this trip"}</strong>
+                  </p>
                 </div>
-              </div>
+              ) : (
+                <div>
+                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "10px" }}>
+                    Which trip is this for?
+                  </p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    {trips.map((trip) => {
+                      const active = selectedId === trip.id;
+                      const pulsing = pulseId === trip.id;
+                      return (
+                        <button
+                          type="button"
+                          key={trip.id}
+                          onClick={() => {
+                            if (active) {
+                              setPulseId(trip.id);
+                              setTimeout(() => setPulseId(null), 200);
+                            } else {
+                              setSelectedId(trip.id);
+                              setSelectedDayIndex(null);
+                            }
+                          }}
+                          style={{
+                            padding: "8px 16px",
+                            borderRadius: "999px",
+                            fontSize: "13px",
+                            fontWeight: 600,
+                            border: "1.5px solid",
+                            borderColor: active ? "#C4664A" : "#E0E0E0",
+                            backgroundColor: active ? "#C4664A" : "#fff",
+                            color: active ? "#fff" : "#555",
+                            cursor: "pointer",
+                            transition: pulsing ? "box-shadow 0s" : "box-shadow 0.3s ease-out, background-color 0.15s, border-color 0.15s",
+                            boxShadow: pulsing ? "0 0 0 4px rgba(196,102,74,0.45)" : "0 0 0 0px rgba(196,102,74,0)",
+                          }}
+                        >
+                          {trip.title}
+                        </button>
+                      );
+                    })}
+                    {/* Save for later */}
+                    {(() => {
+                      const active = selectedId === SAVE_LATER;
+                      const pulsing = pulseId === SAVE_LATER;
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (active) {
+                              setPulseId(SAVE_LATER);
+                              setTimeout(() => setPulseId(null), 200);
+                            } else {
+                              setSelectedId(SAVE_LATER);
+                            }
+                          }}
+                          style={{
+                            padding: "8px 16px",
+                            borderRadius: "999px",
+                            fontSize: "13px",
+                            fontWeight: 600,
+                            border: "1.5px solid",
+                            borderColor: active ? "#C4664A" : "#E0E0E0",
+                            backgroundColor: active ? "#C4664A" : "#fff",
+                            color: active ? "#fff" : "#555",
+                            cursor: "pointer",
+                            transition: pulsing ? "box-shadow 0s" : "box-shadow 0.3s ease-out, background-color 0.15s, border-color 0.15s",
+                            boxShadow: pulsing ? "0 0 0 4px rgba(196,102,74,0.45)" : "0 0 0 0px rgba(196,102,74,0)",
+                          }}
+                        >
+                          Save for later
+                        </button>
+                      );
+                    })()}
+                  </div>
+                </div>
+              )}
 
-              {/* Lodging: check-in / check-out date pickers */}
+              {/* Lodging: check-in / check-out */}
               {isLodging && (
                 <div>
                   <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "10px" }}>
-                    Check-in & check-out
+                    Check-in &amp; check-out
                   </p>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                     <div>
@@ -540,9 +551,9 @@ export function DropLinkModal({
                 </div>
               )}
 
-              {/* Day selection — only shown when non-lodging, trip selected, trip has dates */}
-              {!isLodging && selectedId !== SAVE_LATER && (() => {
-                const trip = trips.find(t => t.id === selectedId);
+              {/* Day selection — non-lodging, trip selected, trip has dates */}
+              {!isLodging && effectiveId !== SAVE_LATER && (() => {
+                const trip = trips.find(t => t.id === effectiveId);
                 const dayPills = trip ? generateDayPills(trip.startDate, trip.endDate) : [];
                 if (dayPills.length === 0) return null;
                 return (
@@ -551,7 +562,6 @@ export function DropLinkModal({
                       Which day?
                     </p>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                      {/* No specific day pill */}
                       <button
                         type="button"
                         onClick={() => setSelectedDayIndex(null)}
