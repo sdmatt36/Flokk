@@ -103,9 +103,10 @@ export function DropLinkModal({
         setExtracted(card);
         setEditedTitle(card.title);
         setSelectedCategory(data.category ?? "");
-        if (data.checkin) setCheckinDate(data.checkin);
-        if (data.checkout) setCheckoutDate(data.checkout);
-        if (!data.checkin && !data.checkout) {
+        const isValidDate = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d);
+        if (data.checkin && isValidDate(data.checkin)) setCheckinDate(data.checkin);
+        if (data.checkout && isValidDate(data.checkout)) setCheckoutDate(data.checkout);
+        if ((!data.checkin || !isValidDate(data.checkin)) && (!data.checkout || !isValidDate(data.checkout))) {
           try {
             const parsed = new URL(trimmed);
             const ci =
@@ -118,8 +119,8 @@ export function DropLinkModal({
               parsed.searchParams.get("checkout") ??
               parsed.searchParams.get("departure") ??
               "";
-            if (ci) setCheckinDate(ci);
-            if (co) setCheckoutDate(co);
+            if (ci && isValidDate(ci)) setCheckinDate(ci);
+            if (co && isValidDate(co)) setCheckoutDate(co);
           } catch { /* ignore */ }
         }
       } catch (err) {

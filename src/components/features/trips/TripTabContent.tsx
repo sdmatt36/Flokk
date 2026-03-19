@@ -1197,15 +1197,17 @@ function BudgetPromptBanner({ tripId }: { tripId?: string }) {
   );
 }
 
-function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, onSwitchToRecommended }: {
+function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended }: {
   flyTarget: { lat: number; lng: number } | null;
   onFlyTargetConsumed: () => void;
   tripId?: string;
+  tripStartDate?: string | null;
+  tripEndDate?: string | null;
   onSwitchToRecommended?: () => void;
 }) {
   const isDesktop = useIsDesktop();
   const [openDay, setOpenDay] = useState(0); // -1 = all collapsed
-  const [notes, setNotes] = useState(["", "", "", "", ""]);
+  const [notes, setNotes] = useState<string[]>([]);
   const [recAdditions, setRecAdditions] = useState<RecAddition[]>([]);
   const [expandedSlotKey, setExpandedSlotKey] = useState<string | null>(null);
 
@@ -1279,247 +1281,122 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, onSwitchToRe
       {/* Budget prompt or bar */}
       <BudgetPromptBanner tripId={tripId} />
 
-      {/* Booking status bar — trip-level, full width */}
-      <div
-        style={{
-          backgroundColor: "rgba(196,102,74,0.06)",
-          border: "1px solid rgba(196,102,74,0.15)",
-          borderRadius: "12px",
-          padding: "12px 16px",
-          marginBottom: "20px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "8px",
-          flexWrap: "wrap",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-            <CheckCircle size={14} style={{ color: "#4a7c59", flexShrink: 0 }} />
-            <span style={{ fontSize: "13px", color: "#4a7c59" }}>2 items booked</span>
-          </div>
-          <span style={{ fontSize: "12px", color: "#ddd" }}>·</span>
-          <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-            <AlertCircle size={14} style={{ color: "#C4664A", flexShrink: 0 }} />
-            <span style={{ fontSize: "13px", color: "#C4664A" }}>2 activities need reservations</span>
-          </div>
-          <span style={{ fontSize: "12px", color: "#ddd" }}>·</span>
-          <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
-            <Clock size={14} style={{ color: "#717171", flexShrink: 0 }} />
-            <span style={{ fontSize: "13px", color: "#717171" }}>3 days unplanned</span>
-          </div>
-        </div>
-        <button
-          onClick={() => setShowTaskModal(true)}
-          style={{
-            display: "flex", alignItems: "center", gap: "4px",
-            backgroundColor: "transparent", border: "none", padding: 0,
-            cursor: "pointer", flexShrink: 0, color: "#C4664A",
-            fontSize: "13px", fontWeight: 700,
-          }}
-        >
-          See what&apos;s needed
-          <ArrowRight size={13} />
-        </button>
-      </div>
-
       {/* Split content area */}
       <div style={{ display: "flex", flexDirection: isDesktop ? "row" : "column", gap: "24px", alignItems: "flex-start" }}>
 
         {/* Left panel: accordion */}
         <div ref={leftPanelRef} style={{ width: isDesktop ? "58%" : "100%", minWidth: 0 }}>
-          <div style={{ borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", overflow: "hidden", backgroundColor: "#fff" }}>
-            {ACCORDION_DAYS.map((day, i) => {
-              const isOpen = openDay === i;
+          {(() => {
+            const tripDays = generateTripDays(tripStartDate ?? null, tripEndDate ?? null);
+            if (tripDays.length === 0) {
               return (
-                <div key={i} style={{ borderBottom: i < ACCORDION_DAYS.length - 1 ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
-
-                  {/* Header row — always visible */}
-                  <div
-                    onClick={() => toggle(i)}
-                    className="hover:bg-black/[0.02]"
-                    style={{ display: "flex", alignItems: "center", padding: "13px 16px", cursor: "pointer", gap: "10px", userSelect: "none" }}
-                  >
-                    {/* Left: day label + date + weather + preview pills (collapsed only) */}
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: 0, overflow: "hidden" }}>
-                      <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", whiteSpace: "nowrap" }}>Day {day.dayNum}</span>
-                      <span style={{ fontSize: "13px", color: "#717171", whiteSpace: "nowrap" }}>{day.dateStr}</span>
-                      <div style={{ display: "flex", alignItems: "center", gap: "2px", color: "#717171", fontSize: "12px", whiteSpace: "nowrap" }}>
-                        {day.weatherIcon}&nbsp;{day.temp}
-                      </div>
-                      {!isOpen && day.previews.length > 0 && (
-                        <div style={{ display: "flex", gap: "4px", overflow: "hidden", minWidth: 0 }}>
-                          {day.previews.map((p) => (
-                            <span key={p} style={{ fontSize: "11px", background: "rgba(0,0,0,0.06)", color: "#666", borderRadius: "999px", padding: "2px 8px", whiteSpace: "nowrap" }}>{p}</span>
-                          ))}
-                        </div>
-                      )}
-                      {!isOpen && day.previews.length === 0 && (
-                        <span style={{ fontSize: "12px", color: "#bbb", fontStyle: "italic" }}>No activities</span>
-                      )}
-                    </div>
-                    {/* Right: cost + chevron */}
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-                      <span style={{ fontSize: "13px", color: "#717171" }}>{day.cost}</span>
-                      <ChevronDown size={16} style={{ color: "#717171", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s ease" }} />
-                    </div>
-                  </div>
-
-                  {/* Expandable body */}
-                  <div style={{ maxHeight: isOpen ? "2000px" : "0", overflow: "hidden", transition: "max-height 0.3s ease" }}>
-                    <div style={{ padding: "4px 16px 16px" }}>
-
-                      {/* Day 1 */}
-                      {i === 0 && (
-                        <>
-                          <FilledSlot
-                            time="14:30"
-                            title="Arrive Naha (JAL 917)"
-                            subtitle="2h 45m · Economy"
-                            icon={<Plane size={20} style={{ color: "#717171" }} />}
-                            description="Direct JAL flight from Tokyo Haneda (HND) to Naha (OKA). Economy class with 2 checked bags included. Terminal 2 departure."
-                            hours="Dep 08:35 HND · Arr 11:35 OKA"
-                            slotKey="day0-jal"
-                            isExpanded={expandedSlotKey === "day0-jal"}
-                            onExpandToggle={() => toggleSlot("day0-jal")}
-                          />
-                          <TravelConnector duration="45 min drive" />
-                          <FilledSlot
-                            time="16:00"
-                            title="Halekulani Okinawa"
-                            subtitle="Check-in · Onna Village"
-                            img="https://images.unsplash.com/photo-1566073771259-6a8506099945?w=200&q=80"
-                            description="5-star beachfront resort in Onna Village. Private beach, 3 pools, 5 restaurants. Ryukyuan-inspired design throughout."
-                            hours="Check-in 3:00pm · Check-out 11:00am"
-                            slotKey="day0-hotel"
-                            isExpanded={expandedSlotKey === "day0-hotel"}
-                            onExpandToggle={() => toggleSlot("day0-hotel")}
-                          />
-                          <TravelConnector duration="20 min drive" />
-                          <FilledSlot
-                            time="19:30"
-                            title="Kokusai-dori Street Food"
-                            subtitle="Dinner · Naha"
-                            img="https://images.unsplash.com/photo-1569050467447-ce54b3bbc37d?w=200&q=80"
-                            tags={["All ages", "Walk-in", "Evening"]}
-                            description="Okinawa's main entertainment street with local food stalls, soki soba, taco rice, and fresh awamori. Best explored on foot."
-                            hours="Stalls open from 6:00pm until midnight"
-                            slotKey="day0-food"
-                            isExpanded={expandedSlotKey === "day0-food"}
-                            onExpandToggle={() => toggleSlot("day0-food")}
-                          />
-                        </>
-                      )}
-
-                      {/* Day 2 */}
-                      {i === 1 && (
-                        <>
-                          <FilledSlot
-                            time="09:00"
-                            title="Katsuren Castle Ruins"
-                            subtitle="Uruma · 2 hours · History"
-                            img="/images/katsuren-castle.jpg"
-                            tags={["Ages 6+", "Outdoor", "Free"]}
-                            description="UNESCO World Heritage Site. 12th-century Ryukyuan castle ruins on a hilltop peninsula overlooking the Pacific. Easy walk for kids, panoramic views."
-                            hours="Open 8:30am–6:00pm. Free entry. Parking available."
-                            slotKey="day1-castle"
-                            isExpanded={expandedSlotKey === "day1-castle"}
-                            onExpandToggle={() => toggleSlot("day1-castle")}
-                          />
-                          <EmptySlot onClick={onSwitchToRecommended} />
-                          <EmptySlot onClick={onSwitchToRecommended} />
-                        </>
-                      )}
-
-                      {/* Day 3 */}
-                      {i === 2 && (
-                        <>
-                          <AIBanner onSuggest={() => setSuggToast(true)} />
-                          <EmptySlot onClick={onSwitchToRecommended} />
-                          <EmptySlot onClick={onSwitchToRecommended} />
-                          <EmptySlot onClick={onSwitchToRecommended} />
-                        </>
-                      )}
-
-                      {/* Day 4 */}
-                      {i === 3 && (
-                        <>
-                          <AIBanner onSuggest={() => setSuggToast(true)} />
-                          <EmptySlot onClick={onSwitchToRecommended} />
-                          <EmptySlot onClick={onSwitchToRecommended} />
-                          <EmptySlot onClick={onSwitchToRecommended} />
-                        </>
-                      )}
-
-                      {/* Day 5 */}
-                      {i === 4 && (
-                        <>
-                          <FilledSlot
-                            time="11:00"
-                            title="Halekulani Checkout"
-                            subtitle="Then to Naha Airport"
-                            icon={<BedDouble size={20} style={{ color: "#717171" }} />}
-                            tags={["11am checkout", "To airport"]}
-                            description="Check out by 11am. 45-minute drive to Naha Airport. Allow 90 minutes before your flight for check-in and security."
-                            hours="Checkout 11:00am · Airport 45 min drive"
-                            slotKey="day4-checkout"
-                            isExpanded={expandedSlotKey === "day4-checkout"}
-                            onExpandToggle={() => toggleSlot("day4-checkout")}
-                          />
-                          <EmptySlot onClick={onSwitchToRecommended} />
-                        </>
-                      )}
-
-                      {/* Additions from Recommended tab */}
-                      {recAdditions.filter(a => a.dayIndex === i).map((a, idx) => {
-                        const key = `rec-${i}-${idx}`;
-                        return (
-                          <FilledSlot
-                            key={key}
-                            title={a.title}
-                            subtitle={a.location}
-                            img={a.img}
-                            tags={["Added from Recommended"]}
-                            slotKey={key}
-                            isExpanded={expandedSlotKey === key}
-                            onExpandToggle={() => toggleSlot(key)}
-                            onRemove={() => {
-                              try {
-                                const stored: RecAddition[] = JSON.parse(localStorage.getItem(ITINERARY_KEY(tripId)) ?? "[]");
-                                const withIndex = stored.map((item, si) => ({ item, si }));
-                                const dayItems = withIndex.filter(({ item }) => item.dayIndex === i);
-                                const globalIdx = dayItems[idx]?.si;
-                                if (globalIdx !== undefined) {
-                                  const updated = stored.filter((_, si) => si !== globalIdx);
-                                  localStorage.setItem(ITINERARY_KEY(tripId), JSON.stringify(updated));
-                                  setRecAdditions(updated);
-                                }
-                              } catch { /* ignore */ }
-                              setExpandedSlotKey(null);
-                            }}
-                          />
-                        );
-                      })}
-
-                      {/* Per-day notes */}
-                      <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid rgba(0,0,0,0.05)" }}>
-                        <textarea
-                          value={notes[i]}
-                          onChange={(e) => setNotes((prev) => prev.map((n, j) => (j === i ? e.target.value : n)))}
-                          placeholder="Add notes for this day..."
-                          rows={2}
-                          style={{ width: "100%", resize: "none", border: "1px solid rgba(0,0,0,0.1)", borderRadius: "8px", padding: "8px 12px", fontSize: "13px", color: "#333", background: "rgba(0,0,0,0.02)", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
-                        />
-                      </div>
-
-                    </div>
-                  </div>
-
+                <div style={{ padding: "32px", textAlign: "center", color: "#999", fontSize: "14px", backgroundColor: "#fff", borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)" }}>
+                  No trip dates set. Add dates to see your itinerary.
                 </div>
               );
-            })}
-          </div>
+            }
+            return (
+              <div style={{ borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", overflow: "hidden", backgroundColor: "#fff" }}>
+                {tripDays.map(({ dayIndex, label, date }, i) => {
+                  const isOpen = openDay === i;
+                  const dayItems = recAdditions.filter(a => a.dayIndex === dayIndex);
+                  return (
+                    <div key={i} style={{ borderBottom: i < tripDays.length - 1 ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
+
+                      {/* Header row */}
+                      <div
+                        onClick={() => toggle(i)}
+                        className="hover:bg-black/[0.02]"
+                        style={{ display: "flex", alignItems: "center", padding: "13px 16px", cursor: "pointer", gap: "10px", userSelect: "none" }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: 0, overflow: "hidden" }}>
+                          <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", whiteSpace: "nowrap" }}>{label}</span>
+                          <span style={{ fontSize: "13px", color: "#717171", whiteSpace: "nowrap" }}>{date}</span>
+                          {!isOpen && dayItems.length > 0 && (
+                            <div style={{ display: "flex", gap: "4px", overflow: "hidden", minWidth: 0 }}>
+                              {dayItems.slice(0, 3).map((a) => (
+                                <span key={a.title} style={{ fontSize: "11px", background: "rgba(0,0,0,0.06)", color: "#666", borderRadius: "999px", padding: "2px 8px", whiteSpace: "nowrap" }}>{a.title}</span>
+                              ))}
+                            </div>
+                          )}
+                          {!isOpen && dayItems.length === 0 && (
+                            <span style={{ fontSize: "12px", color: "#bbb", fontStyle: "italic" }}>No activities</span>
+                          )}
+                        </div>
+                        <ChevronDown size={16} style={{ color: "#717171", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s ease", flexShrink: 0 }} />
+                      </div>
+
+                      {/* Expandable body */}
+                      <div style={{ maxHeight: isOpen ? "2000px" : "0", overflow: "hidden", transition: "max-height 0.3s ease" }}>
+                        <div style={{ padding: "4px 16px 16px" }}>
+
+                          {/* User-added items for this day */}
+                          {dayItems.map((a, idx) => {
+                            const key = `rec-${dayIndex}-${idx}`;
+                            return (
+                              <FilledSlot
+                                key={key}
+                                title={a.title}
+                                subtitle={a.location}
+                                img={a.img}
+                                tags={["Added"]}
+                                slotKey={key}
+                                isExpanded={expandedSlotKey === key}
+                                onExpandToggle={() => toggleSlot(key)}
+                                onRemove={() => {
+                                  try {
+                                    const stored: RecAddition[] = JSON.parse(localStorage.getItem(ITINERARY_KEY(tripId)) ?? "[]");
+                                    const withIndex = stored.map((item, si) => ({ item, si }));
+                                    const thisDay = withIndex.filter(({ item }) => item.dayIndex === dayIndex);
+                                    const globalIdx = thisDay[idx]?.si;
+                                    if (globalIdx !== undefined) {
+                                      const updated = stored.filter((_, si) => si !== globalIdx);
+                                      localStorage.setItem(ITINERARY_KEY(tripId), JSON.stringify(updated));
+                                      setRecAdditions(updated);
+                                    }
+                                  } catch { /* ignore */ }
+                                  setExpandedSlotKey(null);
+                                }}
+                              />
+                            );
+                          })}
+
+                          {/* Empty slots */}
+                          {dayItems.length === 0 && (
+                            <>
+                              <AIBanner onSuggest={() => setSuggToast(true)} />
+                              <EmptySlot onClick={onSwitchToRecommended} />
+                              <EmptySlot onClick={onSwitchToRecommended} />
+                            </>
+                          )}
+                          {dayItems.length > 0 && (
+                            <EmptySlot onClick={onSwitchToRecommended} />
+                          )}
+
+                          {/* Per-day notes */}
+                          <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid rgba(0,0,0,0.05)" }}>
+                            <textarea
+                              value={notes[i] ?? ""}
+                              onChange={(e) => setNotes((prev) => {
+                                const next = [...prev];
+                                next[i] = e.target.value;
+                                return next;
+                              })}
+                              placeholder="Add notes for this day..."
+                              rows={2}
+                              style={{ width: "100%", resize: "none", border: "1px solid rgba(0,0,0,0.1)", borderRadius: "8px", padding: "8px 12px", fontSize: "13px", color: "#333", background: "rgba(0,0,0,0.02)", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+                            />
+                          </div>
+
+                        </div>
+                      </div>
+
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>{/* end left panel */}
 
         {/* Right panel: map — stacks below on mobile, sticky sidebar on desktop */}
@@ -2453,7 +2330,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       )}
 
       {tab === "saved" && <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} />}
-      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} onSwitchToRecommended={() => setTab("recommended")} />}
+      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} />}
       {tab === "packing" && <PackingContent tripId={tripId} />}
       {tab === "recommended" && (
         <RecommendedContent
