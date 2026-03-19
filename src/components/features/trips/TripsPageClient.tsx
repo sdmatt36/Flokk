@@ -288,7 +288,7 @@ export function TripsPageClient({ trips }: { trips: Trip[] }) {
               {tab === "upcoming" ? "No upcoming trips" : "No past trips yet"}
             </p>
             <p style={{ fontSize: "14px", fontStyle: "italic", color: "#C4664A", marginBottom: "8px" }}>
-              Everything you saved, finally working together.
+              Save it, plan it, book it, share it.
             </p>
             <p style={{ fontSize: "14px", color: "#717171", lineHeight: 1.5, marginBottom: "16px" }}>
               {tab === "upcoming"

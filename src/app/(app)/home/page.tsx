@@ -174,7 +174,7 @@ export default async function HomePage() {
                 )}
                 {!activeTrip && (
                   <p style={{ fontSize: "14px", fontStyle: "italic", color: "rgba(255,255,255,0.65)", marginTop: "8px" }}>
-                    Everything you saved, finally working together.
+                    Save it, plan it, book it, share it.
                   </p>
                 )}
                 {activeTrip ? (

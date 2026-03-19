@@ -8,11 +8,11 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Flokk",
-  description: "Everything you saved, finally working together. Flokk rescues your saved Instagram posts, TikTok reels, and Google Maps stars and makes them actionable when it's time to plan your next family trip.",
+  description: "Save it, plan it, book it, share it. Flokk rescues your saved Instagram posts, TikTok reels, and Google Maps stars and makes them actionable when it's time to plan your next family trip.",
   manifest: "/manifest.json",
   openGraph: {
     title: "Flokk — Family travel, planned.",
-    description: "Everything you saved, finally working together. Save anywhere. Use here.",
+    description: "Save it, plan it, book it, share it. Save anywhere. Use here.",
     url: "https://flokktravel.com",
     siteName: "Flokk",
     type: "website",
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Flokk — Family travel, planned.",
-    description: "Everything you saved, finally working together. Save anywhere. Use here.",
+    description: "Save it, plan it, book it, share it. Save anywhere. Use here.",
   },
 };
 
