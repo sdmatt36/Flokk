@@ -24,12 +24,18 @@ export async function PATCH(
   }
 
   const body = await request.json();
-  const { notes } = body;
-  if (typeof notes !== "string") {
+  const updateData: Record<string, unknown> = {};
+  if (typeof body.notes === "string") updateData.notes = body.notes;
+  if (typeof body.dayIndex === "number") updateData.dayIndex = body.dayIndex;
+  if (typeof body.tripId === "string") {
+    updateData.tripId = body.tripId;
+    updateData.status = "TRIP_ASSIGNED";
+  }
+  if (Object.keys(updateData).length === 0) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  const updated = await db.savedItem.update({ where: { id }, data: { notes } });
+  const updated = await db.savedItem.update({ where: { id }, data: updateData });
   return NextResponse.json({ savedItem: updated });
 }
 

@@ -824,13 +824,21 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
 
   function handleAddToItinerary(item: SavedDisplayItem) {
     if (item.isLodging && item.lodgingDates?.checkin && item.lodgingDates?.checkout) {
-      // Auto-assign: push to localStorage at day 0
+      // Auto-assign: push to localStorage at day 0 (Day 1)
       try {
         const key = ITINERARY_KEY(tripIdProp);
         const existing: RecAddition[] = JSON.parse(localStorage.getItem(key) ?? "[]");
         existing.push({ dayIndex: 0, title: item.title, location: item.detail, img: item.img, savedItemId: item.id });
         localStorage.setItem(key, JSON.stringify(existing));
       } catch (e) { console.error("[ItineraryWrite] localStorage write failed:", e); }
+      // Persist dayIndex to DB so itinerary tab can show it
+      if (item.id) {
+        fetch(`/api/saves/${item.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dayIndex: 0 }),
+        }).catch(e => console.error("[ItineraryWrite] DB persist failed:", e));
+      }
       setAssignedDays(prev => ({ ...prev, [item.title]: 0 }));
       setInlineToast(`Added · ${item.lodgingDates.checkin} → ${item.lodgingDates.checkout}`);
       setTimeout(() => setInlineToast(null), 3000);
@@ -965,6 +973,13 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
               existing.push({ dayIndex, title: dayPickerItem.title, location: dayPickerItem.detail, img: dayPickerItem.img, savedItemId: dayPickerItem.id });
               localStorage.setItem(key, JSON.stringify(existing));
             } catch (e) { console.error("[ItineraryWrite] localStorage write failed:", e); }
+            if (dayPickerItem.id) {
+              fetch(`/api/saves/${dayPickerItem.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ dayIndex }),
+              }).catch(e => console.error("[ItineraryWrite] DB persist failed:", e));
+            }
             setAssignedDays(prev => ({ ...prev, [dayPickerItem.title]: dayIndex }));
             setDayPickerItem(null);
           }}
@@ -981,6 +996,13 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
               existing.push({ dayIndex: 0, title: lodgingDateItem.title, location: lodgingDateItem.detail, img: lodgingDateItem.img, savedItemId: lodgingDateItem.id });
               localStorage.setItem(key, JSON.stringify(existing));
             } catch (e) { console.error("[ItineraryWrite] localStorage write failed:", e); }
+            if (lodgingDateItem.id) {
+              fetch(`/api/saves/${lodgingDateItem.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ dayIndex: 0 }),
+              }).catch(e => console.error("[ItineraryWrite] DB persist failed:", e));
+            }
             setAssignedDays(prev => ({ ...prev, [lodgingDateItem.title]: 0 }));
             setInlineToast(`Added · ${checkin} → ${checkout}`);
             setTimeout(() => setInlineToast(null), 3000);

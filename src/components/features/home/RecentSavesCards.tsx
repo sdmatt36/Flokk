@@ -56,7 +56,7 @@ export function RecentSavesCards({ items }: { items: RecentSaveItem[] }) {
 
   return (
     <>
-      <div className="grid grid-cols-3 md:grid-cols-3 sm:grid-cols-1" style={{ gap: "16px", alignItems: "start" }}>
+      <div className="grid grid-cols-3 md:grid-cols-3 sm:grid-cols-1" style={{ gap: "16px" }}>
         {items.map((item) => {
           const tags = item.categoryTags ?? [];
           const loc = getLocation(item);

@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { detectPlatform } from "@/lib/extraction/detect-platform";
 import { parsePlatform } from "@/lib/extraction/platform-parsers";
 import { extractOgMetadata } from "@/lib/og-extract";
+import { resolveVenueImage } from "@/lib/extraction/resolve-image";
 
 const PLATFORM_LABELS: Record<string, string> = {
   booking_com:   "Booking.com",
@@ -62,11 +63,21 @@ export async function POST(request: Request) {
     const rawImage = og.image ?? null;
     const safeImage = rawImage && rawImage.startsWith("http") && !rawImage.includes("{") ? rawImage : null;
 
+    // Fall back to Google Places image if OG had no image
+    let venueImage: string | null = null;
+    if (!safeImage) {
+      const imageTitle = og.title ?? platformData.title ?? null;
+      if (imageTitle) {
+        venueImage = await resolveVenueImage(imageTitle).then(u => u ?? null).catch(() => null);
+        if (venueImage) console.log("[extract] Google Places image:", venueImage);
+      }
+    }
+
     // Merge: OG wins for title/image quality; platform fills dates/category
     const result = {
       title: og.title ?? platformData.title ?? null,
       description: og.description ?? null,
-      image: safeImage,
+      image: safeImage ?? venueImage,
       checkin: platformData.checkin ?? null,
       checkout: platformData.checkout ?? null,
       category: platformData.category ?? null,

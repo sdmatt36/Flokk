@@ -30,7 +30,7 @@ export async function GET(
   }
 
   const items = await db.savedItem.findMany({
-    where: { tripId, sourceType: "IN_APP", dayIndex: { not: null } },
+    where: { tripId, dayIndex: { not: null } },
     orderBy: [{ dayIndex: "asc" }, { savedAt: "asc" }],
     select: {
       id: true,
