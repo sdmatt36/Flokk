@@ -64,6 +64,7 @@ import { DropLinkModal } from "@/components/features/home/DropLinkModal";
 import { RecommendationDrawer, type DrawerRec } from "@/components/features/trips/RecommendationDrawer";
 import { AddFlightModal } from "@/components/flights/AddFlightModal";
 import { AddActivityModal, type ExistingActivity } from "@/components/activities/AddActivityModal";
+import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
 import { parseDateForDisplay } from "@/lib/dates";
 
 type Tab = "saved" | "itinerary" | "recommended" | "packing" | "notes" | "vault";
@@ -716,7 +717,7 @@ function SavedHorizCard({ item, isDesktop, onAddToItinerary, onBook, onLearnMore
   const [imgFailed, setImgFailed] = useState(false);
   const thumbSize = isDesktop ? 96 : 72;
   return (
-    <div style={{ backgroundColor: "#fff", borderRadius: "12px", boxShadow: "0 1px 6px rgba(0,0,0,0.08)", border: "1px solid #EEEEEE", overflow: "hidden", display: "flex", flexDirection: "row", alignItems: "stretch", marginBottom: "10px" }}>
+    <div onClick={onLearnMore} style={{ backgroundColor: "#fff", borderRadius: "12px", boxShadow: "0 1px 6px rgba(0,0,0,0.08)", border: "1px solid #EEEEEE", overflow: "hidden", display: "flex", flexDirection: "row", alignItems: "stretch", marginBottom: "10px", cursor: "pointer" }}>
       {imgFailed ? (
         <div style={{ width: thumbSize, minWidth: thumbSize, height: thumbSize, backgroundColor: "#F5F0EB", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           {item.icon}
@@ -777,6 +778,7 @@ type ApiSavedItem = {
   categoryTags: string[];
   extractedCheckin: string | null;
   extractedCheckout: string | null;
+  isBooked: boolean;
 };
 
 function inferSavedCategory(item: ApiSavedItem): string {
@@ -809,8 +811,8 @@ function apiToDisplayItem(item: ApiSavedItem): SavedDisplayItem {
     id: item.id,
     title: item.rawTitle ?? urlHost,
     detail,
-    status: "Saved",
-    statusBooked: false,
+    status: item.isBooked ? "Booked" : "Saved",
+    statusBooked: item.isBooked,
     families: "",
     img: item.mediaThumbnailUrl ?? "",
     icon,
@@ -1256,6 +1258,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [notes, setNotes] = useState<string[]>([]);
   const [recAdditions, setRecAdditions] = useState<RecAddition[]>([]);
   const [expandedSlotKey, setExpandedSlotKey] = useState<string | null>(null);
+  const [detailItemId, setDetailItemId] = useState<string | null>(null);
 
   function toggleSlot(key: string) {
     setExpandedSlotKey(prev => prev === key ? null : key);
@@ -1440,7 +1443,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 tags={["Added"]}
                                 slotKey={key}
                                 isExpanded={expandedSlotKey === key}
-                                onExpandToggle={() => toggleSlot(key)}
+                                onExpandToggle={() => a.savedItemId ? setDetailItemId(a.savedItemId) : toggleSlot(key)}
                                 onRemove={() => {
                                   try {
                                     const stored: RecAddition[] = JSON.parse(localStorage.getItem(ITINERARY_KEY(tripId)) ?? "[]");
@@ -1505,6 +1508,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       </div>
 
       {showTaskModal && <TaskModal onClose={() => setShowTaskModal(false)} />}
+      {detailItemId && <SaveDetailModal itemId={detailItemId} onClose={() => setDetailItemId(null)} />}
     </div>
   );
 }

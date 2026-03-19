@@ -275,6 +275,8 @@ model SavedItem {
   websiteUrl          String?
   extractedCheckin    String?
   extractedCheckout   String?
+  isBooked            Boolean   @default(false)
+  bookedAt            DateTime?
 }
 
 enum SourceType {

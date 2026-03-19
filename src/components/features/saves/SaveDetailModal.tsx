@@ -19,6 +19,7 @@ type SaveItem = {
   lng: number | null;
   affiliateUrl: string | null;
   websiteUrl: string | null;
+  isBooked: boolean;
   trip: { id: string; title: string } | null;
 };
 
@@ -85,6 +86,7 @@ export function SaveDetailModal({
   const [mounted, setMounted] = useState(false);
   const [tripDropdownOpen, setTripDropdownOpen] = useState(false);
   const [assignedTrip, setAssignedTrip] = useState<{ id: string; title: string } | null>(null);
+  const [isBooked, setIsBooked] = useState(false);
   const [localTags, setLocalTags] = useState<string[]>([]);
   const [editingTags, setEditingTags] = useState(false);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -105,6 +107,7 @@ export function SaveDetailModal({
         setInterestKeys(data.interestKeys ?? []);
         setNotes(data.item?.notes ?? "");
         setAssignedTrip(data.item?.trip ?? null);
+        setIsBooked(data.item?.isBooked ?? false);
         initialNotes.current = data.item?.notes ?? "";
         const tags = data.item?.categoryTags ?? [];
         setLocalTags(tags);
@@ -362,29 +365,73 @@ export function SaveDetailModal({
             borderTop: "1px solid rgba(0,0,0,0.08)",
             padding: "12px 20px 24px",
           }}>
-            {/* Primary CTA: Book now or Add/Change trip */}
-            {item.affiliateUrl ? (
-              <a
-                href={item.affiliateUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: "5px",
-                  width: "100%", padding: "13px", borderRadius: "999px", backgroundColor: "#C4664A",
-                  fontSize: "14px", fontWeight: 700, color: "#fff", textDecoration: "none",
-                }}
-              >
-                <ExternalLink size={14} />
-                Book now
-              </a>
-            ) : (
+            {/* CTAs */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {/* Book / Visit site */}
+              {item.affiliateUrl ? (
+                <a
+                  href={item.affiliateUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: "5px",
+                    width: "100%", padding: "13px", borderRadius: "999px", backgroundColor: "#C4664A",
+                    fontSize: "14px", fontWeight: 700, color: "#fff", textDecoration: "none",
+                  }}
+                >
+                  <ExternalLink size={14} />
+                  Book now
+                </a>
+              ) : item.websiteUrl ? (
+                <a
+                  href={item.websiteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: "5px",
+                    width: "100%", padding: "13px", borderRadius: "999px", backgroundColor: "#1B3A5C",
+                    fontSize: "14px", fontWeight: 700, color: "#fff", textDecoration: "none",
+                  }}
+                >
+                  <ExternalLink size={14} />
+                  Visit site →
+                </a>
+              ) : null}
+
+              {/* Mark as booked / Booked badge */}
+              {isBooked ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px", borderRadius: "999px", backgroundColor: "rgba(107,143,113,0.12)", border: "1.5px solid rgba(107,143,113,0.3)" }}>
+                  <span style={{ fontSize: "14px", fontWeight: 700, color: "#4a7c59" }}>✓ Booked</span>
+                </div>
+              ) : (
+                <button
+                  onClick={async () => {
+                    await fetch(`/api/saves/${itemId}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ isBooked: true }),
+                    });
+                    setIsBooked(true);
+                  }}
+                  style={{
+                    width: "100%", padding: "11px", borderRadius: "999px",
+                    backgroundColor: "transparent", border: "1.5px solid rgba(107,143,113,0.5)",
+                    fontSize: "13px", fontWeight: 700, color: "#4a7c59", cursor: "pointer",
+                  }}
+                >
+                  Mark as booked ✓
+                </button>
+              )}
+
+              {/* Add/Change trip */}
               <div style={{ position: "relative" }}>
                 <button
                   onClick={() => setTripDropdownOpen(o => !o)}
                   style={{
                     width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px",
-                    padding: "11px", borderRadius: "999px", backgroundColor: "#C4664A",
-                    fontSize: "13px", fontWeight: 700, color: "#fff", border: "none", cursor: "pointer",
+                    padding: "11px", borderRadius: "999px", backgroundColor: item.affiliateUrl || item.websiteUrl ? "transparent" : "#C4664A",
+                    border: item.affiliateUrl || item.websiteUrl ? "1.5px solid #E0E0E0" : "none",
+                    fontSize: "13px", fontWeight: 700, color: item.affiliateUrl || item.websiteUrl ? "#555" : "#fff", cursor: "pointer",
                   }}
                 >
                   {assignedTrip ? "Change trip" : "Add to trip"}
@@ -414,7 +461,7 @@ export function SaveDetailModal({
                   </div>
                 )}
               </div>
-            )}
+            </div>
 
           </div>
         )}
