@@ -46,7 +46,9 @@ export function AddFlightModal({ tripId, onClose, onSaved }: AddFlightModalProps
   const fromCity = AIRPORTS.find((a) => a.code === fromAirport)?.city ?? fromAirport;
   const toCity = AIRPORTS.find((a) => a.code === toAirport)?.city ?? toAirport;
 
-  const canSave = flightNumber.trim() !== "" && fromAirport !== "" && toAirport !== "" && departureDate !== "" && departureTime !== "";
+  const canSave =
+    flightNumber.trim() !== "" &&
+    (isBooked || (fromAirport !== "" && toAirport !== "" && departureDate !== "" && departureTime !== ""));
 
   async function handleSave() {
     if (!canSave) {
