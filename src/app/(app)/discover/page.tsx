@@ -3,9 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { MapPin, ChevronRight, X, Search } from "lucide-react";
+import { Playfair_Display } from "next/font/google";
 import { KNOWN_CITIES } from "@/lib/destination-coords";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { TravelIntelSection } from "@/components/features/discover/TravelIntelSection";
+
+const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700", "900"] });
 
 type Recommendation = {
   id: string;
@@ -140,8 +143,6 @@ type SearchTrip = {
   _count: { savedItems: number };
 };
 
-// ── Page ──────────────────────────────────────────────────────────────────────
-
 type UserTrip = {
   id: string;
   title: string;
@@ -150,42 +151,59 @@ type UserTrip = {
   startDate?: string | null;
 };
 
+// ── Outline button shared style ───────────────────────────────────────────────
+
+const outlineBtn: React.CSSProperties = {
+  padding: "12px 32px",
+  borderRadius: "999px",
+  border: "2px solid #C4664A",
+  backgroundColor: "transparent",
+  color: "#C4664A",
+  fontSize: "14px",
+  fontWeight: 700,
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function DiscoverPage() {
-  // Search state
-  const [searchQuery, setSearchQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [searchResults, setSearchResults] = useState<SearchTrip[] | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
+  // Global search
+  const [searchQuery,    setSearchQuery]    = useState("");
+  const [suggestions,    setSuggestions]    = useState<string[]>([]);
+  const [showSuggestions,setShowSuggestions] = useState(false);
+  const [searchResults,  setSearchResults]  = useState<SearchTrip[] | null>(null);
+  const [isSearching,    setIsSearching]    = useState(false);
+  const [searchFocused,  setSearchFocused]  = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  const [activeFilter, setActiveFilter] = useState("All");
-  const [publicTrips, setPublicTrips] = useState<PublicTrip[]>([]);
-  const [showAddYours, setShowAddYours] = useState(false);
-  const [userTrips, setUserTrips] = useState<UserTrip[]>([]);
-  const [isLoadingTrips, setIsLoadingTrips] = useState(false);
-  const [publishingTrip, setPublishingTrip] = useState<string | null>(null);
+  // Community trips
+  const [publicTrips,  setPublicTrips]  = useState<PublicTrip[]>([]);
+  const [showAllTrips, setShowAllTrips] = useState(false);
 
-  // Fetch public community trips on mount
+  // Get inspired
+  const [activeFilter, setActiveFilter] = useState("All");
+  const [showAllDest,  setShowAllDest]  = useState(false);
+
+  // Add yours modal
+  const [showAddYours,    setShowAddYours]    = useState(false);
+  const [userTrips,       setUserTrips]       = useState<UserTrip[]>([]);
+  const [isLoadingTrips,  setIsLoadingTrips]  = useState(false);
+  const [publishingTrip,  setPublishingTrip]  = useState<string | null>(null);
+
   useEffect(() => {
-    fetch("/api/trips/public?limit=16")
+    fetch("/api/trips/public?limit=12")
       .then((r) => r.json())
       .then((d) => setPublicTrips(Array.isArray(d) ? d : []))
       .catch(() => {});
   }, []);
 
-  // City suggestions from KNOWN_CITIES
   useEffect(() => {
-    if (searchQuery.length < 2) {
-      setSuggestions([]);
-      return;
-    }
+    if (searchQuery.length < 2) { setSuggestions([]); return; }
     const q = searchQuery.toLowerCase();
-    const matches = KNOWN_CITIES.filter((c) => c.toLowerCase().includes(q)).slice(0, 6);
-    setSuggestions(matches);
+    setSuggestions(KNOWN_CITIES.filter((c) => c.toLowerCase().includes(q)).slice(0, 6));
   }, [searchQuery]);
 
-  // Click outside to dismiss suggestions
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
@@ -197,10 +215,7 @@ export default function DiscoverPage() {
   }, []);
 
   async function handleSearch(q: string) {
-    if (!q.trim()) {
-      setSearchResults(null);
-      return;
-    }
+    if (!q.trim()) { setSearchResults(null); return; }
     setIsSearching(true);
     setShowSuggestions(false);
     try {
@@ -241,17 +256,16 @@ export default function DiscoverPage() {
     }
   };
 
-  const filtered =
-    activeFilter === "All"
-      ? RECOMMENDATIONS
-      : RECOMMENDATIONS.filter((r) => r.tag === activeFilter || r.region === activeFilter);
+  const filtered      = activeFilter === "All" ? RECOMMENDATIONS : RECOMMENDATIONS.filter((r) => r.tag === activeFilter || r.region === activeFilter);
+  const displayedTrips = showAllTrips ? publicTrips : publicTrips.slice(0, 6);
+  const displayedDest  = showAllDest  ? filtered    : filtered.slice(0, 6);
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#FFFFFF", paddingBottom: "80px" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "#FFFFFF", paddingBottom: "96px" }}>
       <div style={{ maxWidth: "1280px", margin: "0 auto", padding: "32px 24px 0" }}>
 
-        {/* Header */}
-        <div style={{ marginBottom: "24px" }}>
+        {/* Page header */}
+        <div style={{ marginBottom: "28px" }}>
           <h1 style={{ fontSize: "26px", fontWeight: 800, color: "#1a1a1a", lineHeight: 1.2, marginBottom: "6px" }}>
             Discover
           </h1>
@@ -260,37 +274,50 @@ export default function DiscoverPage() {
           </p>
         </div>
 
-        {/* Search bar */}
-        <div ref={searchRef} style={{ position: "relative", marginBottom: "20px" }}>
+        {/* ── HERO SEARCH BAR ── */}
+        <div ref={searchRef} style={{ position: "relative" }}>
           <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-            <Search size={16} style={{ position: "absolute", left: "14px", color: "#AAAAAA", pointerEvents: "none" }} />
+            <Search size={18} style={{ position: "absolute", left: "18px", color: "#AAAAAA", pointerEvents: "none" }} />
             <input
               type="text"
-              placeholder="Search cities, countries, or destinations…"
+              placeholder="Search cities, countries, or destinations..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
                 setShowSuggestions(true);
                 if (!e.target.value.trim()) setSearchResults(null);
               }}
-              onFocus={() => setShowSuggestions(true)}
+              onFocus={() => { setSearchFocused(true); setShowSuggestions(true); }}
+              onBlur={() => setSearchFocused(false)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleSearch(searchQuery);
                 if (e.key === "Escape") clearSearch();
               }}
-              style={{ width: "100%", padding: "12px 44px", borderRadius: "999px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", backgroundColor: "#F9F9F9", outline: "none", boxSizing: "border-box" }}
+              style={{
+                width: "100%",
+                padding: "16px 52px",
+                borderRadius: "999px",
+                border: `2px solid ${searchFocused ? "#C4664A" : "#E5E5E5"}`,
+                fontSize: "15px",
+                color: "#1a1a1a",
+                backgroundColor: "#FAFAFA",
+                outline: "none",
+                boxSizing: "border-box",
+                boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
+                fontFamily: "inherit",
+                transition: "border-color 0.15s",
+              }}
             />
             {searchQuery && (
               <button
                 onClick={clearSearch}
-                style={{ position: "absolute", right: "14px", background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px", display: "flex", alignItems: "center" }}
+                style={{ position: "absolute", right: "18px", background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px", display: "flex", alignItems: "center" }}
               >
-                <X size={15} />
+                <X size={16} />
               </button>
             )}
           </div>
 
-          {/* Suggestions dropdown */}
           {showSuggestions && suggestions.length > 0 && (
             <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, backgroundColor: "#fff", border: "1.5px solid #E5E5E5", borderRadius: "14px", boxShadow: "0 4px 16px rgba(0,0,0,0.10)", zIndex: 100, overflow: "hidden" }}>
               {suggestions.map((city) => (
@@ -307,9 +334,13 @@ export default function DiscoverPage() {
           )}
         </div>
 
+        <p style={{ fontSize: "12px", color: "#AAAAAA", textAlign: "center", marginTop: "10px" }}>
+          Search across trips, places, and destinations
+        </p>
+
         {/* Search results */}
         {(searchResults !== null || isSearching) && (
-          <div style={{ marginBottom: "32px" }}>
+          <div style={{ marginTop: "28px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
               <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>
                 {isSearching ? "Searching…" : `${searchResults?.length ?? 0} community trips found`}
@@ -325,7 +356,7 @@ export default function DiscoverPage() {
               </div>
             )}
             {!isSearching && searchResults && searchResults.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "14px" }}>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
                 {searchResults.map((trip) => {
                   const cover = getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl);
                   const nights = trip.startDate && trip.endDate
@@ -361,27 +392,33 @@ export default function DiscoverPage() {
           </div>
         )}
 
-        {/* Community trips grid — MAIN section */}
-        <div style={{ marginBottom: "40px" }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "6px" }}>
-            <h2 style={{ fontSize: "20px", fontWeight: 800, color: "#1a1a1a" }}>
-              Real trips from real families
-            </h2>
+        {/* ── SECTION 2: COMMUNITY TRIPS ── */}
+        <div style={{ paddingTop: "64px" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "32px" }}>
+            <div>
+              <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", margin: "0 0 6px" }}>
+                COMMUNITY TRIPS
+              </p>
+              <h2 className={playfair.className} style={{ fontSize: "26px", fontWeight: 900, color: "#1B3A5C", margin: "0 0 8px", lineHeight: 1.2 }}>
+                Real trips from real families
+              </h2>
+              <p style={{ fontSize: "14px", color: "#717171", margin: 0 }}>
+                Every itinerary below was planned by a family who actually went.
+              </p>
+            </div>
             <button
               onClick={handleAddYoursClick}
-              style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "2px", flexShrink: 0, padding: 0, fontFamily: "inherit" }}
+              style={{ flexShrink: 0, marginLeft: "16px", marginTop: "4px", fontSize: "13px", color: "#C4664A", fontWeight: 700, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "3px", padding: 0, fontFamily: "inherit", whiteSpace: "nowrap" }}
             >
               Add yours <ChevronRight size={13} />
             </button>
           </div>
-          <p style={{ fontSize: "13px", color: "#717171", marginBottom: "20px" }}>
-            Every itinerary below was planned by a family who actually went.
-          </p>
+
           {publicTrips.length === 0 ? (
             <p style={{ fontSize: "13px", color: "#AAAAAA", padding: "8px 0" }}>Loading trips…</p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "16px" }}>
-              {publicTrips.map((trip) => {
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
+              {displayedTrips.map((trip) => {
                 const coverImage = getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl);
                 const nights = trip.startDate && trip.endDate
                   ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24))
@@ -418,31 +455,41 @@ export default function DiscoverPage() {
               })}
             </div>
           )}
+
+          {!showAllTrips && publicTrips.length > 6 && (
+            <div style={{ textAlign: "center", marginTop: "32px" }}>
+              <button onClick={() => setShowAllTrips(true)} style={outlineBtn}>
+                See all trips →
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Travel Intel — places from real trips */}
-        <TravelIntelSection />
+        {/* ── SECTION 3: TRAVEL INTEL ── */}
+        <div style={{ paddingTop: "64px" }}>
+          <TravelIntelSection />
+        </div>
 
-        {/* Get inspired — destination cards */}
-        <div style={{ marginBottom: "40px" }}>
-          <div style={{ marginBottom: "16px" }}>
-            <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", marginBottom: "4px" }}>
-              Get inspired
+        {/* ── SECTION 4: GET INSPIRED ── */}
+        <div style={{ paddingTop: "64px" }}>
+          <div style={{ marginBottom: "32px" }}>
+            <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", margin: "0 0 6px" }}>
+              GET INSPIRED
             </p>
-            <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a" }}>
+            <h2 className={playfair.className} style={{ fontSize: "26px", fontWeight: 900, color: "#1B3A5C", margin: "0 0 8px", lineHeight: 1.2 }}>
               Destinations picked for your family
             </h2>
           </div>
 
-          {/* Filter bar */}
+          {/* Filter pills */}
           <div
-            style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "20px", scrollbarWidth: "none", msOverflowStyle: "none" }}
+            style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "32px", scrollbarWidth: "none", msOverflowStyle: "none" }}
             className="hide-scrollbar"
           >
             {FILTERS.map((f) => (
               <button
                 key={f}
-                onClick={() => setActiveFilter(f)}
+                onClick={() => { setActiveFilter(f); setShowAllDest(false); }}
                 style={{
                   flexShrink: 0,
                   padding: "7px 16px",
@@ -461,10 +508,9 @@ export default function DiscoverPage() {
             ))}
           </div>
 
-          {/* Destination grid */}
           {filtered.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "16px" }}>
-              {filtered.map((rec) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
+              {displayedDest.map((rec) => (
                 <Link key={rec.id} href={getDestinationHref(rec)} style={{ textDecoration: "none", display: "block" }}>
                   <div
                     className="hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
@@ -487,9 +533,7 @@ export default function DiscoverPage() {
                     <div style={{ padding: "14px 16px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
                         <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
-                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>
-                          {rec.city}, {rec.country}
-                        </span>
+                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>{rec.city}, {rec.country}</span>
                       </div>
                       <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "10px" }}>{rec.why}</p>
                       <p style={{ fontSize: "11px", color: "#C4664A", lineHeight: 1.4, fontWeight: 500 }}>{rec.pickReason}</p>
@@ -504,34 +548,28 @@ export default function DiscoverPage() {
               <p style={{ fontSize: "13px" }}>More {activeFilter} picks coming soon.</p>
             </div>
           )}
-        </div>
 
-        {/* CTA */}
-        <div style={{ marginTop: "40px", textAlign: "center", paddingBottom: "8px" }}>
-          <p style={{ fontSize: "13px", color: "#717171", marginBottom: "12px" }}>
-            Ready to start planning one of these?
-          </p>
-          <Link
-            href="/trips/new"
-            style={{ display: "inline-block", padding: "12px 28px", backgroundColor: "#C4664A", color: "#fff", fontWeight: 700, fontSize: "14px", borderRadius: "999px", textDecoration: "none" }}
-          >
-            Add a trip
-          </Link>
+          {!showAllDest && filtered.length > 6 && (
+            <div style={{ textAlign: "center", marginTop: "32px" }}>
+              <button onClick={() => setShowAllDest(true)} style={outlineBtn}>
+                See more destinations →
+              </button>
+            </div>
+          )}
         </div>
 
       </div>
 
-      {/* Add yours modal */}
+      {/* ── Add yours modal ── */}
       {showAddYours && (
         <div
           onClick={() => setShowAddYours(false)}
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "0" }}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             style={{ width: "100%", maxWidth: "520px", backgroundColor: "#fff", borderRadius: "20px 20px 0 0", padding: "24px", maxHeight: "80vh", display: "flex", flexDirection: "column" }}
           >
-            {/* Header */}
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "16px" }}>
               <div>
                 <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>Share a trip</h3>
@@ -545,7 +583,6 @@ export default function DiscoverPage() {
               </button>
             </div>
 
-            {/* Content */}
             <div style={{ overflowY: "auto", flex: 1 }}>
               {isLoadingTrips ? (
                 <p style={{ fontSize: "14px", color: "#717171", padding: "16px 0", textAlign: "center" }}>Loading your trips...</p>

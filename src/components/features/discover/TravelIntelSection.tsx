@@ -4,7 +4,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import { Search, X, MapPin, Star, ExternalLink, ChevronRight } from "lucide-react";
+import { Playfair_Display } from "next/font/google";
 import { KNOWN_CITIES } from "@/lib/destination-coords";
+import { getTripCoverImage } from "@/lib/destination-images";
+
+const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700", "900"] });
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -81,32 +85,34 @@ function CategoryPill({ tag }: { tag: string }) {
   );
 }
 
-function PhotoArea({ thumbnailUrl, title, height = 160 }: { thumbnailUrl: string | null; title: string; height?: number }) {
-  const initial = (title[0] ?? "P").toUpperCase();
-  if (thumbnailUrl) {
-    return (
-      <div style={{ height, position: "relative", overflow: "hidden" }}>
-        <img
-          src={thumbnailUrl}
-          alt={title}
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-          onError={(e) => {
-            const parent = (e.target as HTMLImageElement).parentElement;
-            if (parent) {
-              parent.style.background = "linear-gradient(135deg, #1B3A5C 0%, #2d5a8e 100%)";
-              (e.target as HTMLImageElement).style.display = "none";
-            }
-          }}
-        />
-      </div>
-    );
-  }
+function PhotoArea({
+  thumbnailUrl,
+  title,
+  height = 160,
+  destinationCity,
+  destinationCountry,
+}: {
+  thumbnailUrl: string | null;
+  title: string;
+  height?: number;
+  destinationCity?: string | null;
+  destinationCountry?: string | null;
+}) {
+  const imgSrc = thumbnailUrl ?? getTripCoverImage(destinationCity, destinationCountry, null);
   return (
-    <div style={{
-      height, background: "linear-gradient(135deg, #1B3A5C 0%, #2d5a8e 100%)",
-      display: "flex", alignItems: "center", justifyContent: "center",
-    }}>
-      <span style={{ fontSize: "48px", fontWeight: 900, color: "rgba(255,255,255,0.25)" }}>{initial}</span>
+    <div style={{ height, overflow: "hidden", backgroundColor: "#F0F0F0" }}>
+      <img
+        src={imgSrc}
+        alt={title}
+        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+        onError={(e) => {
+          const el = e.target as HTMLImageElement;
+          el.style.display = "none";
+          if (el.parentElement) {
+            el.parentElement.style.background = "linear-gradient(135deg, #1B3A5C 0%, #2d5a8e 100%)";
+          }
+        }}
+      />
     </div>
   );
 }
@@ -126,7 +132,6 @@ function DetailsSheet({
   const primaryTag = place.categoryTags[0] ?? null;
   const bookingUrl = place.affiliateUrl ?? place.websiteUrl;
 
-  // Lock body scroll while open
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = ""; };
@@ -141,7 +146,6 @@ function DetailsSheet({
         display: "flex", alignItems: "flex-end", justifyContent: "center",
       }}
     >
-      {/* Sheet */}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
@@ -153,11 +157,15 @@ function DetailsSheet({
           overflowY: "hidden",
         }}
       >
-        {/* Hero image */}
         <div style={{ position: "relative", flexShrink: 0 }}>
-          <PhotoArea thumbnailUrl={place.thumbnailUrl} title={place.title} height={200} />
+          <PhotoArea
+            thumbnailUrl={place.thumbnailUrl}
+            title={place.title}
+            height={200}
+            destinationCity={place.destinationCity}
+            destinationCountry={place.destinationCountry}
+          />
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.4) 100%)" }} />
-          {/* Close button */}
           <button
             onClick={onClose}
             style={{
@@ -172,9 +180,7 @@ function DetailsSheet({
           </button>
         </div>
 
-        {/* Scrollable body */}
         <div style={{ overflowY: "auto", flex: 1, padding: "20px 20px 32px" }}>
-          {/* Title + meta */}
           <h2 style={{ fontSize: "22px", fontWeight: 800, color: "#1B3A5C", margin: "0 0 8px", lineHeight: 1.2 }}>
             {place.title}
           </h2>
@@ -188,7 +194,6 @@ function DetailsSheet({
             )}
           </div>
 
-          {/* Avg rating */}
           {place.avgRating != null && (
             <div style={{ marginBottom: "14px" }}>
               <StarRow rating={place.avgRating} size={14} />
@@ -196,21 +201,18 @@ function DetailsSheet({
             </div>
           )}
 
-          {/* Saved by */}
           {place.saveCount >= 2 && (
             <p style={{ fontSize: "12px", color: "#717171", marginBottom: "14px" }}>
               Saved by <strong style={{ color: "#1B3A5C" }}>{place.saveCount} families</strong>
             </p>
           )}
 
-          {/* Description */}
           {place.description && (
             <p style={{ fontSize: "14px", color: "#444", lineHeight: 1.6, marginBottom: "20px" }}>
               {place.description}
             </p>
           )}
 
-          {/* Tips */}
           {place.tips.length > 0 && (
             <div style={{ marginBottom: "20px" }}>
               <p style={{ fontSize: "12px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "10px" }}>
@@ -220,16 +222,9 @@ function DetailsSheet({
                 {place.tips.map((tip) => (
                   <div
                     key={tip.id}
-                    style={{
-                      backgroundColor: "#F9F9F9", borderRadius: "10px",
-                      padding: "12px 14px", border: "1px solid #F0F0F0",
-                    }}
+                    style={{ backgroundColor: "#F9F9F9", borderRadius: "10px", padding: "12px 14px", border: "1px solid #F0F0F0" }}
                   >
-                    <span style={{
-                      fontSize: "10px", fontWeight: 700, color: "#C4664A",
-                      backgroundColor: "rgba(196,102,74,0.1)", borderRadius: "20px",
-                      padding: "2px 8px", display: "inline-block", marginBottom: "6px",
-                    }}>
+                    <span style={{ fontSize: "10px", fontWeight: 700, color: "#C4664A", backgroundColor: "rgba(196,102,74,0.1)", borderRadius: "20px", padding: "2px 8px", display: "inline-block", marginBottom: "6px" }}>
                       {TIP_LABELS[tip.category] ?? tip.category}
                     </span>
                     <p style={{ fontSize: "13px", color: "#444", margin: 0, lineHeight: 1.5 }}>
@@ -241,7 +236,6 @@ function DetailsSheet({
             </div>
           )}
 
-          {/* Featured in */}
           {place.tripLinks.length > 0 && (
             <div style={{ marginBottom: "20px" }}>
               <p style={{ fontSize: "12px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "10px" }}>
@@ -253,11 +247,7 @@ function DetailsSheet({
                     key={trip.id}
                     href={`/trips/${trip.id}`}
                     onClick={onClose}
-                    style={{
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                      padding: "10px 14px", backgroundColor: "#F9F9F9", borderRadius: "10px",
-                      border: "1px solid #F0F0F0", textDecoration: "none",
-                    }}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", backgroundColor: "#F9F9F9", borderRadius: "10px", border: "1px solid #F0F0F0", textDecoration: "none" }}
                   >
                     <span style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C" }}>{trip.title}</span>
                     <ChevronRight size={14} style={{ color: "#AAAAAA" }} />
@@ -267,18 +257,13 @@ function DetailsSheet({
             </div>
           )}
 
-          {/* Website link */}
           {place.websiteUrl && (
             <div style={{ marginBottom: "20px" }}>
               <a
                 href={place.websiteUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: "5px",
-                  fontSize: "13px", color: "#1B3A5C", fontWeight: 500,
-                  textDecoration: "none",
-                }}
+                style={{ display: "inline-flex", alignItems: "center", gap: "5px", fontSize: "13px", color: "#1B3A5C", fontWeight: 500, textDecoration: "none" }}
               >
                 <ExternalLink size={13} />
                 Visit website
@@ -286,16 +271,10 @@ function DetailsSheet({
             </div>
           )}
 
-          {/* Action buttons */}
           <div style={{ display: "flex", gap: "10px", marginTop: "4px" }}>
             <button
               onClick={() => { onClose(); onAddToTrip(place); }}
-              style={{
-                flex: 1, padding: "12px", borderRadius: "12px",
-                border: "1.5px solid #C4664A", backgroundColor: "transparent",
-                color: "#C4664A", fontSize: "14px", fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-              }}
+              style={{ flex: 1, padding: "12px", borderRadius: "12px", border: "1.5px solid #C4664A", backgroundColor: "transparent", color: "#C4664A", fontSize: "14px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
             >
               + Add to Trip
             </button>
@@ -304,13 +283,7 @@ function DetailsSheet({
                 href={bookingUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{
-                  flex: 1, padding: "12px", borderRadius: "12px",
-                  backgroundColor: "#C4664A", color: "#fff",
-                  fontSize: "14px", fontWeight: 700,
-                  textDecoration: "none", textAlign: "center",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                }}
+                style={{ flex: 1, padding: "12px", borderRadius: "12px", backgroundColor: "#C4664A", color: "#fff", fontSize: "14px", fontWeight: 700, textDecoration: "none", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center" }}
               >
                 Book this
               </a>
@@ -324,13 +297,7 @@ function DetailsSheet({
 
 // ── Add-to-Trip Modal ─────────────────────────────────────────────────────────
 
-function AddToTripModal({
-  place,
-  onClose,
-}: {
-  place: PlaceItem;
-  onClose: () => void;
-}) {
+function AddToTripModal({ place, onClose }: { place: PlaceItem; onClose: () => void }) {
   const { isSignedIn } = useUser();
   const [trips, setTrips] = useState<UserTrip[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -352,9 +319,7 @@ function AddToTripModal({
   }, [isSignedIn]);
 
   const cityLower = (place.destinationCity ?? "").toLowerCase();
-  const matchingTrips = trips.filter(
-    (t) => (t.destinationCity ?? "").toLowerCase() === cityLower && cityLower !== ""
-  );
+  const matchingTrips = trips.filter((t) => (t.destinationCity ?? "").toLowerCase() === cityLower && cityLower !== "");
   const displayTrips = matchingTrips.length > 0 ? matchingTrips : trips;
 
   async function addToTrip(tripId: string | null) {
@@ -378,16 +343,10 @@ function AddToTripModal({
       });
       if (res.ok) {
         const tripName = tripId ? trips.find((t) => t.id === tripId)?.title : null;
-        setSuccessMsg(
-          tripId
-            ? { text: `Added to ${tripName ?? "your trip"}`, tripId }
-            : { text: "Saved to your Saves tab" }
-        );
+        setSuccessMsg(tripId ? { text: `Added to ${tripName ?? "your trip"}`, tripId } : { text: "Saved to your Saves tab" });
         setTimeout(() => { setSuccessMsg(null); onClose(); }, 2000);
       }
-    } catch {
-      // silently fail
-    } finally {
+    } catch { /* silently fail */ } finally {
       setAdding(null);
     }
   }
@@ -395,22 +354,12 @@ function AddToTripModal({
   return (
     <div
       onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, zIndex: 600,
-        backgroundColor: "rgba(0,0,0,0.55)",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        padding: "24px",
-      }}
+      style={{ position: "fixed", inset: 0, zIndex: 600, backgroundColor: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "100%", maxWidth: "400px",
-          backgroundColor: "#fff", borderRadius: "20px",
-          padding: "24px", boxShadow: "0 8px 40px rgba(0,0,0,0.2)",
-        }}
+        style={{ width: "100%", maxWidth: "400px", backgroundColor: "#fff", borderRadius: "20px", padding: "24px", boxShadow: "0 8px 40px rgba(0,0,0,0.2)" }}
       >
-        {/* Header */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "16px" }}>
           <div>
             <h3 style={{ fontSize: "17px", fontWeight: 800, color: "#1a1a1a", margin: 0 }}>Add to trip</h3>
@@ -419,45 +368,32 @@ function AddToTripModal({
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#999", padding: "0 0 0 12px", fontSize: "20px", lineHeight: 1 }}>×</button>
         </div>
 
-        {/* Success */}
         {successMsg && (
           <div style={{ textAlign: "center", padding: "20px 0" }}>
             <p style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", marginBottom: "6px" }}>Done!</p>
             {successMsg.tripId ? (
-              <Link href={`/trips/${successMsg.tripId}`} style={{ fontSize: "13px", color: "#C4664A", textDecoration: "none" }}>
-                {successMsg.text} →
-              </Link>
+              <Link href={`/trips/${successMsg.tripId}`} style={{ fontSize: "13px", color: "#C4664A", textDecoration: "none" }}>{successMsg.text} →</Link>
             ) : (
               <p style={{ fontSize: "13px", color: "#717171" }}>{successMsg.text}</p>
             )}
           </div>
         )}
 
-        {/* Not signed in */}
         {!successMsg && !isSignedIn && (
           <div style={{ textAlign: "center", padding: "16px 0" }}>
             <p style={{ fontSize: "14px", color: "#717171", marginBottom: "16px" }}>Sign in to save places to your trips</p>
-            <Link
-              href="/sign-in"
-              style={{ display: "inline-block", padding: "10px 24px", backgroundColor: "#1B3A5C", color: "#fff", fontSize: "14px", fontWeight: 700, borderRadius: "12px", textDecoration: "none" }}
-            >
-              Sign in
-            </Link>
+            <Link href="/sign-in" style={{ display: "inline-block", padding: "10px 24px", backgroundColor: "#1B3A5C", color: "#fff", fontSize: "14px", fontWeight: 700, borderRadius: "12px", textDecoration: "none" }}>Sign in</Link>
           </div>
         )}
 
-        {/* Loading */}
         {!successMsg && isSignedIn && isLoading && (
           <p style={{ fontSize: "14px", color: "#AAAAAA", textAlign: "center", padding: "16px 0" }}>Loading your trips…</p>
         )}
 
-        {/* Trip list */}
         {!successMsg && isSignedIn && !isLoading && (
           <div>
             {displayTrips.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "8px 0 16px" }}>
-                <p style={{ fontSize: "14px", color: "#717171", marginBottom: "16px" }}>No active trips. Save for later?</p>
-              </div>
+              <p style={{ fontSize: "14px", color: "#717171", marginBottom: "16px", textAlign: "center" }}>No active trips. Save for later?</p>
             ) : (
               <>
                 {matchingTrips.length === 0 && trips.length > 0 && (
@@ -472,19 +408,11 @@ function AddToTripModal({
                       key={trip.id}
                       onClick={() => addToTrip(trip.id)}
                       disabled={adding !== null}
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "12px 14px", backgroundColor: "#F9F9F9", borderRadius: "12px",
-                        border: "1px solid #EEEEEE", cursor: "pointer",
-                        opacity: adding && adding !== trip.id ? 0.4 : 1,
-                        fontFamily: "inherit", textAlign: "left", transition: "opacity 0.15s",
-                      }}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", backgroundColor: "#F9F9F9", borderRadius: "12px", border: "1px solid #EEEEEE", cursor: "pointer", opacity: adding && adding !== trip.id ? 0.4 : 1, fontFamily: "inherit", textAlign: "left", transition: "opacity 0.15s" }}
                     >
                       <div>
                         <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", margin: 0 }}>{trip.title}</p>
-                        {trip.destinationCity && (
-                          <p style={{ fontSize: "11px", color: "#717171", margin: "2px 0 0" }}>{trip.destinationCity}</p>
-                        )}
+                        {trip.destinationCity && <p style={{ fontSize: "11px", color: "#717171", margin: "2px 0 0" }}>{trip.destinationCity}</p>}
                       </div>
                       <span style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, whiteSpace: "nowrap", marginLeft: "8px" }}>
                         {adding === trip.id ? "Adding…" : "Add →"}
@@ -494,18 +422,10 @@ function AddToTripModal({
                 </div>
               </>
             )}
-
-            {/* Save for later */}
             <button
               onClick={() => addToTrip(null)}
               disabled={adding !== null}
-              style={{
-                width: "100%", padding: "11px", borderRadius: "12px",
-                border: "1.5px solid #EEEEEE", backgroundColor: "transparent",
-                color: "#717171", fontSize: "13px", fontWeight: 600,
-                cursor: "pointer", fontFamily: "inherit",
-                opacity: adding === "unorganized" ? 0.4 : 1,
-              }}
+              style={{ width: "100%", padding: "11px", borderRadius: "12px", border: "1.5px solid #EEEEEE", backgroundColor: "transparent", color: "#717171", fontSize: "13px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", opacity: adding === "unorganized" ? 0.4 : 1 }}
             >
               {adding === "unorganized" ? "Saving…" : "Save for later (no trip)"}
             </button>
@@ -518,34 +438,23 @@ function AddToTripModal({
 
 // ── Place Card ────────────────────────────────────────────────────────────────
 
-function PlaceCard({
-  place,
-  onDetails,
-  onAddToTrip,
-}: {
-  place: PlaceItem;
-  onDetails: (p: PlaceItem) => void;
-  onAddToTrip: (p: PlaceItem) => void;
-}) {
+function PlaceCard({ place, onDetails, onAddToTrip }: { place: PlaceItem; onDetails: (p: PlaceItem) => void; onAddToTrip: (p: PlaceItem) => void }) {
   const primaryTag = place.categoryTags[0] ?? null;
-  const location   = [place.destinationCity, place.destinationCountry].filter(Boolean).join(", ");
+  const location = [place.destinationCity, place.destinationCountry].filter(Boolean).join(", ");
 
   return (
     <div
       className="hover:shadow-md transition-shadow duration-200"
-      style={{
-        backgroundColor: "#fff", borderRadius: "16px",
-        overflow: "hidden", border: "1px solid #EEEEEE",
-        boxShadow: "0 1px 6px rgba(0,0,0,0.06)",
-        display: "flex", flexDirection: "column",
-      }}
+      style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 6px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column" }}
     >
-      {/* Image */}
-      <div style={{ position: "relative", aspectRatio: "16/9", overflow: "hidden" }}>
-        <PhotoArea thumbnailUrl={place.thumbnailUrl} title={place.title} height={0} />
-        <div style={{ position: "absolute", inset: 0 }}>
-          <PhotoArea thumbnailUrl={place.thumbnailUrl} title={place.title} height={180} />
-        </div>
+      <div style={{ position: "relative", overflow: "hidden" }}>
+        <PhotoArea
+          thumbnailUrl={place.thumbnailUrl}
+          title={place.title}
+          height={160}
+          destinationCity={place.destinationCity}
+          destinationCountry={place.destinationCountry}
+        />
         {primaryTag && (
           <div style={{ position: "absolute", top: "8px", left: "8px", zIndex: 1 }}>
             <CategoryPill tag={primaryTag} />
@@ -553,13 +462,8 @@ function PlaceCard({
         )}
       </div>
 
-      {/* Body */}
       <div style={{ padding: "12px 14px 14px", flex: 1, display: "flex", flexDirection: "column" }}>
-        <p style={{
-          fontSize: "14px", fontWeight: 700, color: "#1B3A5C",
-          margin: "0 0 4px", lineHeight: 1.3,
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}>
+        <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", margin: "0 0 4px", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {place.title}
         </p>
 
@@ -585,23 +489,13 @@ function PlaceCard({
         <div style={{ marginTop: "auto", display: "flex", gap: "8px", paddingTop: "10px" }}>
           <button
             onClick={() => onAddToTrip(place)}
-            style={{
-              flex: 1, padding: "8px 6px", borderRadius: "10px",
-              border: "1.5px solid #C4664A", backgroundColor: "transparent",
-              color: "#C4664A", fontSize: "12px", fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
-            }}
+            style={{ flex: 1, padding: "8px 6px", borderRadius: "10px", border: "1.5px solid #C4664A", backgroundColor: "transparent", color: "#C4664A", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
           >
             + Add to Trip
           </button>
           <button
             onClick={() => onDetails(place)}
-            style={{
-              flex: 1, padding: "8px 6px", borderRadius: "10px",
-              border: "1.5px solid #E0E0E0", backgroundColor: "transparent",
-              color: "#1B3A5C", fontSize: "12px", fontWeight: 600,
-              cursor: "pointer", fontFamily: "inherit",
-            }}
+            style={{ flex: 1, padding: "8px 6px", borderRadius: "10px", border: "1.5px solid #E0E0E0", backgroundColor: "transparent", color: "#1B3A5C", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
           >
             Details →
           </button>
@@ -614,17 +508,16 @@ function PlaceCard({
 // ── Main Section ──────────────────────────────────────────────────────────────
 
 export function TravelIntelSection() {
-  const [city,            setCity]            = useState("");
-  const [suggestions,    setSuggestions]     = useState<string[]>([]);
-  const [showSuggestions,setShowSuggestions]  = useState(false);
-  const [appliedCity,    setAppliedCity]     = useState("");
-  const [category,       setCategory]        = useState("All");
-  const [places,         setPlaces]          = useState<PlaceItem[]>([]);
-  const [total,          setTotal]           = useState(0);
-  const [offset,         setOffset]          = useState(0);
-  const [isLoading,      setIsLoading]       = useState(true);
-  const [selectedPlace,  setSelectedPlace]   = useState<PlaceItem | null>(null);
-  const [addToTripPlace, setAddToTripPlace]  = useState<PlaceItem | null>(null);
+  const [city,             setCity]            = useState("");
+  const [suggestions,     setSuggestions]     = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions]  = useState(false);
+  const [appliedCity,     setAppliedCity]     = useState("");
+  const [category,        setCategory]        = useState("All");
+  const [places,          setPlaces]          = useState<PlaceItem[]>([]);
+  const [isLoading,       setIsLoading]       = useState(true);
+  const [displayCount,    setDisplayCount]    = useState(6);
+  const [selectedPlace,   setSelectedPlace]   = useState<PlaceItem | null>(null);
+  const [addToTripPlace,  setAddToTripPlace]  = useState<PlaceItem | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
 
   // City autocomplete
@@ -646,34 +539,31 @@ export function TravelIntelSection() {
   }, []);
 
   // Fetch places when filters change
-  const fetchPlaces = useCallback(async (cityParam: string, catParam: string, off: number, append = false) => {
-    setIsLoading(!append);
+  const fetchPlaces = useCallback(async (cityParam: string, catParam: string) => {
+    setIsLoading(true);
+    setDisplayCount(6);
     const params = new URLSearchParams();
     if (cityParam) params.set("city", cityParam);
     if (catParam && catParam !== "All") params.set("category", catParam.toLowerCase());
-    if (off > 0) params.set("offset", String(off));
     try {
       const res  = await fetch(`/api/travel-intel?${params.toString()}`);
       const data = await res.json() as { places: PlaceItem[]; total: number };
-      setPlaces(append ? (prev) => [...prev, ...(data.places ?? [])] : (data.places ?? []));
-      setTotal(data.total ?? 0);
+      setPlaces(data.places ?? []);
     } catch {
-      if (!append) setPlaces([]);
+      setPlaces([]);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    setOffset(0);
-    fetchPlaces(appliedCity, category, 0, false);
+    fetchPlaces(appliedCity, category);
   }, [appliedCity, category, fetchPlaces]);
 
   function applyCity(val: string) {
     setCity(val);
     setAppliedCity(val);
     setShowSuggestions(false);
-    setOffset(0);
   }
 
   function clearCity() {
@@ -681,26 +571,30 @@ export function TravelIntelSection() {
     setAppliedCity("");
     setSuggestions([]);
     setShowSuggestions(false);
-    setOffset(0);
   }
 
-  function loadMore() {
-    const newOffset = offset + 50;
-    setOffset(newOffset);
-    fetchPlaces(appliedCity, category, newOffset, true);
-  }
+  // Filter invalid place cards
+  const filteredPlaces = places.filter((p) =>
+    p.destinationCity &&
+    !p.title.startsWith("Family of") &&
+    !p.title.includes("· Kid")
+  );
 
-  const hasMore = total > offset + 50;
+  const visiblePlaces  = filteredPlaces.slice(0, displayCount);
+  const canLoadMore    = displayCount < filteredPlaces.length;
 
   return (
-    <div style={{ marginBottom: "48px" }}>
+    <div>
       {/* Section header */}
-      <div style={{ marginBottom: "20px" }}>
-        <h2 style={{ fontSize: "20px", fontWeight: 800, color: "#1B3A5C", margin: "0 0 4px", lineHeight: 1.2 }}>
+      <div style={{ marginBottom: "32px" }}>
+        <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", margin: "0 0 6px" }}>
+          PLACES FAMILIES WENT
+        </p>
+        <h2 className={playfair.className} style={{ fontSize: "26px", fontWeight: 900, color: "#1B3A5C", margin: "0 0 8px", lineHeight: 1.2 }}>
           Travel Intel
         </h2>
-        <p style={{ fontSize: "13px", color: "#717171", margin: 0 }}>
-          Places families actually went — searchable by destination
+        <p style={{ fontSize: "14px", color: "#717171", margin: 0 }}>
+          Real places from real family trips — searchable by destination
         </p>
       </div>
 
@@ -710,20 +604,15 @@ export function TravelIntelSection() {
           <Search size={15} style={{ position: "absolute", left: "14px", color: "#AAAAAA", pointerEvents: "none" }} />
           <input
             type="text"
-            placeholder="Search a city or country…"
+            placeholder="Search a city or country..."
             value={city}
             onChange={(e) => { setCity(e.target.value); setShowSuggestions(true); if (!e.target.value) clearCity(); }}
             onFocus={() => setShowSuggestions(true)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") { applyCity(city); }
-              if (e.key === "Escape") { clearCity(); }
+              if (e.key === "Enter") applyCity(city);
+              if (e.key === "Escape") clearCity();
             }}
-            style={{
-              width: "100%", padding: "11px 44px",
-              borderRadius: "999px", border: "1.5px solid #E5E5E5",
-              fontSize: "14px", color: "#1a1a1a", backgroundColor: "#F9F9F9",
-              outline: "none", boxSizing: "border-box", fontFamily: "inherit",
-            }}
+            style={{ width: "100%", padding: "11px 44px", borderRadius: "999px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", backgroundColor: "#F9F9F9", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
           />
           {city && (
             <button onClick={clearCity} style={{ position: "absolute", right: "14px", background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px", display: "flex" }}>
@@ -732,23 +621,13 @@ export function TravelIntelSection() {
           )}
         </div>
 
-        {/* Suggestions dropdown */}
         {showSuggestions && suggestions.length > 0 && (
-          <div style={{
-            position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
-            backgroundColor: "#fff", border: "1.5px solid #E5E5E5", borderRadius: "14px",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.10)", zIndex: 100, overflow: "hidden",
-          }}>
+          <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, backgroundColor: "#fff", border: "1.5px solid #E5E5E5", borderRadius: "14px", boxShadow: "0 4px 16px rgba(0,0,0,0.10)", zIndex: 100, overflow: "hidden" }}>
             {suggestions.map((c) => (
               <button
                 key={c}
                 onMouseDown={() => applyCity(c)}
-                style={{
-                  display: "flex", alignItems: "center", gap: "8px", width: "100%",
-                  padding: "10px 16px", background: "none", border: "none",
-                  cursor: "pointer", textAlign: "left", fontSize: "14px", color: "#1a1a1a",
-                  fontFamily: "inherit",
-                }}
+                style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "10px 16px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontSize: "14px", color: "#1a1a1a", fontFamily: "inherit" }}
               >
                 <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
                 {c}
@@ -760,21 +639,14 @@ export function TravelIntelSection() {
 
       {/* Category pills */}
       <div
-        style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "14px", scrollbarWidth: "none", msOverflowStyle: "none" }}
+        style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "24px", scrollbarWidth: "none", msOverflowStyle: "none" }}
         className="hide-scrollbar"
       >
         {INTEL_CATEGORIES.map((cat) => (
           <button
             key={cat}
             onClick={() => setCategory(cat)}
-            style={{
-              flexShrink: 0, padding: "7px 16px", borderRadius: "999px",
-              border:           category === cat ? "none"              : "1.5px solid #E0E0E0",
-              backgroundColor:  category === cat ? "#C4664A"           : "#fff",
-              color:            category === cat ? "#fff"              : "#717171",
-              fontSize: "13px", fontWeight: category === cat ? 700 : 500,
-              cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit",
-            }}
+            style={{ flexShrink: 0, padding: "7px 16px", borderRadius: "999px", border: category === cat ? "none" : "1.5px solid #E0E0E0", backgroundColor: category === cat ? "#C4664A" : "#fff", color: category === cat ? "#fff" : "#717171", fontSize: "13px", fontWeight: category === cat ? 700 : 500, cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit" }}
           >
             {cat}
           </button>
@@ -783,12 +655,12 @@ export function TravelIntelSection() {
 
       {/* Grid or states */}
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "16px" }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} style={{ borderRadius: "16px", backgroundColor: "#F5F5F5", height: "280px", animation: "pulse 1.5s ease-in-out infinite" }} />
+            <div key={i} style={{ borderRadius: "16px", backgroundColor: "#F5F5F5", height: "280px" }} />
           ))}
         </div>
-      ) : places.length === 0 ? (
+      ) : filteredPlaces.length === 0 ? (
         <div style={{ textAlign: "center", padding: "48px 24px", backgroundColor: "#F9F9F9", borderRadius: "16px", border: "1px solid #EEEEEE" }}>
           <p style={{ fontSize: "15px", fontWeight: 600, color: "#1a1a1a", marginBottom: "6px" }}>
             {appliedCity ? `No places found for ${appliedCity}` : "No places yet"}
@@ -796,21 +668,14 @@ export function TravelIntelSection() {
           <p style={{ fontSize: "13px", color: "#717171", marginBottom: "16px" }}>
             {appliedCity ? "Be the first to add a trip here." : "Places will appear as families share their completed trips."}
           </p>
-          <Link
-            href="/trips/past/new"
-            style={{
-              display: "inline-block", padding: "10px 24px",
-              backgroundColor: "#C4664A", color: "#fff",
-              fontSize: "13px", fontWeight: 700, borderRadius: "999px", textDecoration: "none",
-            }}
-          >
+          <Link href="/trips/past/new" style={{ display: "inline-block", padding: "10px 24px", backgroundColor: "#C4664A", color: "#fff", fontSize: "13px", fontWeight: 700, borderRadius: "999px", textDecoration: "none" }}>
             Add a past trip →
           </Link>
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "16px" }}>
-            {places.map((place) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
+            {visiblePlaces.map((place) => (
               <PlaceCard
                 key={place.id}
                 place={place}
@@ -820,25 +685,19 @@ export function TravelIntelSection() {
             ))}
           </div>
 
-          {hasMore && (
-            <div style={{ textAlign: "center", marginTop: "24px" }}>
+          {canLoadMore && (
+            <div style={{ textAlign: "center", marginTop: "32px" }}>
               <button
-                onClick={loadMore}
-                style={{
-                  padding: "11px 28px", borderRadius: "999px",
-                  border: "1.5px solid #E0E0E0", backgroundColor: "#fff",
-                  fontSize: "13px", fontWeight: 600, color: "#1B3A5C",
-                  cursor: "pointer", fontFamily: "inherit",
-                }}
+                onClick={() => setDisplayCount((c) => c + 6)}
+                style={{ padding: "12px 32px", borderRadius: "999px", border: "2px solid #C4664A", backgroundColor: "transparent", color: "#C4664A", fontSize: "14px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
               >
-                Load more places
+                Load more places →
               </button>
             </div>
           )}
         </>
       )}
 
-      {/* Details sheet */}
       {selectedPlace && (
         <DetailsSheet
           place={selectedPlace}
@@ -847,12 +706,8 @@ export function TravelIntelSection() {
         />
       )}
 
-      {/* Add to trip modal */}
       {addToTripPlace && (
-        <AddToTripModal
-          place={addToTripPlace}
-          onClose={() => setAddToTripPlace(null)}
-        />
+        <AddToTripModal place={addToTripPlace} onClose={() => setAddToTripPlace(null)} />
       )}
     </div>
   );
