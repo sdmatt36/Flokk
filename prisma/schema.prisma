@@ -204,6 +204,7 @@ model Trip {
   cloneCount       Int           @default(0)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
+  completionScore  Int           @default(0)
   savedItems       SavedItem[]
   scores           RecommendationScore[]
   collaborators    TripCollaborator[]
@@ -214,6 +215,8 @@ model Trip {
   contacts         TripContact[]
   documents        TripDocument[]
   keyInfo          TripKeyInfo[]
+  tips             TripTip[]
+  services         TripService[]
 }
 
 enum TripStatus {
@@ -277,6 +280,8 @@ model SavedItem {
   extractedCheckout   String?
   isBooked            Boolean   @default(false)
   bookedAt            DateTime?
+  userRating          Int?
+  userNote            String?
 }
 
 enum SourceType {
@@ -636,6 +641,34 @@ model TripKeyInfo {
   label     String
   value     String
   createdAt DateTime @default(now())
+}
+
+// =============================================================================
+// TRIP TIPS & SERVICES (Past Trip Builder)
+// =============================================================================
+
+model TripTip {
+  id        String   @id @default(cuid())
+  tripId    String
+  category  String   // 'secret' | 'mistake' | 'kids' | 'worth_it' | 'not_worth_it' | 'would_return' | 'general'
+  content   String
+  createdAt DateTime @default(now())
+  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+}
+
+model TripService {
+  id          String   @id @default(cuid())
+  tripId      String
+  name        String
+  serviceType String   // 'driver' | 'guide' | 'translator' | 'other'
+  phone       String?
+  whatsapp    String?
+  email       String?
+  rating      Int?
+  recommend   Boolean  @default(true)
+  notes       String?
+  createdAt   DateTime @default(now())
+  trip        Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
 }
 
 // =============================================================================
