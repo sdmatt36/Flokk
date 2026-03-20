@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { WorldMap } from "@/components/features/profile/WorldMap";
 import { calculateTravelStats, TOTAL_COUNTRIES, type TravelStats } from "@/lib/travel-stats";
+import { getCountryFlag } from "@/lib/country-flags";
 
 interface StatsData {
   tripsTaken: number;
@@ -459,107 +460,146 @@ export function StatsSection() {
 
       {/* A — Travel stats (cities / countries / world %) */}
       {!travelStats || travelStats.totalTrips === 0 ? (
-        <div style={{ ...cardStyle, textAlign: "center", padding: "48px 32px" }}>
-          <div style={{ fontSize: "48px", marginBottom: "16px" }}>🌍</div>
-          <p style={{ fontSize: "20px", fontWeight: 700, color: "#1B3A5C", margin: "0 0 8px" }}>
+        /* ── EMPTY STATE ── */
+        <div style={{
+          background: "linear-gradient(135deg, #1B3A5C 0%, #2d5a8e 100%)",
+          borderRadius: "16px", textAlign: "center", padding: "52px 32px",
+        }}>
+          <div style={{ fontSize: "56px", marginBottom: "16px" }}>🌍</div>
+          <p style={{ fontSize: "22px", fontWeight: 800, color: "#fff", margin: "0 0 10px", lineHeight: 1.2 }}>
             Your travel map starts here
           </p>
-          <p style={{ fontSize: "14px", color: "#717171", margin: "0 0 20px", lineHeight: 1.6 }}>
-            Add past trips to see your countries visited,<br />cities explored, and how much of the world you&apos;ve seen.
+          <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.72)", margin: "0 0 24px", lineHeight: 1.7 }}>
+            Add your past trips to see which countries you&apos;ve explored,<br />
+            how many cities you&apos;ve visited, and what percentage<br />
+            of the world you&apos;ve seen.
           </p>
           <Link
             href="/trips/past/new"
-            style={{ display: "inline-block", backgroundColor: "#C4664A", color: "#fff", borderRadius: "20px", padding: "10px 20px", fontSize: "14px", fontWeight: 600, textDecoration: "none" }}
+            style={{ display: "inline-block", backgroundColor: "#C4664A", color: "#fff", borderRadius: "20px", padding: "12px 28px", fontSize: "15px", fontWeight: 700, textDecoration: "none" }}
           >
-            Add a past trip →
+            Add your first past trip →
           </Link>
+          <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)", margin: "14px 0 0" }}>
+            Earns Pioneer tier points
+          </p>
         </div>
       ) : (
+        /* ── POPULATED STATE ── */
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
 
-          {/* Hero stats row */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
-            {[
-              { value: travelStats.totalTrips, label: "Trips" },
-              { value: travelStats.totalCountries, label: "Countries" },
-              { value: travelStats.totalCities, label: "Cities" },
-            ].map((s) => (
-              <div key={s.label} style={{ ...cardStyle, padding: "20px 16px", textAlign: "center", borderTop: "3px solid #1B3A5C" }}>
-                <p style={{ fontSize: "36px", fontWeight: 800, color: "#1B3A5C", margin: 0, lineHeight: 1 }}>{s.value}</p>
-                <p style={{ fontSize: "12px", color: "#717171", margin: "6px 0 0", fontWeight: 500 }}>{s.label}</p>
-              </div>
-            ))}
-          </div>
-
-          {/* % of world */}
-          <div style={cardStyle}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
-              <div>
-                <p style={{ fontSize: "15px", fontWeight: 600, color: "#1B3A5C", margin: 0 }}>World explored</p>
-                <p style={{ fontSize: "13px", color: "#717171", margin: "2px 0 0" }}>
-                  {travelStats.totalCountries} of {TOTAL_COUNTRIES} countries
-                </p>
-              </div>
-              <p style={{ fontSize: "32px", fontWeight: 800, color: "#C4664A", margin: 0, lineHeight: 1 }}>
-                {travelStats.percentOfWorld}%
-              </p>
-            </div>
-            <div style={{ width: "100%", height: "10px", backgroundColor: "#F0F0F0", borderRadius: "999px", overflow: "hidden" }}>
-              <div style={{
-                width: `max(${travelStats.percentOfWorld}%, 4px)`,
-                height: "100%",
-                backgroundColor: "#C4664A",
-                borderRadius: "999px",
-                transition: "width 0.6s ease",
-              }} />
-            </div>
-            <p style={{ fontSize: "12px", color: "#717171", margin: "8px 0 0", fontStyle: "italic" }}>
-              Keep going — there&apos;s so much left to discover
-            </p>
-          </div>
-
-          {/* Per-country breakdown */}
-          <div style={cardStyle}>
-            <p style={{ fontSize: "15px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 16px" }}>By country</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {travelStats.countriesVisited.map((c) => (
-                <div key={c.country}>
-                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "6px" }}>
-                    <div style={{ minWidth: 0 }}>
-                      <p style={{ fontSize: "14px", fontWeight: 600, color: "#1B3A5C", margin: 0 }}>{c.country}</p>
-                      <p style={{ fontSize: "12px", color: "#717171", margin: "2px 0 0" }}>
-                        {c.cities.slice(0, 3).join(", ")}
-                        {c.cities.length > 3 && ` +${c.cities.length - 3} more`}
-                      </p>
-                    </div>
-                    <span style={{ fontSize: "12px", fontWeight: 600, color: "#717171", flexShrink: 0, marginLeft: "12px" }}>
-                      {c.cityCount} {c.cityCount === 1 ? "city" : "cities"}
-                    </span>
-                  </div>
-                  <div style={{ width: "100%", height: "6px", backgroundColor: "#F0F0F0", borderRadius: "999px", overflow: "hidden" }}>
-                    <div style={{
-                      width: `max(${c.percent}%, 4px)`,
-                      height: "100%",
-                      backgroundColor: "#1B3A5C",
-                      borderRadius: "999px",
-                    }} />
-                  </div>
-                  <p style={{ fontSize: "11px", color: "#AAAAAA", margin: "4px 0 0" }}>
-                    {c.percent}% of major cities
-                  </p>
+          {/* Hero numbers — dark card */}
+          <div style={{
+            background: "linear-gradient(135deg, #1B3A5C 0%, #2d5a8e 100%)",
+            borderRadius: "16px", padding: "28px 20px",
+          }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)" }}>
+              {[
+                { emoji: "✈️", value: travelStats.totalTrips, label: "Trips" },
+                { emoji: "🌍", value: travelStats.totalCountries, label: "Countries" },
+                { emoji: "🏙️", value: travelStats.totalCities, label: "Cities" },
+              ].map((s, i) => (
+                <div
+                  key={s.label}
+                  style={{
+                    textAlign: "center",
+                    padding: "8px 4px",
+                    borderRight: i < 2 ? "1px solid rgba(255,255,255,0.15)" : "none",
+                  }}
+                >
+                  <div style={{ fontSize: "22px", marginBottom: "8px" }}>{s.emoji}</div>
+                  <p style={{ fontSize: "44px", fontWeight: 900, color: "#fff", margin: 0, lineHeight: 1 }}>{s.value}</p>
+                  <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.6)", margin: "7px 0 0", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>{s.label}</p>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Add more trips nudge */}
-          <div style={{ ...cardStyle, backgroundColor: "rgba(27,58,92,0.03)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-            <p style={{ fontSize: "14px", color: "#717171", margin: 0 }}>
-              Been somewhere not on your map yet?
+          {/* World explored bar */}
+          <div style={cardStyle}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
+              <div>
+                <p style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C", margin: 0 }}>World explored</p>
+                <p style={{ fontSize: "13px", color: "#717171", margin: "3px 0 0" }}>
+                  {travelStats.totalCountries} of {TOTAL_COUNTRIES} countries visited
+                </p>
+              </div>
+              <p style={{ fontSize: "42px", fontWeight: 900, color: "#C4664A", margin: 0, lineHeight: 1 }}>
+                {travelStats.percentOfWorld}%
+              </p>
+            </div>
+            <div style={{ width: "100%", height: "12px", backgroundColor: "#F0F0F0", borderRadius: "999px", overflow: "hidden" }}>
+              <div style={{
+                width: `max(${travelStats.percentOfWorld > 0 ? "3px" : "0px"}, ${travelStats.percentOfWorld}%)`,
+                height: "100%",
+                background: "linear-gradient(90deg, #C4664A, #e8845f)",
+                borderRadius: "999px",
+                transition: "width 0.8s ease",
+              }} />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "6px" }}>
+              <span style={{ fontSize: "11px", color: "#CCCCCC" }}>0%</span>
+              <span style={{ fontSize: "11px", color: "#CCCCCC" }}>100%</span>
+            </div>
+          </div>
+
+          {/* Countries visited with flags */}
+          {travelStats.countriesVisited.length > 0 && (
+            <div style={cardStyle}>
+              <p style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C", margin: "0 0 20px" }}>Countries visited</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "22px" }}>
+                {travelStats.countriesVisited.map((c) => (
+                  <div key={c.country}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "10px" }}>
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", minWidth: 0 }}>
+                        <span style={{ fontSize: "30px", lineHeight: 1, flexShrink: 0 }}>{getCountryFlag(c.country)}</span>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", margin: 0 }}>{c.country}</p>
+                          <p style={{ fontSize: "12px", color: "#717171", margin: "3px 0 0", lineHeight: 1.5 }}>
+                            {c.cities.join(" · ")}
+                          </p>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right", flexShrink: 0, marginLeft: "12px" }}>
+                        <p style={{ fontSize: "24px", fontWeight: 800, color: "#1B3A5C", margin: 0, lineHeight: 1 }}>{c.cityCount}</p>
+                        <p style={{ fontSize: "11px", color: "#717171", margin: "2px 0 0" }}>{c.cityCount === 1 ? "city" : "cities"}</p>
+                      </div>
+                    </div>
+                    <div style={{ width: "100%", height: "6px", backgroundColor: "#F0F0F0", borderRadius: "999px", overflow: "hidden" }}>
+                      <div style={{
+                        width: `max(${c.percent}%, 4px)`,
+                        height: "100%",
+                        backgroundColor: "#1B3A5C",
+                        borderRadius: "999px",
+                        transition: "width 0.6s ease",
+                      }} />
+                    </div>
+                    <p style={{ fontSize: "11px", color: "#AAAAAA", margin: "4px 0 0" }}>
+                      {c.cityCount} of ~{c.totalCities} major cities · {c.percent}% explored
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Add more nudge */}
+          <div style={{
+            ...cardStyle,
+            background: "linear-gradient(135deg, rgba(27,58,92,0.03) 0%, rgba(196,102,74,0.03) 100%)",
+            textAlign: "center", padding: "28px 24px",
+          }}>
+            <div style={{ fontSize: "32px", marginBottom: "10px" }}>🗺️</div>
+            <p style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C", margin: "0 0 6px" }}>
+              Been somewhere not on your map?
+            </p>
+            <p style={{ fontSize: "13px", color: "#717171", margin: "0 0 18px", lineHeight: 1.6 }}>
+              Every past trip you add earns Pioneer points<br />
+              and helps families planning the same destinations.
             </p>
             <Link
               href="/trips/past/new"
-              style={{ flexShrink: 0, fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none", whiteSpace: "nowrap" }}
+              style={{ display: "inline-block", backgroundColor: "#C4664A", color: "#fff", borderRadius: "20px", padding: "10px 22px", fontSize: "13px", fontWeight: 700, textDecoration: "none" }}
             >
               + Add a past trip
             </Link>
