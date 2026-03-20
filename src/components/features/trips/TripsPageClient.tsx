@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { MapPin, Calendar, Plus, Map, Search, Plane, Globe, Pencil } from "lucide-react";
+import { MapPin, Calendar, Plus, Map, Search, Plane, Globe, Pencil, Trash2 } from "lucide-react";
 
 type Trip = {
   id: string;
@@ -51,7 +51,7 @@ function formatDateRange(start: string | null, end: string | null) {
   return `${startStr} – ${endStr}`;
 }
 
-function TripCard({ trip }: { trip: Trip }) {
+function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => void }) {
   const hero = trip.heroImageUrl ?? DEFAULT_HERO;
   const dateRange = formatDateRange(trip.startDate, trip.endDate);
   const statusColor = STATUS_COLOR[trip.status] ?? "#717171";
@@ -109,7 +109,7 @@ function TripCard({ trip }: { trip: Trip }) {
 
   return (
     <Link href={`/trips/${trip.id}`} style={{ textDecoration: "none", display: "block" }}>
-      <div className="hover:shadow-lg transition-shadow" style={{ backgroundColor: "#fff", borderRadius: "20px", overflow: "hidden", border: "1.5px solid #EEEEEE", boxShadow: "0 2px 8px rgba(0,0,0,0.07)" }}>
+      <div className="group hover:shadow-lg transition-shadow" style={{ backgroundColor: "#fff", borderRadius: "20px", overflow: "hidden", border: "1.5px solid #EEEEEE", boxShadow: "0 2px 8px rgba(0,0,0,0.07)" }}>
         {/* Hero image */}
         <div style={{ height: "140px", position: "relative", overflow: "hidden", backgroundImage: `url('${hero}')`, backgroundSize: "cover", backgroundPosition: "center" }}>
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.55) 100%)" }} />
@@ -155,6 +155,22 @@ function TripCard({ trip }: { trip: Trip }) {
               {STATUS_LABEL[trip.status]}
             </span>
           </div>
+
+          {/* Delete button — visible on hover */}
+          <button
+            onClick={async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!confirm("Delete this trip? This cannot be undone.")) return;
+              const res = await fetch(`/api/trips/${trip.id}`, { method: "DELETE" });
+              if (res.ok) onDelete(trip.id);
+            }}
+            className="absolute bottom-3 right-3 w-8 h-8 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80 z-10"
+            style={{ backgroundColor: "rgba(0,0,0,0.4)", color: "#fff", border: "none", cursor: "pointer" }}
+            title="Delete trip"
+          >
+            <Trash2 size={13} />
+          </button>
         </div>
 
         {/* Details */}
@@ -211,13 +227,16 @@ function TripCard({ trip }: { trip: Trip }) {
   );
 }
 
-export function TripsPageClient({ trips }: { trips: Trip[] }) {
+export function TripsPageClient({ trips: initialTrips }: { trips: Trip[] }) {
+  const [trips, setTrips] = useState<Trip[]>(initialTrips);
   const upcoming = trips.filter((t) => t.status !== "COMPLETED");
   const past = trips.filter((t) => t.status === "COMPLETED");
 
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const displayed = tab === "upcoming" ? upcoming : past;
+
+  const handleDelete = (id: string) => setTrips((prev) => prev.filter((t) => t.id !== id));
 
   // TODO: wire to Trip Wizard when built
   useEffect(() => {
@@ -327,7 +346,7 @@ export function TripsPageClient({ trips }: { trips: Trip[] }) {
         {displayed.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {displayed.map((trip) => (
-              <TripCard key={trip.id} trip={trip} />
+              <TripCard key={trip.id} trip={trip} onDelete={handleDelete} />
             ))}
           </div>
         ) : (

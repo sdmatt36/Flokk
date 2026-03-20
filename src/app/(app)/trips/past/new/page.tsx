@@ -148,6 +148,7 @@ function Step1Basics({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [titleManuallyEdited, setTitleManuallyEdited] = useState(false);
+  const [showSuggestionsFor, setShowSuggestionsFor] = useState<number | null>(null);
 
   const primaryCity = destinations[0]?.city ?? "";
 
@@ -192,30 +193,59 @@ function Step1Basics({
       {/* Multi-city destination inputs */}
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         <label style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a1a" }}>Destination city *</label>
-        {destinations.map((dest, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            {i > 0 && (
-              <span style={{ fontSize: "11px", fontWeight: 700, color: MUTED, whiteSpace: "nowrap", minWidth: "48px" }}>
-                + stop {i + 1}
-              </span>
-            )}
-            <input
-              type="text"
-              list="known-cities"
-              value={dest.city}
-              onChange={(e) => updateCity(i, e.target.value)}
-              placeholder={i === 0 ? "e.g. Chiang Rai" : "e.g. Bangkok"}
-              style={{ ...inputStyle, flex: 1 }}
-              onFocus={(e) => { e.currentTarget.style.borderColor = TERRA; }}
-              onBlur={(e) => { e.currentTarget.style.borderColor = "#EEEEEE"; }}
-            />
-            {i > 0 && (
-              <button type="button" onClick={() => setDestinations((prev) => prev.filter((_, idx) => idx !== i))} style={{ background: "none", border: "none", cursor: "pointer", color: "#CCC", padding: "4px" }}>
-                <X size={15} />
-              </button>
-            )}
-          </div>
-        ))}
+        {destinations.map((dest, i) => {
+          const suggestions = dest.city.length >= 2
+            ? KNOWN_CITIES.filter((c) => c.toLowerCase().includes(dest.city.toLowerCase())).slice(0, 8)
+            : [];
+          return (
+            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+              {i > 0 && (
+                <span style={{ fontSize: "11px", fontWeight: 700, color: MUTED, whiteSpace: "nowrap", minWidth: "48px", paddingTop: "14px" }}>
+                  + stop {i + 1}
+                </span>
+              )}
+              <div style={{ flex: 1, position: "relative" }}>
+                <input
+                  type="text"
+                  value={dest.city}
+                  onChange={(e) => { updateCity(i, e.target.value); setShowSuggestionsFor(i); }}
+                  onFocus={() => setShowSuggestionsFor(i)}
+                  onBlur={() => setTimeout(() => setShowSuggestionsFor(null), 150)}
+                  placeholder={i === 0 ? "e.g. Chiang Rai" : "e.g. Bangkok"}
+                  style={{ ...inputStyle }}
+                  onFocusCapture={(e) => { e.currentTarget.style.borderColor = TERRA; }}
+                  onBlurCapture={(e) => { e.currentTarget.style.borderColor = "#EEEEEE"; }}
+                />
+                {showSuggestionsFor === i && suggestions.length > 0 && (
+                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, backgroundColor: "#fff", border: "1.5px solid #EEEEEE", borderRadius: "12px", overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.1)", marginTop: "4px" }}>
+                    {suggestions.map((city) => (
+                      <button
+                        key={city}
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); updateCity(i, city); setShowSuggestionsFor(null); }}
+                        style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "14px", color: "#1a1a1a", background: "none", border: "none", borderBottom: "1px solid #F5F5F5", cursor: "pointer", fontFamily: "inherit" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#FFF8F6"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = ""; }}
+                      >
+                        {city}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {showSuggestionsFor === i && dest.city.length >= 2 && suggestions.length === 0 && (
+                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, backgroundColor: "#fff", border: "1.5px solid #EEEEEE", borderRadius: "12px", padding: "10px 14px", boxShadow: "0 4px 16px rgba(0,0,0,0.1)", marginTop: "4px" }}>
+                    <span style={{ fontSize: "13px", color: MUTED }}>No suggestions — type your city name</span>
+                  </div>
+                )}
+              </div>
+              {i > 0 && (
+                <button type="button" onClick={() => setDestinations((prev) => prev.filter((_, idx) => idx !== i))} style={{ background: "none", border: "none", cursor: "pointer", color: "#CCC", padding: "4px", marginTop: "10px" }}>
+                  <X size={15} />
+                </button>
+              )}
+            </div>
+          );
+        })}
         {destinations.length < 6 && (
           <button
             type="button"
@@ -225,9 +255,6 @@ function Step1Basics({
             + Add another city
           </button>
         )}
-        <datalist id="known-cities">
-          {KNOWN_CITIES.map((c) => <option key={c} value={c} />)}
-        </datalist>
       </div>
 
       {/* Country dropdown */}
@@ -374,27 +401,31 @@ function Step2Links({
     }
     setSaving(true);
     for (const link of savedLinks) {
-      console.log("[past-trip] saving link with tripId:", tripId, "url:", link.url);
+      console.log("[Step2] tripId:", tripId);
+      console.log("[Step2] link to save:", link);
+      const fetchBody = {
+        url: link.url,
+        tripId,
+        title: link.title,
+        thumbnailUrl: link.imageUrl ?? undefined,
+        tags: [link.category || "other"],
+        userRating: link.rating ?? undefined,
+        userNote: link.note || undefined,
+      };
+      console.log("[Step2] fetch body:", JSON.stringify(fetchBody));
       try {
         const res = await fetch("/api/saves", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            url: link.url,
-            tripId,
-            title: link.title,
-            thumbnailUrl: link.imageUrl ?? undefined,
-            tags: [link.category || "other"],
-            userRating: link.rating ?? undefined,
-            userNote: link.note || undefined,
-          }),
+          body: JSON.stringify(fetchBody),
         });
+        console.log("[Step2] save response status:", res.status);
+        const responseData = await res.json().catch(() => ({}));
+        console.log("[Step2] save response:", responseData);
         if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          console.error("[past-trip] link save failed:", res.status, err);
-        } else {
-          const data = await res.json();
-          if (data.duplicate) console.log("[past-trip] link already saved (duplicate):", link.title);
+          console.error("[past-trip] link save failed:", res.status, responseData);
+        } else if (responseData.duplicate) {
+          console.log("[past-trip] link already saved (duplicate):", link.title);
         }
       } catch (err) {
         console.error("[past-trip] link save network error:", err);
