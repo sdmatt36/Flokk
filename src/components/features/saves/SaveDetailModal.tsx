@@ -19,6 +19,7 @@ type SaveItem = {
   lng: number | null;
   affiliateUrl: string | null;
   websiteUrl: string | null;
+  sourceUrl: string | null;
   isBooked: boolean;
   trip: { id: string; title: string } | null;
 };
@@ -384,9 +385,9 @@ export function SaveDetailModal({
                   <ExternalLink size={14} />
                   Book now
                 </a>
-              ) : item.websiteUrl ? (
+              ) : (item.websiteUrl ?? item.sourceUrl) ? (
                 <a
-                  href={item.websiteUrl}
+                  href={(item.websiteUrl ?? item.sourceUrl)!}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
@@ -434,9 +435,9 @@ export function SaveDetailModal({
                   onClick={() => setTripDropdownOpen(o => !o)}
                   style={{
                     width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px",
-                    padding: "11px", borderRadius: "999px", backgroundColor: item.affiliateUrl || item.websiteUrl ? "transparent" : "#C4664A",
-                    border: item.affiliateUrl || item.websiteUrl ? "1.5px solid #E0E0E0" : "none",
-                    fontSize: "13px", fontWeight: 700, color: item.affiliateUrl || item.websiteUrl ? "#555" : "#fff", cursor: "pointer",
+                    padding: "11px", borderRadius: "999px", backgroundColor: item.affiliateUrl || item.websiteUrl || item.sourceUrl ? "transparent" : "#C4664A",
+                    border: item.affiliateUrl || item.websiteUrl || item.sourceUrl ? "1.5px solid #E0E0E0" : "none",
+                    fontSize: "13px", fontWeight: 700, color: item.affiliateUrl || item.websiteUrl || item.sourceUrl ? "#555" : "#fff", cursor: "pointer",
                   }}
                 >
                   {assignedTrip ? "Change trip" : "Add to trip"}
