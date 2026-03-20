@@ -74,11 +74,13 @@ export function SaveDetailModal({
   onClose,
   onTagsUpdated,
   onMarkedBooked,
+  onRemoveFromDay,
 }: {
   itemId: string;
   onClose: () => void;
   onTagsUpdated?: (itemId: string, tags: string[]) => void;
   onMarkedBooked?: (itemId: string) => void;
+  onRemoveFromDay?: () => void;
 }) {
   const [item, setItem] = useState<SaveItem | null>(null);
   const [interestKeys, setInterestKeys] = useState<string[]>([]);
@@ -358,7 +360,17 @@ export function SaveDetailModal({
               </div>
             </div>
 
-          </div>
+          {onRemoveFromDay && (
+            <div style={{ marginTop: "4px" }}>
+              <button
+                onClick={() => { onRemoveFromDay(); onClose(); }}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: "12px", color: "#e53e3e", fontWeight: 500, fontFamily: "inherit" }}
+              >
+                Remove from day
+              </button>
+            </div>
+          )}
+        </div>
         )}
 
         {/* Bottom action row — fixed within modal */}

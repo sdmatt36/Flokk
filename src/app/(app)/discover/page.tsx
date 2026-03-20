@@ -400,10 +400,10 @@ export default function DiscoverPage() {
                 COMMUNITY TRIPS
               </p>
               <h2 className={playfair.className} style={{ fontSize: "26px", fontWeight: 900, color: "#1B3A5C", margin: "0 0 8px", lineHeight: 1.2 }}>
-                Real trips from real families
+                Real trips from Flokk families
               </h2>
               <p style={{ fontSize: "14px", color: "#717171", margin: 0 }}>
-                Every itinerary below was planned by a family who actually went.
+                Every itinerary below was planned by a family here.
               </p>
             </div>
             <button

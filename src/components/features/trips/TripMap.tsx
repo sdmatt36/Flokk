@@ -162,10 +162,22 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
   // Respond to day changes — show pins for items on that day (or all if day=0)
   useEffect(() => {
     if (!initializedRef.current || !mapRef.current) return;
-    const dayMarkers: MarkerDef[] = (activeDay > 0
-      ? allSavedItems.filter(s => s.dayIndex === activeDay)
-      : allSavedItems
-    ).map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng }));
+    console.log("[TripMap] activeDay:", activeDay, "allSavedItems count:", allSavedItems.length,
+      "sample dayIndex values:", allSavedItems.slice(0, 5).map(s => ({ title: s.title, dayIndex: s.dayIndex })));
+    let filtered = allSavedItems;
+    if (activeDay > 0) {
+      // Check both camelCase and snake_case field variants
+      filtered = allSavedItems.filter(s =>
+        s.dayIndex === activeDay || (s as any).day_index === activeDay
+      );
+      // Fall back to all markers if the day filter returns nothing — empty map is worse than all pins
+      if (filtered.length === 0) {
+        console.log("[TripMap] day filter returned 0 items — falling back to all markers");
+        filtered = allSavedItems;
+      }
+    }
+    const dayMarkers: MarkerDef[] = filtered.map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng }));
+    console.log("[TripMap] rendering", dayMarkers.length, "markers");
     addMarkersInternal(dayMarkers);
     flyToDay(mapRef.current, mapboxRef.current, dayMarkers, destCoords);
   }, [activeDay, allSavedItems]); // eslint-disable-line react-hooks/exhaustive-deps

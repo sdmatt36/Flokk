@@ -98,7 +98,11 @@ function PhotoArea({
   destinationCity?: string | null;
   destinationCountry?: string | null;
 }) {
-  const imgSrc = thumbnailUrl ?? getTripCoverImage(destinationCity, destinationCountry, null);
+  const validThumbnail =
+    thumbnailUrl && !thumbnailUrl.includes("unsplash.com/photo-undefined")
+      ? thumbnailUrl
+      : null;
+  const imgSrc = validThumbnail ?? getTripCoverImage(destinationCity, destinationCountry, null);
   return (
     <div style={{ height, overflow: "hidden", backgroundColor: "#F0F0F0" }}>
       <img
@@ -588,13 +592,13 @@ export function TravelIntelSection() {
       {/* Section header */}
       <div style={{ marginBottom: "32px" }}>
         <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", margin: "0 0 6px" }}>
-          PLACES FAMILIES WENT
+          COMMUNITY ACTIVITY EXPLORER
         </p>
         <h2 className={playfair.className} style={{ fontSize: "26px", fontWeight: 900, color: "#1B3A5C", margin: "0 0 8px", lineHeight: 1.2 }}>
           Travel Intel
         </h2>
         <p style={{ fontSize: "14px", color: "#717171", margin: 0 }}>
-          Real places from real family trips — searchable by destination
+          Activities completed by our community — searchable by destination
         </p>
       </div>
 

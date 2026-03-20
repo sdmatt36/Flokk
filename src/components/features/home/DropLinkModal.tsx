@@ -4,6 +4,10 @@ import { useState, useRef, useEffect } from "react";
 import { MapPin, X } from "lucide-react";
 import { parseDateForDisplay } from "@/lib/dates";
 
+function getDomainLabel(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return "Saved link"; }
+}
+
 type Trip = { id: string; title: string; startDate: string | null; endDate: string | null };
 
 type ExtractedCard = {
@@ -30,7 +34,7 @@ function generateDayPills(startDate: string | null, endDate: string | null): { d
   return Array.from({ length: numDays }, (_, i) => {
     const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
     const dateStr = `${MONTH_NAMES_SHORT[d.getMonth()]} ${d.getDate()}`;
-    return { dayIndex: i + 1, label: `Day ${i + 1} · ${dateStr}` };
+    return { dayIndex: i, label: `Day ${i + 1} · ${dateStr}` };
   });
 }
 
@@ -88,11 +92,11 @@ export function DropLinkModal({
         const data = res.ok ? await res.json() : {};
         console.log("[modal] extraction result:", data);
         const safeImage =
-          data.image &&
-          typeof data.image === "string" &&
-          data.image.startsWith("http") &&
-          !data.image.includes("{")
-            ? data.image
+          data.imageUrl &&
+          typeof data.imageUrl === "string" &&
+          data.imageUrl.startsWith("http") &&
+          !data.imageUrl.includes("{")
+            ? data.imageUrl
             : "";
         const card: ExtractedCard = {
           title: data.title ?? "",

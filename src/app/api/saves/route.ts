@@ -20,7 +20,7 @@ const SaveSchema = z.object({
   tags: z.array(z.string()).optional(),
   lat: z.number().optional(),
   lng: z.number().optional(),
-  dayIndex: z.number().int().min(1).optional(),
+  dayIndex: z.number().int().min(0).optional(),
   extractedCheckin: z.string().optional(),
   extractedCheckout: z.string().optional(),
   userRating: z.number().int().min(1).max(5).optional().nullable(),
