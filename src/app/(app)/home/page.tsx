@@ -81,7 +81,6 @@ export default async function HomePage() {
           members: true,
           interests: true,
           trips: {
-            where: { status: { in: ["PLANNING", "ACTIVE"] } },
             orderBy: { startDate: "asc" },
           },
           savedItems: {
@@ -108,7 +107,8 @@ export default async function HomePage() {
   const greeting = getGreeting();
   const rawName = profile.familyName || user?.email?.split("@")[0] || "there";
   const displayName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
-  const activeTrip = profile.trips[0] ?? null;
+  const activeTrip = profile.trips.find((t) => t.status === "PLANNING" || t.status === "ACTIVE") ?? null;
+  const hasCompletedTrips = profile.trips.some((t) => t.status === "COMPLETED");
 
   const adultCount = profile.members.filter((m) => m.role === "ADULT").length;
   const kidCount = profile.members.filter((m) => m.role === "CHILD").length;
@@ -318,6 +318,21 @@ export default async function HomePage() {
                 </div>
               )}
             </div>
+
+            {/* Past trip nudge — shown when user has no completed trips */}
+            {!hasCompletedTrips && (
+              <div style={{ marginTop: "16px", backgroundColor: "rgba(196,102,74,0.05)", borderRadius: "14px", padding: "16px 18px", border: "1px solid rgba(196,102,74,0.15)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+                <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.5, flex: 1 }}>
+                  Been on a great trip? Your experience helps other families plan theirs.
+                </p>
+                <Link
+                  href="/trips/past/new"
+                  style={{ flexShrink: 0, fontSize: "13px", fontWeight: 700, color: "#C4664A", textDecoration: "none", whiteSpace: "nowrap" }}
+                >
+                  Add a past trip →
+                </Link>
+              </div>
+            )}
             </div>{/* end trips order wrapper */}
 
             {/* Your crew — mobile order 4 */}

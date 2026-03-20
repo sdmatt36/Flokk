@@ -268,13 +268,21 @@ export function TripsPageClient({ trips }: { trips: Trip[] }) {
                 : "Plan your next adventure."}
             </p>
           </div>
-          <Link
-            href="/trips/new"
-            style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: "#C4664A", color: "#fff", borderRadius: "20px", padding: "8px 16px", fontSize: "14px", fontWeight: 600, textDecoration: "none", flexShrink: 0, marginTop: "4px" }}
-          >
-            <Plus size={15} />
-            New trip
-          </Link>
+          <div style={{ display: "flex", gap: "8px", flexShrink: 0, marginTop: "4px" }}>
+            <Link
+              href="/trips/past/new"
+              style={{ display: "flex", alignItems: "center", gap: "5px", backgroundColor: "#F0F0F0", color: "#1B3A5C", borderRadius: "20px", padding: "8px 14px", fontSize: "13px", fontWeight: 600, textDecoration: "none" }}
+            >
+              + Add a past trip
+            </Link>
+            <Link
+              href="/trips/new"
+              style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: "#C4664A", color: "#fff", borderRadius: "20px", padding: "8px 16px", fontSize: "14px", fontWeight: 600, textDecoration: "none" }}
+            >
+              <Plus size={15} />
+              New trip
+            </Link>
+          </div>
         </div>
 
         {/* Search bar — TODO: wire to Trip Wizard when built */}

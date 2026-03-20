@@ -2263,7 +2263,7 @@ function RecommendedContent({
           </p>
         </div>
         <Link
-          href="/profile?tab=stats"
+          href={`/trips/past/new${destinationCity ? `?destination=${encodeURIComponent(destinationCity)}${destinationCountry ? `&country=${encodeURIComponent(destinationCountry)}` : ""}` : ""}`}
           onClick={(e) => e.stopPropagation()}
           style={{ flexShrink: 0, backgroundColor: "#C4664A", color: "#fff", border: "none", borderRadius: "20px", padding: "8px 16px", fontSize: "13px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none" }}
         >
