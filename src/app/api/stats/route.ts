@@ -55,6 +55,8 @@ export async function GET() {
       destinationCity: t.destinationCity,
       destinationCountry: t.destinationCountry,
       status: t.status,
+      startDate: t.startDate?.toISOString() ?? null,
+      endDate: t.endDate?.toISOString() ?? null,
     })),
   });
 }

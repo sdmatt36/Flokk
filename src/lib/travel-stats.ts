@@ -18,6 +18,7 @@ export interface TravelStats {
   totalTrips: number;
   totalCountries: number;
   totalCities: number;
+  totalDays: number;
   percentOfWorld: number;
   countriesVisited: {
     country: string;
@@ -34,7 +35,7 @@ export interface TravelStats {
 }
 
 export function calculateTravelStats(
-  trips: { destinationCity: string | null; destinationCountry: string | null; status?: string }[]
+  trips: { destinationCity: string | null; destinationCountry: string | null; status?: string; startDate?: string | null; endDate?: string | null }[]
 ): TravelStats {
   const completedTrips = trips.filter(
     (t) => !t.status || t.status === "COMPLETED" || t.status === "completed"
@@ -76,5 +77,11 @@ export function calculateTravelStats(
     .sort((a, b) => b.visits - a.visits)
     .slice(0, 5);
 
-  return { totalTrips: completedTrips.length, totalCountries, totalCities, percentOfWorld, countriesVisited, topDestinations };
+  const totalDays = completedTrips.reduce((sum, t) => {
+    if (!t.startDate || !t.endDate) return sum;
+    const days = Math.round((new Date(t.endDate).getTime() - new Date(t.startDate).getTime()) / (1000 * 60 * 60 * 24));
+    return sum + Math.max(0, days);
+  }, 0);
+
+  return { totalTrips: completedTrips.length, totalCountries, totalCities, totalDays, percentOfWorld, countriesVisited, topDestinations };
 }
