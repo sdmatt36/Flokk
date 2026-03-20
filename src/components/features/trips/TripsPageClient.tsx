@@ -93,19 +93,17 @@ function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => vo
       ? `${daysUntil} days away`
       : `${Math.round(daysUntil! / 7)} weeks away`;
 
-  // Completion bar
+  // Completion bar — per-day segments
   const totalDays =
     trip.startDate && trip.endDate
       ? diffCalendarDays(new Date(trip.startDate), new Date(trip.endDate)) + 1
       : null;
-  const plannedDays =
-    totalDays && trip.savedCount > 0
-      ? Math.min(trip.savedCount, totalDays)
-      : 0;
-  const completionPercent =
-    totalDays && totalDays > 0
-      ? Math.min(100, Math.round((plannedDays / totalDays) * 100))
-      : 0;
+  // Approximate per-day states from savedCount (2+ items = well planned, 1 = started)
+  const wellPlannedDays = totalDays ? Math.min(Math.floor(trip.savedCount / 2), totalDays) : 0;
+  const startedDays = totalDays
+    ? Math.min(trip.savedCount % 2 === 1 ? 1 : 0, totalDays - wellPlannedDays)
+    : 0;
+  const segmentCount = totalDays ? Math.min(totalDays, 20) : 0;
 
   return (
     <Link href={`/trips/${trip.id}`} style={{ textDecoration: "none", display: "block" }}>
@@ -202,22 +200,37 @@ function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => vo
             </div>
           </div>
 
-          {/* Completion bar */}
+          {/* Completion bar — segmented per day */}
           {totalDays !== null && totalDays > 0 && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "10px" }}>
-              <div style={{ flex: 1, height: "6px", backgroundColor: "#F0F0F0", borderRadius: "999px", overflow: "hidden" }}>
-                <div
-                  style={{
-                    height: "100%",
-                    backgroundColor: "#C4664A",
-                    borderRadius: "999px",
-                    width: `${completionPercent}%`,
-                    transition: "width 0.5s ease",
-                  }}
-                />
+            <div style={{ marginTop: "10px" }}>
+              <div style={{ display: "flex", gap: "3px", alignItems: "center" }}>
+                {Array.from({ length: segmentCount }).map((_, i) => {
+                  const color =
+                    i < wellPlannedDays
+                      ? "#C4664A"
+                      : i < wellPlannedDays + startedDays
+                      ? "rgba(196,102,74,0.35)"
+                      : "#E8E8E8";
+                  return (
+                    <div
+                      key={i}
+                      style={{
+                        flex: 1,
+                        height: "6px",
+                        borderRadius: "999px",
+                        backgroundColor: color,
+                        transition: "background-color 0.3s ease",
+                      }}
+                    />
+                  );
+                })}
               </div>
-              <span style={{ fontSize: "11px", color: "#717171", whiteSpace: "nowrap", flexShrink: 0 }}>
-                {plannedDays}/{totalDays} days planned
+              <span style={{ fontSize: "11px", color: "#717171", marginTop: "5px", display: "block" }}>
+                {wellPlannedDays > 0
+                  ? `${wellPlannedDays} of ${totalDays} days planned`
+                  : startedDays > 0
+                  ? `${startedDays} day${startedDays > 1 ? "s" : ""} started`
+                  : `${totalDays} days to plan`}
               </span>
             </div>
           )}
