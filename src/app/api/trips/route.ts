@@ -15,7 +15,7 @@ export async function GET() {
   const trips = user?.familyProfile?.trips ?? [];
   console.log("[GET /api/trips] returning", trips.length, "trips for familyProfile", user?.familyProfile?.id ?? "none");
   return NextResponse.json(
-    { trips: trips.map(t => ({ id: t.id, title: t.title })) },
+    { trips: trips.map(t => ({ id: t.id, title: t.title, destinationCity: t.destinationCity, destinationCountry: t.destinationCountry, startDate: t.startDate })) },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

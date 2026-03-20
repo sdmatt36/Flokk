@@ -29,12 +29,13 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const { tripType, budgetRange, title } = body as { tripType?: string; budgetRange?: string; title?: string };
+  const { tripType, budgetRange, title, privacy } = body as { tripType?: string; budgetRange?: string; title?: string; privacy?: string };
 
   const data: Record<string, string | null> = {};
   if (tripType !== undefined) data.tripType = tripType;
   if (budgetRange !== undefined) data.budgetRange = budgetRange;
   if (title !== undefined) data.title = title.trim() || trip.title;
+  if (privacy !== undefined) data.privacy = privacy;
 
   const updated = await db.trip.update({ where: { id }, data });
 

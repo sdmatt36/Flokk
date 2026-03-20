@@ -304,6 +304,14 @@ function CommunityFeedCard({ item }: { item: FeedItem }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+type UserTrip = {
+  id: string;
+  title: string;
+  destinationCity?: string | null;
+  destinationCountry?: string | null;
+  startDate?: string | null;
+};
+
 export default function DiscoverPage() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [intelTab, setIntelTab] = useState<"articles" | "videos" | "community">("articles");
@@ -313,6 +321,10 @@ export default function DiscoverPage() {
   const [communityVideos, setCommunityVideos] = useState<TravelVideo[]>([]);
   const [communityFeed, setCommunityFeed] = useState<FeedItem[]>([]);
   const [activeVideo, setActiveVideo] = useState<TravelVideo | null>(null);
+  const [showAddYours, setShowAddYours] = useState(false);
+  const [userTrips, setUserTrips] = useState<UserTrip[]>([]);
+  const [isLoadingTrips, setIsLoadingTrips] = useState(false);
+  const [publishingTrip, setPublishingTrip] = useState<string | null>(null);
 
   // Fetch articles on mount
   useEffect(() => {
@@ -342,6 +354,20 @@ export default function DiscoverPage() {
         .catch(() => {});
     }
   }, [intelTab]);
+
+  const handleAddYoursClick = async () => {
+    setShowAddYours(true);
+    setIsLoadingTrips(true);
+    try {
+      const res = await fetch("/api/trips");
+      const data = await res.json();
+      setUserTrips(Array.isArray(data.trips) ? data.trips : []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingTrips(false);
+    }
+  };
 
   const filtered =
     activeFilter === "All"
@@ -394,7 +420,7 @@ export default function DiscoverPage() {
 
         {/* Destination grid */}
         {filtered.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2" style={{ gap: "16px" }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "16px" }}>
             {filtered.map((rec) => (
               <Link key={rec.id} href={getDestinationHref(rec)} style={{ textDecoration: "none", display: "block" }}>
                 <div
@@ -445,9 +471,12 @@ export default function DiscoverPage() {
               </h2>
               <p style={{ fontSize: "13px", color: "#717171" }}>Real itineraries from the Flokk community</p>
             </div>
-            <Link href="/trips/new" style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, textDecoration: "none", display: "flex", alignItems: "center", gap: "2px", flexShrink: 0 }}>
+            <button
+              onClick={handleAddYoursClick}
+              style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "2px", flexShrink: 0, padding: 0, fontFamily: "inherit" }}
+            >
               Add yours <ChevronRight size={13} />
-            </Link>
+            </button>
           </div>
           <div
             style={{ display: "flex", gap: "12px", overflowX: "auto", paddingBottom: "8px", scrollbarWidth: "none", msOverflowStyle: "none" }}
@@ -614,6 +643,98 @@ export default function DiscoverPage() {
         </div>
 
       </div>
+
+      {/* Add yours modal */}
+      {showAddYours && (
+        <div
+          onClick={() => setShowAddYours(false)}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "0" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: "100%", maxWidth: "520px", backgroundColor: "#fff", borderRadius: "20px 20px 0 0", padding: "24px", maxHeight: "80vh", display: "flex", flexDirection: "column" }}
+          >
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "16px" }}>
+              <div>
+                <h3 style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>Share a trip</h3>
+                <p style={{ fontSize: "13px", color: "#717171" }}>Help families planning these destinations</p>
+              </div>
+              <button
+                onClick={() => setShowAddYours(false)}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#999", fontSize: "22px", lineHeight: 1, padding: "0 0 0 12px" }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ overflowY: "auto", flex: 1 }}>
+              {isLoadingTrips ? (
+                <p style={{ fontSize: "14px", color: "#717171", padding: "16px 0", textAlign: "center" }}>Loading your trips...</p>
+              ) : userTrips.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "24px 0" }}>
+                  <p style={{ fontSize: "14px", color: "#717171", marginBottom: "16px" }}>
+                    No trips yet — add one to share with the community.
+                  </p>
+                  <Link
+                    href="/trips/new"
+                    onClick={() => setShowAddYours(false)}
+                    style={{ display: "inline-block", padding: "10px 24px", backgroundColor: "#1B3A5C", color: "#fff", fontWeight: 700, fontSize: "14px", borderRadius: "999px", textDecoration: "none" }}
+                  >
+                    Create a trip →
+                  </Link>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {userTrips.map((trip) => (
+                    <div
+                      key={trip.id}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", backgroundColor: "#F9F9F9", borderRadius: "12px", border: "1px solid #EEEEEE" }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {trip.title}
+                        </p>
+                        <p style={{ fontSize: "12px", color: "#717171" }}>
+                          {[trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ")}
+                          {trip.startDate ? ` · ${new Date(trip.startDate).getFullYear()}` : ""}
+                        </p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          setPublishingTrip(trip.id);
+                          try {
+                            await fetch(`/api/trips/${trip.id}`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ privacy: "PUBLIC" }),
+                            });
+                            setShowAddYours(false);
+                            alert("Trip shared with the Flokk community! 🎉");
+                          } catch (err) {
+                            console.error(err);
+                          } finally {
+                            setPublishingTrip(null);
+                          }
+                        }}
+                        disabled={publishingTrip === trip.id}
+                        style={{ marginLeft: "12px", padding: "8px 16px", backgroundColor: "#1B3A5C", color: "#fff", fontSize: "12px", fontWeight: 600, borderRadius: "12px", border: "none", cursor: publishingTrip === trip.id ? "default" : "pointer", opacity: publishingTrip === trip.id ? 0.4 : 1, whiteSpace: "nowrap", flexShrink: 0, fontFamily: "inherit", transition: "opacity 0.15s" }}
+                      >
+                        {publishingTrip === trip.id ? "Sharing..." : "Share trip"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p style={{ fontSize: "11px", color: "#AAAAAA", marginTop: "16px", lineHeight: 1.5 }}>
+                Shared trips are visible to all Flokk families. You can make them private again from your trip settings.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Video modal */}
       {activeVideo && (
