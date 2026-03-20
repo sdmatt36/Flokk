@@ -34,10 +34,11 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const { destination, startDate, endDate } = body as {
+  const { destination, startDate, endDate, status } = body as {
     destination: string;
     startDate: string;
     endDate: string;
+    status?: string;
   };
 
   if (!destination || !startDate || !endDate) {
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
       destinationCountry,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
-      status: "PLANNING",
+      status: (status === "COMPLETED" ? "COMPLETED" : "PLANNING") as "PLANNING" | "COMPLETED",
       privacy: "PRIVATE",
     },
   });
