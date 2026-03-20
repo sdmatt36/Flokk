@@ -6,9 +6,8 @@ import {
   Bookmark, Globe,
   Map, Utensils, Star, Camera, Heart, Users,
   Layers, Compass, Navigation, Award,
-  Copy, Download,
+  Copy,
 } from "lucide-react";
-import { WorldMap } from "@/components/features/profile/WorldMap";
 import { calculateTravelStats, TOTAL_COUNTRIES, type TravelStats } from "@/lib/travel-stats";
 import { getCountryFlag } from "@/lib/country-flags";
 
@@ -351,6 +350,43 @@ function Badge({ badge }: { badge: BadgeDef }) {
   );
 }
 
+// ── Regions helper ──────────────────────────────────────────────────────────
+
+const REGION_MAP: Record<string, string> = {
+  "Japan": "East Asia", "South Korea": "East Asia", "Korea": "East Asia",
+  "China": "East Asia", "Taiwan": "East Asia",
+  "Thailand": "Southeast Asia", "Vietnam": "Southeast Asia",
+  "Cambodia": "Southeast Asia", "Indonesia": "Southeast Asia",
+  "Singapore": "Southeast Asia", "Malaysia": "Southeast Asia",
+  "Philippines": "Southeast Asia",
+  "India": "South Asia", "Sri Lanka": "South Asia", "Nepal": "South Asia",
+  "France": "Western Europe", "Spain": "Western Europe", "Portugal": "Western Europe",
+  "Italy": "Western Europe", "Germany": "Western Europe",
+  "United Kingdom": "Western Europe", "UK": "Western Europe",
+  "Netherlands": "Western Europe", "Switzerland": "Western Europe",
+  "Belgium": "Western Europe", "Austria": "Western Europe",
+  "Greece": "Southern Europe", "Croatia": "Southern Europe",
+  "Turkey": "Middle East / Europe",
+  "Morocco": "North Africa", "Egypt": "North Africa",
+  "South Africa": "Sub-Saharan Africa", "Kenya": "Sub-Saharan Africa",
+  "UAE": "Middle East", "United Arab Emirates": "Middle East",
+  "Israel": "Middle East", "Jordan": "Middle East",
+  "United States": "North America", "USA": "North America", "Canada": "North America",
+  "Mexico": "Central America",
+  "Brazil": "South America", "Argentina": "South America",
+  "Peru": "South America", "Colombia": "South America", "Chile": "South America",
+  "Australia": "Oceania", "New Zealand": "Oceania",
+  "Iceland": "Northern Europe", "Sweden": "Northern Europe",
+  "Norway": "Northern Europe", "Denmark": "Northern Europe", "Ireland": "Northern Europe",
+  "Poland": "Central Europe", "Czech Republic": "Central Europe",
+  "Hungary": "Central Europe",
+};
+
+function getRegions(countries: { country: string }[]): string[] {
+  const regions = new Set(countries.map((c) => REGION_MAP[c.country] ?? "Other"));
+  return Array.from(regions);
+}
+
 // ── Main Section ────────────────────────────────────────────────────────────
 
 export function StatsSection() {
@@ -488,59 +524,62 @@ export function StatsSection() {
         /* ── POPULATED STATE ── */
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
 
-          {/* Hero numbers — dark card */}
-          <div style={{
-            background: "linear-gradient(135deg, #1B3A5C 0%, #2d5a8e 100%)",
-            borderRadius: "16px", padding: "28px 20px",
-          }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)" }}>
-              {[
-                { emoji: "✈️", value: travelStats.totalTrips, label: "Trips" },
-                { emoji: "🌍", value: travelStats.totalCountries, label: "Countries" },
-                { emoji: "🏙️", value: travelStats.totalCities, label: "Cities" },
-              ].map((s, i) => (
-                <div
-                  key={s.label}
-                  style={{
-                    textAlign: "center",
-                    padding: "8px 4px",
-                    borderRight: i < 2 ? "1px solid rgba(255,255,255,0.15)" : "none",
-                  }}
-                >
-                  <div style={{ fontSize: "22px", marginBottom: "8px" }}>{s.emoji}</div>
-                  <p style={{ fontSize: "44px", fontWeight: 900, color: "#fff", margin: 0, lineHeight: 1 }}>{s.value}</p>
-                  <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.6)", margin: "7px 0 0", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>{s.label}</p>
-                </div>
-              ))}
+          {/* Hero numbers — three separate cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+            {/* Trips — navy */}
+            <div style={{ backgroundColor: "#1B3A5C", borderRadius: "16px", padding: "20px 12px", textAlign: "center" }}>
+              <p style={{ fontSize: "44px", fontWeight: 900, color: "#fff", margin: 0, lineHeight: 1 }}>
+                {travelStats.totalTrips}
+              </p>
+              <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.6)", margin: "7px 0 0", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                Trips
+              </p>
+            </div>
+            {/* Countries — terracotta */}
+            <div style={{ backgroundColor: "#C4664A", borderRadius: "16px", padding: "20px 12px", textAlign: "center" }}>
+              <p style={{ fontSize: "44px", fontWeight: 900, color: "#fff", margin: 0, lineHeight: 1 }}>
+                {travelStats.totalCountries}
+              </p>
+              <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.6)", margin: "7px 0 0", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                Countries
+              </p>
+            </div>
+            {/* Cities — lighter navy */}
+            <div style={{ backgroundColor: "#2d5a8e", borderRadius: "16px", padding: "20px 12px", textAlign: "center" }}>
+              <p style={{ fontSize: "44px", fontWeight: 900, color: "#fff", margin: 0, lineHeight: 1 }}>
+                {travelStats.totalCities}
+              </p>
+              <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.6)", margin: "7px 0 0", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                Cities
+              </p>
             </div>
           </div>
 
           {/* World explored bar */}
-          <div style={cardStyle}>
+          <div style={{ background: "linear-gradient(135deg, #1B3A5C 0%, #163054 100%)", borderRadius: "16px", padding: "24px 20px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
               <div>
-                <p style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C", margin: 0 }}>World explored</p>
-                <p style={{ fontSize: "13px", color: "#717171", margin: "3px 0 0" }}>
-                  {travelStats.totalCountries} of {TOTAL_COUNTRIES} countries visited
+                <p style={{ fontSize: "16px", fontWeight: 700, color: "#fff", margin: 0 }}>World explored</p>
+                <p style={{ fontSize: "42px", fontWeight: 900, color: "#fff", margin: "4px 0 0", lineHeight: 1 }}>
+                  {travelStats.percentOfWorld}%
                 </p>
               </div>
-              <p style={{ fontSize: "42px", fontWeight: 900, color: "#C4664A", margin: 0, lineHeight: 1 }}>
-                {travelStats.percentOfWorld}%
+              <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.6)", textAlign: "right", lineHeight: 1.5 }}>
+                {travelStats.totalCountries} of {TOTAL_COUNTRIES}<br />countries visited
               </p>
             </div>
-            <div style={{ width: "100%", height: "12px", backgroundColor: "#F0F0F0", borderRadius: "999px", overflow: "hidden" }}>
+            <div style={{ width: "100%", height: "14px", backgroundColor: "rgba(255,255,255,0.15)", borderRadius: "999px", overflow: "hidden" }}>
               <div style={{
-                width: `max(${travelStats.percentOfWorld > 0 ? "3px" : "0px"}, ${travelStats.percentOfWorld}%)`,
+                width: `max(${travelStats.percentOfWorld > 0 ? "4px" : "0px"}, ${travelStats.percentOfWorld}%)`,
                 height: "100%",
-                background: "linear-gradient(90deg, #C4664A, #e8845f)",
+                backgroundColor: "#C4664A",
                 borderRadius: "999px",
                 transition: "width 0.8s ease",
               }} />
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "6px" }}>
-              <span style={{ fontSize: "11px", color: "#CCCCCC" }}>0%</span>
-              <span style={{ fontSize: "11px", color: "#CCCCCC" }}>100%</span>
-            </div>
+            <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", margin: "8px 0 0" }}>
+              Keep going — there&apos;s so much left to discover
+            </p>
           </div>
 
           {/* Countries visited with flags */}
@@ -552,7 +591,7 @@ export function StatsSection() {
                   <div key={c.country}>
                     <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "10px" }}>
                       <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", minWidth: 0 }}>
-                        <span style={{ fontSize: "30px", lineHeight: 1, flexShrink: 0 }}>{getCountryFlag(c.country)}</span>
+                        <span style={{ fontSize: "36px", lineHeight: 1, flexShrink: 0 }}>{getCountryFlag(c.country)}</span>
                         <div style={{ minWidth: 0 }}>
                           <p style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", margin: 0 }}>{c.country}</p>
                           <p style={{ fontSize: "12px", color: "#717171", margin: "3px 0 0", lineHeight: 1.5 }}>
@@ -607,45 +646,31 @@ export function StatsSection() {
         </div>
       )}
 
-      {/* B — World map */}
-      <div style={cardStyle}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "4px" }}>
-          <p style={{ fontSize: "15px", fontWeight: 600, color: "#1B3A5C", margin: 0 }}>Countries visited</p>
-          <button
-            onClick={async () => {
-              try {
-                const { default: html2canvas } = await import("html2canvas");
-                const mapEl = document.getElementById("flokk-world-map");
-                if (!mapEl) return;
-                const canvas = await html2canvas(mapEl, { backgroundColor: "#E8EEF4", scale: 2 });
-                const a = document.createElement("a");
-                a.href = canvas.toDataURL("image/png");
-                a.download = "flokk-travel-map.png";
-                a.click();
-              } catch (e) { console.error("Map share failed:", e); }
-            }}
-            style={{
-              display: "flex", alignItems: "center", gap: "4px",
-              fontSize: "12px", fontWeight: 600, color: "#1B3A5C",
-              background: "none", border: "1px solid #E8E8E8", borderRadius: "20px",
-              padding: "4px 10px", cursor: "pointer",
-            }}
-          >
-            <Download size={12} />
-            Share map
-          </button>
+      {/* B — Regions explored */}
+      {travelStats && travelStats.countriesVisited.length > 0 && (
+        <div style={cardStyle}>
+          <p style={{ fontSize: "15px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 12px" }}>Regions explored</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+            {getRegions(travelStats.countriesVisited).map((region) => (
+              <span
+                key={region}
+                style={{
+                  display: "inline-block",
+                  padding: "6px 14px",
+                  backgroundColor: "rgba(27,58,92,0.07)",
+                  color: "#1B3A5C",
+                  borderRadius: "999px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  border: "1px solid rgba(27,58,92,0.12)",
+                }}
+              >
+                {region}
+              </span>
+            ))}
+          </div>
         </div>
-        <p style={{ fontSize: "13px", margin: "0 0 12px" }}>
-          {travelStats && travelStats.totalCountries > 0 ? (
-            <span style={{ color: "#C4664A", fontWeight: 500 }}>{travelStats.totalCountries} {travelStats.totalCountries === 1 ? "country" : "countries"}</span>
-          ) : (
-            <span style={{ color: "#717171" }}>Your map is waiting. Complete a trip to start filling it in.</span>
-          )}
-        </p>
-        <div id="flokk-world-map">
-          <WorldMap visitedCountries={[]} />
-        </div>
-      </div>
+      )}
 
       {/* C — Tier progress */}
       <TierCard />
