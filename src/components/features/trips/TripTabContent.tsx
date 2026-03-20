@@ -1259,6 +1259,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [recAdditions, setRecAdditions] = useState<RecAddition[]>([]);
   const [expandedSlotKey, setExpandedSlotKey] = useState<string | null>(null);
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
+  const [detailRemover, setDetailRemover] = useState<(() => void) | null>(null);
 
   function toggleSlot(key: string) {
     setExpandedSlotKey(prev => prev === key ? null : key);
@@ -1444,7 +1445,28 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 tags={[a.isBooked ? "Booked ✓" : "Added"]}
                                 slotKey={key}
                                 isExpanded={expandedSlotKey === key}
-                                onExpandToggle={() => a.savedItemId ? setDetailItemId(a.savedItemId) : toggleSlot(key)}
+                                onExpandToggle={() => {
+                                  if (a.savedItemId) {
+                                    setDetailItemId(a.savedItemId);
+                                    setDetailRemover(() => () => {
+                                      try {
+                                        const stored: RecAddition[] = JSON.parse(localStorage.getItem(ITINERARY_KEY(tripId)) ?? "[]");
+                                        const withIndex = stored.map((item, si) => ({ item, si }));
+                                        const thisDay = withIndex.filter(({ item }) => item.dayIndex === dayIndex);
+                                        const globalIdx = thisDay[idx]?.si;
+                                        if (globalIdx !== undefined) {
+                                          const updated = stored.filter((_, si) => si !== globalIdx);
+                                          localStorage.setItem(ITINERARY_KEY(tripId), JSON.stringify(updated));
+                                          setRecAdditions(updated);
+                                        }
+                                      } catch { /* ignore */ }
+                                      setDetailItemId(null);
+                                      setDetailRemover(null);
+                                    });
+                                  } else {
+                                    toggleSlot(key);
+                                  }
+                                }}
                                 onRemove={() => {
                                   try {
                                     const stored: RecAddition[] = JSON.parse(localStorage.getItem(ITINERARY_KEY(tripId)) ?? "[]");
@@ -1512,8 +1534,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       {detailItemId && (
         <SaveDetailModal
           itemId={detailItemId}
-          onClose={() => setDetailItemId(null)}
+          onClose={() => { setDetailItemId(null); setDetailRemover(null); }}
           onMarkedBooked={(id) => setRecAdditions(prev => prev.map(a => a.savedItemId === id ? { ...a, isBooked: true } : a))}
+          onRemoveFromDay={detailRemover ?? undefined}
         />
       )}
     </div>

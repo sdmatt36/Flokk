@@ -115,7 +115,7 @@ export default async function TripDetailPage({
 
         {/* Back button */}
         <Link
-          href="/trips"
+          href={isCommunity ? "/discover" : "/trips"}
           style={{
             position: "absolute",
             top: "16px",
