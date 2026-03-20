@@ -115,7 +115,7 @@ export default async function TripDetailPage({
 
         {/* Back button */}
         <Link
-          href="/home"
+          href="/trips"
           style={{
             position: "absolute",
             top: "16px",
