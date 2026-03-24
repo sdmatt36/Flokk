@@ -27,6 +27,8 @@ export const DESTINATION_IMAGES: Record<string, string> = {
   "prague": "https://images.unsplash.com/photo-1541849546-216549ae216d?w=800&q=80",
   "vienna": "https://images.unsplash.com/photo-1516550893885-985c836c5113?w=800&q=80",
   "zurich": "https://images.unsplash.com/photo-1515488764276-beab7607c1e6?w=800&q=80",
+  "istanbul": "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=800&q=80",
+  "kamakura": "https://images.unsplash.com/photo-1624253321171-1be53e12f5f4?w=800&q=80",
   "dubai": "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=800&q=80",
   "new york": "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800&q=80",
   "los angeles": "https://images.unsplash.com/photo-1534190760961-74e8c1c5c3da?w=800&q=80",
@@ -75,20 +77,26 @@ export const DESTINATION_IMAGES: Record<string, string> = {
 
 const DEFAULT_COVER = "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=800&q=80";
 
-export function getTripCoverImage(
-  city?: string | null,
-  country?: string | null,
-  heroImageUrl?: string | null,
-): string {
-  if (heroImageUrl) return heroImageUrl;
+// Type-based fallback images — used before city/destination fallback
+export const TYPE_IMAGES: Record<string, string> = {
+  train: "https://images.unsplash.com/photo-1474487548417-781cb71495f3?w=800&q=80",
+  rail: "https://images.unsplash.com/photo-1474487548417-781cb71495f3?w=800&q=80",
+  transit: "https://images.unsplash.com/photo-1474487548417-781cb71495f3?w=800&q=80",
+  flight: "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800&q=80",
+  airline: "https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=800&q=80",
+  hotel: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80",
+  lodging: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80",
+  hostel: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80",
+  resort: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80",
+};
 
+function lookupDestination(city?: string | null, country?: string | null): string | null {
   const cityKey = (city ?? "").toLowerCase().trim();
   const countryKey = (country ?? "").toLowerCase().trim();
 
   if (cityKey && DESTINATION_IMAGES[cityKey]) return DESTINATION_IMAGES[cityKey];
   if (countryKey && DESTINATION_IMAGES[countryKey]) return DESTINATION_IMAGES[countryKey];
 
-  // Partial city match (e.g. "naha" matches "okinawa" doesn't but "naha" key exists)
   if (cityKey) {
     const match = Object.keys(DESTINATION_IMAGES).find(
       (k) => cityKey.includes(k) || (k.length >= 4 && k.includes(cityKey))
@@ -96,7 +104,6 @@ export function getTripCoverImage(
     if (match) return DESTINATION_IMAGES[match];
   }
 
-  // Partial country match
   if (countryKey) {
     const match = Object.keys(DESTINATION_IMAGES).find(
       (k) => countryKey.includes(k) || (k.length >= 4 && k.includes(countryKey))
@@ -104,5 +111,39 @@ export function getTripCoverImage(
     if (match) return DESTINATION_IMAGES[match];
   }
 
-  return DEFAULT_COVER;
+  return null;
+}
+
+export function getTripCoverImage(
+  city?: string | null,
+  country?: string | null,
+  heroImageUrl?: string | null,
+): string {
+  if (heroImageUrl) return heroImageUrl;
+  return lookupDestination(city, country) ?? DEFAULT_COVER;
+}
+
+/**
+ * Full priority chain for SavedItem / activity card images:
+ * 1. mediaThumbnailUrl (user/scraped photo)
+ * 2. type-based fallback (train, flight, hotel)
+ * 3. destination photo (city or country)
+ * 4. generic travel photo
+ */
+export function getItemImage(
+  mediaThumbnailUrl?: string | null,
+  type?: string | null,
+  city?: string | null,
+  country?: string | null,
+): string {
+  const thumb = mediaThumbnailUrl?.trim();
+  if (thumb) return thumb.replace("http://", "https://");
+
+  // Type-based fallback
+  const t = (type ?? "").toLowerCase();
+  for (const key of Object.keys(TYPE_IMAGES)) {
+    if (t.includes(key)) return TYPE_IMAGES[key];
+  }
+
+  return lookupDestination(city, country) ?? DEFAULT_COVER;
 }

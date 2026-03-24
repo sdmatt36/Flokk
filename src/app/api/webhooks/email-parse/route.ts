@@ -379,9 +379,10 @@ Return this exact JSON structure:
       startTime = (extracted.departureTime as string | null) ?? null;
     }
 
-    // Build a description from route + arrival time so it renders on the itinerary card
+    // Build a description from route + departure/arrival times so it renders on the itinerary card
     const routeParts: string[] = [];
     if (extracted.fromCity && extracted.toCity) routeParts.push(`${extracted.fromCity} → ${extracted.toCity}`);
+    if (extracted.departureTime) routeParts.push(`departs ${extracted.departureTime as string}`);
     if (extracted.arrivalTime) routeParts.push(`arrives ${extracted.arrivalTime as string}`);
     const autoDescription = routeParts.length > 0 ? routeParts.join(" · ") : null;
 

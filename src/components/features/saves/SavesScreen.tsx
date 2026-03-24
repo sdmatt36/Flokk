@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
-import { getTripCoverImage } from "@/lib/destination-images";
+import { getItemImage } from "@/lib/destination-images";
 import {
   Search,
   MapPin,
@@ -72,9 +72,7 @@ function mapApiItem(item: ApiItem): Save {
     tripId: item.tripId ?? null,
     dayIndex: item.dayIndex ?? null,
     distance: null,
-    img: item.mediaThumbnailUrl
-      ? item.mediaThumbnailUrl.replace("http://", "https://")
-      : getTripCoverImage(item.destinationCity, item.destinationCountry, null),
+    img: getItemImage(item.mediaThumbnailUrl, item.categoryTags[0] ?? null, item.destinationCity, item.destinationCountry),
   };
 }
 

@@ -1,16 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { IntelItem } from "@/app/api/trips/[id]/booking-intel/route";
 
-type BookingItem = {
-  title: string;
-  reason: string;
-  urgency: "now" | "soon" | "when ready";
-  bookingUrl: string | null;
-  category: "flights" | "hotel" | "activities" | "documents" | "logistics";
-};
-
-const CATEGORY_LABEL: Record<BookingItem["category"], string> = {
+const CATEGORY_LABEL: Record<IntelItem["category"], string> = {
   flights: "Flights",
   hotel: "Hotel",
   activities: "Activities",
@@ -18,10 +11,10 @@ const CATEGORY_LABEL: Record<BookingItem["category"], string> = {
   logistics: "Logistics",
 };
 
-const URGENCY_DOT: Record<BookingItem["urgency"], string> = {
-  now: "#E53935",
-  soon: "#F59E0B",
-  "when ready": "#4CAF50",
+const STATUS_DOT: Record<IntelItem["status"], string> = {
+  booked: "#4CAF50",
+  saved: "#F59E0B",
+  missing: "#E53935",
 };
 
 function getUrgencyLabel(daysAway: number): string {
@@ -56,7 +49,7 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
   startDate?: string | null;
 }) {
   const [state, setState] = useState<"loading" | "hidden" | "ready">("loading");
-  const [items, setItems] = useState<BookingItem[]>([]);
+  const [items, setItems] = useState<IntelItem[]>([]);
   const [daysAway, setDaysAway] = useState<number | null>(null);
 
   useEffect(() => {
@@ -138,7 +131,7 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
             <div>
               {items.map((item, i) => (
                 <div
-                  key={i}
+                  key={item.id}
                   style={{
                     display: "flex",
                     gap: "12px",
@@ -147,10 +140,10 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
                     borderBottom: i < items.length - 1 ? "1px solid rgba(0,0,0,0.05)" : "none",
                   }}
                 >
-                  {/* Urgency dot */}
+                  {/* Status dot */}
                   <div style={{
                     width: "8px", height: "8px", borderRadius: "50%",
-                    backgroundColor: URGENCY_DOT[item.urgency],
+                    backgroundColor: STATUS_DOT[item.status],
                     flexShrink: 0, marginTop: "4px",
                   }} />
 
@@ -170,7 +163,24 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
                     <p style={{ fontSize: "12px", color: "#717171", margin: "0 0 4px", lineHeight: 1.45 }}>
                       {item.reason}
                     </p>
-                    {item.bookingUrl && (
+                    {/* CTAs */}
+                    {item.status === "booked" && (
+                      <span style={{ fontSize: "12px", fontWeight: 700, color: "#4CAF50" }}>
+                        ✓ Booked
+                      </span>
+                    )}
+                    {item.status === "saved" && (
+                      <a
+                        href={`/trips/${tripId}`}
+                        style={{
+                          fontSize: "12px", fontWeight: 700, color: "#F59E0B",
+                          textDecoration: "none",
+                        }}
+                      >
+                        View saved{item.savedCount != null ? ` (${item.savedCount})` : ""} →
+                      </a>
+                    )}
+                    {item.status === "missing" && item.bookingUrl && (
                       <a
                         href={item.bookingUrl}
                         target="_blank"
@@ -182,6 +192,11 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
                       >
                         Book →
                       </a>
+                    )}
+                    {item.status === "missing" && !item.bookingUrl && (
+                      <span style={{ fontSize: "12px", fontWeight: 700, color: "#C4664A" }}>
+                        Book →
+                      </span>
                     )}
                   </div>
                 </div>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { MapPin, Trash2 } from "lucide-react";
 import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
-import { getTripCoverImage } from "@/lib/destination-images";
+import { getItemImage } from "@/lib/destination-images";
 
 export type RecentSaveItem = {
   id: string;
@@ -38,9 +38,8 @@ const TITLE_LOCATIONS: Array<[RegExp, string]> = [
   [/okinawa/i, "Okinawa, Japan"],
 ];
 
-function getImageSrc(item: RecentSaveItem): string | null {
-  if (item.mediaThumbnailUrl) return item.mediaThumbnailUrl.replace("http://", "https://");
-  return getTripCoverImage(item.destinationCity, item.destinationCountry, null);
+function getImageSrc(item: RecentSaveItem): string {
+  return getItemImage(item.mediaThumbnailUrl, item.categoryTags[0] ?? null, item.destinationCity, item.destinationCountry);
 }
 
 function getLocation(item: RecentSaveItem): string {
@@ -70,26 +69,12 @@ export function RecentSavesCards({ items, onDelete }: { items: RecentSaveItem[];
               style={{ cursor: "pointer", textDecoration: "none" }}
             >
               <div style={{ backgroundColor: "#FAFAFA", borderRadius: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", overflow: "hidden", position: "relative" }}>
-                {imgSrc ? (
-                  <div style={{
+                <div style={{
                     height: "130px",
                     backgroundImage: `url(${imgSrc})`,
                     backgroundSize: "cover",
                     backgroundPosition: "center",
                   }} />
-                ) : (
-                  <div style={{
-                    height: "130px",
-                    backgroundColor: "#1B3A5C",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}>
-                    <span style={{ fontSize: "36px", fontWeight: 700, color: "rgba(255,255,255,0.6)" }}>
-                      {(item.destinationCity || item.rawTitle || "?").charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                )}
                 {onDelete && (
                   <button
                     type="button"

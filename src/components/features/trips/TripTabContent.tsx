@@ -71,7 +71,7 @@ import { EditFlightModal } from "@/components/flights/EditFlightModal";
 import { AddActivityModal, type ExistingActivity } from "@/components/activities/AddActivityModal";
 import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
 import { parseDateForDisplay } from "@/lib/dates";
-import { getTripCoverImage } from "@/lib/destination-images";
+import { getTripCoverImage, getItemImage } from "@/lib/destination-images";
 import { BookingIntelCard } from "@/components/features/trips/BookingIntelCard";
 
 type Tab = "saved" | "itinerary" | "recommended" | "packing" | "notes" | "vault";
@@ -950,9 +950,7 @@ function apiToDisplayItem(item: ApiSavedItem): SavedDisplayItem {
     status: item.isBooked ? "Booked" : "Saved",
     statusBooked: item.isBooked,
     families: "",
-    img: item.mediaThumbnailUrl
-      ? item.mediaThumbnailUrl.replace("http://", "https://")
-      : getTripCoverImage(item.destinationCity, item.destinationCountry) ?? undefined,
+    img: getItemImage(item.mediaThumbnailUrl, item.categoryTags[0] ?? null, item.destinationCity, item.destinationCountry),
     icon,
     bookUrl: isBookable ? (item.sourceUrl ?? undefined) : undefined,
     websiteUrl: item.sourceUrl ?? undefined,
@@ -1825,9 +1823,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           dayIndex: item.dayIndex ?? 0,
           title: item.rawTitle ?? "",
           location: item.rawDescription ?? "",
-          img: item.mediaThumbnailUrl
-            ? item.mediaThumbnailUrl.replace("http://", "https://")
-            : getTripCoverImage(item.destinationCity, item.destinationCountry) ?? undefined,
+          img: getItemImage(item.mediaThumbnailUrl, (item.categoryTags ?? [])[0] ?? null, item.destinationCity, item.destinationCountry),
           savedItemId: item.id,
           lat: item.lat ?? null,
           lng: item.lng ?? null,
@@ -2147,8 +2143,23 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                   </button>
                                                 )}
                                               </div>
-                                              {a.startTime && <p style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, lineHeight: 1.4 }}>{formatTime(a.startTime)}</p>}
-                                              {a.location && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }}>{a.location}</p>}
+                                              {(() => {
+                                                const loc = a.location ?? "";
+                                                const arrMatch = loc.match(/arrives\s+(\d{1,2}:\d{2})/i);
+                                                const arrTime = arrMatch ? formatTime(arrMatch[1]) : null;
+                                                const cleanLoc = loc.replace(/\s*·\s*departs\s+\d{1,2}:\d{2}/i, "").replace(/\s*·\s*arrives\s+\d{1,2}:\d{2}/i, "").trim();
+                                                const depFormatted = a.startTime ? formatTime(a.startTime) : null;
+                                                return (
+                                                  <>
+                                                    {depFormatted && (
+                                                      <p style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, lineHeight: 1.4 }}>
+                                                        {depFormatted}{arrTime ? ` → ${arrTime}` : ""}
+                                                      </p>
+                                                    )}
+                                                    {cleanLoc && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }}>{cleanLoc}</p>}
+                                                  </>
+                                                );
+                                              })()}
                                               <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
                                                 <span style={{ fontSize: "11px", fontWeight: 600, backgroundColor: a.isBooked ? "rgba(74,124,89,0.1)" : "rgba(0,0,0,0.06)", color: a.isBooked ? "#4a7c59" : "#888", borderRadius: "999px", padding: "2px 8px" }}>
                                                   {a.isBooked ? "Booked ✓" : "Added"}
@@ -3169,7 +3180,7 @@ function RecommendedContent({
                 const tag = item.categoryTags?.[0] ?? "Explore";
                 const isSaved = savedSet.has(item.id);
                 const placeName = item.rawTitle?.startsWith("http") ? `Place in ${city}` : (item.rawTitle ?? "Saved place");
-                const coverImg = item.mediaThumbnailUrl ?? getTripCoverImage(destinationCity, destinationCountry) ?? null;
+                const coverImg = getItemImage(item.mediaThumbnailUrl, item.categoryTags[0] ?? null, destinationCity, destinationCountry);
                 const initial = placeName.charAt(0).toUpperCase();
                 return (
                   <div key={item.id} style={{ backgroundColor: "#fff", border: "1px solid #EEEEEE", borderRadius: "16px", overflow: "hidden", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column" }}>
@@ -4230,11 +4241,11 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               </div>
             )}
 
-            {documents.length === 0 && !showAddDoc ? (
+            {documents.filter(d => d.type !== "booking").length === 0 && !showAddDoc ? (
               <p style={{ fontSize: "13px", color: "#bbb", fontStyle: "italic" }}>Save booking confirmations, visa copies, tickets…</p>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {documents.map(d => (
+                {documents.filter(d => d.type !== "booking").map(d => (
                   <div key={d.id} style={{ backgroundColor: "#fff", border: "1px solid #EEEEEE", borderRadius: "12px", padding: "14px 16px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
