@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
   console.log("[email-parse] calling Claude, content length:", emailContent.length);
 
   const response = await anthropic.messages.create({
-    model: "claude-opus-4-6",
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 1000,
     messages: [{
       role: "user",
