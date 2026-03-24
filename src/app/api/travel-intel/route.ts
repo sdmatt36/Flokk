@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
         id:               item.id,
         title:            item.rawTitle!,
         description:      item.rawDescription,
-        thumbnailUrl:     item.mediaThumbnailUrl,
+        thumbnailUrl:     item.placePhotoUrl ?? item.mediaThumbnailUrl,
         destinationCity:  item.destinationCity,
         destinationCountry: item.destinationCountry,
         lat:              item.lat,
@@ -115,8 +115,9 @@ export async function GET(req: NextRequest) {
     const g = groups.get(key)!;
     g.saveCount++;
 
-    // Use best thumbnail
-    if (!g.thumbnailUrl && item.mediaThumbnailUrl) g.thumbnailUrl = item.mediaThumbnailUrl;
+    // Use best thumbnail — prefer placePhotoUrl over scraped mediaThumbnailUrl
+    const bestThumb = item.placePhotoUrl ?? item.mediaThumbnailUrl;
+    if (!g.thumbnailUrl && bestThumb) g.thumbnailUrl = bestThumb;
 
     // Track ratings
     if (item.userRating != null) g._ratings.push(item.userRating);

@@ -16,6 +16,7 @@ export async function GET() {
       id: true,
       rawTitle: true,
       mediaThumbnailUrl: true,
+      placePhotoUrl: true,
       destinationCity: true,
       destinationCountry: true,
       categoryTags: true,
