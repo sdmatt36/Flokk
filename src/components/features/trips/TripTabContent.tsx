@@ -3873,30 +3873,6 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               ))}
             </div>
           )}
-          {tripId && (
-            <div style={{ marginBottom: "20px" }}>
-              {(() => {
-                const unscheduledActivities = activities.filter(a => a.dayIndex == null);
-                return (<>
-                  <div style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "10px", paddingBottom: "8px", borderBottom: "1px solid #EEEEEE", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span>Activities {unscheduledActivities.length > 0 && <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#bbb" }}>{unscheduledActivities.length}</span>}</span>
-                    <button
-                      onClick={() => setShowActivityModal(true)}
-                      style={{ fontSize: "12px", color: "#C4664A", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
-                    >
-                      + Add activity
-                    </button>
-                  </div>
-                  {unscheduledActivities.map(a => (
-                    <ActivityCard key={a.id} activity={a} onDelete={() => handleDeleteActivity(a.id)} onEdit={() => setEditingActivity(a)} onMarkBooked={() => handleMarkActivityBooked(a.id)} onAddToItinerary={() => setActivityDayPickerItem(a)} />
-                  ))}
-                  {unscheduledActivities.length === 0 && (
-                    <p style={{ fontSize: "13px", color: "#bbb", fontStyle: "italic", marginBottom: "8px" }}>No activities yet. Add baseball games, tours, events…</p>
-                  )}
-                </>);
-              })()}
-            </div>
-          )}
           <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} />
         </>
       )}

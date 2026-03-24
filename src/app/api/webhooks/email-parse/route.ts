@@ -301,6 +301,24 @@ Return this exact JSON structure:
 
   } else {
     // Train, activity, restaurant, or unknown — save as SavedItem
+    // Auto-schedule: if we have a confirmed date + matched trip, compute dayIndex and startTime
+    let dayIndex: number | null = null;
+    let startTime: string | null = null;
+    const confirmedDate = (extracted.departureDate ?? extracted.checkIn ?? extracted.arrivalDate) as string | null;
+
+    if (matchedTrip && confirmedDate) {
+      const trip = await db.trip.findUnique({ where: { id: matchedTrip.id }, select: { startDate: true } });
+      if (trip?.startDate) {
+        const rawStart = new Date(trip.startDate);
+        const shiftedStart = new Date(rawStart.getTime() + 12 * 60 * 60 * 1000);
+        const start = new Date(shiftedStart.getUTCFullYear(), shiftedStart.getUTCMonth(), shiftedStart.getUTCDate());
+        const [dy, dm, dd] = confirmedDate.split("-").map(Number);
+        const dep = new Date(dy, dm - 1, dd);
+        dayIndex = Math.round((dep.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      }
+      startTime = (extracted.departureTime as string) ?? null;
+    }
+
     const saved = await db.savedItem.create({
       data: {
         familyProfileId,
@@ -312,6 +330,8 @@ Return this exact JSON structure:
         status: matchedTrip ? "TRIP_ASSIGNED" : "UNORGANIZED",
         isBooked: true,
         bookedAt: new Date(),
+        ...(dayIndex != null ? { dayIndex } : {}),
+        ...(startTime ? { startTime } : {}),
       },
     });
 
@@ -325,7 +345,7 @@ Return this exact JSON structure:
       });
     }
 
-    console.log("[email-parse] created savedItem:", saved.id, "type:", extracted.type, "tripId:", saved.tripId);
-    return NextResponse.json({ success: true, parsed: parsedSummary, tripMatched: matchedTrip?.title ?? null, itemCreated: saved.id });
+    console.log("[email-parse] created savedItem:", saved.id, "type:", extracted.type, "tripId:", saved.tripId, "dayIndex:", dayIndex, "startTime:", startTime);
+    return NextResponse.json({ success: true, parsed: parsedSummary, tripMatched: matchedTrip?.title ?? null, itemCreated: saved.id, dayIndex, startTime });
   }
 }
