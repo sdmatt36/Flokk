@@ -24,6 +24,20 @@ const URGENCY_DOT: Record<BookingItem["urgency"], string> = {
   "when ready": "#4CAF50",
 };
 
+function getUrgencyLabel(daysAway: number): string {
+  if (daysAway < 7) return "this week — book immediately";
+  if (daysAway <= 30) {
+    const weeks = Math.ceil(daysAway / 7);
+    return `${weeks} week${weeks !== 1 ? "s" : ""} away — book soon`;
+  }
+  if (daysAway <= 60) {
+    const weeks = Math.ceil(daysAway / 7);
+    return `${weeks} weeks away`;
+  }
+  const months = Math.ceil(daysAway / 30);
+  return `${months} month${months !== 1 ? "s" : ""} away`;
+}
+
 function SkeletonRow() {
   return (
     <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", padding: "12px 0", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
@@ -108,7 +122,7 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
                 Based on your trip
                 {destinationCity ? ` to ${destinationCity}` : ""}
                 {dateLabel ? ` on ${dateLabel}` : ""}
-                {daysAway != null ? ` — ${daysAway} day${daysAway !== 1 ? "s" : ""} away` : ""}
+                {daysAway != null ? ` — ${getUrgencyLabel(daysAway)}` : ""}
               </p>
             )}
           </div>

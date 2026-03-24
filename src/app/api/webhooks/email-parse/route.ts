@@ -34,11 +34,19 @@ export async function POST(req: NextRequest) {
     include: { familyProfile: { include: { trips: true } } },
   });
 
-  console.log("[email-parse] user found:", !!user, "| familyProfile:", !!user?.familyProfile, "| trips:", user?.familyProfile?.trips?.length ?? 0);
+  console.log("[email-parse] user found:", !!user, "| familyProfile:", !!user?.familyProfile, "| familyProfileId:", user?.familyProfile?.id ?? "none", "| trips:", user?.familyProfile?.trips?.length ?? 0);
 
   if (!user?.familyProfile) {
     console.log("[email-parse] no user for senderEmail:", senderEmail);
     return NextResponse.json({ error: "no_user_found", senderEmail }, { status: 404 });
+  }
+
+  // If trips came back empty via include, fallback to direct query by familyProfileId
+  let trips = user.familyProfile.trips;
+  if (trips.length === 0) {
+    console.log("[email-parse] trips: 0 via include — running fallback query for familyProfileId:", user.familyProfile.id);
+    trips = await db.trip.findMany({ where: { familyProfileId: user.familyProfile.id } });
+    console.log("[email-parse] fallback trips found:", trips.map(t => `${t.id}: ${t.title} (${t.destinationCity ?? "no city"}, ${t.startDate?.toISOString().slice(0, 10) ?? "no date"})`));
   }
 
   // Call Claude to extract booking details
@@ -129,7 +137,6 @@ Return this exact JSON structure:
   const subjectWords = subject.replace(/fwd?:/i, "").split(/[\s|:\-–—]+/).map((w) => w.trim()).filter((w) => w.length > 2);
   const allKeywords = [...new Set([...destKeywords, ...subjectWords])];
 
-  const trips = user.familyProfile.trips;
   console.log("[email-parse] trips found:", trips.map((t) => `${t.title} (${t.destinationCity ?? "no city"}, ${t.startDate?.toISOString().slice(0, 10) ?? "no date"} – ${t.endDate?.toISOString().slice(0, 10) ?? ""})`));
   console.log("[email-parse] destination keywords:", allKeywords);
 
