@@ -375,8 +375,15 @@ Return this exact JSON structure:
         const dep = new Date(dy, dm - 1, dd);
         dayIndex = Math.round((dep.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
       }
-      startTime = (extracted.departureTime as string) ?? null;
+      // Use extracted departureTime directly — never default
+      startTime = (extracted.departureTime as string | null) ?? null;
     }
+
+    // Build a description from route + arrival time so it renders on the itinerary card
+    const routeParts: string[] = [];
+    if (extracted.fromCity && extracted.toCity) routeParts.push(`${extracted.fromCity} → ${extracted.toCity}`);
+    if (extracted.arrivalTime) routeParts.push(`arrives ${extracted.arrivalTime as string}`);
+    const autoDescription = routeParts.length > 0 ? routeParts.join(" · ") : null;
 
     const itemStatus = (matchedTrip && dayIndex != null) ? "SCHEDULED" : (matchedTrip ? "TRIP_ASSIGNED" : "UNORGANIZED");
     const saved = await db.savedItem.create({
@@ -385,6 +392,7 @@ Return this exact JSON structure:
         tripId: matchedTrip?.id ?? null,
         sourceType: "EMAIL_IMPORT",
         rawTitle: (extracted.vendorName as string) ?? subject,
+        rawDescription: autoDescription,
         destinationCity: ((extracted.city ?? extracted.toCity) as string) ?? null,
         categoryTags: [(extracted.type as string) ?? "other"],
         status: itemStatus,
