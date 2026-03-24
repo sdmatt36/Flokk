@@ -17,18 +17,21 @@ const STATUS_DOT: Record<IntelItem["status"], string> = {
   missing: "#E53935",
 };
 
+function computeDaysAway(startDate: string | null | undefined): number | null {
+  if (!startDate) return null;
+  const ms = new Date(startDate).getTime() - Date.now();
+  return Math.ceil(ms / (1000 * 60 * 60 * 24));
+}
+
 function getUrgencyLabel(daysAway: number): string {
-  if (daysAway < 7) return "this week — book immediately";
-  if (daysAway <= 30) {
-    const weeks = Math.ceil(daysAway / 7);
-    return `${weeks} week${weeks !== 1 ? "s" : ""} away — book soon`;
-  }
-  if (daysAway <= 60) {
-    const weeks = Math.ceil(daysAway / 7);
-    return `${weeks} weeks away`;
-  }
-  const months = Math.ceil(daysAway / 30);
-  return `${months} month${months !== 1 ? "s" : ""} away`;
+  if (daysAway <= 0) return "trip in progress";
+  if (daysAway === 1) return "tomorrow — book immediately";
+  if (daysAway <= 7) return `${daysAway} days away — book immediately`;
+  if (daysAway <= 14) return "1 week away — book now";
+  if (daysAway <= 21) return "2 weeks away — book soon";
+  if (daysAway <= 30) return "3 weeks away";
+  const months = Math.floor(daysAway / 30);
+  return `${months} month${months > 1 ? "s" : ""} away`;
 }
 
 function SkeletonRow() {
@@ -50,7 +53,9 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
 }) {
   const [state, setState] = useState<"loading" | "hidden" | "ready">("loading");
   const [items, setItems] = useState<IntelItem[]>([]);
-  const [daysAway, setDaysAway] = useState<number | null>(null);
+
+  // Compute daysAway from the startDate prop directly — never rely on API response
+  const daysAway = computeDaysAway(startDate);
 
   useEffect(() => {
     if (!tripId) { setState("hidden"); return; }
@@ -61,7 +66,6 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
           setState("hidden");
         } else {
           setItems(data.items);
-          setDaysAway(data.daysAway ?? null);
           setState("ready");
         }
       })
