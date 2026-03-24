@@ -89,6 +89,7 @@ export default async function TripDetailPage({
     dayIndex: item.dayIndex,
     lat: item.lat,
     lng: item.lng,
+    sourceUrl: item.sourceUrl,
   }));
 
   const startDateIso = trip.startDate ? trip.startDate.toISOString() : null;
@@ -220,6 +221,7 @@ export default async function TripDetailPage({
           destinationCity={trip.destinationCity ?? null}
           destinationCountry={trip.destinationCountry ?? null}
           viewerMembers={viewerMembers}
+          isOwner={isOwner}
         />
       ) : (
         <TripTabContent

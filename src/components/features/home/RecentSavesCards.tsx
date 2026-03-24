@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { MapPin, Trash2 } from "lucide-react";
 import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
+import { getTripCoverImage } from "@/lib/destination-images";
 
 export type RecentSaveItem = {
   id: string;
@@ -38,8 +39,8 @@ const TITLE_LOCATIONS: Array<[RegExp, string]> = [
 ];
 
 function getImageSrc(item: RecentSaveItem): string | null {
-  if (!item.mediaThumbnailUrl) return null;
-  return item.mediaThumbnailUrl.replace("http://", "https://");
+  if (item.mediaThumbnailUrl) return item.mediaThumbnailUrl.replace("http://", "https://");
+  return getTripCoverImage(item.destinationCity, item.destinationCountry, null);
 }
 
 function getLocation(item: RecentSaveItem): string {

@@ -50,7 +50,9 @@ export async function PATCH(
 
   const body = await request.json();
   const updateData: Record<string, unknown> = {};
+  if (typeof body.rawTitle === "string") updateData.rawTitle = body.rawTitle;
   if (typeof body.notes === "string") updateData.notes = body.notes;
+  if (typeof body.websiteUrl === "string" || body.websiteUrl === null) updateData.websiteUrl = body.websiteUrl ?? null;
   if (typeof body.dayIndex === "number" || body.dayIndex === null) updateData.dayIndex = body.dayIndex;
   if (typeof body.sortOrder === "number") updateData.sortOrder = body.sortOrder;
   if (typeof body.tripId === "string") {
@@ -58,6 +60,7 @@ export async function PATCH(
     updateData.status = "TRIP_ASSIGNED";
   }
   if (Array.isArray(body.categoryTags)) updateData.categoryTags = body.categoryTags;
+  if (typeof body.startTime === "string" || body.startTime === null) updateData.startTime = body.startTime ?? null;
   if (typeof body.isBooked === "boolean") {
     updateData.isBooked = body.isBooked;
     if (body.isBooked) updateData.bookedAt = new Date();

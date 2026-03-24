@@ -37,6 +37,8 @@ export async function POST(request: Request) {
         categoryTags: source.categoryTags,
         lat: source.lat,
         lng: source.lng,
+        sourceUrl: source.sourceUrl ?? null,
+        mediaThumbnailUrl: source.mediaThumbnailUrl ?? null,
         destinationCity: source.destinationCity ?? source.trip?.destinationCity ?? null,
         destinationCountry: source.destinationCountry ?? source.trip?.destinationCountry ?? null,
         extractionStatus: "ENRICHED",

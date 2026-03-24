@@ -22,6 +22,7 @@ type SaveItem = {
   websiteUrl: string | null;
   sourceUrl: string | null;
   isBooked: boolean;
+  startTime: string | null;
   trip: { id: string; title: string } | null;
 };
 
@@ -76,12 +77,14 @@ export function SaveDetailModal({
   onTagsUpdated,
   onMarkedBooked,
   onRemoveFromDay,
+  onTimeSet,
 }: {
   itemId: string;
   onClose: () => void;
   onTagsUpdated?: (itemId: string, tags: string[]) => void;
   onMarkedBooked?: (itemId: string) => void;
   onRemoveFromDay?: () => void;
+  onTimeSet?: (itemId: string, time: string | null) => void;
 }) {
   const [item, setItem] = useState<SaveItem | null>(null);
   const [interestKeys, setInterestKeys] = useState<string[]>([]);
@@ -89,6 +92,7 @@ export function SaveDetailModal({
   const [notes, setNotes] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
+  const [startTime, setStartTime] = useState<string>("");
   const [mounted, setMounted] = useState(false);
   const [tripDropdownOpen, setTripDropdownOpen] = useState(false);
   const [assignedTrip, setAssignedTrip] = useState<{ id: string; title: string } | null>(null);
@@ -115,6 +119,7 @@ export function SaveDetailModal({
         setNotes(data.item?.notes ?? "");
         setAssignedTrip(data.item?.trip ?? null);
         setIsBooked(data.item?.isBooked ?? false);
+        setStartTime(data.item?.startTime ?? "");
         initialNotes.current = data.item?.notes ?? "";
         const tags = data.item?.categoryTags ?? [];
         setLocalTags(tags);
@@ -370,6 +375,48 @@ export function SaveDetailModal({
                 )}
               </div>
             </div>
+
+          {/* Start time — only shown when item is assigned to a day */}
+          {item.trip && (
+            <div style={{ marginBottom: "12px" }}>
+              <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a", marginBottom: "8px" }}>Start time</p>
+              <input
+                type="time"
+                value={startTime}
+                onChange={async (e) => {
+                  const val = e.target.value;
+                  setStartTime(val);
+                  try {
+                    await fetch(`/api/saves/${itemId}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ startTime: val || null }),
+                    });
+                    onTimeSet?.(itemId, val || null);
+                  } catch { /* silent */ }
+                }}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1px solid rgba(0,0,0,0.12)", fontSize: "14px", color: "#333", outline: "none", fontFamily: "-apple-system,BlinkMacSystemFont,sans-serif", boxSizing: "border-box" }}
+              />
+              {startTime && (
+                <button
+                  onClick={async () => {
+                    setStartTime("");
+                    try {
+                      await fetch(`/api/saves/${itemId}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ startTime: null }),
+                      });
+                      onTimeSet?.(itemId, null);
+                    } catch { /* silent */ }
+                  }}
+                  style={{ marginTop: "4px", background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: "#AAAAAA", padding: 0, fontFamily: "inherit" }}
+                >
+                  Clear time
+                </button>
+              )}
+            </div>
+          )}
 
           {onRemoveFromDay && (
             <div style={{ marginTop: "4px" }}>

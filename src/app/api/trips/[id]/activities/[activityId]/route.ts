@@ -2,6 +2,22 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 
+async function geocodeVenue(venueName: string, tripId: string): Promise<{ lat: number; lng: number } | null> {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const trip = await db.trip.findUnique({ where: { id: tripId }, select: { destinationCity: true, destinationCountry: true } });
+    const query = encodeURIComponent([venueName, trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", "));
+    const res = await fetch(
+      `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${query}&inputtype=textquery&fields=geometry&key=${apiKey}`
+    );
+    const data = await res.json();
+    const loc = data.candidates?.[0]?.geometry?.location;
+    if (loc) return { lat: loc.lat, lng: loc.lng };
+  } catch { /* geocoding optional */ }
+  return null;
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string; activityId: string }> }
@@ -22,6 +38,15 @@ export async function PATCH(
       const [dy, dm, dd] = body.date.split("-").map(Number);
       const dep = new Date(dy, dm - 1, dd);
       body.dayIndex = Math.round((dep.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    }
+  }
+
+  // Geocode if venueName is being set and current lat is null
+  if (body.venueName && body.lat == null) {
+    const existing = await db.manualActivity.findUnique({ where: { id: activityId }, select: { lat: true } });
+    if (existing?.lat == null) {
+      const coords = await geocodeVenue(body.venueName, tripId);
+      if (coords) { body.lat = coords.lat; body.lng = coords.lng; }
     }
   }
 

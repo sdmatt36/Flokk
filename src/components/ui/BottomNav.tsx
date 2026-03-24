@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Bookmark, Map, User, Compass } from "lucide-react";
+import { Home, Bookmark, Map, User, Compass, BookOpen } from "lucide-react";
 
 const NAV_ITEMS = [
   { label: "Home", icon: Home, href: "/home" },
+  { label: "Trips", icon: Map, href: "/trips" },
   { label: "Saves", icon: Bookmark, href: "/saves" },
   { label: "Discover", icon: Compass, href: "/discover" },
-  { label: "Trips", icon: Map, href: "/trips" },
+  { label: "Travel Intel", icon: BookOpen, href: "/travel-intel" },
   { label: "Profile", icon: User, href: "/profile" },
 ];
 
@@ -23,10 +24,10 @@ export function BottomNav() {
       right: 0,
       backgroundColor: "#fff",
       borderTop: "1px solid #EEEEEE",
-      padding: "12px 32px",
+      padding: "8px 12px",
       zIndex: 80,
     }}>
-      <div style={{ maxWidth: "480px", margin: "0 auto", display: "flex", justifyContent: "space-around" }}>
+      <div style={{ maxWidth: "520px", margin: "0 auto", display: "flex", justifyContent: "space-around" }}>
         {NAV_ITEMS.map(({ label, icon: Icon, href }) => {
           const active = pathname === href || (href !== "/home" && pathname.startsWith(href));
           return (
@@ -37,13 +38,15 @@ export function BottomNav() {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: "4px",
+                gap: "2px",
                 color: active ? "#C4664A" : "#AAAAAA",
                 textDecoration: "none",
+                minWidth: 0,
+                flex: 1,
               }}
             >
-              <Icon size={22} />
-              <span style={{ fontSize: "11px", fontWeight: 500 }}>{label}</span>
+              <Icon size={20} />
+              <span style={{ fontSize: "9px", fontWeight: 500, textAlign: "center", lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>{label}</span>
             </Link>
           );
         })}

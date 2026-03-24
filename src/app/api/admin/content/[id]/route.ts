@@ -22,18 +22,37 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await req.json();
-  const { action, type, rejectionReason, tags, destination, ageGroup } = body;
+  const { action, type, rejectionReason, tags, destination, ageGroup, title, url, contentType, description } = body;
 
-  const updateData = {
-    ...(action === "approve" ? { status: "approved" } : {}),
-    ...(action === "reject" ? { status: "rejected" } : {}),
+  const updateData: Record<string, unknown> = {
     reviewedAt: new Date(),
     reviewedBy: userId,
-    rejectionReason: rejectionReason ?? null,
-    ...(tags ? { tags } : {}),
-    ...(destination ? { destination } : {}),
-    ...(ageGroup ? { ageGroup } : {}),
   };
+
+  if (action === "approve") updateData.status = "approved";
+  if (action === "reject") { updateData.status = "rejected"; updateData.rejectionReason = rejectionReason ?? null; }
+  if (action === "edit") {
+    if (typeof title === "string") updateData.title = title;
+    if (typeof url === "string") {
+      if (type === "video") updateData.videoUrl = url;
+      else updateData.sourceUrl = url;
+    }
+    if (typeof contentType === "string") updateData.contentType = contentType;
+    if (typeof destination === "string") updateData.destination = destination;
+    if (typeof ageGroup === "string") updateData.ageGroup = ageGroup;
+    if (Array.isArray(tags)) updateData.tags = tags;
+    if (typeof description === "string") {
+      if (type === "video") updateData.description = description;
+      else updateData.excerpt = description;
+    }
+    // Don't change status or reviewedAt for pure edits
+    delete updateData.reviewedAt;
+    delete updateData.reviewedBy;
+  }
+
+  if (tags && action !== "edit") updateData.tags = tags;
+  if (destination && action !== "edit") updateData.destination = destination;
+  if (ageGroup && action !== "edit") updateData.ageGroup = ageGroup;
 
   if (type === "video") {
     const updated = await db.travelVideo.update({ where: { id }, data: updateData });
@@ -42,4 +61,23 @@ export async function PATCH(
     const updated = await db.article.update({ where: { id }, data: updateData });
     return NextResponse.json(updated);
   }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await isAdmin(userId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const { id } = await params;
+  const type = req.nextUrl.searchParams.get("type") ?? "article";
+
+  if (type === "video") {
+    await db.travelVideo.delete({ where: { id } });
+  } else {
+    await db.article.delete({ where: { id } });
+  }
+  return NextResponse.json({ success: true });
 }

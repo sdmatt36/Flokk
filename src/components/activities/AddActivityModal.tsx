@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
@@ -21,11 +21,23 @@ export type ExistingActivity = {
   confirmationCode?: string | null;
 };
 
+type PlacesSuggestion = {
+  name: string;
+  address: string | null;
+  website: string | null;
+  lat: number | null;
+  lng: number | null;
+  photoUrl: string | null;
+};
+
 interface Props {
   tripId: string;
   onClose: () => void;
   onSaved: (updated?: ExistingActivity) => void;
   existingActivity?: ExistingActivity;
+  defaultDate?: string;
+  destinationCity?: string | null;
+  destinationCountry?: string | null;
 }
 
 const STATUS_OPTIONS: { value: ActivityStatus; label: string }[] = [
@@ -57,10 +69,10 @@ const labelStyle: React.CSSProperties = {
   display: "block",
 };
 
-export function AddActivityModal({ tripId, onClose, onSaved, existingActivity }: Props) {
+export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, defaultDate, destinationCity, destinationCountry }: Props) {
   const isEditing = !!existingActivity;
   const [title, setTitle] = useState(existingActivity?.title ?? "");
-  const [date, setDate] = useState(existingActivity?.date ?? "");
+  const [date, setDate] = useState(existingActivity?.date ?? defaultDate ?? "");
   const [time, setTime] = useState(existingActivity?.time ?? "");
   const [endTime, setEndTime] = useState(existingActivity?.endTime ?? "");
   const [venueName, setVenueName] = useState(existingActivity?.venueName ?? "");
@@ -74,6 +86,9 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity }:
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [suggestion, setSuggestion] = useState<PlacesSuggestion | null>(null);
+  const [suggestionLoading, setSuggestionLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const canSave = title.trim() !== "" && date !== "";
 
@@ -194,11 +209,75 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity }:
             <input
               type="text"
               value={title}
-              onChange={e => setTitle(e.target.value)}
+              onChange={e => {
+                const v = e.target.value;
+                setTitle(v);
+                setSuggestion(null);
+                if (debounceRef.current) clearTimeout(debounceRef.current);
+                if (!isEditing && v.trim().length >= 3) {
+                  debounceRef.current = setTimeout(async () => {
+                    setSuggestionLoading(true);
+                    try {
+                      const r = await fetch("/api/places-suggest", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ query: v.trim(), city: destinationCity, country: destinationCountry }),
+                      });
+                      const d = await r.json() as PlacesSuggestion | null;
+                      if (d) setSuggestion(d);
+                    } catch { /* ignore */ } finally {
+                      setSuggestionLoading(false);
+                    }
+                  }, 500);
+                } else {
+                  setSuggestionLoading(false);
+                }
+              }}
               placeholder="e.g. Lotte Giants baseball game"
               style={inputStyle}
               autoFocus
             />
+            {/* Places suggestion strip */}
+            {(suggestionLoading || suggestion) && (
+              <div style={{ marginTop: "8px" }}>
+                {suggestionLoading && (
+                  <p style={{ fontSize: "12px", color: "#999", padding: "8px 12px" }}>Looking up place...</p>
+                )}
+                {suggestion && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", backgroundColor: "#F9F9F9", borderRadius: "10px", border: "1px solid #E8E8E8" }}>
+                    {suggestion.photoUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={suggestion.photoUrl} alt="" style={{ width: "40px", height: "40px", borderRadius: "6px", objectFit: "cover", flexShrink: 0 }} />
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a", marginBottom: "1px" }}>{suggestion.name}</p>
+                      {suggestion.address && (
+                        <p style={{ fontSize: "11px", color: "#717171", overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>{suggestion.address}</p>
+                      )}
+                    </div>
+                    <span style={{ fontSize: "11px", color: "#888", flexShrink: 0 }}>Is this right?</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (suggestion.name && !venueName) setVenueName(suggestion.name);
+                        if (suggestion.website && !website) setWebsite(suggestion.website);
+                        setSuggestion(null);
+                      }}
+                      style={{ fontSize: "12px", fontWeight: 700, color: "#4a7c59", background: "rgba(74,124,89,0.1)", border: "none", cursor: "pointer", padding: "4px 10px", borderRadius: "6px", flexShrink: 0 }}
+                    >
+                      Yes ✓
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSuggestion(null)}
+                      style={{ fontSize: "12px", fontWeight: 700, color: "#717171", background: "none", border: "none", cursor: "pointer", padding: "4px 6px", flexShrink: 0 }}
+                    >
+                      No ✗
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Date + Start time */}

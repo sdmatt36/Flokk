@@ -28,6 +28,8 @@ const APPROVAL_CHECKLIST = [
   "Content is reasonably current (post-2020)",
 ];
 
+type EditFields = { title: string; url: string; contentType: string; destination: string; ageGroup: string; tags: string; description: string };
+
 export function AdminContentClient() {
   const [items, setItems] = useState<{ articles: ContentItem[]; videos: ContentItem[] }>({
     articles: [],
@@ -39,6 +41,9 @@ export function AdminContentClient() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [isActing, setIsActing] = useState(false);
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
+  const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
+  const [editFields, setEditFields] = useState<EditFields>({ title: "", url: "", contentType: "", destination: "", ageGroup: "", tags: "", description: "" });
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   useEffect(() => {
     setIsLoading(true);
@@ -97,6 +102,70 @@ export function AdminContentClient() {
       alert("Something went wrong. Try again.");
     } finally {
       setIsActing(false);
+    }
+  }
+
+  function openEditModal(item: ContentItem) {
+    setEditingItem(item);
+    setEditFields({
+      title: item.title ?? "",
+      url: item.sourceUrl ?? item.videoUrl ?? "",
+      contentType: item.contentType ?? "",
+      destination: item.destination ?? "",
+      ageGroup: item.ageGroup ?? "",
+      tags: "",
+      description: "",
+    });
+  }
+
+  async function handleSaveEdit() {
+    if (!editingItem) return;
+    setIsSavingEdit(true);
+    try {
+      const tagsArr = editFields.tags.split(",").map(t => t.trim()).filter(Boolean);
+      const res = await fetch(`/api/admin/content/${editingItem.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "edit",
+          type: editingItem.itemType,
+          title: editFields.title,
+          url: editFields.url,
+          contentType: editFields.contentType,
+          destination: editFields.destination,
+          ageGroup: editFields.ageGroup,
+          tags: tagsArr.length > 0 ? tagsArr : undefined,
+          description: editFields.description || undefined,
+        }),
+      });
+      if (!res.ok) throw new Error("edit failed");
+      const updated = await res.json() as ContentItem;
+      const patch = { ...editingItem, ...updated };
+      setItems(prev => ({
+        articles: prev.articles.map(a => a.id === editingItem.id ? { ...patch, itemType: "article" as const } : a),
+        videos: prev.videos.map(v => v.id === editingItem.id ? { ...patch, itemType: "video" as const } : v),
+      }));
+      if (activeItem?.id === editingItem.id) setActiveItem(patch as ContentItem);
+      setEditingItem(null);
+    } catch {
+      alert("Edit failed. Try again.");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }
+
+  async function handleDelete(item: ContentItem) {
+    if (!confirm(`Delete "${item.title}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/admin/content/${item.id}?type=${item.itemType}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("delete failed");
+      setItems(prev => ({
+        articles: prev.articles.filter(a => a.id !== item.id),
+        videos: prev.videos.filter(v => v.id !== item.id),
+      }));
+      if (activeItem?.id === item.id) setActiveItem(null);
+    } catch {
+      alert("Delete failed. Try again.");
     }
   }
 
@@ -175,24 +244,29 @@ export function AdminContentClient() {
           ) : (
             <div>
               {allItems.map((item) => (
-                <button
+                <div
                   key={item.id}
-                  onClick={() => selectItem(item)}
                   style={{
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "14px 16px",
-                    background: activeItem?.id === item.id ? "rgba(27,58,92,0.05)" : "none",
-                    borderTop: "none",
-                    borderRight: "none",
                     borderBottom: "1px solid #F0F0F0",
                     borderLeft: activeItem?.id === item.id ? "3px solid #1B3A5C" : "3px solid transparent",
+                    background: activeItem?.id === item.id ? "rgba(27,58,92,0.05)" : "none",
+                    display: "flex",
+                    alignItems: "stretch",
+                  }}
+                >
+                <button
+                  onClick={() => selectItem(item)}
+                  style={{
+                    flex: 1,
+                    textAlign: "left",
+                    padding: "14px 16px",
+                    background: "none",
+                    border: "none",
                     cursor: "pointer",
                     display: "flex",
                     gap: "12px",
                     alignItems: "flex-start",
                     fontFamily: "inherit",
-                    transition: "background 0.1s",
                   }}
                 >
                   <div style={{ width: "52px", height: "52px", borderRadius: "8px", backgroundColor: "#F0F0F0", flexShrink: 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -219,6 +293,11 @@ export function AdminContentClient() {
                     </p>
                   </div>
                 </button>
+                <div style={{ display: "flex", flexDirection: "column", gap: "4px", padding: "10px 10px 10px 0", justifyContent: "center" }}>
+                  <button onClick={(e) => { e.stopPropagation(); openEditModal(item); }} title="Edit" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", padding: "4px 8px", borderRadius: "6px", color: "#555" }}>✏️</button>
+                  <button onClick={(e) => { e.stopPropagation(); handleDelete(item); }} title="Delete" style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", padding: "4px 8px", borderRadius: "6px", color: "#e53e3e" }}>🗑️</button>
+                </div>
+                </div>
               ))}
             </div>
           )}
@@ -346,11 +425,72 @@ export function AdminContentClient() {
                     </button>
                   </div>
                 )}
+
+                <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                  <button
+                    onClick={() => openEditModal(activeItem)}
+                    style={{ flex: 1, padding: "10px", borderRadius: "10px", border: "1.5px solid #E5E5E5", backgroundColor: "#fff", color: "#1B3A5C", fontSize: "13px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    ✏️ Edit fields
+                  </button>
+                  <button
+                    onClick={() => handleDelete(activeItem)}
+                    style={{ padding: "10px 16px", borderRadius: "10px", border: "1.5px solid rgba(229,62,62,0.3)", backgroundColor: "#fff", color: "#e53e3e", fontSize: "13px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    🗑️ Delete
+                  </button>
+                </div>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {/* Edit Modal */}
+      {editingItem && (
+        <div
+          onClick={() => setEditingItem(null)}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: "#fff", borderRadius: "16px", width: "100%", maxWidth: "560px", maxHeight: "90vh", overflowY: "auto", padding: "28px" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
+              <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", margin: 0 }}>Edit submission</h2>
+              <button onClick={() => setEditingItem(null)} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#999", lineHeight: 1 }}>×</button>
+            </div>
+
+            {([ ["title", "Title", "text"], ["url", "URL", "url"], ["contentType", "Content Type", "text"], ["destination", "Destination", "text"], ["ageGroup", "Age Group", "text"], ["tags", "Topic Tags (comma-separated)", "text"], ["description", "Description", "textarea"] ] as [keyof EditFields, string, string][]).map(([field, label, type]) => (
+              <div key={field} style={{ marginBottom: "14px" }}>
+                <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "5px" }}>{label}</label>
+                {type === "textarea" ? (
+                  <textarea
+                    rows={3}
+                    value={editFields[field]}
+                    onChange={e => setEditFields(prev => ({ ...prev, [field]: e.target.value }))}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "13px", color: "#1a1a1a", outline: "none", boxSizing: "border-box", resize: "vertical", fontFamily: "inherit" }}
+                  />
+                ) : (
+                  <input
+                    type={type}
+                    value={editFields[field]}
+                    onChange={e => setEditFields(prev => ({ ...prev, [field]: e.target.value }))}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "13px", color: "#1a1a1a", outline: "none", boxSizing: "border-box", backgroundColor: "#fff" }}
+                  />
+                )}
+              </div>
+            ))}
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+              <button onClick={() => setEditingItem(null)} style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", backgroundColor: "#fff", color: "#717171", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
+              <button onClick={handleSaveEdit} disabled={isSavingEdit} style={{ flex: 2, padding: "12px", borderRadius: "10px", border: "none", backgroundColor: "#1B3A5C", color: "#fff", fontSize: "14px", fontWeight: 700, cursor: isSavingEdit ? "not-allowed" : "pointer", opacity: isSavingEdit ? 0.6 : 1, fontFamily: "inherit" }}>
+                {isSavingEdit ? "Saving…" : "Save changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

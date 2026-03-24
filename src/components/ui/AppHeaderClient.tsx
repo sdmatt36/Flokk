@@ -23,6 +23,8 @@ const NAV_ITEMS = [
   { label: "Trips", href: "/trips" },
   { label: "Saves", href: "/saves" },
   { label: "Discover", href: "/discover" },
+  { label: "Travel Intel", href: "/travel-intel" },
+  { label: "Profile", href: "/profile" },
 ];
 
 function getGreeting() {

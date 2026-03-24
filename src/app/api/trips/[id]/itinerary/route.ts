@@ -42,6 +42,7 @@ export async function GET(
       lat: true,
       lng: true,
       isBooked: true,
+      startTime: true,
     },
   });
 

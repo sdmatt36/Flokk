@@ -2,8 +2,8 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
-import type { DragEndEvent } from "@dnd-kit/core";
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, DragOverlay, useDroppable } from "@dnd-kit/core";
+import type { DragEndEvent, DragStartEvent, DragOverEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useParams } from "next/navigation";
@@ -44,7 +44,6 @@ import {
   CloudRain,
   CheckCircle,
   AlertCircle,
-  Clock,
   ArrowRight,
   FileText,
   Baby,
@@ -62,14 +61,18 @@ import {
   Bookmark,
   Trash2,
   Pencil,
+  X,
 } from "lucide-react";
 import { TripMap } from "@/components/features/trips/TripMap";
 import { DropLinkModal } from "@/components/features/home/DropLinkModal";
 import { RecommendationDrawer, type DrawerRec } from "@/components/features/trips/RecommendationDrawer";
 import { AddFlightModal } from "@/components/flights/AddFlightModal";
+import { EditFlightModal } from "@/components/flights/EditFlightModal";
 import { AddActivityModal, type ExistingActivity } from "@/components/activities/AddActivityModal";
 import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
 import { parseDateForDisplay } from "@/lib/dates";
+import { getTripCoverImage } from "@/lib/destination-images";
+import { BookingIntelCard } from "@/components/features/trips/BookingIntelCard";
 
 type Tab = "saved" | "itinerary" | "recommended" | "packing" | "notes" | "vault";
 
@@ -93,6 +96,7 @@ type Flight = {
   notes?: string | null;
   dayIndex?: number | null;
   status?: string;
+  sortOrder?: number;
 };
 
 type Activity = {
@@ -109,6 +113,9 @@ type Activity = {
   status: string;
   confirmationCode?: string | null;
   dayIndex?: number | null;
+  sortOrder?: number;
+  lat?: number | null;
+  lng?: number | null;
 };
 
 // ── Shared sub-components ────────────────────────────────────────────────────
@@ -220,9 +227,9 @@ function FilledSlot({
           onClick={e => e.stopPropagation()}
           {...(dragHandleAttributes ?? {})}
           {...(dragHandleListeners ?? {})}
-          style={{ cursor: dragHandleListeners ? "grab" : "default", flexShrink: 0, lineHeight: 0, display: "flex", alignItems: "center" }}
+          style={{ cursor: dragHandleListeners ? "grab" : "default", flexShrink: 0, lineHeight: 0, display: "flex", alignItems: "center", padding: "2px 4px", borderRadius: "4px" }}
         >
-          <GripVertical size={14} style={{ color: dragHandleListeners ? "#aaa" : "#d0cbc2" }} />
+          <GripVertical size={16} style={{ color: dragHandleListeners ? "#777" : "#ccc" }} />
         </span>
         {img ? (
           <div
@@ -308,6 +315,37 @@ function SortableFilledSlot({ sortId, ...props }: FilledSlotProps & { sortId: st
       }}
     >
       <FilledSlot {...props} dragHandleListeners={listeners} dragHandleAttributes={attributes} />
+    </div>
+  );
+}
+
+function DroppableDay({ id, isOver, children }: { id: string; isOver: boolean; children: React.ReactNode }) {
+  const { setNodeRef } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        backgroundColor: isOver ? "rgba(196,102,74,0.04)" : "transparent",
+        borderRadius: "8px",
+        transition: "background-color 0.15s ease",
+        minHeight: "8px",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// Generic sortable wrapper — used for flights and activities which have custom render content
+function SortableWrapper({ sortId, children }: {
+  sortId: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  children: (handle: { listeners: any; attributes: any }) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sortId });
+  return (
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, position: "relative", zIndex: isDragging ? 100 : undefined }}>
+      {children({ listeners, attributes })}
     </div>
   );
 }
@@ -529,17 +567,33 @@ type SavedDisplayItem = {
 
 
 const TRIP_DAYS = [
-  { dayIndex: 0, label: "Day 1", date: "Sun May 4" },
-  { dayIndex: 1, label: "Day 2", date: "Mon May 5" },
-  { dayIndex: 2, label: "Day 3", date: "Tue May 6" },
-  { dayIndex: 3, label: "Day 4", date: "Wed May 7" },
-  { dayIndex: 4, label: "Day 5", date: "Thu May 8" },
+  { dayIndex: 0, label: "Day 1", date: "Sun May 4", shortDate: "Sun May 4" },
+  { dayIndex: 1, label: "Day 2", date: "Mon May 5", shortDate: "Mon May 5" },
+  { dayIndex: 2, label: "Day 3", date: "Tue May 6", shortDate: "Tue May 6" },
+  { dayIndex: 3, label: "Day 4", date: "Wed May 7", shortDate: "Wed May 7" },
+  { dayIndex: 4, label: "Day 5", date: "Thu May 8", shortDate: "Thu May 8" },
 ];
+
+// Convert "HH:MM" to minutes since midnight for sorting; null/undefined → Infinity (float to bottom)
+function timeToMinutes(t: string | null | undefined): number {
+  if (!t) return Infinity;
+  const [h, m] = t.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+// Format "HH:MM" → "6:30 PM"
+function formatTime(t: string | null | undefined): string | null {
+  if (!t) return null;
+  const [h, m] = t.split(":").map(Number);
+  const ampm = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
+}
 
 function generateTripDays(
   startDate: string | null,
   endDate: string | null
-): { dayIndex: number; label: string; date: string }[] {
+): { dayIndex: number; label: string; date: string; shortDate: string }[] {
   if (!startDate) return TRIP_DAYS;
   const start = parseDateForDisplay(startDate);
   if (isNaN(start.getTime())) return TRIP_DAYS;
@@ -552,7 +606,8 @@ function generateTripDays(
   return Array.from({ length: n }, (_, i) => {
     const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
     const dateStr = `${DAY_NAMES[d.getDay()]} ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
-    return { dayIndex: i, label: `Day ${i + 1}`, date: dateStr };
+    const shortDateStr = `${DAY_NAMES[d.getDay()]} ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}`;
+    return { dayIndex: i, label: `Day ${i + 1}`, date: dateStr, shortDate: shortDateStr };
   });
 }
 
@@ -915,6 +970,7 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
   const [leftSections, setLeftSections] = useState<{ category: string; items: SavedDisplayItem[] }[]>([]);
   const [rightSections, setRightSections] = useState<{ category: string; items: SavedDisplayItem[] }[]>([]);
   const [dropLinkOpen, setDropLinkOpen] = useState(false);
+  const [allScheduled, setAllScheduled] = useState(false);
 
   const fetchSaves = useCallback(() => {
     if (!tripIdProp) { setLoading(false); return; }
@@ -924,18 +980,21 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
         if (!saves?.length) {
           setLeftSections([]);
           setRightSections([]);
+          setAllScheduled(false);
           setLoading(false);
           return;
         }
         const groups: Record<string, SavedDisplayItem[]> = {};
         const preAssigned: Record<string, number> = {};
+        let scheduledCount = 0;
         for (const s of saves) {
+          const display = apiToDisplayItem(s);
+          if (s.dayIndex != null) { preAssigned[display.title] = s.dayIndex; scheduledCount++; continue; }
           const cat = inferSavedCategory(s);
           if (!groups[cat]) groups[cat] = [];
-          const display = apiToDisplayItem(s);
           groups[cat].push(display);
-          if (s.dayIndex != null) preAssigned[display.title] = s.dayIndex;
         }
+        setAllScheduled(saves.length > 0 && scheduledCount === saves.length);
         setAssignedDays(preAssigned);
         const left: { category: string; items: SavedDisplayItem[] }[] = [];
         const right: { category: string; items: SavedDisplayItem[] }[] = [];
@@ -1033,16 +1092,36 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
     return (
       <>
         <div style={{ padding: "40px 24px", textAlign: "center" }}>
-          <Bookmark size={32} style={{ color: "#C4664A", margin: "0 auto 12px" }} />
-          <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a", marginBottom: "6px" }}>No saves yet</p>
-          <p style={{ fontSize: "14px", color: "#717171", marginBottom: "20px" }}>Save hotels, restaurants, and activities directly to this trip.</p>
-          {tripIdProp && (
-            <button
-              onClick={() => setDropLinkOpen(true)}
-              style={{ fontSize: "14px", fontWeight: 600, padding: "10px 24px", borderRadius: "999px", backgroundColor: "#C4664A", color: "#fff", border: "none", cursor: "pointer" }}
-            >
-              Drop a link
-            </button>
+          {allScheduled ? (
+            <>
+              <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "rgba(74,124,89,0.12)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+                <span style={{ fontSize: "22px" }}>✓</span>
+              </div>
+              <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a", marginBottom: "6px" }}>All saved — everything is in your itinerary</p>
+              <p style={{ fontSize: "14px", color: "#717171", marginBottom: "16px" }}>All your saved places have been assigned to days.</p>
+              {onSwitchToItinerary && (
+                <button
+                  onClick={onSwitchToItinerary}
+                  style={{ fontSize: "14px", fontWeight: 600, padding: "10px 24px", borderRadius: "999px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", cursor: "pointer" }}
+                >
+                  View itinerary →
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <Bookmark size={32} style={{ color: "#C4664A", margin: "0 auto 12px" }} />
+              <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a", marginBottom: "6px" }}>No saves yet</p>
+              <p style={{ fontSize: "14px", color: "#717171", marginBottom: "20px" }}>Save hotels, restaurants, and activities directly to this trip.</p>
+              {tripIdProp && (
+                <button
+                  onClick={() => setDropLinkOpen(true)}
+                  style={{ fontSize: "14px", fontWeight: 600, padding: "10px 24px", borderRadius: "999px", backgroundColor: "#C4664A", color: "#fff", border: "none", cursor: "pointer" }}
+                >
+                  Drop a link
+                </button>
+              )}
+            </>
           )}
         </div>
         {dropLinkOpen && (
@@ -1260,7 +1339,50 @@ function TaskModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-type RecAddition = { dayIndex: number; title: string; location: string; img: string; savedItemId?: string; lat?: number | null; lng?: number | null; isBooked?: boolean; sortOrder: number };
+const AIRPORT_COORDS: Record<string, { lat: number; lng: number }> = {
+  NRT: { lat: 35.7720, lng: 140.3929 }, HND: { lat: 35.5494, lng: 139.7798 },
+  KIX: { lat: 34.4347, lng: 135.2440 }, OKA: { lat: 26.1958, lng: 127.6461 },
+  ICN: { lat: 37.4602, lng: 126.4407 }, GMP: { lat: 37.5583, lng: 126.7906 },
+  PUS: { lat: 35.1795, lng: 128.9381 }, CJU: { lat: 33.5113, lng: 126.4929 },
+  CDG: { lat: 49.0097, lng: 2.5479 },   LHR: { lat: 51.4700, lng: -0.4543 },
+  LGW: { lat: 51.1537, lng: -0.1821 },  BCN: { lat: 41.2974, lng: 2.0833 },
+  LIS: { lat: 38.7756, lng: -9.1354 },  MAD: { lat: 40.4983, lng: -3.5676 },
+  FCO: { lat: 41.8003, lng: 12.2389 },  AMS: { lat: 52.3105, lng: 4.7683 },
+  FRA: { lat: 50.0379, lng: 8.5622 },   ZRH: { lat: 47.4647, lng: 8.5492 },
+  PRG: { lat: 50.1008, lng: 14.2600 },  VIE: { lat: 48.1103, lng: 16.5697 },
+  DUB: { lat: 53.4213, lng: -6.2700 },  CPH: { lat: 55.6180, lng: 12.6508 },
+  BKK: { lat: 13.6900, lng: 100.7501 }, DMK: { lat: 13.9126, lng: 100.6070 },
+  SIN: { lat: 1.3644, lng: 103.9915 },  HKG: { lat: 22.3080, lng: 113.9185 },
+  TPE: { lat: 25.0797, lng: 121.2342 }, MNL: { lat: 14.5086, lng: 121.0197 },
+  KUL: { lat: 2.7456, lng: 101.7072 },  CGK: { lat: -6.1275, lng: 106.6537 },
+  DPS: { lat: -8.7482, lng: 115.1670 }, CMB: { lat: 7.1806, lng: 79.8841 },
+  DEL: { lat: 28.5562, lng: 77.1000 },  BOM: { lat: 19.0896, lng: 72.8656 },
+  DXB: { lat: 25.2532, lng: 55.3657 },  AUH: { lat: 24.4330, lng: 54.6511 },
+  LAX: { lat: 33.9425, lng: -118.4081 }, JFK: { lat: 40.6413, lng: -73.7781 },
+  EWR: { lat: 40.6895, lng: -74.1745 }, ORD: { lat: 41.9742, lng: -87.9073 },
+  SFO: { lat: 37.6213, lng: -122.3790 }, MIA: { lat: 25.7959, lng: -80.2870 },
+  YUL: { lat: 45.4706, lng: -73.7408 }, YYZ: { lat: 43.6777, lng: -79.6248 },
+  SYD: { lat: -33.9399, lng: 151.1753 }, MEL: { lat: -37.6733, lng: 144.8430 },
+  GRU: { lat: -23.4356, lng: -46.4731 }, EZE: { lat: -34.8222, lng: -58.5358 },
+  CPT: { lat: -33.9648, lng: 18.6017 },  JNB: { lat: -26.1392, lng: 28.2460 },
+  CAI: { lat: 30.1219, lng: 31.4056 },   RAK: { lat: 31.6069, lng: -8.0363 },
+};
+
+type RecAddition = { dayIndex: number; title: string; location: string; img: string; savedItemId?: string; lat?: number | null; lng?: number | null; isBooked?: boolean; sortOrder: number; startTime?: string | null };
+
+// Unified sortable item — combines SavedItems, ManualActivities, and Flights into one sortable list per day
+type UnifiedDayItem = {
+  sortId: string;  // "saved_xxx" | "activity_xxx" | "flight_xxx"
+  itemType: "saved" | "activity" | "flight";
+  sortOrder: number;
+  rawId: string;
+  startTime?: string | null;   // for time-based sorting and transit
+  lat?: number | null;          // for transit routing
+  lng?: number | null;
+  recAddition?: RecAddition;
+  activity?: Activity;
+  flight?: Flight;
+};
 
 const ITINERARY_KEY = (tripId?: string) => `flokk_itinerary_additions_${tripId ?? "default"}`;
 
@@ -1350,13 +1472,127 @@ function BudgetPromptBanner({ tripId }: { tripId?: string }) {
   );
 }
 
-function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onMarkActivityBooked, onRemoveFlightFromDay }: {
+// ── Activity detail modal ─────────────────────────────────────────────────────
+function ActivityDetailModal({ activity, onClose, onEdit, onRemove, onMarkBooked, onAddToItinerary }: {
+  activity: Activity;
+  onClose: () => void;
+  onEdit: () => void;
+  onRemove?: () => void;
+  onMarkBooked?: () => void;
+  onAddToItinerary?: () => void;
+}) {
+  const a = activity;
+  return createPortal(
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, zIndex: 500, backgroundColor: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ backgroundColor: "#fff", borderRadius: "20px", width: "100%", maxWidth: "480px", maxHeight: "85vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 8px 40px rgba(0,0,0,0.2)" }}
+      >
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "20px 20px 0", gap: "12px" }}>
+          <h2 style={{ fontSize: "20px", fontWeight: 800, color: "#1B3A5C", lineHeight: 1.2, fontFamily: '"Playfair Display", Georgia, serif', flex: 1 }}>
+            {a.title}
+          </h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#999", padding: "4px", lineHeight: 1, flexShrink: 0 }}>
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Scrollable body */}
+        <div style={{ overflowY: "auto", flex: 1, padding: "16px 20px 24px" }}>
+          {/* Status */}
+          <span style={{ display: "inline-block", fontSize: "12px", fontWeight: 700, backgroundColor: a.status === "booked" ? "rgba(74,124,89,0.1)" : a.status === "confirmed" ? "rgba(27,58,92,0.08)" : "rgba(0,0,0,0.06)", color: a.status === "booked" ? "#4a7c59" : a.status === "confirmed" ? "#1B3A5C" : "#717171", borderRadius: "999px", padding: "3px 10px", marginBottom: "14px" }}>
+            {a.status === "booked" ? "Booked" : a.status === "confirmed" ? "Confirmed" : "Interested"}
+          </span>
+
+          {/* Date / time / venue */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "14px" }}>
+            {a.date && (
+              <p style={{ fontSize: "14px", color: "#333" }}>
+                <span style={{ color: "#999", marginRight: "6px" }}>Date</span>
+                {a.date}{a.time ? ` · ${a.time}${a.endTime ? ` – ${a.endTime}` : ""}` : ""}
+              </p>
+            )}
+            {a.venueName && (
+              <p style={{ fontSize: "14px", color: "#333" }}>
+                <span style={{ color: "#999", marginRight: "6px" }}>Venue</span>
+                {a.venueName}
+              </p>
+            )}
+            {a.confirmationCode && (
+              <p style={{ fontSize: "14px", color: "#333" }}>
+                <span style={{ color: "#999", marginRight: "6px" }}>Confirmation</span>
+                <span style={{ fontFamily: "monospace" }}>{a.confirmationCode}</span>
+              </p>
+            )}
+          </div>
+
+          {/* Notes */}
+          {a.notes && (
+            <p style={{ fontSize: "14px", color: "#555", lineHeight: 1.6, marginBottom: "14px", padding: "10px 12px", backgroundColor: "rgba(0,0,0,0.03)", borderRadius: "8px" }}>
+              {a.notes}
+            </p>
+          )}
+
+          {/* Website */}
+          {a.website && (
+            <a href={a.website} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "14px", fontWeight: 600, color: "#C4664A", textDecoration: "none", marginBottom: "20px" }}>
+              Visit site →
+            </a>
+          )}
+
+          {/* Actions */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px", paddingTop: "4px", borderTop: "1px solid rgba(0,0,0,0.07)" }}>
+            {onAddToItinerary && a.dayIndex == null && (
+              <button
+                onClick={() => { onAddToItinerary(); onClose(); }}
+                style={{ width: "100%", padding: "12px", backgroundColor: "transparent", color: "#C4664A", border: "1.5px solid #C4664A", borderRadius: "12px", fontSize: "14px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                + Add to itinerary
+              </button>
+            )}
+            <button
+              onClick={onEdit}
+              style={{ width: "100%", padding: "12px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "12px", fontSize: "14px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              Edit activity
+            </button>
+            {a.status !== "booked" && onMarkBooked && (
+              <button
+                onClick={onMarkBooked}
+                style={{ width: "100%", padding: "12px", backgroundColor: "transparent", color: "#4a7c59", border: "2px solid rgba(74,124,89,0.4)", borderRadius: "12px", fontSize: "14px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Mark as booked ✓
+              </button>
+            )}
+            {onRemove && (
+              <button
+                onClick={onRemove}
+                style={{ width: "100%", padding: "11px", backgroundColor: "transparent", color: "#e53e3e", border: "none", borderRadius: "12px", fontSize: "13px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Remove from day
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onMarkActivityBooked, onRemoveFlightFromDay }: {
   flyTarget: { lat: number; lng: number } | null;
   onFlyTargetConsumed: () => void;
   tripId?: string;
   tripStartDate?: string | null;
   tripEndDate?: string | null;
   onSwitchToRecommended?: () => void;
+  onActivityAdded?: () => void;
+  onEditActivity?: (a: Activity) => void;
   destinationCity?: string | null;
   destinationCountry?: string | null;
   flights?: Flight[];
@@ -1367,38 +1603,206 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
 }) {
   const isDesktop = useIsDesktop();
   const [openDay, setOpenDay] = useState(0); // -1 = all collapsed
+  const [detailActivity, setDetailActivity] = useState<Activity | null>(null);
+  const [showAddActivityModal, setShowAddActivityModal] = useState(false);
+  const [addActivityDefaultDate, setAddActivityDefaultDate] = useState<string | undefined>();
   const [notes, setNotes] = useState<string[]>([]);
   const [recAdditions, setRecAdditions] = useState<RecAddition[]>([]);
+  // Local copies of activities/flights so drag-reorder can update them independently of parent prop
+  const [localActivities, setLocalActivities] = useState<Activity[]>([]);
+  const [localFlights, setLocalFlights] = useState<Flight[]>([]);
   const [expandedSlotKey, setExpandedSlotKey] = useState<string | null>(null);
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
   const [detailRemover, setDetailRemover] = useState<(() => void) | null>(null);
+  const [editingFlight, setEditingFlight] = useState<Flight | null>(null);
+  // Lodging edit: stores { id, rawTitle, startTime, websiteUrl, notes } fetched on demand
+  const [editingLodging, setEditingLodging] = useState<{ id: string; rawTitle: string; startTime: string; websiteUrl: string; notes: string } | null>(null);
+  const [lodgingSaving, setLodgingSaving] = useState(false);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [overDayIndex, setOverDayIndex] = useState<number | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
   );
 
-  function handleDragEnd(event: DragEndEvent, dayIdx: number, currentDayItems: RecAddition[]) {
+  // Sync local copies from props (new items added, etc.)
+  useEffect(() => { setLocalActivities(activities); }, [activities]);
+  useEffect(() => { setLocalFlights(flights); }, [flights]);
+
+  function handleDragEnd(event: DragEndEvent, dayIdx: number, currentDayItems: UnifiedDayItem[]) {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIndex = currentDayItems.findIndex(a => a.savedItemId === String(active.id));
-    const newIndex = currentDayItems.findIndex(a => a.savedItemId === String(over.id));
+    const oldIndex = currentDayItems.findIndex(a => a.sortId === String(active.id));
+    const newIndex = currentDayItems.findIndex(a => a.sortId === String(over.id));
     if (oldIndex === -1 || newIndex === -1) return;
     const reordered = arrayMove(currentDayItems, oldIndex, newIndex);
-    // Optimistic update
-    setRecAdditions(prev => {
-      const others = prev.filter(a => a.dayIndex !== dayIdx);
-      return [...others, ...reordered.map((a, i) => ({ ...a, sortOrder: i }))];
-    });
-    // Persist to DB (never deletes — UPDATE only)
-    reordered.forEach((a, i) => {
-      if (a.savedItemId) {
-        fetch(`/api/saves/${a.savedItemId}`, {
+    // Optimistic update + persist per item type (never deletes — UPDATE only)
+    reordered.forEach((item, i) => {
+      const newOrder = i;
+      if (item.itemType === "saved" && item.rawId) {
+        setRecAdditions(prev => prev.map(r => r.savedItemId === item.rawId ? { ...r, sortOrder: newOrder } : r));
+        fetch(`/api/saves/${item.rawId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sortOrder: i }),
-        }).catch(e => console.error("[sortOrder PATCH]", e));
+          body: JSON.stringify({ sortOrder: newOrder }),
+        }).catch(e => console.error("[sortOrder PATCH saved]", e));
+      } else if (item.itemType === "activity" && item.rawId) {
+        setLocalActivities(prev => prev.map(a => a.id === item.rawId ? { ...a, sortOrder: newOrder } : a));
+        fetch(`/api/trips/${tripId}/activities/${item.rawId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sortOrder: newOrder }),
+        }).catch(e => console.error("[sortOrder PATCH activity]", e));
+      } else if (item.itemType === "flight" && item.rawId) {
+        setLocalFlights(prev => prev.map(f => f.id === item.rawId ? { ...f, sortOrder: newOrder } : f));
+        fetch(`/api/trips/${tripId}/flights/${item.rawId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sortOrder: newOrder }),
+        }).catch(e => console.error("[sortOrder PATCH flight]", e));
       }
     });
+  }
+
+  /** Build the sorted UnifiedDayItem list for any given dayIndex (extracted from render) */
+  function buildDayItems(targetDayIndex: number): UnifiedDayItem[] {
+    return [
+      ...recAdditions.filter(a => a.dayIndex === targetDayIndex).map(a => ({
+        sortId: `saved_${a.savedItemId ?? a.title}`,
+        itemType: "saved" as const,
+        sortOrder: a.sortOrder ?? 0,
+        rawId: a.savedItemId ?? "",
+        startTime: a.startTime ?? null,
+        lat: a.lat ?? null,
+        lng: a.lng ?? null,
+        recAddition: a,
+      })),
+      ...localActivities.filter(a => a.dayIndex === targetDayIndex).map(a => ({
+        sortId: `activity_${a.id}`,
+        itemType: "activity" as const,
+        sortOrder: a.sortOrder ?? 0,
+        rawId: a.id,
+        startTime: a.time ?? null,
+        lat: a.lat ?? null,
+        lng: a.lng ?? null,
+        activity: a,
+      })),
+      ...localFlights.filter(f => f.dayIndex === targetDayIndex).map(f => {
+        const arrCoords = AIRPORT_COORDS[(f.toAirport ?? "").toUpperCase().trim()];
+        return {
+          sortId: `flight_${f.id}`,
+          itemType: "flight" as const,
+          sortOrder: f.sortOrder ?? 0,
+          rawId: f.id,
+          startTime: f.departureTime ?? null,
+          lat: arrCoords?.lat ?? null,
+          lng: arrCoords?.lng ?? null,
+          flight: f,
+        };
+      }),
+    ].sort((a, b) => {
+      const tA = timeToMinutes(a.startTime);
+      const tB = timeToMinutes(b.startTime);
+      if (tA !== tB) return tA - tB;
+      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    });
+  }
+
+  /** Return the dayIndex of the item with the given sortId */
+  function getItemDayIndex(sortId: string): number {
+    if (sortId.startsWith("saved_")) {
+      const rawId = sortId.slice(6);
+      return recAdditions.find(r => (r.savedItemId ?? r.title) === rawId)?.dayIndex ?? -1;
+    }
+    if (sortId.startsWith("activity_")) {
+      return localActivities.find(a => a.id === sortId.slice(9))?.dayIndex ?? -1;
+    }
+    if (sortId.startsWith("flight_")) {
+      return localFlights.find(f => f.id === sortId.slice(7))?.dayIndex ?? -1;
+    }
+    return -1;
+  }
+
+  /** Short label for DragOverlay ghost card */
+  function getOverlayLabel(sortId: string): string {
+    if (sortId.startsWith("saved_")) {
+      const rawId = sortId.slice(6);
+      return recAdditions.find(r => (r.savedItemId ?? r.title) === rawId)?.title ?? "Item";
+    }
+    if (sortId.startsWith("activity_")) {
+      return localActivities.find(a => a.id === sortId.slice(9))?.title ?? "Activity";
+    }
+    if (sortId.startsWith("flight_")) {
+      const f = localFlights.find(f => f.id === sortId.slice(7));
+      return f ? `${f.fromAirport} → ${f.toAirport}` : "Flight";
+    }
+    return "Item";
+  }
+
+  function handleGlobalDragStart(event: DragStartEvent) {
+    setActiveDragId(String(event.active.id));
+  }
+
+  function handleGlobalDragOver(event: DragOverEvent) {
+    const { over } = event;
+    if (!over) { setOverDayIndex(null); return; }
+    const overId = String(over.id);
+    if (overId.startsWith("day-")) {
+      setOverDayIndex(parseInt(overId.slice(4), 10));
+    } else {
+      const idx = getItemDayIndex(overId);
+      setOverDayIndex(idx >= 0 ? idx : null);
+    }
+  }
+
+  function handleGlobalDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    setActiveDragId(null);
+    setOverDayIndex(null);
+    if (!over) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    const sourceDayIndex = getItemDayIndex(activeId);
+    if (sourceDayIndex === -1) return;
+    const targetDayIndex = overId.startsWith("day-")
+      ? parseInt(overId.slice(4), 10)
+      : getItemDayIndex(overId);
+    if (targetDayIndex === -1) return;
+    if (sourceDayIndex !== targetDayIndex) {
+      handleCrossDayMove(activeId, targetDayIndex);
+    } else if (activeId !== overId) {
+      handleDragEnd(event, sourceDayIndex, buildDayItems(sourceDayIndex));
+    }
+  }
+
+  function handleCrossDayMove(sortId: string, newDayIndex: number) {
+    if (sortId.startsWith("saved_")) {
+      const rawId = sortId.slice(6);
+      setRecAdditions(prev => prev.map(r =>
+        (r.savedItemId ?? r.title) === rawId ? { ...r, dayIndex: newDayIndex } : r
+      ));
+      if (rawId) fetch(`/api/saves/${rawId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dayIndex: newDayIndex }),
+      }).catch(e => console.error("[crossDay saves]", e));
+    } else if (sortId.startsWith("activity_")) {
+      const id = sortId.slice(9);
+      setLocalActivities(prev => prev.map(a => a.id === id ? { ...a, dayIndex: newDayIndex } : a));
+      fetch(`/api/trips/${tripId}/activities/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dayIndex: newDayIndex }),
+      }).catch(e => console.error("[crossDay activities]", e));
+    } else if (sortId.startsWith("flight_")) {
+      const id = sortId.slice(7);
+      setLocalFlights(prev => prev.map(f => f.id === id ? { ...f, dayIndex: newDayIndex } : f));
+      fetch(`/api/trips/${tripId}/flights/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dayIndex: newDayIndex }),
+      }).catch(e => console.error("[crossDay flights]", e));
+    }
   }
 
   function toggleSlot(key: string) {
@@ -1411,9 +1815,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     if (!tripId) return;
     fetch(`/api/trips/${tripId}/itinerary`)
       .then(r => r.json())
-      .then(({ items }: { items: Array<{ id: string; rawTitle: string | null; rawDescription: string | null; mediaThumbnailUrl: string | null; dayIndex: number | null; sortOrder?: number; lat?: number | null; lng?: number | null; isBooked?: boolean }> }) => {
+      .then(({ items }: { items: Array<{ id: string; rawTitle: string | null; rawDescription: string | null; mediaThumbnailUrl: string | null; dayIndex: number | null; sortOrder?: number; lat?: number | null; lng?: number | null; isBooked?: boolean; startTime?: string | null }> }) => {
         if (!items?.length) return;
-        setRecAdditions(items.map(item => ({
+        const mapped = items.map(item => ({
           dayIndex: item.dayIndex ?? 0,
           title: item.rawTitle ?? "",
           location: item.rawDescription ?? "",
@@ -1423,10 +1827,105 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           lng: item.lng ?? null,
           isBooked: item.isBooked ?? false,
           sortOrder: item.sortOrder ?? 0,
-        })));
+          startTime: item.startTime ?? null,
+        }));
+        // If all sortOrders are 0 (seeded trips), assign sequential values and persist
+        const allZero = mapped.length > 0 && mapped.every(item => item.sortOrder === 0);
+        if (allZero) {
+          const initialized = mapped.map((item, i) => ({ ...item, sortOrder: i }));
+          setRecAdditions(initialized);
+          initialized.forEach((item) => {
+            if (item.savedItemId) {
+              fetch(`/api/saves/${item.savedItemId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sortOrder: item.sortOrder }),
+              }).catch(e => console.error("[initSortOrder saved]", e));
+            }
+          });
+        } else {
+          setRecAdditions(mapped);
+        }
       })
       .catch(e => console.error("[ItineraryRead] API fetch failed:", e));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Initialize sortOrder for activities if all are 0 (seeded trips)
+  useEffect(() => {
+    if (!tripId || localActivities.length === 0) return;
+    const allZero = localActivities.every(a => (a.sortOrder ?? 0) === 0);
+    if (!allZero) return;
+    setLocalActivities(prev => prev.map((a, i) => ({ ...a, sortOrder: i })));
+    localActivities.forEach((a, i) => {
+      fetch(`/api/trips/${tripId}/activities/${a.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sortOrder: i }),
+      }).catch(e => console.error("[initSortOrder activity]", e));
+    });
+  }, [localActivities.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Initialize sortOrder for flights if all are 0 (seeded trips)
+  useEffect(() => {
+    if (!tripId || localFlights.length === 0) return;
+    const allZero = localFlights.every(f => (f.sortOrder ?? 0) === 0);
+    if (!allZero) return;
+    setLocalFlights(prev => prev.map((f, i) => ({ ...f, sortOrder: i })));
+    localFlights.forEach((f, i) => {
+      fetch(`/api/trips/${tripId}/flights/${f.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sortOrder: i }),
+      }).catch(e => console.error("[initSortOrder flight]", e));
+    });
+  }, [localFlights.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Return a directions URL that deep-links into native maps on iOS/Android */
+  function getDirectionsUrl(lat1: number, lng1: number, lat2: number, lng2: number): string {
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+    const isIOS = /iPhone|iPad|iPod/i.test(ua);
+    const isAndroid = /Android/i.test(ua);
+    if (isIOS) {
+      return `maps://maps.apple.com/?saddr=${lat1},${lng1}&daddr=${lat2},${lng2}`;
+    }
+    if (isAndroid) {
+      return `intent://maps.google.com/maps/dir/${lat1},${lng1}/${lat2},${lng2}#Intent;scheme=https;package=com.google.android.apps.maps;end`;
+    }
+    return `https://www.google.com/maps/dir/${lat1},${lng1}/${lat2},${lng2}`;
+  }
+
+  /** Haversine distance in km between two lat/lng points */
+  function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2
+      + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  /** Synchronous transit estimate between two coordinates */
+  function computeTransit(lat1: number, lng1: number, lat2: number, lng2: number): { mode: string; duration: string; directionsUrl: string } {
+    const km = haversineKm(lat1, lng1, lat2, lng2);
+    let mode: string;
+    let mins: number;
+    if (km < 1) {
+      mode = "Walk";
+      mins = Math.round((km * 1000) / 80);
+    } else if (km < 5) {
+      mode = "Transit";
+      mins = Math.round((km * 1000) / 300);
+    } else {
+      mode = "Transit";
+      mins = Math.round((km * 1000) / 500);
+    }
+    return {
+      mode,
+      duration: `~${mins} min`,
+      directionsUrl: getDirectionsUrl(lat1, lng1, lat2, lng2),
+    };
+  }
+
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [leftHeight, setLeftHeight] = useState<number | null>(null);
   const leftPanelRef = useRef<HTMLDivElement>(null);
@@ -1475,6 +1974,15 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       {/* Budget prompt or bar */}
       <BudgetPromptBanner tripId={tripId} />
 
+      {/* Booking intelligence card — shown when trip is within 90 days and missing flights/hotel */}
+      {tripId && (
+        <BookingIntelCard
+          tripId={tripId}
+          destinationCity={destinationCity}
+          startDate={tripStartDate}
+        />
+      )}
+
       {/* Split content area */}
       <div style={{ display: "flex", flexDirection: isDesktop ? "row" : "column", gap: "24px", alignItems: "flex-start" }}>
 
@@ -1491,13 +1999,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
             }
             return (
               <div style={{ borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", overflow: "hidden", backgroundColor: "#fff" }}>
-                {tripDays.map(({ dayIndex, label, date }, i) => {
+                {tripDays.map(({ dayIndex, label, date, shortDate }, i) => {
                   const isOpen = openDay === i;
-                  const dayItems = recAdditions
-                    .filter(a => a.dayIndex === dayIndex)
-                    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
-                  const dayFlights = flights.filter(f => f.dayIndex === dayIndex);
-                  const dayActivities = activities.filter(a => a.dayIndex === dayIndex);
+                  const allDayItems = buildDayItems(dayIndex);
                   return (
                     <div key={i} style={{ borderBottom: i < tripDays.length - 1 ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
 
@@ -1505,155 +2009,262 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       <div
                         onClick={() => toggle(i)}
                         className="hover:bg-black/[0.02]"
-                        style={{ display: "flex", alignItems: "center", padding: "13px 16px", cursor: "pointer", gap: "10px", userSelect: "none" }}
+                        style={{ display: "flex", alignItems: "center", padding: "14px 16px", cursor: "pointer", userSelect: "none" }}
                       >
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: 0, overflow: "hidden" }}>
-                          <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", whiteSpace: "nowrap" }}>{label}</span>
-                          <span style={{ fontSize: "13px", color: "#717171", whiteSpace: "nowrap" }}>{date}</span>
-                          {!isOpen && (dayItems.length > 0 || dayFlights.length > 0 || dayActivities.length > 0) && (
-                            <div style={{ display: "flex", gap: "4px", overflow: "hidden", minWidth: 0 }}>
-                              {dayFlights.slice(0, 1).map((f) => (
-                                <span key={f.id} style={{ fontSize: "11px", background: "rgba(27,58,92,0.1)", color: "#1B3A5C", borderRadius: "999px", padding: "2px 8px", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: "3px" }}>
-                                  <Plane size={10} />{f.fromAirport}→{f.toAirport}
-                                </span>
-                              ))}
-                              {dayActivities.slice(0, 1).map((a) => (
-                                <span key={a.id} style={{ fontSize: "11px", background: "rgba(107,143,113,0.1)", color: "#4a7c59", borderRadius: "999px", padding: "2px 8px", whiteSpace: "nowrap" }}>{a.title}</span>
-                              ))}
-                              {dayItems.slice(0, 2).map((a) => (
-                                <span key={a.title} style={{ fontSize: "11px", background: "rgba(0,0,0,0.06)", color: "#666", borderRadius: "999px", padding: "2px 8px", whiteSpace: "nowrap" }}>{a.title}</span>
-                              ))}
-                            </div>
-                          )}
-                          {!isOpen && dayItems.length === 0 && dayFlights.length === 0 && dayActivities.length === 0 && (
-                            <span style={{ fontSize: "12px", color: "#bbb", fontStyle: "italic" }}>No activities</span>
-                          )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ fontSize: "15px", fontWeight: 800, color: "#1B3A5C" }}>{label}</span>
+                          <span style={{ fontSize: "13px", color: "#888", marginLeft: "10px" }}>{date}</span>
                         </div>
-                        <ChevronDown size={16} style={{ color: "#717171", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s ease", flexShrink: 0 }} />
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                          {(() => {
+                            const timedItems = allDayItems.filter(i => i.startTime);
+                            if (timedItems.length >= 1) {
+                              const firstTime = formatTime(timedItems[0].startTime);
+                              const lastTime = timedItems.length >= 2 ? formatTime(timedItems[timedItems.length - 1].startTime) : null;
+                              const timeRange = lastTime ? `${firstTime} — ${lastTime}` : firstTime;
+                              return (
+                                <span style={{ fontSize: "11px", color: "#888" }}>
+                                  {shortDate} · {timeRange}
+                                </span>
+                              );
+                            }
+                            return allDayItems.length > 0 ? (
+                              <span style={{ fontSize: "11px", fontWeight: 700, color: "#1B3A5C", backgroundColor: "rgba(27,58,92,0.08)", borderRadius: "999px", padding: "3px 10px" }}>
+                                {allDayItems.length} {allDayItems.length === 1 ? "stop" : "stops"}
+                              </span>
+                            ) : null;
+                          })()}
+                          <ChevronDown size={16} style={{ color: "#717171", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s ease", flexShrink: 0 }} />
+                        </div>
                       </div>
 
                       {/* Expandable body */}
-                      <div style={{ maxHeight: isOpen ? "2000px" : "0", overflow: "hidden", transition: "max-height 0.3s ease" }}>
-                        <div style={{ padding: "4px 16px 16px" }}>
+                      <div style={{ maxHeight: isOpen ? "3000px" : "0", overflow: isOpen ? "visible" : "hidden", transition: "max-height 0.3s ease" }}>
+                        <div style={{ padding: "4px 12px 16px" }}>
 
-                          {/* Flights for this day */}
-                          {dayFlights.map(f => (
-                            <div key={f.id} style={{ backgroundColor: "#F5F8FC", border: "1.5px solid #D8E4F0", borderRadius: "10px", padding: "10px 12px", marginBottom: "8px" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                                <Plane size={14} style={{ color: "#1B3A5C", flexShrink: 0 }} />
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>{f.fromAirport} → {f.toAirport} · {f.airline} {f.flightNumber}</p>
-                                  <p style={{ fontSize: "12px", color: "#717171" }}>{f.departureTime} → {f.arrivalTime}{f.duration ? ` · ${f.duration}` : ""}</p>
-                                </div>
-                                {f.confirmationCode && (
-                                  <span style={{ fontSize: "11px", color: "#1B3A5C", fontWeight: 600, backgroundColor: "rgba(27,58,92,0.08)", borderRadius: "999px", padding: "2px 8px", whiteSpace: "nowrap" }}>{f.confirmationCode}</span>
-                                )}
-                                <span style={{ fontSize: "11px", backgroundColor: f.status === "booked" ? "rgba(27,58,92,0.1)" : "rgba(0,0,0,0.06)", color: f.status === "booked" ? "#1B3A5C" : "#888", borderRadius: "999px", padding: "2px 8px", fontWeight: 600, whiteSpace: "nowrap" }}>
-                                  {f.status === "booked" ? "Booked" : "Saved"}
-                                </span>
-                              </div>
-                              {onRemoveFlightFromDay && (
-                                <button onClick={() => onRemoveFlightFromDay(f.id)} style={{ fontSize: "11px", color: "#e53e3e", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: "4px 0 0 24px" }}>
-                                  Remove from day
-                                </button>
-                              )}
-                            </div>
-                          ))}
-
-                          {/* Activities for this day */}
-                          {dayActivities.map(a => (
-                            <div key={a.id} style={{ backgroundColor: "#F5FBF5", border: "1.5px solid #C8E0CA", borderRadius: "10px", padding: "10px 12px", marginBottom: "8px", display: "flex", alignItems: "flex-start", gap: "10px" }}>
-                              <Compass size={14} style={{ color: "#6B8F71", flexShrink: 0, marginTop: "2px" }} />
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a", marginBottom: "2px" }}>{a.title}</p>
-                                {(a.time || a.venueName) && (
-                                  <p style={{ fontSize: "12px", color: "#717171", marginBottom: "4px" }}>
-                                    {a.time ?? ""}{a.endTime ? ` – ${a.endTime}` : ""}{a.venueName ? ` · ${a.venueName}` : ""}
-                                  </p>
-                                )}
-                                <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
-                                  <span style={{ fontSize: "11px", color: a.status === "booked" ? "#4a7c59" : a.status === "confirmed" ? "#1B3A5C" : "#717171", fontWeight: 600, backgroundColor: a.status === "booked" ? "rgba(107,143,113,0.12)" : a.status === "confirmed" ? "rgba(27,58,92,0.08)" : "rgba(0,0,0,0.06)", borderRadius: "999px", padding: "2px 8px" }}>
-                                    {a.status === "booked" ? "Booked" : a.status === "confirmed" ? "Confirmed" : "Interested"}
-                                  </span>
-                                  {a.confirmationCode && (
-                                    <span style={{ fontSize: "11px", color: "#555", fontFamily: "monospace" }}>{a.confirmationCode}</span>
-                                  )}
-                                  {a.website && (
-                                    <a href={a.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600 }}>Book tickets →</a>
-                                  )}
-                                  {a.status !== "booked" && onMarkActivityBooked && (
-                                    <button onClick={() => onMarkActivityBooked(a.id)} style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                                      Mark booked →
-                                    </button>
-                                  )}
-                                </div>
-                                {a.notes && <p style={{ fontSize: "12px", color: "#888", marginTop: "4px", fontStyle: "italic" }}>{a.notes}</p>}
-                                {onRemoveActivityFromDay && (
-                                  <button onClick={() => onRemoveActivityFromDay(a.id)} style={{ fontSize: "11px", color: "#e53e3e", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: "4px 0 0" }}>
-                                    Remove from day
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-
-                          {/* User-added saved items for this day — sortable via drag handle */}
+                          {/* All day items — unified sortable list */}
                           <DndContext
                             sensors={sensors}
                             collisionDetection={closestCenter}
-                            onDragEnd={(event) => handleDragEnd(event, dayIndex, dayItems)}
+                            onDragEnd={(event) => handleDragEnd(event, dayIndex, allDayItems)}
                           >
                             <SortableContext
-                              items={dayItems.map(a => a.savedItemId ?? `item-${dayIndex}-${a.title}`)}
+                              items={allDayItems.map(a => a.sortId)}
                               strategy={verticalListSortingStrategy}
                             >
-                              {dayItems.map((a) => {
-                                const sortId = a.savedItemId ?? `item-${dayIndex}-${a.title}`;
-                                return (
-                                  <SortableFilledSlot
-                                    key={sortId}
-                                    sortId={sortId}
-                                    title={a.title}
-                                    subtitle={a.location}
-                                    img={a.img}
-                                    tags={[a.isBooked ? "Booked ✓" : "Added"]}
-                                    onExpandToggle={a.savedItemId ? () => {
-                                      // Bug 1 fix: card click opens detail modal only — no delete on click
-                                      setDetailItemId(a.savedItemId!);
-                                      setDetailRemover(() => () => {
-                                        // API-based removal: PATCH dayIndex to null, update local state
-                                        if (a.savedItemId) {
-                                          fetch(`/api/saves/${a.savedItemId}`, {
-                                            method: "PATCH",
-                                            headers: { "Content-Type": "application/json" },
-                                            body: JSON.stringify({ dayIndex: null }),
-                                          }).catch(e => console.error("[removeFromDay]", e));
-                                        }
-                                        setRecAdditions(prev => prev.filter(r => r.savedItemId !== a.savedItemId));
-                                        setDetailItemId(null);
-                                        setDetailRemover(null);
-                                      });
-                                    } : undefined}
-                                  />
-                                );
+                              {allDayItems.flatMap((item, idx) => {
+                                const next = allDayItems[idx + 1];
+                                const item1Name = item.recAddition?.title ?? item.activity?.title ?? item.flight?.airline ?? item.itemType;
+                                const item2Name = next ? (next.recAddition?.title ?? next.activity?.title ?? next.flight?.airline ?? next.itemType) : "";
+                                const hasCoords = item.startTime && item.lat && item.lng && next?.startTime && next?.lat && next?.lng;
+                                const transitData = hasCoords
+                                  ? computeTransit(item.lat!, item.lng!, next!.lat!, next!.lng!)
+                                  : null;
+
+                                return [
+                                <SortableWrapper key={item.sortId} sortId={item.sortId}>
+                                  {({ listeners, attributes }) => (
+                                    <div style={{ display: "flex", alignItems: "stretch", marginBottom: "8px" }}>
+                                      {/* Drag handle */}
+                                      <div
+                                        onClick={e => e.stopPropagation()}
+                                        {...attributes}
+                                        {...listeners}
+                                        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "28px", flexShrink: 0, cursor: "grab", touchAction: "none" }}
+                                      >
+                                        <GripVertical size={15} style={{ color: "#C0C0C0" }} />
+                                      </div>
+
+                                      {/* Saved item card */}
+                                      {item.itemType === "saved" && item.recAddition && (() => {
+                                        const a = item.recAddition;
+                                        return (
+                                          <div
+                                            onClick={a.savedItemId ? () => {
+                                              setDetailItemId(a.savedItemId!);
+                                              setDetailRemover(() => () => {
+                                                if (a.savedItemId) {
+                                                  fetch(`/api/saves/${a.savedItemId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ dayIndex: null }) }).catch(e => console.error("[removeFromDay]", e));
+                                                }
+                                                setRecAdditions(prev => prev.filter(r => r.savedItemId !== a.savedItemId));
+                                                setDetailItemId(null);
+                                                setDetailRemover(null);
+                                              });
+                                            } : undefined}
+                                            style={{ flex: 1, display: "flex", gap: "10px", alignItems: "flex-start", backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: "12px", padding: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", cursor: a.savedItemId ? "pointer" : "default" }}
+                                          >
+                                            <div style={{ width: "26px", height: "26px", borderRadius: "50%", backgroundColor: "rgba(196,102,74,0.1)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                              <span style={{ fontSize: "12px", fontWeight: 800, color: "#C4664A" }}>{idx + 1}</span>
+                                            </div>
+                                            {a.img && (
+                                              <div style={{ width: "52px", height: "52px", borderRadius: "8px", flexShrink: 0, backgroundImage: `url('${a.img}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                                            )}
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
+                                                <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{a.title}</p>
+                                                {a.savedItemId && (
+                                                  <button
+                                                    onClick={async e => {
+                                                      e.stopPropagation();
+                                                      try {
+                                                        const res = await fetch(`/api/saves/${a.savedItemId}`);
+                                                        const data = await res.json() as { item: { rawTitle: string | null; startTime: string | null; websiteUrl: string | null; notes: string | null } };
+                                                        const it = data.item;
+                                                        setEditingLodging({ id: a.savedItemId!, rawTitle: it.rawTitle ?? a.title, startTime: it.startTime ?? "", websiteUrl: it.websiteUrl ?? "", notes: it.notes ?? "" });
+                                                      } catch { /* ignore */ }
+                                                    }}
+                                                    style={{ background: "none", border: "none", cursor: "pointer", color: "#666", padding: "2px", lineHeight: 1, flexShrink: 0 }}
+                                                    title="Edit"
+                                                  >
+                                                    <Pencil size={16} />
+                                                  </button>
+                                                )}
+                                              </div>
+                                              {a.startTime && <p style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, lineHeight: 1.4 }}>{formatTime(a.startTime)}</p>}
+                                              {a.location && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }}>{a.location}</p>}
+                                              <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
+                                                <span style={{ fontSize: "11px", fontWeight: 600, backgroundColor: a.isBooked ? "rgba(74,124,89,0.1)" : "rgba(0,0,0,0.06)", color: a.isBooked ? "#4a7c59" : "#888", borderRadius: "999px", padding: "2px 8px" }}>
+                                                  {a.isBooked ? "Booked ✓" : "Added"}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
+
+                                      {/* Flight card */}
+                                      {item.itemType === "flight" && item.flight && (() => {
+                                        const f = item.flight;
+                                        const depTime = formatTime(f.departureTime) ?? f.departureTime;
+                                        const arrTime = f.arrivalTime ? (formatTime(f.arrivalTime) ?? f.arrivalTime) : null;
+                                        return (
+                                          <div style={{ flex: 1, display: "flex", gap: "10px", alignItems: "flex-start", backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: "12px", padding: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+                                            <div style={{ width: "26px", height: "26px", borderRadius: "50%", backgroundColor: "rgba(27,58,92,0.08)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                              <Plane size={12} style={{ color: "#1B3A5C" }} />
+                                            </div>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
+                                                <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{f.fromAirport} → {f.toAirport} · {f.airline} {f.flightNumber}</p>
+                                                <button
+                                                  onClick={e => { e.stopPropagation(); setEditingFlight(f); }}
+                                                  style={{ background: "none", border: "none", cursor: "pointer", color: "#666", padding: "2px", lineHeight: 1, flexShrink: 0 }}
+                                                  title="Edit flight"
+                                                >
+                                                  <Pencil size={16} />
+                                                </button>
+                                              </div>
+                                              <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }}>{depTime}{arrTime ? ` → ${arrTime}` : ""}{f.duration ? ` · ${f.duration}` : ""}</p>
+                                              <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
+                                                <span style={{ fontSize: "11px", fontWeight: 600, backgroundColor: f.status === "booked" ? "rgba(27,58,92,0.1)" : "rgba(0,0,0,0.06)", color: f.status === "booked" ? "#1B3A5C" : "#888", borderRadius: "999px", padding: "2px 8px" }}>
+                                                  {f.status === "booked" ? "Booked" : "Saved"}
+                                                </span>
+                                                {f.confirmationCode && (
+                                                  <span style={{ fontSize: "11px", color: "#555", fontFamily: "monospace" }}>{f.confirmationCode}</span>
+                                                )}
+                                              </div>
+                                              {onRemoveFlightFromDay && (
+                                                <button onClick={e => { e.stopPropagation(); onRemoveFlightFromDay(f.id); }} style={{ fontSize: "11px", color: "#e53e3e", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: "4px 0 0" }}>Remove from day</button>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
+
+                                      {/* Activity card */}
+                                      {item.itemType === "activity" && item.activity && (() => {
+                                        const a = item.activity;
+                                        return (
+                                          <div onClick={() => setDetailActivity(a)} style={{ flex: 1, display: "flex", gap: "10px", alignItems: "flex-start", backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: "12px", padding: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", cursor: "pointer" }}>
+                                            <div style={{ width: "26px", height: "26px", borderRadius: "50%", backgroundColor: "rgba(107,143,113,0.1)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                              <Compass size={12} style={{ color: "#6B8F71" }} />
+                                            </div>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
+                                                <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{a.title}</p>
+                                                {onEditActivity && (
+                                                  <button
+                                                    onClick={e => { e.stopPropagation(); onEditActivity(a); }}
+                                                    style={{ background: "none", border: "none", cursor: "pointer", color: "#666", padding: "2px", lineHeight: 1, flexShrink: 0 }}
+                                                    title="Edit activity"
+                                                  >
+                                                    <Pencil size={16} />
+                                                  </button>
+                                                )}
+                                              </div>
+                                              {(a.time || a.venueName) && (
+                                                <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }}>{a.time ?? ""}{a.endTime ? ` – ${a.endTime}` : ""}{a.venueName ? ` · ${a.venueName}` : ""}</p>
+                                              )}
+                                              {a.website && (
+                                                <a href={a.website} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "12px", color: "#C4664A", fontWeight: 600, textDecoration: "none", marginTop: "3px" }}>
+                                                  {/ticket|concert|game|sport|baseball|soccer|football|theater|theatre|show|stadium|arena/i.test(a.title) ? "Book tickets →" : "Visit site →"}
+                                                </a>
+                                              )}
+                                              <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
+                                                <span style={{ fontSize: "11px", fontWeight: 600, backgroundColor: a.status === "booked" ? "rgba(74,124,89,0.1)" : a.status === "confirmed" ? "rgba(27,58,92,0.08)" : "rgba(0,0,0,0.06)", color: a.status === "booked" ? "#4a7c59" : a.status === "confirmed" ? "#1B3A5C" : "#717171", borderRadius: "999px", padding: "2px 8px" }}>
+                                                  {a.status === "booked" ? "Booked" : a.status === "confirmed" ? "Confirmed" : "Interested"}
+                                                </span>
+                                                {a.confirmationCode && <span style={{ fontSize: "11px", color: "#555", fontFamily: "monospace" }}>{a.confirmationCode}</span>}
+                                                {a.status !== "booked" && onMarkActivityBooked && (
+                                                  <button onClick={e => { e.stopPropagation(); onMarkActivityBooked(a.id); }} style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}>Mark booked →</button>
+                                                )}
+                                              </div>
+                                              {a.notes && <p style={{ fontSize: "12px", color: "#888", marginTop: "4px", fontStyle: "italic" }}>{a.notes}</p>}
+                                              {onRemoveActivityFromDay && (
+                                                <button onClick={e => { e.stopPropagation(); onRemoveActivityFromDay(a.id); }} style={{ fontSize: "11px", color: "#e53e3e", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: "4px 0 0" }}>Remove from day</button>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
+                                    </div>
+                                  )}
+                                </SortableWrapper>,
+                                // Transit row between consecutive timed+coordinated items
+                                transitData ? (
+                                  <div key={`transit_${idx}`} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "2px 28px 6px", marginBottom: "2px" }}>
+                                    <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(0,0,0,0.06)" }} />
+                                    <span style={{ fontSize: "11px", color: "#888", whiteSpace: "nowrap" }}>
+                                      {transitData.mode} · {transitData.duration}
+                                    </span>
+                                    <a href={transitData.directionsUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: "11px", color: "#C4664A", fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}>
+                                      Directions →
+                                    </a>
+                                    <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(0,0,0,0.06)" }} />
+                                  </div>
+                                ) : null,
+                                ];
                               })}
                             </SortableContext>
                           </DndContext>
 
-                          {/* Empty slots */}
-                          {dayItems.length === 0 && (
-                            <>
-                              <AIBanner onSuggest={() => setSuggToast(true)} />
-                              <EmptySlot onClick={onSwitchToRecommended} />
-                              <EmptySlot onClick={onSwitchToRecommended} />
-                            </>
-                          )}
-                          {dayItems.length > 0 && (
-                            <EmptySlot onClick={onSwitchToRecommended} />
-                          )}
+                          {/* + Add activity dashed button */}
+                          <button
+                            onClick={() => {
+                              console.log("add activity clicked", { tripId, dayIndex });
+                              let defaultDate: string | undefined;
+                              if (tripStartDate && dayIndex !== undefined && dayIndex !== null) {
+                                try {
+                                  // Use parseDateForDisplay to handle both date-only and ISO datetime strings
+                                  const start = parseDateForDisplay(tripStartDate);
+                                  start.setDate(start.getDate() + dayIndex);
+                                  // Use local date methods to avoid UTC offset shifting the date back one day
+                                  const y = start.getFullYear();
+                                  const m = String(start.getMonth() + 1).padStart(2, "0");
+                                  const d = String(start.getDate()).padStart(2, "0");
+                                  defaultDate = `${y}-${m}-${d}`;
+                                } catch { /* fall through — modal opens without default date */ }
+                              }
+                              setAddActivityDefaultDate(defaultDate);
+                              setShowAddActivityModal(true);
+                            }}
+                            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "11px", marginTop: "4px", border: "1.5px dashed rgba(196,102,74,0.35)", borderRadius: "10px", background: "none", cursor: "pointer", color: "#C4664A", fontSize: "13px", fontWeight: 600 }}
+                          >
+                            <Plus size={14} />
+                            Add activity
+                          </button>
 
                           {/* Per-day notes */}
-                          <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid rgba(0,0,0,0.05)" }}>
+                          <div style={{ marginTop: "10px" }}>
                             <textarea
                               value={notes[i] ?? ""}
                               onChange={(e) => setNotes((prev) => {
@@ -1680,7 +2291,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
 
         {/* Right panel: map — stacks below on mobile, sticky sidebar on desktop */}
         <div style={{ width: isDesktop ? "42%" : "100%", position: isDesktop ? "sticky" : "relative", top: 0, height: isDesktop ? (leftHeight ? `${leftHeight}px` : "500px") : "300px", minHeight: "260px", maxHeight: "600px" }}>
-          <TripMap activeDay={openDay >= 0 ? openDay : 0} flyTarget={flyTarget} onFlyTargetConsumed={onFlyTargetConsumed} tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} savedItems={recAdditions.filter(a => a.lat != null && a.lng != null) as { title: string; lat: number; lng: number; dayIndex?: number | null }[]} />
+          <TripMap activeDay={openDay >= 0 ? openDay : null} flyTarget={flyTarget} onFlyTargetConsumed={onFlyTargetConsumed} tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} savedItems={recAdditions.filter(a => a.lat != null && a.lng != null) as { title: string; lat: number; lng: number; dayIndex?: number | null }[]} activities={localActivities.filter(a => a.lat != null && a.lng != null).map(a => ({ title: a.title, lat: a.lat!, lng: a.lng!, dayIndex: a.dayIndex }))} />
         </div>{/* end right panel */}
 
       </div>
@@ -1692,7 +2303,114 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           onClose={() => { setDetailItemId(null); setDetailRemover(null); }}
           onMarkedBooked={(id) => setRecAdditions(prev => prev.map(a => a.savedItemId === id ? { ...a, isBooked: true } : a))}
           onRemoveFromDay={detailRemover ?? undefined}
+          onTimeSet={(id, time) => setRecAdditions(prev => prev.map(a => a.savedItemId === id ? { ...a, startTime: time } : a))}
         />
+      )}
+      {detailActivity && (
+        <ActivityDetailModal
+          activity={detailActivity}
+          onClose={() => setDetailActivity(null)}
+          onEdit={() => { setDetailActivity(null); onEditActivity?.(detailActivity); }}
+          onRemove={onRemoveActivityFromDay ? () => { setDetailActivity(null); onRemoveActivityFromDay(detailActivity.id); } : undefined}
+          onMarkBooked={onMarkActivityBooked ? () => { setDetailActivity(null); onMarkActivityBooked(detailActivity.id); } : undefined}
+        />
+      )}
+      {showAddActivityModal && tripId && (
+        <AddActivityModal
+          tripId={tripId}
+          defaultDate={addActivityDefaultDate}
+          destinationCity={destinationCity}
+          destinationCountry={destinationCountry}
+          onClose={() => { setShowAddActivityModal(false); setAddActivityDefaultDate(undefined); }}
+          onSaved={() => {
+            setShowAddActivityModal(false);
+            setAddActivityDefaultDate(undefined);
+            onActivityAdded?.();
+          }}
+        />
+      )}
+      {editingFlight && tripId && (
+        <EditFlightModal
+          flight={editingFlight}
+          tripId={tripId}
+          onClose={() => setEditingFlight(null)}
+          onSaved={(updated) => {
+            setLocalFlights(prev => prev.map(f => f.id === updated.id ? updated : f));
+            setEditingFlight(null);
+          }}
+        />
+      )}
+      {editingLodging && createPortal(
+        <div
+          onClick={() => setEditingLodging(null)}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "560px", maxHeight: "85vh", overflowY: "auto", padding: "24px 20px 40px", paddingBottom: "max(40px, env(safe-area-inset-bottom))" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+              <p style={{ fontSize: "17px", fontWeight: 800, color: "#1a1a1a" }}>Edit Saved Item</p>
+              <button onClick={() => setEditingLodging(null)} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#999", padding: "4px", lineHeight: 1 }}>×</button>
+            </div>
+            {(["rawTitle", "startTime", "websiteUrl", "notes"] as const).map(field => {
+              const labels: Record<string, string> = { rawTitle: "Name", startTime: "Check-in Time", websiteUrl: "Website URL", notes: "Notes" };
+              const types: Record<string, string> = { rawTitle: "text", startTime: "time", websiteUrl: "url", notes: "textarea" };
+              const val = editingLodging[field];
+              return (
+                <div key={field} style={{ marginBottom: "14px" }}>
+                  <label style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "5px", display: "block" }}>{labels[field]}</label>
+                  {types[field] === "textarea" ? (
+                    <textarea
+                      rows={3}
+                      value={val}
+                      onChange={e => setEditingLodging(prev => prev ? { ...prev, [field]: e.target.value } : prev)}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", outline: "none", boxSizing: "border-box", resize: "none", fontFamily: "inherit" }}
+                    />
+                  ) : (
+                    <input
+                      type={types[field]}
+                      value={val}
+                      onChange={e => setEditingLodging(prev => prev ? { ...prev, [field]: e.target.value } : prev)}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", backgroundColor: "#fff", outline: "none", boxSizing: "border-box" }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+            <button
+              onClick={async () => {
+                if (!editingLodging) return;
+                setLodgingSaving(true);
+                try {
+                  await fetch(`/api/saves/${editingLodging.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      rawTitle: editingLodging.rawTitle,
+                      startTime: editingLodging.startTime || null,
+                      websiteUrl: editingLodging.websiteUrl || null,
+                      notes: editingLodging.notes,
+                    }),
+                  });
+                  setRecAdditions(prev => prev.map(a =>
+                    a.savedItemId === editingLodging.id
+                      ? { ...a, title: editingLodging.rawTitle, startTime: editingLodging.startTime || null }
+                      : a
+                  ));
+                  setEditingLodging(null);
+                } catch { /* ignore */ } finally {
+                  setLodgingSaving(false);
+                }
+              }}
+              disabled={lodgingSaving}
+              style={{ width: "100%", padding: "14px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              {lodgingSaving ? "Saving…" : "Save changes"}
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -2324,6 +3042,17 @@ const RECOMMENDATIONS: RecItem[] = [
   },
 ];
 
+type FallbackItem = {
+  id: string;
+  rawTitle: string | null;
+  rawDescription: string | null;
+  mediaThumbnailUrl: string | null;
+  categoryTags: string[];
+  sourceUrl: string | null;
+  lat: number | null;
+  lng: number | null;
+};
+
 function RecommendedContent({
   tripId,
   tripStartDate,
@@ -2346,6 +3075,8 @@ function RecommendedContent({
   const isDesktop = useIsDesktop();
   const [savedSet, setSavedSet] = useState<Set<string>>(new Set());
   const [drawerRec, setDrawerRec] = useState<DrawerRec | null>(null);
+  const [fallbackItems, setFallbackItems] = useState<FallbackItem[]>([]);
+  const [fallbackLoaded, setFallbackLoaded] = useState(false);
 
   function generateDayPillsForRec(start: string | null, end: string | null): { dayIndex: number; label: string }[] {
     if (!start) return [];
@@ -2373,6 +3104,16 @@ function RecommendedContent({
   );
   const matchesDestination = filteredRecs.length > 0;
 
+  // Fetch fallback community saves when static recs are absent
+  useEffect(() => {
+    if (matchesDestination || !destinationCity || fallbackLoaded) return;
+    setFallbackLoaded(true);
+    fetch(`/api/recommendations/fallback?city=${encodeURIComponent(destinationCity)}`)
+      .then(r => r.json())
+      .then((items: FallbackItem[]) => setFallbackItems(Array.isArray(items) ? items : []))
+      .catch(() => {});
+  }, [matchesDestination, destinationCity, fallbackLoaded]);
+
   // Group by category (first segment of tags), sort categories and items alphabetically
   const grouped = filteredRecs.reduce((acc, rec) => {
     const cat = rec.tags.split(" · ")[0];
@@ -2385,15 +3126,87 @@ function RecommendedContent({
 
   if (!matchesDestination) {
     const dest = hasDestination ? [destinationCity, destinationCountry].filter(Boolean).join(", ") : "this destination";
+    const city = destinationCity ?? dest;
     return (
-      <div style={{ padding: "40px 24px", textAlign: "center" }}>
-        <Compass size={32} style={{ color: "#C4664A", margin: "0 auto 12px" }} />
-        <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a", marginBottom: "6px" }}>
-          No recommendations for {dest} yet
-        </p>
-        <p style={{ fontSize: "14px", color: "#717171", lineHeight: 1.5 }}>
-          We&apos;re constantly adding new destinations. Check back soon — or be the first to contribute a trip from {dest}.
-        </p>
+      <div>
+        {fallbackItems.length > 0 ? (
+          <>
+            <div style={{ marginBottom: "20px" }}>
+              <p style={{ fontSize: "18px", fontWeight: 700, color: "#1a1a1a", marginBottom: "4px" }}>Popular in {city}</p>
+              <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.5 }}>
+                Saved by families who&apos;ve visited {city}. More personalised recommendations appear as more families visit {city}.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "16px" }}>
+              {fallbackItems.map(item => {
+                const tag = item.categoryTags?.[0] ?? "Explore";
+                const isSaved = savedSet.has(item.id);
+                const placeName = item.rawTitle?.startsWith("http") ? `Place in ${city}` : (item.rawTitle ?? "Saved place");
+                const coverImg = item.mediaThumbnailUrl ?? getTripCoverImage(destinationCity, destinationCountry) ?? null;
+                const initial = placeName.charAt(0).toUpperCase();
+                return (
+                  <div key={item.id} style={{ backgroundColor: "#fff", border: "1px solid #EEEEEE", borderRadius: "16px", overflow: "hidden", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column" }}>
+                    {/* Header image */}
+                    <div style={{ height: "160px", position: "relative", flexShrink: 0, overflow: "hidden", backgroundColor: "#1B3A5C" }}>
+                      {coverImg ? (
+                        <div style={{ position: "absolute", inset: 0, backgroundImage: `url(${coverImg})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                      ) : (
+                        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, #1B3A5C 0%, #2d5a8e 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <span style={{ fontSize: "40px", fontWeight: 800, color: "rgba(255,255,255,0.25)" }}>{initial}</span>
+                        </div>
+                      )}
+                      {/* Category pill */}
+                      <div style={{ position: "absolute", top: "10px", left: "10px" }}>
+                        <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: "#C4664A", color: "#fff", borderRadius: "999px", padding: "3px 10px" }}>{tag}</span>
+                      </div>
+                    </div>
+
+                    {/* Body */}
+                    <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", flex: 1 }}>
+                      <p style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", marginBottom: "4px", lineHeight: 1.3 }}>{placeName}</p>
+                      {(destinationCity || destinationCountry) && (
+                        <p style={{ fontSize: "13px", color: "#AAAAAA", marginBottom: "6px" }}>
+                          {[destinationCity, destinationCountry].filter(Boolean).join(", ")}
+                        </p>
+                      )}
+                      {item.rawDescription && (
+                        <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.5, marginBottom: "10px", flex: 1, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } as React.CSSProperties}>{item.rawDescription}</p>
+                      )}
+                      <button
+                        type="button"
+                        disabled={isSaved}
+                        onClick={async () => {
+                          if (!tripId || isSaved) return;
+                          try {
+                            await fetch("/api/saves/activity", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ sourceItemId: item.id }),
+                            });
+                            setSavedSet(prev => new Set([...prev, item.id]));
+                          } catch { /* ignore */ }
+                        }}
+                        style={{ width: "100%", marginTop: "auto", padding: "10px", borderRadius: "10px", border: `1.5px solid ${isSaved ? "#4a7c59" : "#C4664A"}`, background: "none", color: isSaved ? "#4a7c59" : "#C4664A", fontSize: "13px", fontWeight: 700, cursor: isSaved ? "default" : "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
+                      >
+                        {isSaved ? "Saved ✓" : "Add to trip"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <div style={{ padding: "40px 24px", textAlign: "center" }}>
+            <Compass size={32} style={{ color: "#C4664A", margin: "0 auto 12px" }} />
+            <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a", marginBottom: "6px" }}>
+              No recommendations for {dest} yet
+            </p>
+            <p style={{ fontSize: "14px", color: "#717171", lineHeight: 1.5 }}>
+              We&apos;re constantly adding new destinations. Check back soon — or be the first to contribute a trip from {dest}.
+            </p>
+          </div>
+        )}
       </div>
     );
   }
@@ -2595,112 +3408,6 @@ function FlightCard({ flight, onDelete, onMarkBooked }: { flight: Flight; onDele
   );
 }
 
-// ── Activity detail modal ──────────────────────────────────────────────────────
-
-function ActivityDetailModal({ activity, onClose, onDelete, onEdit, onMarkBooked, onAddToItinerary }: {
-  activity: Activity;
-  onClose: () => void;
-  onDelete: () => void;
-  onEdit: () => void;
-  onMarkBooked?: () => void;
-  onAddToItinerary?: () => void;
-}) {
-  const isBooked = activity.status === "booked";
-  const isConfirmed = activity.status === "confirmed";
-  const statusColor = isBooked ? "#4a7c59" : isConfirmed ? "#1B3A5C" : "#717171";
-  const statusBg = isBooked ? "rgba(107,143,113,0.1)" : isConfirmed ? "rgba(27,58,92,0.08)" : "rgba(0,0,0,0.06)";
-  const statusLabel = isBooked ? "Booked" : isConfirmed ? "Confirmed" : "Interested";
-  return createPortal(
-    <div
-      onClick={onClose}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "560px", maxHeight: "85vh", overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom, 20px)" }}
-      >
-        <div style={{ padding: "20px 20px 0", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: "20px", fontWeight: 800, color: "#1B3A5C", lineHeight: 1.2, marginBottom: "6px" }}>{activity.title}</p>
-            <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: statusBg, color: statusColor, borderRadius: "999px", padding: "3px 10px" }}>{statusLabel}</span>
-          </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "22px", color: "#999", cursor: "pointer", lineHeight: 1, padding: "2px", flexShrink: 0 }}>×</button>
-        </div>
-        <div style={{ padding: "16px 20px 24px", display: "flex", flexDirection: "column", gap: "6px" }}>
-          {/* Date / time */}
-          {activity.date && (
-            <p style={{ fontSize: "14px", color: "#555" }}>
-              {activity.date}{activity.time ? ` · ${activity.time}` : ""}{activity.endTime ? ` – ${activity.endTime}` : ""}
-            </p>
-          )}
-          {/* Venue */}
-          {activity.venueName && <p style={{ fontSize: "13px", color: "#717171" }}>{activity.venueName}</p>}
-          {/* Price / confirmation */}
-          {(activity.price != null || activity.confirmationCode) && (
-            <p style={{ fontSize: "13px", color: "#555" }}>
-              {activity.price != null && `${activity.currency ?? "USD"} ${activity.price.toFixed(2)}`}
-              {activity.price != null && activity.confirmationCode && " · "}
-              {activity.confirmationCode && <span style={{ fontFamily: "monospace" }}>{activity.confirmationCode}</span>}
-            </p>
-          )}
-          {/* Day assigned */}
-          {activity.dayIndex != null && (
-            <span style={{ alignSelf: "flex-start", fontSize: "12px", fontWeight: 600, padding: "3px 10px", borderRadius: "999px", backgroundColor: "rgba(74,124,89,0.1)", color: "#4a7c59", border: "1px solid rgba(74,124,89,0.2)" }}>
-              ✓ Day {activity.dayIndex + 1}
-            </span>
-          )}
-          {/* Notes */}
-          {activity.notes && <p style={{ fontSize: "13px", color: "#888", fontStyle: "italic", marginTop: "4px" }}>{activity.notes}</p>}
-
-          {/* Actions */}
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "12px" }}>
-            {onAddToItinerary && activity.dayIndex == null && (
-              <button
-                type="button"
-                onClick={() => { onAddToItinerary(); onClose(); }}
-                style={{ width: "100%", padding: "12px", borderRadius: "12px", border: "1.5px solid #C4664A", backgroundColor: "transparent", fontSize: "14px", fontWeight: 700, color: "#C4664A", cursor: "pointer" }}
-              >
-                + Add to itinerary
-              </button>
-            )}
-            {activity.website && (
-              <a href={activity.website} target="_blank" rel="noopener noreferrer" style={{ display: "block", textAlign: "center", padding: "11px", borderRadius: "12px", backgroundColor: "#1B3A5C", fontSize: "13px", fontWeight: 700, color: "#fff", textDecoration: "none" }}>
-                Visit website →
-              </a>
-            )}
-            {!isBooked && onMarkBooked && (
-              <button
-                type="button"
-                onClick={() => { onMarkBooked(); onClose(); }}
-                style={{ width: "100%", padding: "11px", borderRadius: "12px", border: "1.5px solid rgba(107,143,113,0.4)", backgroundColor: "transparent", fontSize: "13px", fontWeight: 700, color: "#4a7c59", cursor: "pointer" }}
-              >
-                Mark as booked ✓
-              </button>
-            )}
-            <div style={{ display: "flex", gap: "8px" }}>
-              <button
-                type="button"
-                onClick={() => { onClose(); onEdit(); }}
-                style={{ flex: 1, padding: "10px", borderRadius: "12px", border: "1px solid #E0E0E0", backgroundColor: "#fff", fontSize: "13px", fontWeight: 600, color: "#555", cursor: "pointer" }}
-              >
-                Edit
-              </button>
-              <button
-                type="button"
-                onClick={() => { onDelete(); onClose(); }}
-                style={{ flex: 1, padding: "10px", borderRadius: "12px", border: "1px solid rgba(220,53,69,0.3)", backgroundColor: "transparent", fontSize: "13px", fontWeight: 600, color: "#dc3545", cursor: "pointer" }}
-              >
-                Remove
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
 // ── Activity card ─────────────────────────────────────────────────────────────
 
 function ActivityCard({ activity, onDelete, onEdit, onMarkBooked, onAddToItinerary }: { activity: Activity; onDelete: () => void; onEdit: () => void; onMarkBooked?: () => void; onAddToItinerary?: () => void }) {
@@ -2724,9 +3431,14 @@ function ActivityCard({ activity, onDelete, onEdit, onMarkBooked, onAddToItinera
           </span>
         </div>
         {/* Date + venue */}
-        <p style={{ fontSize: "13px", color: "#717171", marginBottom: activity.notes ? "4px" : "0" }}>
+        <p style={{ fontSize: "13px", color: "#717171", marginBottom: "4px" }}>
           {[activity.date, activity.time ? `${activity.time}${activity.endTime ? ` – ${activity.endTime}` : ""}` : null, activity.venueName].filter(Boolean).join(" · ")}
         </p>
+        {activity.website && (
+          <a href={activity.website} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "12px", color: "#C4664A", fontWeight: 600, textDecoration: "none", marginBottom: "4px" }}>
+            {/ticket|concert|game|sport|baseball|soccer|football|theater|theatre|show|stadium|arena/i.test(activity.title) ? "Book tickets →" : "Visit site →"}
+          </a>
+        )}
         {activity.notes && (
           <p style={{ fontSize: "12px", color: "#888", fontStyle: "italic", marginBottom: "0" }}>{activity.notes}</p>
         )}
@@ -2778,7 +3490,7 @@ function ActivityCard({ activity, onDelete, onEdit, onMarkBooked, onAddToItinera
         <ActivityDetailModal
           activity={activity}
           onClose={() => setShowDetail(false)}
-          onDelete={() => { onDelete(); setShowDetail(false); }}
+          onRemove={() => { onDelete(); setShowDetail(false); }}
           onEdit={() => { setShowDetail(false); onEdit(); }}
           onMarkBooked={onMarkBooked ? () => { onMarkBooked(); setShowDetail(false); } : undefined}
           onAddToItinerary={onAddToItinerary ? () => { onAddToItinerary(); setShowDetail(false); } : undefined}
@@ -2809,6 +3521,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [activityToast, setActivityToast] = useState<string | null>(null);
   const [flights, setFlights] = useState<Flight[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [activityDefaultDate, setActivityDefaultDate] = useState<string | undefined>(undefined);
 
   const fetchFlights = useCallback(() => {
     if (!tripId) return;
@@ -3065,7 +3778,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                 whiteSpace: "nowrap",
               }}
             >
-              <Plus size={13} /> Add
+              <Plus size={13} /> Save Link
             </button>
           </div>
         )}
@@ -3096,7 +3809,10 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         <AddActivityModal
           tripId={tripId}
           existingActivity={editingActivity ?? undefined}
-          onClose={() => { setShowActivityModal(false); setEditingActivity(null); }}
+          defaultDate={activityDefaultDate}
+          destinationCity={destinationCity}
+          destinationCountry={destinationCountry}
+          onClose={() => { setShowActivityModal(false); setEditingActivity(null); setActivityDefaultDate(undefined); }}
           onSaved={(updated) => {
             setShowActivityModal(false);
             setEditingActivity(null);
@@ -3159,27 +3875,32 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           )}
           {tripId && (
             <div style={{ marginBottom: "20px" }}>
-              <div style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "10px", paddingBottom: "8px", borderBottom: "1px solid #EEEEEE", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span>Activities {activities.length > 0 && <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#bbb" }}>{activities.length}</span>}</span>
-                <button
-                  onClick={() => setShowActivityModal(true)}
-                  style={{ fontSize: "12px", color: "#C4664A", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
-                >
-                  + Add activity
-                </button>
-              </div>
-              {activities.map(a => (
-                <ActivityCard key={a.id} activity={a} onDelete={() => handleDeleteActivity(a.id)} onEdit={() => setEditingActivity(a)} onMarkBooked={() => handleMarkActivityBooked(a.id)} onAddToItinerary={a.dayIndex == null ? () => setActivityDayPickerItem(a) : undefined} />
-              ))}
-              {activities.length === 0 && (
-                <p style={{ fontSize: "13px", color: "#bbb", fontStyle: "italic", marginBottom: "8px" }}>No activities yet. Add baseball games, tours, events…</p>
-              )}
+              {(() => {
+                const unscheduledActivities = activities.filter(a => a.dayIndex == null);
+                return (<>
+                  <div style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "10px", paddingBottom: "8px", borderBottom: "1px solid #EEEEEE", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span>Activities {unscheduledActivities.length > 0 && <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#bbb" }}>{unscheduledActivities.length}</span>}</span>
+                    <button
+                      onClick={() => setShowActivityModal(true)}
+                      style={{ fontSize: "12px", color: "#C4664A", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+                    >
+                      + Add activity
+                    </button>
+                  </div>
+                  {unscheduledActivities.map(a => (
+                    <ActivityCard key={a.id} activity={a} onDelete={() => handleDeleteActivity(a.id)} onEdit={() => setEditingActivity(a)} onMarkBooked={() => handleMarkActivityBooked(a.id)} onAddToItinerary={() => setActivityDayPickerItem(a)} />
+                  ))}
+                  {unscheduledActivities.length === 0 && (
+                    <p style={{ fontSize: "13px", color: "#bbb", fontStyle: "italic", marginBottom: "8px" }}>No activities yet. Add baseball games, tours, events…</p>
+                  )}
+                </>);
+              })()}
             </div>
           )}
           <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} />
         </>
       )}
-      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} />}
+      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} />}
       {tab === "packing" && <PackingContent tripId={tripId} />}
       {tab === "notes" && (
         <div style={{ maxWidth: "600px" }}>

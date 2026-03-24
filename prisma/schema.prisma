@@ -215,8 +215,10 @@ model Trip {
   contacts         TripContact[]
   documents        TripDocument[]
   keyInfo          TripKeyInfo[]
-  tips             TripTip[]
-  services         TripService[]
+  tips                  TripTip[]
+  services              TripService[]
+  bookingIntelCache     Json?
+  bookingIntelUpdatedAt DateTime?
 }
 
 enum TripStatus {
@@ -283,6 +285,7 @@ model SavedItem {
   userRating          Int?
   userNote            String?
   sortOrder           Int       @default(0)
+  startTime           String?
 }
 
 enum SourceType {

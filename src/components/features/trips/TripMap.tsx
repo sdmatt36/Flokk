@@ -6,7 +6,7 @@ import { Share2, Map as MapIcon, ChevronLeft } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { getDestinationCoords } from "@/lib/destination-coords";
 
-type MarkerDef = { num: number; label: string; lng: number; lat: number };
+type MarkerDef = { num: number; label: string; lng: number; lat: number; color?: string };
 
 function buildAppleMapsUrl(markers: MarkerDef[], center: [number, number]): string {
   if (markers.length === 0) return `https://maps.apple.com/?q=${center[1]},${center[0]}`;
@@ -31,14 +31,15 @@ function buildGoogleMapsUrl(markers: MarkerDef[], center: [number, number]): str
 }
 
 function createMarkerEl(m: MarkerDef): HTMLElement {
+  const color = m.color ?? "#C4664A";
   const wrap = document.createElement("div");
   wrap.style.cssText = "display:flex;flex-direction:column;align-items:center;cursor:default;";
 
   const pin = document.createElement("div");
   pin.style.cssText =
-    "width:32px;height:32px;border-radius:50%;background:#fff;border:2px solid #C4664A;" +
+    `width:32px;height:32px;border-radius:50%;background:${color};border:2px solid ${color};` +
     "display:flex;align-items:center;justify-content:center;" +
-    "font-weight:700;font-size:13px;color:#C4664A;" +
+    "font-weight:700;font-size:13px;color:#fff;" +
     "box-shadow:0 2px 8px rgba(0,0,0,0.2);font-family:-apple-system,BlinkMacSystemFont,sans-serif;";
   pin.textContent = String(m.num);
 
@@ -68,7 +69,7 @@ function flyToDay(map: any, mapboxgl: any, markers: MarkerDef[], center: [number
 
 type MapSavedItem = { title: string; lat: number; lng: number; dayIndex?: number | null };
 
-export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, destinationCity, destinationCountry, savedItems = [] }: { activeDay: number; flyTarget?: { lat: number; lng: number } | null; onFlyTargetConsumed?: () => void; tripId?: string; destinationCity?: string | null; destinationCountry?: string | null; savedItems?: MapSavedItem[] }) {
+export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, destinationCity, destinationCountry, savedItems = [], activities = [] }: { activeDay: number | null; flyTarget?: { lat: number; lng: number } | null; onFlyTargetConsumed?: () => void; tripId?: string; destinationCity?: string | null; destinationCountry?: string | null; savedItems?: MapSavedItem[]; activities?: MapSavedItem[] }) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -162,25 +163,23 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
   // Respond to day changes — show pins for items on that day (or all if day=0)
   useEffect(() => {
     if (!initializedRef.current || !mapRef.current) return;
-    console.log("[TripMap] activeDay:", activeDay, "allSavedItems count:", allSavedItems.length,
-      "sample dayIndex values:", allSavedItems.slice(0, 5).map(s => ({ title: s.title, dayIndex: s.dayIndex })));
-    let filtered = allSavedItems;
-    if (activeDay > 0) {
-      // Check both camelCase and snake_case field variants
-      filtered = allSavedItems.filter(s =>
-        s.dayIndex === activeDay || (s as any).day_index === activeDay
-      );
-      // Fall back to all markers if the day filter returns nothing — empty map is worse than all pins
-      if (filtered.length === 0) {
-        console.log("[TripMap] day filter returned 0 items — falling back to all markers");
-        filtered = allSavedItems;
+    let filteredSaved = allSavedItems;
+    let filteredActivities = activities;
+    if (activeDay !== null) {
+      filteredSaved = allSavedItems.filter(s => s.dayIndex === activeDay || (s as any).day_index === activeDay);
+      filteredActivities = activities.filter(a => a.dayIndex === activeDay);
+      if (filteredSaved.length === 0 && filteredActivities.length === 0) {
+        filteredSaved = allSavedItems;
+        filteredActivities = activities;
       }
     }
-    const dayMarkers: MarkerDef[] = filtered.map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng }));
-    console.log("[TripMap] rendering", dayMarkers.length, "markers");
-    addMarkersInternal(dayMarkers);
-    flyToDay(mapRef.current, mapboxRef.current, dayMarkers, destCoords);
-  }, [activeDay, allSavedItems]); // eslint-disable-line react-hooks/exhaustive-deps
+    const allFiltered = [
+      ...filteredSaved.map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" })),
+      ...filteredActivities.map((a, i) => ({ num: filteredSaved.length + i + 1, label: a.title, lat: a.lat, lng: a.lng, color: "#2E7D52" })),
+    ];
+    addMarkersInternal(allFiltered);
+    flyToDay(mapRef.current, mapboxRef.current, allFiltered, destCoords);
+  }, [activeDay, allSavedItems, activities]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fly to a specific coordinate when flyTarget is set
   useEffect(() => {
@@ -206,10 +205,12 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
   }
 
   function getActiveMarkers(): MarkerDef[] {
-    return (activeDay > 0
-      ? allSavedItems.filter(s => s.dayIndex === activeDay)
-      : allSavedItems
-    ).map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng }));
+    const filteredSaved = activeDay !== null ? allSavedItems.filter(s => s.dayIndex === activeDay) : allSavedItems;
+    const filteredActs = activeDay !== null ? activities.filter(a => a.dayIndex === activeDay) : activities;
+    return [
+      ...filteredSaved.map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" })),
+      ...filteredActs.map((a, i) => ({ num: filteredSaved.length + i + 1, label: a.title, lat: a.lat, lng: a.lng, color: "#2E7D52" })),
+    ];
   }
 
   function handleOpenAppleMaps() {

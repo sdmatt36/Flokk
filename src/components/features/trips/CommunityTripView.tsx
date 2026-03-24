@@ -2,12 +2,17 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { MapPin, Tag, Bookmark, BookmarkCheck, Sparkles, Users, ChevronRight, ChevronDown, X, Calendar } from "lucide-react";
+import { MapPin, Tag, Bookmark, BookmarkCheck, Sparkles, Users, ChevronRight, ChevronDown, X, Calendar, ExternalLink, GripVertical } from "lucide-react";
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { CommunityTripMap, type MarkerDef } from "./CommunityTripMap";
 import Link from "next/link";
 import { RecommendationDrawer, type DrawerRec } from "./RecommendationDrawer";
 import { parseDateForDisplay } from "@/lib/dates";
 import { getDestinationCoords } from "@/lib/destination-coords";
+import { getTripCoverImage } from "@/lib/destination-images";
 
 export type ActivityItem = {
   id: string;
@@ -18,6 +23,7 @@ export type ActivityItem = {
   dayIndex: number | null;
   lat?: number | null;
   lng?: number | null;
+  sourceUrl?: string | null;
 };
 
 type DayEntry = {
@@ -123,6 +129,19 @@ function buildAllMarkers(days: DayEntry[]): MarkerDef[] {
   return markers;
 }
 
+// Build markers from ALL items with coordinates (not filtered by dayIndex)
+function buildMarkersFromItems(items: ActivityItem[]): MarkerDef[] {
+  const markers: MarkerDef[] = [];
+  let num = 0;
+  for (const item of items) {
+    if (item.lat != null && item.lng != null) {
+      num++;
+      markers.push({ num, label: item.rawTitle ?? `Stop ${num}`, lat: item.lat!, lng: item.lng! });
+    }
+  }
+  return markers;
+}
+
 function computeCenter(
   items: ActivityItem[],
   destinationCity: string | null,
@@ -156,6 +175,185 @@ function getMemberSummary(members: ViewerMember[]): string {
     parts.push(`${children.length} kid${children.length !== 1 ? "s" : ""}${ageStr}`);
   }
   return parts.join(" + ");
+}
+
+// ── Item detail modal ─────────────────────────────────────────────────────────
+
+const BOOKABLE_CATEGORIES = ["hotel", "restaurant", "food", "activity", "cafe", "bar", "accommodation", "resort"];
+
+function ItemDetailModal({
+  item,
+  destinationCity,
+  destinationCountry,
+  isSaved,
+  isSaving,
+  onSave,
+  onClose,
+  isLoggedIn,
+  matchingTrips,
+  onAddToItinerary,
+}: {
+  item: ActivityItem;
+  destinationCity: string | null;
+  destinationCountry: string | null;
+  isSaved: boolean;
+  isSaving: boolean;
+  onSave: () => void;
+  onClose: () => void;
+  isLoggedIn: boolean;
+  matchingTrips: Array<{ id: string; title: string }>;
+  onAddToItinerary: (tripId?: string) => Promise<void>;
+}) {
+  const router = useRouter();
+  const photoUrl = item.mediaThumbnailUrl ?? getTripCoverImage(destinationCity, destinationCountry, null);
+  const [adding, setAdding] = useState(false);
+  const [addedName, setAddedName] = useState<string | null>(null);
+  const [showPicker, setShowPicker] = useState(false);
+
+  const isBookable = item.categoryTags.some((tag) =>
+    BOOKABLE_CATEGORIES.some((cat) => tag.toLowerCase().includes(cat))
+  );
+
+  async function handleAddClick() {
+    if (!isLoggedIn) {
+      router.push("/sign-in");
+      return;
+    }
+    if (matchingTrips.length > 1) {
+      setShowPicker(true);
+      return;
+    }
+    await doAdd(matchingTrips[0]?.id);
+  }
+
+  async function doAdd(tripId?: string) {
+    setAdding(true);
+    setShowPicker(false);
+    await onAddToItinerary(tripId);
+    setAdding(false);
+    const name = tripId
+      ? (matchingTrips.find((t) => t.id === tripId)?.title ?? "your trip")
+      : matchingTrips.length === 0 ? "your library" : "your trip";
+    setAddedName(name);
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}>
+      {/* Backdrop */}
+      <div style={{ position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.5)" }} onClick={onClose} />
+
+      {/* Modal */}
+      <div style={{ position: "relative", zIndex: 51, backgroundColor: "#fff", borderRadius: "20px", width: "100%", maxWidth: "540px", maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 8px 40px rgba(0,0,0,0.25)" }}>
+
+        {/* Close button — fixed to top-right */}
+        <button
+          onClick={onClose}
+          style={{ position: "absolute", top: "14px", right: "14px", zIndex: 10, width: "32px", height: "32px", borderRadius: "50%", backgroundColor: "rgba(0,0,0,0.45)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "18px", lineHeight: 1 }}
+        >
+          ×
+        </button>
+
+        {/* Photo header */}
+        <div style={{ height: "200px", flexShrink: 0, backgroundImage: `url('${photoUrl}')`, backgroundSize: "cover", backgroundPosition: "center", position: "relative" }}>
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.65) 100%)" }} />
+          {item.categoryTags.length > 0 && (
+            <div style={{ position: "absolute", bottom: "14px", left: "14px", display: "flex", gap: "6px" }}>
+              {item.categoryTags.slice(0, 2).map((tag) => (
+                <span key={tag} style={{ backgroundColor: "#C4664A", color: "#fff", fontSize: "11px", fontWeight: 700, padding: "3px 10px", borderRadius: "999px" }}>{tag}</span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Scrollable content */}
+        <div style={{ overflowY: "auto", flex: 1, padding: "20px 24px 32px" }}>
+          <h2 style={{ fontSize: "22px", fontWeight: 800, color: "#1B3A5C", lineHeight: 1.2, marginBottom: "10px", fontFamily: '"Playfair Display", Georgia, "Times New Roman", serif' }}>
+            {item.rawTitle}
+          </h2>
+
+          {item.rawDescription && (
+            <p style={{ fontSize: "14px", color: "#555", lineHeight: 1.65, marginBottom: "18px" }}>
+              {item.rawDescription}
+            </p>
+          )}
+
+          {/* CTA stack */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+
+            {/* Visit website */}
+            {item.sourceUrl && (
+              <a
+                href={item.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "13px", backgroundColor: "#fff", color: "#1B3A5C", border: "2px solid #1B3A5C", borderRadius: "12px", fontSize: "14px", fontWeight: 700, textDecoration: "none", boxSizing: "border-box" }}
+              >
+                Visit website <ExternalLink size={13} />
+              </a>
+            )}
+
+            {/* Book this */}
+            {item.sourceUrl && isBookable && (
+              <a
+                href={item.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "13px", backgroundColor: "#C4664A", color: "#fff", border: "none", borderRadius: "12px", fontSize: "14px", fontWeight: 700, textDecoration: "none", boxSizing: "border-box" }}
+              >
+                Book this →
+              </a>
+            )}
+
+            {/* Add to my itinerary */}
+            {addedName ? (
+              <div style={{ textAlign: "center", padding: "13px", backgroundColor: "rgba(74,124,89,0.1)", border: "1.5px solid rgba(74,124,89,0.3)", borderRadius: "12px", fontSize: "14px", fontWeight: 700, color: "#4a7c59" }}>
+                Added to {addedName} ✓
+              </div>
+            ) : showPicker ? (
+              <div style={{ border: "2px solid #C4664A", borderRadius: "12px", overflow: "hidden" }}>
+                <p style={{ fontSize: "11px", fontWeight: 700, color: "#717171", padding: "10px 14px 6px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Which trip?</p>
+                {matchingTrips.map((trip) => (
+                  <button
+                    key={trip.id}
+                    onClick={() => doAdd(trip.id)}
+                    disabled={adding}
+                    style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", background: "none", border: "none", borderTop: "1px solid rgba(0,0,0,0.06)", fontSize: "14px", fontWeight: 600, color: "#1a1a1a", cursor: "pointer", fontFamily: "inherit" }}
+                  >
+                    {trip.title}
+                  </button>
+                ))}
+                <button
+                  onClick={() => doAdd(undefined)}
+                  disabled={adding}
+                  style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", background: "none", border: "none", borderTop: "1px solid rgba(0,0,0,0.06)", fontSize: "13px", color: "#717171", cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  Save without assigning
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleAddClick}
+                disabled={adding}
+                style={{ width: "100%", padding: "13px", backgroundColor: "transparent", color: "#C4664A", border: "2px solid #C4664A", borderRadius: "12px", fontSize: "14px", fontWeight: 700, cursor: adding ? "default" : "pointer", fontFamily: "inherit", boxSizing: "border-box" }}
+              >
+                {adding ? "Adding…" : "Add to my itinerary"}
+              </button>
+            )}
+
+            {/* Save for later */}
+            <button
+              onClick={onSave}
+              disabled={isSaved || isSaving}
+              style={{ width: "100%", padding: "11px", backgroundColor: "transparent", color: isSaved ? "#4a7c59" : "#aaa", border: "none", borderRadius: "12px", fontSize: "13px", fontWeight: 600, cursor: isSaved ? "default" : "pointer", fontFamily: "inherit" }}
+            >
+              {isSaving ? "Saving…" : isSaved ? "Saved to library ✓" : "Save for later"}
+            </button>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ── Clone modal ──────────────────────────────────────────────────────────────
@@ -276,6 +474,16 @@ function CloneModal({
   );
 }
 
+// ── Sortable wrapper for community trip owner drag-reorder ────────────────────
+function SortableCommunityItem({ id, children }: { id: string; children: (handle: { listeners: any; attributes: any }) => React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}>
+      {children({ listeners, attributes })}
+    </div>
+  );
+}
+
 // ── Main export ──────────────────────────────────────────────────────────────
 
 export function CommunityTripView({
@@ -287,6 +495,7 @@ export function CommunityTripView({
   destinationCity,
   destinationCountry,
   viewerMembers,
+  isOwner = false,
 }: {
   items: ActivityItem[];
   startDate: string | null;
@@ -296,9 +505,10 @@ export function CommunityTripView({
   destinationCity: string | null;
   destinationCountry?: string | null;
   viewerMembers: ViewerMember[];
+  isOwner?: boolean;
 }) {
   const [tab, setTab] = useState<"itinerary" | "recommended">("itinerary");
-  const [openDay, setOpenDay] = useState(0); // 0-indexed; -1 = all collapsed
+  const [openDay, setOpenDay] = useState(-1); // -1 = all collapsed; show all markers on load
   const [savedSet, setSavedSet] = useState<Set<string>>(new Set());
   const [savingSet, setSavingSet] = useState<Set<string>>(new Set());
   const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number } | null>(null);
@@ -307,6 +517,33 @@ export function CommunityTripView({
   const [recAddedTitles, setRecAddedTitles] = useState<Set<string>>(new Set());
   const [leftHeight, setLeftHeight] = useState<number | null>(null);
   const leftPanelRef = useRef<HTMLDivElement>(null);
+  const [selectedItem, setSelectedItem] = useState<ActivityItem | null>(null);
+  // Live items: start from server-rendered props, refresh client-side with no-store to pick up backfill results
+  const [liveItems, setLiveItems] = useState<ActivityItem[]>(items);
+  const [userTrips, setUserTrips] = useState<Array<{ id: string; title: string; destinationCity: string | null }>>([]);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
+  );
+
+  function handleCommunityDragEnd(event: DragEndEvent, dayItems: ActivityItem[]) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = dayItems.findIndex(a => a.id === String(active.id));
+    const newIndex = dayItems.findIndex(a => a.id === String(over.id));
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(dayItems, oldIndex, newIndex);
+    const dayItemIds = new Set(dayItems.map(d => d.id));
+    setLiveItems(prev => [...prev.filter(p => !dayItemIds.has(p.id)), ...reordered]);
+    reordered.forEach((item, i) => {
+      fetch(`/api/saves/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sortOrder: i }),
+      }).catch(e => console.error("[communityDragSort]", e));
+    });
+  }
 
   useEffect(() => {
     if (!leftPanelRef.current) return;
@@ -317,9 +554,48 @@ export function CommunityTripView({
     return () => ro.disconnect();
   }, []);
 
-  const days = buildDays(items, startDate);
-  const mapCenter = computeCenter(items, destinationCity, destinationCountry ?? null);
-  const allMarkers = buildAllMarkers(days);
+  // Fresh fetch with no-store to get enriched lat/lng for map pins
+  useEffect(() => {
+    fetch(`/api/saves?tripId=${tripId}&public=true`, { cache: "no-store" })
+      .then((r) => r.json())
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(({ saves }: { saves: any[] }) => {
+        if (Array.isArray(saves) && saves.length > 0) {
+          setLiveItems(saves.map((s) => ({
+            id: s.id,
+            rawTitle: s.rawTitle,
+            rawDescription: s.rawDescription,
+            mediaThumbnailUrl: s.mediaThumbnailUrl,
+            categoryTags: s.categoryTags ?? [],
+            dayIndex: s.dayIndex,
+            lat: s.lat,
+            lng: s.lng,
+            sourceUrl: s.sourceUrl,
+          })));
+        }
+      })
+      .catch(() => {});
+  }, [tripId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch user's trips for the "add to itinerary" matching logic in the detail modal
+  useEffect(() => {
+    fetch("/api/trips")
+      .then((r) => {
+        if (r.ok) { setIsLoggedIn(true); return r.json(); }
+        setIsLoggedIn(false);
+        return { trips: [] };
+      })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((data: any) => setUserTrips(Array.isArray(data.trips) ? data.trips : []))
+      .catch(() => setIsLoggedIn(false));
+  }, []);
+
+  const days = buildDays(liveItems, startDate);
+  const mapCenter = computeCenter(liveItems, destinationCity, destinationCountry ?? null);
+  // Show only the open day's items on the map; fall back to all if no day is open
+  const activeMarkers = openDay >= 0 && days[openDay]
+    ? buildMarkersFromItems(days[openDay].items)
+    : buildMarkersFromItems(liveItems);
 
   const recDayPills: { dayIndex: number; label: string }[] = (() => {
     if (!startDate) return [];
@@ -337,8 +613,31 @@ export function CommunityTripView({
 
   const recs = DESTINATION_RECS[destinationCity ?? ""] ?? [];
   const relatedTrips = RELATED_TRIPS_BY_DEST[destinationCity ?? ""] ?? [];
+  const matchingTrips = userTrips.filter(
+    (t) => t.destinationCity?.toLowerCase() === destinationCity?.toLowerCase()
+  );
 
   const memberSummary = getMemberSummary(viewerMembers);
+
+  async function handleAddToItinerary(tripId?: string): Promise<void> {
+    if (!selectedItem) return;
+    const itemId = selectedItem.id;
+    const saveRes = await fetch("/api/saves/activity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sourceItemId: itemId }),
+    });
+    if (!saveRes.ok) return;
+    const { savedItem } = await saveRes.json() as { savedItem?: { id: string } };
+    if (tripId && savedItem?.id) {
+      await fetch(`/api/saves/${savedItem.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tripId }),
+      });
+    }
+    setSavedSet((prev) => new Set(prev).add(itemId));
+  }
 
   async function handleSaveActivity(itemId: string) {
     if (savedSet.has(itemId) || savingSet.has(itemId)) return;
@@ -433,56 +732,160 @@ export function CommunityTripView({
                       </div>
 
                       {/* Expandable body */}
-                      <div style={{ maxHeight: isOpen ? "2000px" : "0", overflow: "hidden", transition: "max-height 0.3s ease" }}>
-                        <div style={{ padding: "4px 16px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
-                          {day.items.map((item, idx) => {
-                            const saved = savedSet.has(item.id);
-                            const saving = savingSet.has(item.id);
-                            return (
-                              <div key={item.id} style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                                {/* Thumbnail or number badge */}
-                                {item.mediaThumbnailUrl ? (
-                                  <div style={{ width: "56px", height: "56px", borderRadius: "8px", flexShrink: 0, backgroundImage: `url('${item.mediaThumbnailUrl}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
-                                ) : (
-                                  <div style={{ width: "40px", height: "40px", borderRadius: "8px", flexShrink: 0, backgroundColor: "rgba(196,102,74,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                    <span style={{ fontSize: "14px", fontWeight: 800, color: "#C4664A" }}>{idx + 1}</span>
-                                  </div>
-                                )}
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", lineHeight: 1.2 }}>{item.rawTitle}</p>
-                                  {item.rawDescription && (
-                                    <p style={{ fontSize: "12px", color: "#717171", marginTop: "2px", lineHeight: 1.4 }}>{item.rawDescription}</p>
-                                  )}
-                                  {item.categoryTags.length > 0 && (
-                                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "5px" }}>
-                                      {item.categoryTags.slice(0, 3).map((tag) => (
-                                        <span key={tag} style={{ backgroundColor: "rgba(0,0,0,0.05)", color: "#666", fontSize: "11px", padding: "2px 8px", borderRadius: "999px" }}>{tag}</span>
-                                      ))}
-                                    </div>
-                                  )}
-                                  <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "6px" }}>
-                                    <button
-                                      onClick={() => handleSaveActivity(item.id)}
-                                      disabled={saved || saving}
-                                      style={{ display: "flex", alignItems: "center", gap: "4px", backgroundColor: saved ? "rgba(74,124,89,0.1)" : "transparent", border: `1.5px solid ${saved ? "rgba(74,124,89,0.3)" : "#C4664A"}`, borderRadius: "999px", padding: "4px 10px", fontSize: "12px", fontWeight: 600, color: saved ? "#4a7c59" : "#C4664A", cursor: saved ? "default" : "pointer" }}
-                                    >
-                                      {saved ? <BookmarkCheck size={11} /> : <Bookmark size={11} />}
-                                      {saving ? "Saving…" : saved ? "Saved" : "Save"}
-                                    </button>
-                                    {item.lat != null && item.lng != null && (
-                                      <button
-                                        onClick={() => setFlyTarget({ lat: item.lat!, lng: item.lng! })}
-                                        style={{ display: "flex", alignItems: "center", gap: "3px", background: "none", border: "none", padding: 0, fontSize: "12px", fontWeight: 600, color: "#C4664A", cursor: "pointer" }}
-                                      >
-                                        <MapPin size={11} />
-                                        Map
-                                      </button>
+                      <div style={{ maxHeight: isOpen ? "2000px" : "0", overflow: isOpen ? "visible" : "hidden", transition: "max-height 0.3s ease" }}>
+                        <div style={{ padding: "4px 16px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                          {isOwner ? (
+                            <DndContext
+                              sensors={sensors}
+                              collisionDetection={closestCenter}
+                              onDragEnd={(event) => handleCommunityDragEnd(event, day.items)}
+                            >
+                              <SortableContext
+                                items={day.items.map(item => item.id)}
+                                strategy={verticalListSortingStrategy}
+                              >
+                                {day.items.map((item, idx) => {
+                                  const saved = savedSet.has(item.id);
+                                  const saving = savingSet.has(item.id);
+                                  return (
+                                    <SortableCommunityItem key={item.id} id={item.id}>
+                                      {({ listeners, attributes }) => (
+                                        <div style={{ display: "flex", alignItems: "stretch", gap: "0" }}>
+                                          <div onClick={e => e.stopPropagation()} {...attributes} {...listeners}
+                                            style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "28px", flexShrink: 0, cursor: "grab", touchAction: "none" }}>
+                                            <GripVertical size={16} style={{ color: "#999" }} />
+                                          </div>
+                                          <div
+                                            onClick={() => setSelectedItem(item)}
+                                            style={{ flex: 1, display: "flex", gap: "10px", alignItems: "flex-start", cursor: "pointer", borderRadius: "10px", padding: "8px", margin: "-8px", transition: "background-color 0.1s" }}
+                                            className="hover:bg-black/[0.02]"
+                                          >
+                                            {item.mediaThumbnailUrl ? (
+                                              <div style={{ width: "56px", height: "56px", borderRadius: "8px", flexShrink: 0, backgroundImage: `url('${item.mediaThumbnailUrl}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                                            ) : (
+                                              <div style={{ width: "40px", height: "40px", borderRadius: "8px", flexShrink: 0, backgroundColor: "rgba(196,102,74,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                <span style={{ fontSize: "14px", fontWeight: 800, color: "#C4664A" }}>{idx + 1}</span>
+                                              </div>
+                                            )}
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                              <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", lineHeight: 1.2 }}>{item.rawTitle}</p>
+                                              {item.rawDescription && (
+                                                <p style={{ fontSize: "12px", color: "#717171", marginTop: "2px", lineHeight: 1.4 }}>{item.rawDescription}</p>
+                                              )}
+                                              {item.categoryTags.length > 0 && (
+                                                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "5px" }}>
+                                                  {item.categoryTags.slice(0, 3).map((tag) => (
+                                                    <span key={tag} style={{ backgroundColor: "rgba(0,0,0,0.05)", color: "#666", fontSize: "11px", padding: "2px 8px", borderRadius: "999px" }}>{tag}</span>
+                                                  ))}
+                                                </div>
+                                              )}
+                                              <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
+                                                <button
+                                                  onClick={(e) => { e.stopPropagation(); handleSaveActivity(item.id); }}
+                                                  disabled={saved || saving}
+                                                  style={{ display: "flex", alignItems: "center", gap: "4px", backgroundColor: saved ? "rgba(74,124,89,0.1)" : "transparent", border: `1.5px solid ${saved ? "rgba(74,124,89,0.3)" : "#C4664A"}`, borderRadius: "999px", padding: "4px 10px", fontSize: "12px", fontWeight: 600, color: saved ? "#4a7c59" : "#C4664A", cursor: saved ? "default" : "pointer" }}
+                                                >
+                                                  {saved ? <BookmarkCheck size={11} /> : <Bookmark size={11} />}
+                                                  {saving ? "Saving…" : saved ? "Saved" : "Save"}
+                                                </button>
+                                                {item.lat != null && item.lng != null && (
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); setFlyTarget({ lat: item.lat!, lng: item.lng! }); }}
+                                                    style={{ display: "flex", alignItems: "center", gap: "3px", background: "none", border: "none", padding: 0, fontSize: "12px", fontWeight: 600, color: "#C4664A", cursor: "pointer" }}
+                                                  >
+                                                    <MapPin size={11} />
+                                                    Map
+                                                  </button>
+                                                )}
+                                                {item.sourceUrl && (
+                                                  <a
+                                                    href={item.sourceUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "12px", fontWeight: 600, color: "#1B3A5C", textDecoration: "none" }}
+                                                  >
+                                                    <ExternalLink size={11} />
+                                                    Book this
+                                                  </a>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </SortableCommunityItem>
+                                  );
+                                })}
+                              </SortableContext>
+                            </DndContext>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                              {day.items.map((item, idx) => {
+                                const saved = savedSet.has(item.id);
+                                const saving = savingSet.has(item.id);
+                                return (
+                                  <div key={item.id}
+                                    onClick={() => setSelectedItem(item)}
+                                    style={{ display: "flex", gap: "10px", alignItems: "flex-start", cursor: "pointer", borderRadius: "10px", padding: "8px", margin: "-8px", transition: "background-color 0.1s" }}
+                                    className="hover:bg-black/[0.02]"
+                                  >
+                                    {item.mediaThumbnailUrl ? (
+                                      <div style={{ width: "56px", height: "56px", borderRadius: "8px", flexShrink: 0, backgroundImage: `url('${item.mediaThumbnailUrl}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                                    ) : (
+                                      <div style={{ width: "40px", height: "40px", borderRadius: "8px", flexShrink: 0, backgroundColor: "rgba(196,102,74,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                        <span style={{ fontSize: "14px", fontWeight: 800, color: "#C4664A" }}>{idx + 1}</span>
+                                      </div>
                                     )}
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", lineHeight: 1.2 }}>{item.rawTitle}</p>
+                                      {item.rawDescription && (
+                                        <p style={{ fontSize: "12px", color: "#717171", marginTop: "2px", lineHeight: 1.4 }}>{item.rawDescription}</p>
+                                      )}
+                                      {item.categoryTags.length > 0 && (
+                                        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "5px" }}>
+                                          {item.categoryTags.slice(0, 3).map((tag) => (
+                                            <span key={tag} style={{ backgroundColor: "rgba(0,0,0,0.05)", color: "#666", fontSize: "11px", padding: "2px 8px", borderRadius: "999px" }}>{tag}</span>
+                                          ))}
+                                        </div>
+                                      )}
+                                      <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleSaveActivity(item.id); }}
+                                          disabled={saved || saving}
+                                          style={{ display: "flex", alignItems: "center", gap: "4px", backgroundColor: saved ? "rgba(74,124,89,0.1)" : "transparent", border: `1.5px solid ${saved ? "rgba(74,124,89,0.3)" : "#C4664A"}`, borderRadius: "999px", padding: "4px 10px", fontSize: "12px", fontWeight: 600, color: saved ? "#4a7c59" : "#C4664A", cursor: saved ? "default" : "pointer" }}
+                                        >
+                                          {saved ? <BookmarkCheck size={11} /> : <Bookmark size={11} />}
+                                          {saving ? "Saving…" : saved ? "Saved" : "Save"}
+                                        </button>
+                                        {item.lat != null && item.lng != null && (
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setFlyTarget({ lat: item.lat!, lng: item.lng! }); }}
+                                            style={{ display: "flex", alignItems: "center", gap: "3px", background: "none", border: "none", padding: 0, fontSize: "12px", fontWeight: 600, color: "#C4664A", cursor: "pointer" }}
+                                          >
+                                            <MapPin size={11} />
+                                            Map
+                                          </button>
+                                        )}
+                                        {item.sourceUrl && (
+                                          <a
+                                            href={item.sourceUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            onClick={(e) => e.stopPropagation()}
+                                            style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "12px", fontWeight: 600, color: "#1B3A5C", textDecoration: "none" }}
+                                          >
+                                            <ExternalLink size={11} />
+                                            Book this
+                                          </a>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
-                                </div>
-                              </div>
-                            );
-                          })}
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -495,7 +898,7 @@ export function CommunityTripView({
             {/* Right panel: map — stacks below on mobile, sticky sidebar on desktop */}
             <div className="w-full md:w-[42%]" style={{ position: "sticky", top: 0, height: leftHeight ? `${leftHeight}px` : "300px", minHeight: "260px", maxHeight: "600px" }}>
               <CommunityTripMap
-                allMarkers={allMarkers}
+                allMarkers={activeMarkers}
                 center={mapCenter}
                 flyTarget={flyTarget}
                 onFlyTargetConsumed={() => setFlyTarget(null)}
@@ -615,6 +1018,22 @@ export function CommunityTripView({
           setTimeout(() => setDrawerRec(null), 1200);
         }}
       />
+
+      {/* Item detail modal */}
+      {selectedItem && (
+        <ItemDetailModal
+          item={selectedItem}
+          destinationCity={destinationCity}
+          destinationCountry={destinationCountry ?? null}
+          isSaved={savedSet.has(selectedItem.id)}
+          isSaving={savingSet.has(selectedItem.id)}
+          onSave={() => handleSaveActivity(selectedItem.id)}
+          onClose={() => setSelectedItem(null)}
+          isLoggedIn={isLoggedIn}
+          matchingTrips={matchingTrips}
+          onAddToItinerary={handleAddToItinerary}
+        />
+      )}
 
       {/* Clone modal */}
       {showCloneModal && (

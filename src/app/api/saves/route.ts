@@ -10,6 +10,7 @@ import { db } from "@/lib/db";
 import { z, ZodError } from "zod";
 import { extractOgMetadata } from "@/lib/og-extract";
 import type { SourceType } from "@prisma/client";
+import { inngest } from "@/lib/inngest/client";
 
 const SaveSchema = z.object({
   url: z.string().url(),
@@ -110,12 +111,18 @@ export async function POST(request: Request) {
         dayIndex: dayIndex ?? null,
         extractedCheckin: extractedCheckin ?? null,
         extractedCheckout: extractedCheckout ?? null,
-        extractionStatus: rawTitle ? "ENRICHED" : "PENDING",
+        extractionStatus: "PENDING",
         status: tripId ? "TRIP_ASSIGNED" : "UNORGANIZED",
         userRating: userRating ?? null,
         userNote: userNote ?? null,
       },
     });
+
+    // Fire enrichment pipeline if lat/lng not already provided
+    if (!lat && !lng) {
+      inngest.send({ name: "saves/enrich-item", data: { savedItemId: savedItem.id } })
+        .catch((e) => console.error("[saves POST] inngest.send failed:", e));
+    }
 
     return NextResponse.json({ savedItem });
   } catch (error) {

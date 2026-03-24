@@ -20,12 +20,26 @@ function isVideoUrl(url: string): boolean {
   );
 }
 
-function extractYouTubeId(url: string): string {
+export function extractYouTubeId(url: string): string {
   const match =
     url.match(/[?&]v=([^&]+)/) ??
-    url.match(/youtu\.be\/([^?]+)/) ??
+    url.match(/youtu\.be\/([^?/]+)/) ??
     url.match(/embed\/([^?]+)/);
   return match?.[1] ?? "";
+}
+
+async function youtubeOEmbed(url: string): Promise<{ title: string | null }> {
+  try {
+    const res = await fetch(
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`,
+      { signal: AbortSignal.timeout(5000) }
+    );
+    if (!res.ok) return { title: null };
+    const d = await res.json() as { title?: string };
+    return { title: d.title ?? null };
+  } catch {
+    return { title: null };
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -33,32 +47,50 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { url, title, description, destination, contentType, ageGroup } = body;
+  const { url, title, description, destination, contentType, ageGroup, tags, ogTitle, ogImageUrl, ogDescription } = body;
+  const resolvedTags: string[] = Array.isArray(tags) ? tags : [];
 
   if (!url) return NextResponse.json({ error: "URL required" }, { status: 400 });
 
-  let extractedTitle: string = title ?? "";
-  let extractedThumb: string | null = null;
+  // Use client-provided OG data if available; otherwise fall back to server-side extraction
+  let extractedTitle: string = ogTitle ?? title ?? "";
+  let extractedThumb: string | null = ogImageUrl ?? null;
+  const extractedDesc: string | null = description ?? ogDescription ?? null;
 
-  try {
-    if (!extractedTitle) {
+  // Auto-detect video from URL regardless of contentType submitted
+  const resolvedIsVideo = isVideoUrl(url);
+  const platform = resolvedIsVideo ? detectPlatform(url) : "other";
+  const embedId = platform === "youtube" ? extractYouTubeId(url) : "";
+
+  // For YouTube: construct reliable thumbnail and use oEmbed for title
+  if (platform === "youtube" && embedId) {
+    if (!extractedThumb) {
+      extractedThumb = `https://img.youtube.com/vi/${embedId}/maxresdefault.jpg`;
+    }
+    if (!extractedTitle || extractedTitle.startsWith("http")) {
+      const { title: oembedTitle } = await youtubeOEmbed(url);
+      if (oembedTitle) extractedTitle = oembedTitle;
+    }
+  }
+
+  // Generic fallback for non-YouTube URLs with no title
+  if (!extractedTitle && !resolvedIsVideo) {
+    try {
       const res = await fetch(url, {
         headers: { "User-Agent": "Mozilla/5.0" },
         signal: AbortSignal.timeout(5000),
       });
       const html = await res.text();
-      const ogTitle = html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i)?.[1];
+      const ogTitleTag = html.match(/<meta[^>]+property="og:title"[^>]+content="([^"]+)"/i)?.[1];
       const ogImage = html.match(/<meta[^>]+property="og:image"[^>]+content="([^"]+)"/i)?.[1];
-      extractedTitle = ogTitle ?? url;
-      extractedThumb = ogImage ?? null;
+      extractedTitle = ogTitleTag ?? url;
+      if (!extractedThumb) extractedThumb = ogImage ?? null;
+    } catch {
+      // extraction is optional
     }
-  } catch {
-    // extraction is optional
   }
 
-  if (isVideoUrl(url)) {
-    const platform = detectPlatform(url);
-    const embedId = platform === "youtube" ? extractYouTubeId(url) : "";
+  if (resolvedIsVideo) {
     const video = await db.travelVideo.create({
       data: {
         title: extractedTitle || url,
@@ -69,6 +101,7 @@ export async function POST(req: NextRequest) {
         destination: destination ?? null,
         contentType: contentType ?? "creator",
         ageGroup: ageGroup ?? "all",
+        tags: resolvedTags,
         status: "pending",
         submittedBy: userId,
         submittedAt: new Date(),
@@ -76,7 +109,6 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ success: true, type: "video", id: video.id });
   } else {
-    // Article — requires slug, excerpt, content (provide safe defaults for community submissions)
     const slugBase = (extractedTitle || url)
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -87,13 +119,14 @@ export async function POST(req: NextRequest) {
       data: {
         title: extractedTitle || url,
         slug,
-        excerpt: description ?? extractedTitle ?? url,
+        excerpt: extractedDesc ?? extractedTitle ?? url,
         content: "",
         thumbnailUrl: extractedThumb,
         sourceUrl: url,
         destination: destination ?? null,
         contentType: contentType ?? "community",
         ageGroup: ageGroup ?? "all",
+        tags: resolvedTags,
         status: "pending",
         submittedBy: userId,
         submittedAt: new Date(),
