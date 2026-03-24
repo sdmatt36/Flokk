@@ -143,19 +143,29 @@ Return this exact JSON structure:
   const bookingDate = (extracted.checkIn ?? extracted.departureDate) as string | null;
   let matchedTrip: typeof trips[0] | null = null;
 
-  // 1. Try: date range match
+  // 1. Try: date range match — prefer PLANNING > ACTIVE > COMPLETED, then shortest duration
   if (bookingDate) {
     const [by, bm, bd] = bookingDate.split("-").map(Number);
     const booking = new Date(by, bm - 1, bd);
-    matchedTrip = trips.find((trip) => {
+    const dateMatches = trips.filter((trip) => {
       if (!trip.startDate || !trip.endDate) return false;
       const start = new Date(trip.startDate);
       const end = new Date(trip.endDate);
       start.setHours(0, 0, 0, 0);
       end.setHours(23, 59, 59, 999);
       return booking >= start && booking <= end;
-    }) ?? null;
-    console.log("[email-parse] date match result:", matchedTrip?.title ?? "none");
+    });
+    dateMatches.sort((a, b) => {
+      const statusScore = (s: string | null) => s === "PLANNING" ? 0 : s === "ACTIVE" ? 1 : 2;
+      const sA = statusScore(a.status ?? null);
+      const sB = statusScore(b.status ?? null);
+      if (sA !== sB) return sA - sB;
+      const durA = (a.endDate?.getTime() ?? Infinity) - (a.startDate?.getTime() ?? 0);
+      const durB = (b.endDate?.getTime() ?? Infinity) - (b.startDate?.getTime() ?? 0);
+      return durA - durB;
+    });
+    matchedTrip = dateMatches[0] ?? null;
+    console.log("[email-parse] date match result:", matchedTrip?.title ?? "none", "| candidates:", dateMatches.map(t => `${t.title} (${t.status})`));
   }
 
   // 2. Try: destination keyword match — pick nearest upcoming trip

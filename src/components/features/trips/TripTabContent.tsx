@@ -948,7 +948,7 @@ function apiToDisplayItem(item: ApiSavedItem): SavedDisplayItem {
     status: item.isBooked ? "Booked" : "Saved",
     statusBooked: item.isBooked,
     families: "",
-    img: item.mediaThumbnailUrl ?? "",
+    img: item.mediaThumbnailUrl ?? undefined,
     icon,
     bookUrl: isBookable ? (item.sourceUrl ?? undefined) : undefined,
     websiteUrl: item.sourceUrl ?? undefined,
@@ -1368,7 +1368,7 @@ const AIRPORT_COORDS: Record<string, { lat: number; lng: number }> = {
   CAI: { lat: 30.1219, lng: 31.4056 },   RAK: { lat: 31.6069, lng: -8.0363 },
 };
 
-type RecAddition = { dayIndex: number; title: string; location: string; img: string; savedItemId?: string; lat?: number | null; lng?: number | null; isBooked?: boolean; sortOrder: number; startTime?: string | null };
+type RecAddition = { dayIndex: number; title: string; location: string; img?: string; savedItemId?: string; lat?: number | null; lng?: number | null; isBooked?: boolean; sortOrder: number; startTime?: string | null };
 
 // Unified sortable item — combines SavedItems, ManualActivities, and Flights into one sortable list per day
 type UnifiedDayItem = {
@@ -1821,7 +1821,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           dayIndex: item.dayIndex ?? 0,
           title: item.rawTitle ?? "",
           location: item.rawDescription ?? "",
-          img: item.mediaThumbnailUrl ?? "",
+          img: item.mediaThumbnailUrl ?? undefined,
           savedItemId: item.id,
           lat: item.lat ?? null,
           lng: item.lng ?? null,
