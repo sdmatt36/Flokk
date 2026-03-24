@@ -301,6 +301,7 @@ enum SourceType {
 enum SavedItemStatus {
   UNORGANIZED
   TRIP_ASSIGNED
+  SCHEDULED
   ARCHIVED
 }
 

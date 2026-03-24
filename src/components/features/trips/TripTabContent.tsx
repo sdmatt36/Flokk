@@ -906,6 +906,8 @@ type ApiSavedItem = {
   rawTitle: string | null;
   rawDescription: string | null;
   mediaThumbnailUrl: string | null;
+  destinationCity: string | null;
+  destinationCountry: string | null;
   categoryTags: string[];
   extractedCheckin: string | null;
   extractedCheckout: string | null;
@@ -948,7 +950,9 @@ function apiToDisplayItem(item: ApiSavedItem): SavedDisplayItem {
     status: item.isBooked ? "Booked" : "Saved",
     statusBooked: item.isBooked,
     families: "",
-    img: item.mediaThumbnailUrl ?? undefined,
+    img: item.mediaThumbnailUrl
+      ? item.mediaThumbnailUrl.replace("http://", "https://")
+      : getTripCoverImage(item.destinationCity, item.destinationCountry) ?? undefined,
     icon,
     bookUrl: isBookable ? (item.sourceUrl ?? undefined) : undefined,
     websiteUrl: item.sourceUrl ?? undefined,
@@ -1368,7 +1372,7 @@ const AIRPORT_COORDS: Record<string, { lat: number; lng: number }> = {
   CAI: { lat: 30.1219, lng: 31.4056 },   RAK: { lat: 31.6069, lng: -8.0363 },
 };
 
-type RecAddition = { dayIndex: number; title: string; location: string; img?: string; savedItemId?: string; lat?: number | null; lng?: number | null; isBooked?: boolean; sortOrder: number; startTime?: string | null };
+type RecAddition = { dayIndex: number; title: string; location: string; img?: string; savedItemId?: string; lat?: number | null; lng?: number | null; isBooked?: boolean; sortOrder: number; startTime?: string | null; categoryTags?: string[] };
 
 // Unified sortable item — combines SavedItems, ManualActivities, and Flights into one sortable list per day
 type UnifiedDayItem = {
@@ -1815,19 +1819,22 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     if (!tripId) return;
     fetch(`/api/trips/${tripId}/itinerary`)
       .then(r => r.json())
-      .then(({ items }: { items: Array<{ id: string; rawTitle: string | null; rawDescription: string | null; mediaThumbnailUrl: string | null; dayIndex: number | null; sortOrder?: number; lat?: number | null; lng?: number | null; isBooked?: boolean; startTime?: string | null }> }) => {
+      .then(({ items }: { items: Array<{ id: string; rawTitle: string | null; rawDescription: string | null; mediaThumbnailUrl: string | null; destinationCity?: string | null; destinationCountry?: string | null; dayIndex: number | null; sortOrder?: number; lat?: number | null; lng?: number | null; isBooked?: boolean; startTime?: string | null; categoryTags?: string[] }> }) => {
         if (!items?.length) return;
         const mapped = items.map(item => ({
           dayIndex: item.dayIndex ?? 0,
           title: item.rawTitle ?? "",
           location: item.rawDescription ?? "",
-          img: item.mediaThumbnailUrl ?? undefined,
+          img: item.mediaThumbnailUrl
+            ? item.mediaThumbnailUrl.replace("http://", "https://")
+            : getTripCoverImage(item.destinationCity, item.destinationCountry) ?? undefined,
           savedItemId: item.id,
           lat: item.lat ?? null,
           lng: item.lng ?? null,
           isBooked: item.isBooked ?? false,
           sortOrder: item.sortOrder ?? 0,
           startTime: item.startTime ?? null,
+          categoryTags: item.categoryTags ?? [],
         }));
         // If all sortOrders are 0 (seeded trips), assign sequential values and persist
         const allZero = mapped.length > 0 && mapped.every(item => item.sortOrder === 0);
@@ -2057,9 +2064,29 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 const item1Name = item.recAddition?.title ?? item.activity?.title ?? item.flight?.airline ?? item.itemType;
                                 const item2Name = next ? (next.recAddition?.title ?? next.activity?.title ?? next.flight?.airline ?? next.itemType) : "";
                                 const hasCoords = item.startTime && item.lat && item.lng && next?.startTime && next?.lat && next?.lng;
-                                const transitData = hasCoords
-                                  ? computeTransit(item.lat!, item.lng!, next!.lat!, next!.lng!)
-                                  : null;
+
+                                // Post-arrival transit intelligence: detect arrival (train/flight) → hotel pairs
+                                const isArrival = item.itemType === "flight" ||
+                                  (item.itemType === "saved" && (item.recAddition?.categoryTags ?? []).some(t => /train|rail|transit|bus/i.test(t)));
+                                const nextIsLodging = next && next.itemType === "saved" &&
+                                  (next.recAddition?.categoryTags ?? []).some(t => /lodg|hotel|hostel|resort|airbnb/i.test(t));
+
+                                let transitData: { mode: string; duration: string; directionsUrl: string } | null = null;
+                                if (hasCoords) {
+                                  transitData = computeTransit(item.lat!, item.lng!, next!.lat!, next!.lng!);
+                                } else if (isArrival && next && nextIsLodging) {
+                                  // No exact coords — build name-based directions URL
+                                  const fromLabel = item.itemType === "flight"
+                                    ? `${item.flight?.toAirport ?? ""} Airport ${item.flight?.toCity ?? ""}`.trim()
+                                    : (item.recAddition?.title ?? item1Name);
+                                  const toLabel = next.recAddition?.title ?? item2Name;
+                                  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+                                  const isIOS = /iPhone|iPad|iPod/i.test(ua);
+                                  const mapsUrl = isIOS
+                                    ? `maps://maps.apple.com/?saddr=${encodeURIComponent(fromLabel)}&daddr=${encodeURIComponent(toLabel)}`
+                                    : `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(fromLabel)}&destination=${encodeURIComponent(toLabel)}`;
+                                  transitData = { mode: "Transit", duration: "see directions", directionsUrl: mapsUrl };
+                                }
 
                                 return [
                                 <SortableWrapper key={item.sortId} sortId={item.sortId}>
@@ -4022,6 +4049,56 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
 
       {tab === "vault" && (
         <div style={{ maxWidth: "640px", display: "flex", flexDirection: "column", gap: "32px" }}>
+
+          {/* ── IMPORTED BOOKINGS ── */}
+          {documents.filter(d => d.type === "booking").length > 0 && (
+            <div>
+              <div style={{ marginBottom: "14px" }}>
+                <p style={{ fontSize: "16px", fontWeight: 800, color: "#1a1a1a", marginBottom: "2px" }}>Imported Bookings</p>
+                <p style={{ fontSize: "12px", color: "#717171" }}>Automatically populated from your confirmation emails</p>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {documents.filter(d => d.type === "booking").map(d => {
+                  let booking: Record<string, unknown> = {};
+                  try { booking = JSON.parse(d.content ?? "{}"); } catch { /* ignore */ }
+                  const typeLabel = (booking.type as string | undefined)?.toUpperCase() ?? "BOOKING";
+                  const rows: { label: string; value: string }[] = [];
+                  if (booking.fromCity && booking.toCity) rows.push({ label: "Route", value: `${booking.fromCity} → ${booking.toCity}` });
+                  if (booking.fromAirport && booking.toAirport) rows.push({ label: "Route", value: `${booking.fromAirport} → ${booking.toAirport}` });
+                  if (booking.departureDate) rows.push({ label: "Departure", value: `${booking.departureDate}${booking.departureTime ? ` at ${booking.departureTime}` : ""}` });
+                  if (booking.arrivalDate) rows.push({ label: "Arrival", value: `${booking.arrivalDate}${booking.arrivalTime ? ` at ${booking.arrivalTime}` : ""}` });
+                  if (booking.checkIn) rows.push({ label: "Check-in", value: String(booking.checkIn) });
+                  if (booking.checkOut) rows.push({ label: "Check-out", value: String(booking.checkOut) });
+                  if (booking.confirmationCode) rows.push({ label: "Confirmation", value: String(booking.confirmationCode) });
+                  if (booking.totalCost) rows.push({ label: "Total", value: `${booking.totalCost}${booking.currency ? ` ${booking.currency}` : ""}` });
+                  if (booking.contactPhone) rows.push({ label: "Phone", value: String(booking.contactPhone) });
+                  if (booking.contactEmail) rows.push({ label: "Email", value: String(booking.contactEmail) });
+                  if (Array.isArray(booking.guestNames) && booking.guestNames.length > 0) rows.push({ label: "Guests", value: (booking.guestNames as string[]).join(", ") });
+                  return (
+                    <div key={d.id} style={{ backgroundColor: "#fff", border: "1px solid rgba(196,102,74,0.2)", borderRadius: "14px", padding: "16px", position: "relative" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                        <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", color: "#C4664A", backgroundColor: "rgba(196,102,74,0.08)", borderRadius: "999px", padding: "2px 8px" }}>{typeLabel}</span>
+                        <span style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a" }}>{d.label}</span>
+                      </div>
+                      {rows.length > 0 && (
+                        <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 16px" }}>
+                          {rows.map(r => (
+                            <>
+                              <span key={`lbl_${r.label}`} style={{ fontSize: "11px", color: "#999", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>{r.label}</span>
+                              <span key={`val_${r.label}`} style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: 500 }}>{r.value}</span>
+                            </>
+                          ))}
+                        </div>
+                      )}
+                      <button onClick={async () => { await fetch(`/api/trips/${tripId}/vault/documents/${d.id}`, { method: "DELETE" }); setDocuments(p => p.filter(x => x.id !== d.id)); }} style={{ position: "absolute", top: "12px", right: "12px", background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px" }} title="Delete">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* ── CONTACTS ── */}
           <div>

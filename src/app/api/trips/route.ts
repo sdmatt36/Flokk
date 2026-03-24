@@ -1,6 +1,9 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getTripCoverImage } from "@/lib/destination-images";
+
+const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_PLACES_API_KEY;
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +58,9 @@ export async function POST(req: Request) {
   const monthYear = start.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
   const title = `${destinationCity} ${monthYear.replace(" ", " '")}`;
 
+  // Pre-populate heroImageUrl from static map (instant, no API call needed)
+  const staticCover = getTripCoverImage(destinationCity, destinationCountry);
+
   const trip = await db.trip.create({
     data: {
       familyProfileId: user.familyProfile.id,
@@ -65,8 +71,26 @@ export async function POST(req: Request) {
       endDate: new Date(endDate),
       status: (status === "COMPLETED" ? "COMPLETED" : "PLANNING") as "PLANNING" | "COMPLETED",
       privacy: "PRIVATE",
+      heroImageUrl: staticCover ?? null,
     },
   });
+
+  // Fire-and-forget: try to upgrade to a real Google Places photo
+  if (GOOGLE_API_KEY && destinationCity) {
+    (async () => {
+      try {
+        const query = encodeURIComponent(`${destinationCity} city landmark`);
+        const url = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${query}&inputtype=textquery&fields=photos&key=${GOOGLE_API_KEY}`;
+        const res = await fetch(url);
+        const data = await res.json() as { status: string; candidates?: Array<{ photos?: Array<{ photo_reference: string }> }> };
+        const photoRef = data.candidates?.[0]?.photos?.[0]?.photo_reference;
+        if (photoRef) {
+          const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photoreference=${photoRef}&key=${GOOGLE_API_KEY}`;
+          await db.trip.update({ where: { id: trip.id }, data: { heroImageUrl: photoUrl } });
+        }
+      } catch { /* ignore */ }
+    })();
+  }
 
   return NextResponse.json({ tripId: trip.id });
 }

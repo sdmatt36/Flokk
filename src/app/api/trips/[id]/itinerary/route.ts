@@ -37,12 +37,15 @@ export async function GET(
       rawTitle: true,
       rawDescription: true,
       mediaThumbnailUrl: true,
+      destinationCity: true,
+      destinationCountry: true,
       dayIndex: true,
       sortOrder: true,
       lat: true,
       lng: true,
       isBooked: true,
       startTime: true,
+      categoryTags: true,
     },
   });
 

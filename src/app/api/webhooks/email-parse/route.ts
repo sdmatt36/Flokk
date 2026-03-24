@@ -253,10 +253,48 @@ Return this exact JSON structure:
       });
     }
 
+    // Vault booking document for flight
+    if (matchedTrip) {
+      await db.tripDocument.create({
+        data: {
+          tripId: matchedTrip.id,
+          label: `${(extracted.airline as string) ?? ""} ${extracted.flightNumber as string}`.trim(),
+          type: "booking",
+          content: JSON.stringify({
+            type: "flight", vendorName: extracted.airline,
+            flightNumber: extracted.flightNumber, airline: extracted.airline,
+            fromAirport: extracted.fromAirport, toAirport: extracted.toAirport,
+            fromCity: extracted.fromCity, toCity: extracted.toCity,
+            departureDate: extracted.departureDate, departureTime: extracted.departureTime,
+            arrivalDate: extracted.arrivalDate, arrivalTime: extracted.arrivalTime,
+            confirmationCode: extracted.confirmationCode,
+            totalCost: extracted.totalCost, currency: extracted.currency,
+            guestNames: extracted.guestNames,
+            returnDepartureDate: extracted.returnDepartureDate,
+          }),
+        },
+      });
+    }
+
     console.log("[email-parse] created flight:", flight.id, "tripId:", flight.tripId);
     return NextResponse.json({ success: true, parsed: parsedSummary, tripMatched: matchedTrip?.title ?? null, itemCreated: flight.id });
 
   } else if (extracted.type === "hotel" && extracted.vendorName) {
+    // Compute dayIndex from checkIn date if available
+    let hotelDayIndex: number | null = null;
+    if (matchedTrip && extracted.checkIn) {
+      const trip = await db.trip.findUnique({ where: { id: matchedTrip.id }, select: { startDate: true } });
+      if (trip?.startDate) {
+        const rawStart = new Date(trip.startDate);
+        const shiftedStart = new Date(rawStart.getTime() + 12 * 60 * 60 * 1000);
+        const start = new Date(shiftedStart.getUTCFullYear(), shiftedStart.getUTCMonth(), shiftedStart.getUTCDate());
+        const [cy, cm, cd] = (extracted.checkIn as string).split("-").map(Number);
+        const checkin = new Date(cy, cm - 1, cd);
+        hotelDayIndex = Math.round((checkin.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      }
+    }
+
+    const hotelStatus = (matchedTrip && hotelDayIndex != null) ? "SCHEDULED" : (matchedTrip ? "TRIP_ASSIGNED" : "UNORGANIZED");
     const saved = await db.savedItem.create({
       data: {
         familyProfileId,
@@ -266,11 +304,12 @@ Return this exact JSON structure:
         destinationCity: (extracted.city as string) ?? null,
         destinationCountry: (extracted.country as string) ?? null,
         categoryTags: ["lodging"],
-        status: matchedTrip ? "TRIP_ASSIGNED" : "UNORGANIZED",
+        status: hotelStatus,
         isBooked: true,
         bookedAt: new Date(),
         extractedCheckin: (extracted.checkIn as string) ?? null,
         extractedCheckout: (extracted.checkOut as string) ?? null,
+        ...(hotelDayIndex != null ? { dayIndex: hotelDayIndex } : {}),
       },
     });
 
@@ -296,7 +335,27 @@ Return this exact JSON structure:
       });
     }
 
-    console.log("[email-parse] created hotel savedItem:", saved.id, "tripId:", saved.tripId);
+    // Vault booking document
+    if (matchedTrip) {
+      await db.tripDocument.create({
+        data: {
+          tripId: matchedTrip.id,
+          label: extracted.vendorName as string,
+          type: "booking",
+          content: JSON.stringify({
+            type: extracted.type, vendorName: extracted.vendorName,
+            checkIn: extracted.checkIn, checkOut: extracted.checkOut,
+            address: extracted.address, city: extracted.city, country: extracted.country,
+            confirmationCode: extracted.confirmationCode,
+            totalCost: extracted.totalCost, currency: extracted.currency,
+            contactPhone: extracted.contactPhone, contactEmail: extracted.contactEmail,
+            guestNames: extracted.guestNames,
+          }),
+        },
+      });
+    }
+
+    console.log("[email-parse] created hotel savedItem:", saved.id, "tripId:", saved.tripId, "dayIndex:", hotelDayIndex, "status:", hotelStatus);
     return NextResponse.json({ success: true, parsed: parsedSummary, tripMatched: matchedTrip?.title ?? null, itemCreated: saved.id });
 
   } else {
@@ -319,6 +378,7 @@ Return this exact JSON structure:
       startTime = (extracted.departureTime as string) ?? null;
     }
 
+    const itemStatus = (matchedTrip && dayIndex != null) ? "SCHEDULED" : (matchedTrip ? "TRIP_ASSIGNED" : "UNORGANIZED");
     const saved = await db.savedItem.create({
       data: {
         familyProfileId,
@@ -327,7 +387,7 @@ Return this exact JSON structure:
         rawTitle: (extracted.vendorName as string) ?? subject,
         destinationCity: ((extracted.city ?? extracted.toCity) as string) ?? null,
         categoryTags: [(extracted.type as string) ?? "other"],
-        status: matchedTrip ? "TRIP_ASSIGNED" : "UNORGANIZED",
+        status: itemStatus,
         isBooked: true,
         bookedAt: new Date(),
         ...(dayIndex != null ? { dayIndex } : {}),
@@ -345,7 +405,28 @@ Return this exact JSON structure:
       });
     }
 
-    console.log("[email-parse] created savedItem:", saved.id, "type:", extracted.type, "tripId:", saved.tripId, "dayIndex:", dayIndex, "startTime:", startTime);
+    // Vault booking document
+    if (matchedTrip) {
+      await db.tripDocument.create({
+        data: {
+          tripId: matchedTrip.id,
+          label: (extracted.vendorName as string) ?? subject,
+          type: "booking",
+          content: JSON.stringify({
+            type: extracted.type, vendorName: extracted.vendorName,
+            fromCity: extracted.fromCity, toCity: extracted.toCity,
+            departureDate: extracted.departureDate, departureTime: extracted.departureTime,
+            arrivalDate: extracted.arrivalDate, arrivalTime: extracted.arrivalTime,
+            confirmationCode: extracted.confirmationCode,
+            totalCost: extracted.totalCost, currency: extracted.currency,
+            contactPhone: extracted.contactPhone, contactEmail: extracted.contactEmail,
+            guestNames: extracted.guestNames, address: extracted.address,
+          }),
+        },
+      });
+    }
+
+    console.log("[email-parse] created savedItem:", saved.id, "type:", extracted.type, "tripId:", saved.tripId, "dayIndex:", dayIndex, "startTime:", startTime, "status:", itemStatus);
     return NextResponse.json({ success: true, parsed: parsedSummary, tripMatched: matchedTrip?.title ?? null, itemCreated: saved.id, dayIndex, startTime });
   }
 }
