@@ -84,6 +84,7 @@ export default async function TripDetailPage({
     id: item.id,
     rawTitle: item.rawTitle,
     rawDescription: item.rawDescription,
+    placePhotoUrl: item.placePhotoUrl,
     mediaThumbnailUrl: item.mediaThumbnailUrl,
     categoryTags: item.categoryTags,
     dayIndex: item.dayIndex,

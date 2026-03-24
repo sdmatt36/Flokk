@@ -99,6 +99,7 @@ export async function POST() {
       destinationCountry: true,
       sourceUrl: true,
       mediaThumbnailUrl: true,
+      placePhotoUrl: true,
     },
   });
 
@@ -137,14 +138,14 @@ export async function POST() {
       extractionStatus: "ENRICHED",
     };
     if (place.website && !item.sourceUrl) updateData.sourceUrl = place.website;
-    if (place.photoUrl && !item.mediaThumbnailUrl) updateData.mediaThumbnailUrl = place.photoUrl;
+    if (place.photoUrl) updateData.placePhotoUrl = place.photoUrl;
     if (typeof place.rating === "number") updateData.relevanceScore = place.rating;
 
     await db.savedItem.update({ where: { id: item.id }, data: updateData });
 
     const extras = [
       place.website && !item.sourceUrl ? "website" : null,
-      place.photoUrl && !item.mediaThumbnailUrl ? "photo" : null,
+      place.photoUrl ? "photo" : null,
     ].filter(Boolean);
 
     geocoded++;

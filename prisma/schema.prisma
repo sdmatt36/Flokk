@@ -264,6 +264,7 @@ model SavedItem {
   rawTitle            String?
   rawDescription      String?
   mediaThumbnailUrl   String?
+  placePhotoUrl       String?
   savedAt             DateTime      @default(now())
   destinationCity     String?
   destinationCountry  String?

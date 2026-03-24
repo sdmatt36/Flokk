@@ -8,6 +8,7 @@ import { getItemImage } from "@/lib/destination-images";
 export type RecentSaveItem = {
   id: string;
   rawTitle: string | null;
+  placePhotoUrl: string | null;
   mediaThumbnailUrl: string | null;
   destinationCity: string | null;
   destinationCountry: string | null;
@@ -39,7 +40,7 @@ const TITLE_LOCATIONS: Array<[RegExp, string]> = [
 ];
 
 function getImageSrc(item: RecentSaveItem): string {
-  return getItemImage(item.mediaThumbnailUrl, item.categoryTags[0] ?? null, item.destinationCity, item.destinationCountry);
+  return getItemImage(item.placePhotoUrl, item.mediaThumbnailUrl, item.categoryTags[0] ?? null, item.destinationCity, item.destinationCountry);
 }
 
 function getLocation(item: RecentSaveItem): string {

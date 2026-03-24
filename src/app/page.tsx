@@ -475,7 +475,7 @@ export default function LandingPage() {
       </div>
 
       {/* Features */}
-      <section className="py-24 px-6" style={{ backgroundColor: "#fff" }}>
+      <section id="features" className="py-24 px-6" style={{ backgroundColor: "#fff" }}>
         <div className="max-w-4xl mx-auto space-y-12">
           <h2 className="text-3xl md:text-4xl font-bold text-center" style={{ color: "#1a1a1a" }}>
             Built around your family, not the other way around.

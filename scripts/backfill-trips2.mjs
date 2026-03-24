@@ -31,6 +31,7 @@ const MAP = {
   'sydney': 'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=800&q=80',
   'marrakech': 'https://images.unsplash.com/photo-1597212618440-806262de4f2b?w=800&q=80',
   'marrakesh': 'https://images.unsplash.com/photo-1597212618440-806262de4f2b?w=800&q=80',
+  'madrid': 'https://images.unsplash.com/photo-1543783207-ec64e4d95325?w=800&q=80',
   'montreal': 'https://images.unsplash.com/photo-1519178614-68673b201f36?w=800&q=80',
   'buenos aires': 'https://images.unsplash.com/photo-1589909202802-8f4aadce1849?w=800&q=80',
   'colombo': 'https://images.unsplash.com/photo-1567591370078-c3a7f7c91b88?w=800&q=80',

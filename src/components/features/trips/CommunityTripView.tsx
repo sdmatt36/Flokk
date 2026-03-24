@@ -18,6 +18,7 @@ export type ActivityItem = {
   id: string;
   rawTitle: string | null;
   rawDescription: string | null;
+  placePhotoUrl?: string | null;
   mediaThumbnailUrl?: string | null;
   categoryTags: string[];
   dayIndex: number | null;
@@ -205,7 +206,7 @@ function ItemDetailModal({
   onAddToItinerary: (tripId?: string) => Promise<void>;
 }) {
   const router = useRouter();
-  const photoUrl = item.mediaThumbnailUrl ?? getTripCoverImage(destinationCity, destinationCountry, null);
+  const photoUrl = item.placePhotoUrl ?? item.mediaThumbnailUrl ?? getTripCoverImage(destinationCity, destinationCountry, null);
   const [adding, setAdding] = useState(false);
   const [addedName, setAddedName] = useState<string | null>(null);
   const [showPicker, setShowPicker] = useState(false);
@@ -565,6 +566,7 @@ export function CommunityTripView({
             id: s.id,
             rawTitle: s.rawTitle,
             rawDescription: s.rawDescription,
+            placePhotoUrl: s.placePhotoUrl ?? null,
             mediaThumbnailUrl: s.mediaThumbnailUrl,
             categoryTags: s.categoryTags ?? [],
             dayIndex: s.dayIndex,
@@ -760,8 +762,8 @@ export function CommunityTripView({
                                             style={{ flex: 1, display: "flex", gap: "10px", alignItems: "flex-start", cursor: "pointer", borderRadius: "10px", padding: "8px", margin: "-8px", transition: "background-color 0.1s" }}
                                             className="hover:bg-black/[0.02]"
                                           >
-                                            {item.mediaThumbnailUrl ? (
-                                              <div style={{ width: "56px", height: "56px", borderRadius: "8px", flexShrink: 0, backgroundImage: `url('${item.mediaThumbnailUrl}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                                            {(item.placePhotoUrl ?? item.mediaThumbnailUrl) ? (
+                                              <div style={{ width: "56px", height: "56px", borderRadius: "8px", flexShrink: 0, backgroundImage: `url('${item.placePhotoUrl ?? item.mediaThumbnailUrl}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
                                             ) : (
                                               <div style={{ width: "40px", height: "40px", borderRadius: "8px", flexShrink: 0, backgroundColor: "rgba(196,102,74,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                                 <span style={{ fontSize: "14px", fontWeight: 800, color: "#C4664A" }}>{idx + 1}</span>
@@ -830,8 +832,8 @@ export function CommunityTripView({
                                     style={{ display: "flex", gap: "10px", alignItems: "flex-start", cursor: "pointer", borderRadius: "10px", padding: "8px", margin: "-8px", transition: "background-color 0.1s" }}
                                     className="hover:bg-black/[0.02]"
                                   >
-                                    {item.mediaThumbnailUrl ? (
-                                      <div style={{ width: "56px", height: "56px", borderRadius: "8px", flexShrink: 0, backgroundImage: `url('${item.mediaThumbnailUrl}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                                    {(item.placePhotoUrl ?? item.mediaThumbnailUrl) ? (
+                                      <div style={{ width: "56px", height: "56px", borderRadius: "8px", flexShrink: 0, backgroundImage: `url('${item.placePhotoUrl ?? item.mediaThumbnailUrl}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
                                     ) : (
                                       <div style={{ width: "40px", height: "40px", borderRadius: "8px", flexShrink: 0, backgroundColor: "rgba(196,102,74,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                         <span style={{ fontSize: "14px", fontWeight: 800, color: "#C4664A" }}>{idx + 1}</span>

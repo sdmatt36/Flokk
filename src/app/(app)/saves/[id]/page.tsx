@@ -95,8 +95,8 @@ export default async function SaveDetailPage({ params }: { params: Promise<{ id:
 
       {/* Hero */}
       <div style={{ height: "260px", position: "relative", overflow: "hidden" }}>
-        {item.mediaThumbnailUrl ? (
-          <div style={{ width: "100%", height: "100%", backgroundImage: `url('${item.mediaThumbnailUrl}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
+        {(item.placePhotoUrl ?? item.mediaThumbnailUrl) ? (
+          <div style={{ width: "100%", height: "100%", backgroundImage: `url('${item.placePhotoUrl ?? item.mediaThumbnailUrl}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
         ) : (
           <div style={{ width: "100%", height: "100%", background: gradient }} />
         )}

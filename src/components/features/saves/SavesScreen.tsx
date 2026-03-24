@@ -37,6 +37,7 @@ const FILTER_PILLS = ["All", "Culture", "Food", "Kids", "Lodging", "Outdoor", "S
 type ApiItem = {
   id: string;
   rawTitle: string | null;
+  placePhotoUrl: string | null;
   mediaThumbnailUrl: string | null;
   destinationCity: string | null;
   destinationCountry: string | null;
@@ -72,7 +73,7 @@ function mapApiItem(item: ApiItem): Save {
     tripId: item.tripId ?? null,
     dayIndex: item.dayIndex ?? null,
     distance: null,
-    img: getItemImage(item.mediaThumbnailUrl, item.categoryTags[0] ?? null, item.destinationCity, item.destinationCountry),
+    img: getItemImage(item.placePhotoUrl, item.mediaThumbnailUrl, item.categoryTags[0] ?? null, item.destinationCity, item.destinationCountry),
   };
 }
 

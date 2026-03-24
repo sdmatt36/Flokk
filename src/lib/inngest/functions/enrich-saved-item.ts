@@ -86,6 +86,7 @@ export const enrichSavedItem = inngest.createFunction(
           destinationCity: true,
           destinationCountry: true,
           mediaThumbnailUrl: true,
+          placePhotoUrl: true,
           sourceUrl: true,
           lat: true,
         },
@@ -120,7 +121,7 @@ export const enrichSavedItem = inngest.createFunction(
       const updateData: Record<string, unknown> = {};
       if (coords) { updateData.lat = coords.lat; updateData.lng = coords.lng; }
       if (place.website && !item.sourceUrl) updateData.sourceUrl = place.website;
-      if (place.photoUrl && !item.mediaThumbnailUrl) updateData.mediaThumbnailUrl = place.photoUrl;
+      if (place.photoUrl) updateData.placePhotoUrl = place.photoUrl;
       if (typeof place.rating === "number") updateData.relevanceScore = place.rating;
       if (description) updateData.rawDescription = description;
       // Only mark ENRICHED after all enrichment steps have been attempted

@@ -37,6 +37,7 @@ export async function GET(
       rawTitle: true,
       rawDescription: true,
       mediaThumbnailUrl: true,
+      placePhotoUrl: true,
       destinationCity: true,
       destinationCountry: true,
       dayIndex: true,

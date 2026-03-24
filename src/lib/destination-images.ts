@@ -177,17 +177,22 @@ export function getTripCoverImage(
 
 /**
  * Full priority chain for SavedItem / activity card images:
- * 1. mediaThumbnailUrl (user/scraped photo)
- * 2. type-based fallback (train, flight, hotel, food)
- * 3. destination photo (city or country)
- * 4. generic travel fallback
+ * 1. placePhotoUrl  — Google Places photo (authoritative, set by enrichment)
+ * 2. mediaThumbnailUrl — scraped thumbnail (only if no Places photo)
+ * 3. type-based Unsplash fallback (train, flight, hotel, food)
+ * 4. destination photo (city or country)
+ * 5. generic travel fallback
  */
 export function getItemImage(
+  placePhotoUrl?: string | null,
   mediaThumbnailUrl?: string | null,
   type?: string | null,
   city?: string | null,
   country?: string | null,
 ): string {
+  const place = placePhotoUrl?.trim();
+  if (place) return place.replace("http://", "https://");
+
   const thumb = mediaThumbnailUrl?.trim();
   if (thumb) return thumb.replace("http://", "https://");
 

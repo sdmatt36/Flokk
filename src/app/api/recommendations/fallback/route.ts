@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
       rawTitle: true,
       rawDescription: true,
       mediaThumbnailUrl: true,
+      placePhotoUrl: true,
       categoryTags: true,
       sourceUrl: true,
       lat: true,

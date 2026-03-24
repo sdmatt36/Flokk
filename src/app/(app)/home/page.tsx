@@ -251,6 +251,7 @@ export default async function HomePage() {
               items={dedupedSaves.map(item => ({
                 id: item.id,
                 rawTitle: item.rawTitle,
+                placePhotoUrl: item.placePhotoUrl,
                 mediaThumbnailUrl: item.mediaThumbnailUrl,
                 destinationCity: item.destinationCity,
                 destinationCountry: item.destinationCountry,
