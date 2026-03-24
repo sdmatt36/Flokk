@@ -1,6 +1,7 @@
 import { inngest } from "../client";
 import { db } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
+import { getVenueImage } from "@/lib/destination-images";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -104,6 +105,7 @@ export const enrichSeededSaves = inngest.createFunction(
           destinationCity: true,
           destinationCountry: true,
           mediaThumbnailUrl: true,
+          placePhotoUrl: true,
           sourceUrl: true,
         },
       });
@@ -140,20 +142,26 @@ export const enrichSeededSaves = inngest.createFunction(
             updateData.lng = coords.lng;
           }
 
-          // Step 2: Places → website (→ sourceUrl), photo, rating (→ relevanceScore)
-          const place = await getPlaceDetails(
-            title,
-            coords?.lat ?? null,
-            coords?.lng ?? null
-          );
-          if (place.website && !item.sourceUrl) {
-            updateData.sourceUrl = place.website;
-          }
-          if (place.photoUrl && !item.mediaThumbnailUrl) {
-            updateData.mediaThumbnailUrl = place.photoUrl;
-          }
-          if (typeof place.rating === "number") {
-            updateData.relevanceScore = place.rating;
+          // Step 2: Curated venue photo (skip Places call if matched)
+          const curatedPhoto = getVenueImage(title);
+          if (curatedPhoto) {
+            updateData.placePhotoUrl = curatedPhoto;
+          } else {
+            // Fall back to Google Places
+            const place = await getPlaceDetails(
+              title,
+              coords?.lat ?? null,
+              coords?.lng ?? null
+            );
+            if (place.website && !item.sourceUrl) {
+              updateData.sourceUrl = place.website;
+            }
+            if (place.photoUrl) {
+              updateData.placePhotoUrl = place.photoUrl;
+            }
+            if (typeof place.rating === "number") {
+              updateData.relevanceScore = place.rating;
+            }
           }
 
           // Step 3: Claude → description if missing

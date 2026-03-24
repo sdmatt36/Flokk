@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getVenueImage } from "@/lib/destination-images";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +103,7 @@ export async function POST(
       rawTitle: title,
       rawDescription: location ?? null,
       mediaThumbnailUrl: imageUrl ?? null,
+      placePhotoUrl: getVenueImage(title) ?? null,
       dayIndex,
       lat: lat ?? null,
       lng: lng ?? null,

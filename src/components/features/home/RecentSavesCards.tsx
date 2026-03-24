@@ -40,7 +40,7 @@ const TITLE_LOCATIONS: Array<[RegExp, string]> = [
 ];
 
 function getImageSrc(item: RecentSaveItem): string {
-  return getItemImage(item.placePhotoUrl, item.mediaThumbnailUrl, item.categoryTags[0] ?? null, item.destinationCity, item.destinationCountry);
+  return getItemImage(item.rawTitle, item.placePhotoUrl, item.mediaThumbnailUrl, item.categoryTags[0] ?? null, item.destinationCity, item.destinationCountry);
 }
 
 function getLocation(item: RecentSaveItem): string {

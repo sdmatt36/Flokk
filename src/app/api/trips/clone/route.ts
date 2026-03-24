@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getVenueImage } from "@/lib/destination-images";
 
 export async function POST(request: Request) {
   try {
@@ -70,6 +71,7 @@ export async function POST(request: Request) {
           destinationCity: item.destinationCity ?? source.destinationCity ?? null,
           destinationCountry: item.destinationCountry ?? source.destinationCountry ?? null,
           dayIndex: item.dayIndex,
+          placePhotoUrl: (item.rawTitle ? (getVenueImage(item.rawTitle) ?? null) : null) ?? item.placePhotoUrl ?? null,
           extractionStatus: "ENRICHED" as const,
           status: "TRIP_ASSIGNED" as const,
         })),

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
+import { getVenueImage } from "@/lib/destination-images";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -304,6 +305,7 @@ Return this exact JSON structure:
         destinationCity: (extracted.city as string) ?? null,
         destinationCountry: (extracted.country as string) ?? null,
         categoryTags: ["lodging"],
+        placePhotoUrl: getVenueImage(extracted.vendorName as string) ?? null,
         status: hotelStatus,
         isBooked: true,
         bookedAt: new Date(),
@@ -387,15 +389,17 @@ Return this exact JSON structure:
     const autoDescription = routeParts.length > 0 ? routeParts.join(" · ") : null;
 
     const itemStatus = (matchedTrip && dayIndex != null) ? "SCHEDULED" : (matchedTrip ? "TRIP_ASSIGNED" : "UNORGANIZED");
+    const trainTitle = (extracted.vendorName as string) ?? subject;
     const saved = await db.savedItem.create({
       data: {
         familyProfileId,
         tripId: matchedTrip?.id ?? null,
         sourceType: "EMAIL_IMPORT",
-        rawTitle: (extracted.vendorName as string) ?? subject,
+        rawTitle: trainTitle,
         rawDescription: autoDescription,
         destinationCity: ((extracted.city ?? extracted.toCity) as string) ?? null,
         categoryTags: [(extracted.type as string) ?? "other"],
+        placePhotoUrl: getVenueImage(trainTitle) ?? null,
         status: itemStatus,
         isBooked: true,
         bookedAt: new Date(),

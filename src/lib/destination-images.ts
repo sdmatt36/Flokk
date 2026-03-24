@@ -1,3 +1,56 @@
+// Curated venue-level images — checked before any dynamic source.
+// Keys are lowercase substrings; a match is found if the key appears in the item title or vice versa.
+export const VENUE_IMAGES: Record<string, string> = {
+  // Tokyo
+  "teamlab borderless":   "https://images.unsplash.com/photo-1554136835-98b2c56c6e20?w=800&q=80",
+  "shibuya crossing":     "https://images.unsplash.com/photo-1542051841857-5f90071e7989?w=800&q=80",
+  "tokyo skytree":        "https://images.unsplash.com/photo-1490806843957-31f4c9a91c65?w=800&q=80",
+  "senso-ji":             "https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=800&q=80",
+  "meiji shrine":         "https://images.unsplash.com/photo-1583400421673-32a765f5e0c2?w=800&q=80",
+  "harajuku":             "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?w=800&q=80",
+  "shinjuku":             "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&q=80",
+  "akihabara":            "https://images.unsplash.com/photo-1519638831568-d9897f54ed69?w=800&q=80",
+
+  // Seoul
+  "gyeongbokgung":        "https://images.unsplash.com/photo-1578637387939-43c525550085?w=800&q=80",
+  "bukchon hanok":        "https://images.unsplash.com/photo-1538485399081-7191377e8241?w=800&q=80",
+  "namsan tower":         "https://images.unsplash.com/photo-1601621915196-2621bfb0cd6e?w=800&q=80",
+  "coex":                 "https://images.unsplash.com/photo-1583422409516-2895a77efded?w=800&q=80",
+  "insadong":             "https://images.unsplash.com/photo-1534430480872-3498386e7856?w=800&q=80",
+  "lotte world":          "https://images.unsplash.com/photo-1562408590-e32931084e23?w=800&q=80",
+  "gwangjang market":     "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=800&q=80",
+  "dmz":                  "https://images.unsplash.com/photo-1569701813229-33284b643e3c?w=800&q=80",
+
+  // Kyoto
+  "fushimi inari":        "https://images.unsplash.com/photo-1478436127897-769e1b3f0f36?w=800&q=80",
+  "arashiyama":           "https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=800&q=80",
+  "kinkaku-ji":           "https://images.unsplash.com/photo-1545569341-9eb8b30979d9?w=800&q=80",
+  "gion":                 "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800&q=80",
+
+  // Marrakesh
+  "djemaa el-fna":        "https://images.unsplash.com/photo-1597212618440-806262de4f2b?w=800&q=80",
+  "medina souks":         "https://images.unsplash.com/photo-1548013146-72479768bada?w=800&q=80",
+  "majorelle garden":     "https://images.unsplash.com/photo-1548531853-2ac7d6d0b5af?w=800&q=80",
+  "atlas mountains":      "https://images.unsplash.com/photo-1531176175280-dd4f6b261d60?w=800&q=80",
+
+  // Okinawa
+  "shuri castle":         "https://images.unsplash.com/photo-1580640810088-1ac1d5f0ffe2?w=800&q=80",
+  "churaumi aquarium":    "https://images.unsplash.com/photo-1571752726703-5e7d1f6a986d?w=800&q=80",
+
+  // Thailand
+  "wat phra kaew":        "https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=800&q=80",
+  "chiang mai temple":    "https://images.unsplash.com/photo-1528181304800-259b08848526?w=800&q=80",
+};
+
+/** Returns a curated Unsplash URL for a known venue, or null if not in the map. */
+export function getVenueImage(title: string): string | null {
+  const t = title.toLowerCase().trim();
+  for (const [key, url] of Object.entries(VENUE_IMAGES)) {
+    if (t.includes(key) || key.includes(t)) return url;
+  }
+  return null;
+}
+
 export const DESTINATION_IMAGES: Record<string, string> = {
   // Japan
   "tokyo": "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&q=80",
@@ -177,19 +230,24 @@ export function getTripCoverImage(
 
 /**
  * Full priority chain for SavedItem / activity card images:
- * 1. placePhotoUrl  — Google Places photo (authoritative, set by enrichment)
- * 2. mediaThumbnailUrl — scraped thumbnail (only if no Places photo)
- * 3. type-based Unsplash fallback (train, flight, hotel, food)
- * 4. destination photo (city or country)
- * 5. generic travel fallback
+ * 1. getVenueImage(title) — curated venue photo (single source of truth)
+ * 2. placePhotoUrl  — Google Places photo (dynamic fallback)
+ * 3. mediaThumbnailUrl — scraped thumbnail
+ * 4. type-based Unsplash fallback (train, flight, hotel, food)
+ * 5. destination photo (city or country)
+ * 6. generic travel fallback
  */
 export function getItemImage(
+  title?: string | null,
   placePhotoUrl?: string | null,
   mediaThumbnailUrl?: string | null,
   type?: string | null,
   city?: string | null,
   country?: string | null,
 ): string {
+  const venue = title ? getVenueImage(title) : null;
+  if (venue) return venue;
+
   const place = placePhotoUrl?.trim();
   if (place) return place.replace("http://", "https://");
 

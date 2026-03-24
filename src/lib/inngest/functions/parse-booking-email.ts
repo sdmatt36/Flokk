@@ -1,6 +1,7 @@
 import { inngest } from "../client";
 import { db } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
+import { getVenueImage } from "@/lib/destination-images";
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -219,6 +220,7 @@ Return this exact JSON structure:
             destinationCity: extracted.city ?? null,
             destinationCountry: extracted.country ?? null,
             categoryTags: ["lodging"],
+            placePhotoUrl: getVenueImage(extracted.vendorName) ?? null,
             status: "TRIP_ASSIGNED",
             isBooked: true,
             bookedAt: new Date(),
@@ -254,13 +256,15 @@ Return this exact JSON structure:
         return { type: "hotel", id: saved.id };
       } else {
         // Generic activity / other booking
+        const genericTitle = extracted.vendorName ?? subject;
         const saved = await db.savedItem.create({
           data: {
             familyProfileId,
             tripId: matchedTrip.id,
             sourceType: "EMAIL_IMPORT",
-            rawTitle: extracted.vendorName ?? subject,
+            rawTitle: genericTitle,
             categoryTags: [extracted.type ?? "other"],
+            placePhotoUrl: getVenueImage(genericTitle) ?? null,
             status: "TRIP_ASSIGNED",
             isBooked: true,
             bookedAt: new Date(),

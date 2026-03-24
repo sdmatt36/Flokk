@@ -952,7 +952,7 @@ function apiToDisplayItem(item: ApiSavedItem): SavedDisplayItem {
     status: item.isBooked ? "Booked" : "Saved",
     statusBooked: item.isBooked,
     families: "",
-    img: getItemImage(item.placePhotoUrl, item.mediaThumbnailUrl, item.categoryTags[0] ?? null, item.destinationCity, item.destinationCountry),
+    img: getItemImage(item.rawTitle, item.placePhotoUrl, item.mediaThumbnailUrl, item.categoryTags[0] ?? null, item.destinationCity, item.destinationCountry),
     icon,
     bookUrl: isBookable ? (item.sourceUrl ?? undefined) : undefined,
     websiteUrl: item.sourceUrl ?? undefined,
@@ -1825,7 +1825,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           dayIndex: item.dayIndex ?? 0,
           title: item.rawTitle ?? "",
           location: item.rawDescription ?? "",
-          img: getItemImage(item.placePhotoUrl ?? null, item.mediaThumbnailUrl, (item.categoryTags ?? [])[0] ?? null, item.destinationCity, item.destinationCountry),
+          img: getItemImage(item.rawTitle ?? null, item.placePhotoUrl ?? null, item.mediaThumbnailUrl, (item.categoryTags ?? [])[0] ?? null, item.destinationCity, item.destinationCountry),
           savedItemId: item.id,
           lat: item.lat ?? null,
           lng: item.lng ?? null,
@@ -3183,7 +3183,7 @@ function RecommendedContent({
                 const tag = item.categoryTags?.[0] ?? "Explore";
                 const isSaved = savedSet.has(item.id);
                 const placeName = item.rawTitle?.startsWith("http") ? `Place in ${city}` : (item.rawTitle ?? "Saved place");
-                const coverImg = getItemImage(item.placePhotoUrl, item.mediaThumbnailUrl, item.categoryTags[0] ?? null, destinationCity, destinationCountry);
+                const coverImg = getItemImage(item.rawTitle, item.placePhotoUrl, item.mediaThumbnailUrl, item.categoryTags[0] ?? null, destinationCity, destinationCountry);
                 const initial = placeName.charAt(0).toUpperCase();
                 return (
                   <div key={item.id} style={{ backgroundColor: "#fff", border: "1px solid #EEEEEE", borderRadius: "16px", overflow: "hidden", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column" }}>

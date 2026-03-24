@@ -11,6 +11,7 @@ import { z, ZodError } from "zod";
 import { extractOgMetadata } from "@/lib/og-extract";
 import type { SourceType } from "@prisma/client";
 import { inngest } from "@/lib/inngest/client";
+import { getVenueImage } from "@/lib/destination-images";
 
 const SaveSchema = z.object({
   url: z.string().url(),
@@ -105,6 +106,7 @@ export async function POST(request: Request) {
         rawTitle,
         rawDescription,
         mediaThumbnailUrl,
+        placePhotoUrl: rawTitle ? (getVenueImage(rawTitle) ?? null) : null,
         categoryTags: tags ?? [],
         lat: lat ?? null,
         lng: lng ?? null,

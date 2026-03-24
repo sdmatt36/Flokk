@@ -1,6 +1,7 @@
 import { inngest } from "../client";
 import { db } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
+import { getVenueImage } from "@/lib/destination-images";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
@@ -103,8 +104,10 @@ export const enrichSavedItem = inngest.createFunction(
       return await geocode(item.rawTitle!, item.destinationCity, item.destinationCountry);
     });
 
-    // Step 2: Places — website, photo, rating
+    // Step 2: Places — website, photo, rating (skipped if venue map has a curated photo)
+    const curatedPhoto = getVenueImage(item.rawTitle!);
     const place = await step.run("places", async () => {
+      if (curatedPhoto) return { photoUrl: curatedPhoto } as { website?: string; photoUrl?: string; rating?: number };
       const lat = coords?.lat ?? null;
       const lng = coords?.lng ?? null;
       return await getPlaceDetails(item.rawTitle!, lat, lng);
