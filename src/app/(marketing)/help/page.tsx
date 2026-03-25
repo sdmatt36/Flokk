@@ -142,12 +142,11 @@ const CATEGORIES: Category[] = [
   },
 ];
 
-function ArticleAccordion({ article }: { article: Article }) {
-  const [open, setOpen] = useState(false);
+function ArticleAccordion({ article, isOpen, onToggle }: { article: Article; isOpen: boolean; onToggle: () => void }) {
   return (
     <div style={{ borderBottom: "1px solid #F0F0F0" }}>
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={onToggle}
         style={{
           width: "100%",
           display: "flex",
@@ -170,11 +169,11 @@ function ArticleAccordion({ article }: { article: Article }) {
             color: "#C4664A",
             flexShrink: 0,
             transition: "transform 0.2s",
-            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
           }}
         />
       </button>
-      {open && (
+      {isOpen && (
         <p style={{ fontSize: "14px", lineHeight: 1.7, color: "#555", margin: "0 0 16px", paddingRight: "28px" }}>
           {article.copy}
         </p>
@@ -183,8 +182,8 @@ function ArticleAccordion({ article }: { article: Article }) {
   );
 }
 
-function CategorySection({ category, defaultOpen }: { category: Category; defaultOpen: boolean }) {
-  const [open, setOpen] = useState(defaultOpen);
+function CategorySection({ category, isOpen, onToggle }: { category: Category; isOpen: boolean; onToggle: () => void }) {
+  const [openArticle, setOpenArticle] = useState<string | null>(null);
   return (
     <div
       style={{
@@ -195,7 +194,7 @@ function CategorySection({ category, defaultOpen }: { category: Category; defaul
       }}
     >
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={onToggle}
         style={{
           width: "100%",
           display: "flex",
@@ -222,15 +221,20 @@ function CategorySection({ category, defaultOpen }: { category: Category; defaul
             color: "#1B3A5C",
             flexShrink: 0,
             transition: "transform 0.2s",
-            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
           }}
         />
       </button>
 
-      {open && (
+      {isOpen && (
         <div style={{ padding: "0 28px 8px" }}>
           {category.articles.map((article) => (
-            <ArticleAccordion key={article.title} article={article} />
+            <ArticleAccordion
+              key={article.title}
+              article={article}
+              isOpen={openArticle === article.title}
+              onToggle={() => setOpenArticle((prev) => prev === article.title ? null : article.title)}
+            />
           ))}
           <div style={{ paddingTop: "16px", paddingBottom: "20px" }}>
             <Link
@@ -248,6 +252,7 @@ function CategorySection({ category, defaultOpen }: { category: Category; defaul
 
 export default function HelpPage() {
   const [search, setSearch] = useState("");
+  const [openSection, setOpenSection] = useState<string | null>(CATEGORIES[0]?.title ?? null);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -308,7 +313,7 @@ export default function HelpPage() {
 
       {/* Accordion sections */}
       <section style={{ backgroundColor: "#FAFAFA", padding: "64px 24px" }}>
-        <div style={{ maxWidth: "800px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "12px" }}>
+        <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
           {filtered.length === 0 ? (
             <div style={{ textAlign: "center", padding: "64px 0" }}>
               <p style={{ fontSize: "16px", color: "#717171", marginBottom: "16px" }}>
@@ -322,13 +327,16 @@ export default function HelpPage() {
               </Link>
             </div>
           ) : (
-            filtered.map((cat, i) => (
-              <CategorySection
-                key={cat.title}
-                category={cat}
-                defaultOpen={i === 0 && !search}
-              />
-            ))
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+              {filtered.map((cat) => (
+                <CategorySection
+                  key={cat.title}
+                  category={cat}
+                  isOpen={openSection === cat.title}
+                  onToggle={() => setOpenSection((prev) => prev === cat.title ? null : cat.title)}
+                />
+              ))}
+            </div>
           )}
         </div>
       </section>

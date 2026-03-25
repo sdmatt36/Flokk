@@ -56,6 +56,8 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
 
   // Compute daysAway from the startDate prop directly — never rely on API response
   const daysAway = computeDaysAway(startDate);
+  const urgencyLabel = daysAway != null ? getUrgencyLabel(daysAway) : null;
+  console.log("[BookingIntelCard] daysAway:", daysAway, "urgencyLabel:", urgencyLabel);
 
   useEffect(() => {
     if (!tripId) { setState("hidden"); return; }
@@ -116,10 +118,7 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
             </h3>
             {(destinationCity || dateLabel) && (
               <p style={{ fontSize: "12px", color: "#888", margin: 0 }}>
-                Based on your trip
-                {destinationCity ? ` to ${destinationCity}` : ""}
-                {dateLabel ? ` on ${dateLabel}` : ""}
-                {daysAway != null ? ` — ${getUrgencyLabel(daysAway)}` : ""}
+                {`Based on your trip${destinationCity ? ` to ${destinationCity}` : ""}${dateLabel ? ` on ${dateLabel}` : ""}${urgencyLabel ? ` — ${urgencyLabel}` : ""}`}
               </p>
             )}
           </div>
