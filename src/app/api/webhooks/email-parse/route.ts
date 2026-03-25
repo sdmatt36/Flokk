@@ -8,6 +8,62 @@ import { clerkClient } from "@clerk/nextjs/server";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+// ── Guest name cleaning (FIX 2) ──────────────────────────────────────────────
+
+const TITLE_SUFFIXES = new Set(["MR", "MS", "MRS", "MSTR", "DR"]);
+
+// Common first names sorted by descending length — prefer longer matches (e.g. MATTHEW over MATT)
+const COMMON_FIRST_NAMES: string[] = [
+  "STEPHANIE","MARGARET","VICTORIA","KIMBERLY","JENNIFER","PATRICIA","JESSICA",
+  "MATTHEW","MICHAEL","WILLIAM","CHARLES","RICHARD","TIMOTHY","STEPHEN","BARBARA",
+  "DOUGLAS","JEFFREY","ANTHONY","RAYMOND","RUSSELL","BRADLEY","STANLEY",
+  "SANDRA","GEORGE","DONALD","THOMAS","ROBERT","DANIEL","ARTHUR","WALTER",
+  "OLIVER","SOPHIA","RACHEL","MEGAN","KAREN","HELEN","GRACE","EMILY",
+  "DIANE","DONNA","CAROL","ALICE","SARAH","LAURA","ROBIN","NANCY",
+  "HOLLY","JULIA","MARIA","LINDA","DIANA","CLAIRE","SANDY","JANET",
+  "MILES","SCOTT","BRIAN","PETER","ROGER","JAMES","FRANK","DAVID",
+  "JASON","KEVIN","BRYAN","DEREK","BLAKE","BRETT","LANCE","BARRY",
+  "BRUCE","CRAIG","FLOYD","GRANT","PERRY","RALPH","RANDY","TERRY",
+  "VINCE","WADE","BEAU","JOHN","JANE","MARY","ANNE","KATE","LILY",
+  "ROSE","JACK","JODY","ERIC","ALAN","ADAM","ALEX","ANNA","BETH",
+  "CARL","DANA","DAVE","EVAN","GLEN","GREG","IVAN","JADE","JOEL",
+  "JOSH","JUNE","KARL","KENT","KURT","LARS","LEAH","LEON","LISA",
+  "LORI","LUIS","LYNN","MARC","MIKE","NEIL","NICK","NINA","PETE",
+  "PHIL","RICK","RITA","RORY","ROSS","RUBY","RYAN","SEAN","SETH",
+  "STAN","TARA","THEO","TINA","TODD","TROY","VERA","AMY","BOB",
+  "KIM","RON","TOM","TIM","SUE","JOE","DAN","RAY","PAT","LEE",
+  "KEN","ZAC","MAX","SAM","IAN",
+].sort((a, b) => b.length - a.length);
+
+function splitCompoundGivenName(compound: string): string {
+  const upper = compound.toUpperCase();
+  for (const name of COMMON_FIRST_NAMES) {
+    if (upper.startsWith(name) && upper.length > name.length + 2) {
+      return name;
+    }
+  }
+  return compound;
+}
+
+function tc(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
+
+function cleanGuestName(raw: string): string {
+  const parts = raw.trim().split(/\s+/);
+  while (parts.length > 0 && TITLE_SUFFIXES.has(parts[parts.length - 1].toUpperCase())) {
+    parts.pop();
+  }
+  if (parts.length === 0) return raw;
+  const surname = parts[0];
+  if (parts.length === 1) return tc(surname);
+  const givenCompound = parts.slice(1).join("");
+  const firstName = splitCompoundGivenName(givenCompound);
+  return `${tc(firstName)} ${tc(surname)}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function tripMatchesDestination(trip: { title: string; destinationCity?: string | null; destinationCountry?: string | null }, keywords: string[]): boolean {
   const haystack = [trip.title, trip.destinationCity, trip.destinationCountry]
     .filter(Boolean)
@@ -32,12 +88,24 @@ export async function POST(req: NextRequest) {
   console.log("[email-parse] from:", from, "| senderEmail:", senderEmail, "| subject:", subject);
 
   // Find user by sender email
-  const user = await db.user.findFirst({
+  let user = await db.user.findFirst({
     where: { email: senderEmail },
     include: { familyProfile: { include: { trips: true } } },
   });
 
   console.log("[email-parse] user found:", !!user, "| familyProfile:", !!user?.familyProfile, "| familyProfileId:", user?.familyProfile?.id ?? "none", "| trips:", user?.familyProfile?.trips?.length ?? 0);
+
+  // FIX 4: If no user found, try senderEmails array fallback
+  if (!user?.familyProfile) {
+    const fp = await db.familyProfile.findFirst({
+      where: { senderEmails: { has: senderEmail } },
+      include: { user: { include: { familyProfile: { include: { trips: true } } } } },
+    });
+    if (fp?.user) {
+      console.log("[email-parse] found via senderEmails fallback — familyProfileId:", fp.id, "| trips:", fp.user.familyProfile?.trips?.length ?? 0);
+      user = fp.user;
+    }
+  }
 
   if (!user?.familyProfile) {
     console.log("[email-parse] no user for senderEmail:", senderEmail);
@@ -116,6 +184,11 @@ Return this exact JSON structure:
   } catch {
     console.log("[email-parse] JSON parse failed. Raw Claude output:", content.text);
     return NextResponse.json({ error: "claude_parse_failed", raw: content.text }, { status: 500 });
+  }
+
+  // Clean guest names
+  if (Array.isArray(extracted.guestNames)) {
+    extracted.guestNames = (extracted.guestNames as string[]).map(cleanGuestName);
   }
 
   console.log("[email-parse] parsed:", JSON.stringify(extracted));
@@ -271,25 +344,68 @@ Return this exact JSON structure:
     });
 
     if (extracted.returnDepartureDate) {
-      await db.flight.create({
+      // Compute dayIndex for return leg
+      let returnDayIndex: number | null = null;
+      if (matchedTrip) {
+        const tripForReturn = await db.trip.findUnique({ where: { id: matchedTrip.id }, select: { startDate: true } });
+        if (tripForReturn?.startDate) {
+          const rawStart = new Date(tripForReturn.startDate);
+          const shiftedStart = new Date(rawStart.getTime() + 12 * 60 * 60 * 1000);
+          const start = new Date(shiftedStart.getUTCFullYear(), shiftedStart.getUTCMonth(), shiftedStart.getUTCDate());
+          const [ry, rm, rd] = (extracted.returnDepartureDate as string).split("-").map(Number);
+          const returnDep = new Date(ry, rm - 1, rd);
+          returnDayIndex = Math.round((returnDep.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+        }
+      }
+
+      const returnFlight = await db.flight.create({
         data: {
           tripId: resolvedTripId,
           type: "return",
           airline: (extracted.airline as string | null) ?? "",
           flightNumber: ((extracted.flightNumber as string) ?? "") + " (return)",
           fromAirport: (extracted.returnFromAirport as string | null) ?? (extracted.toAirport as string | null) ?? "",
-          fromCity: (extracted.returnFromAirport as string | null) ?? (extracted.toCity as string | null) ?? "",
+          fromCity: (extracted.toCity as string | null) ?? (extracted.returnFromAirport as string | null) ?? "",
           toAirport: (extracted.returnToAirport as string | null) ?? (extracted.fromAirport as string | null) ?? "",
-          toCity: (extracted.returnToAirport as string | null) ?? (extracted.fromCity as string | null) ?? "",
+          toCity: (extracted.fromCity as string | null) ?? (extracted.returnToAirport as string | null) ?? "",
           departureDate: extracted.returnDepartureDate as string,
           departureTime: (extracted.returnDepartureTime as string | null) ?? "",
-          arrivalDate: extracted.returnDepartureDate as string,
+          arrivalDate: null,
           arrivalTime: null,
           confirmationCode: (extracted.confirmationCode as string | null) ?? null,
           status: "booked",
-          dayIndex: null,
+          dayIndex: returnDayIndex,
         },
       });
+      console.log("[email-parse] created return flight:", returnFlight.id, "dayIndex:", returnDayIndex);
+
+      // Vault document for return flight
+      if (matchedTrip) {
+        await db.tripDocument.create({
+          data: {
+            tripId: matchedTrip.id,
+            label: `${(extracted.airline as string) ?? ""} ${extracted.flightNumber as string} (return)`.trim(),
+            type: "booking",
+            content: JSON.stringify({
+              type: "flight", vendorName: extracted.airline,
+              flightNumber: ((extracted.flightNumber as string) ?? "") + " (return)",
+              airline: extracted.airline,
+              fromAirport: extracted.returnFromAirport,
+              toAirport: extracted.returnToAirport,
+              fromCity: extracted.toCity,
+              toCity: extracted.fromCity,
+              departureDate: extracted.returnDepartureDate,
+              departureTime: extracted.returnDepartureTime,
+              arrivalDate: null,
+              arrivalTime: null,
+              confirmationCode: extracted.confirmationCode,
+              totalCost: null,
+              currency: extracted.currency,
+              guestNames: extracted.guestNames,
+            }),
+          },
+        });
+      }
     }
 
     // Vault booking document for flight

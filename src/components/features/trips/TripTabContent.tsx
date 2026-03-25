@@ -4077,8 +4077,11 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                   try { booking = JSON.parse(d.content ?? "{}"); } catch { /* ignore */ }
                   const typeLabel = (booking.type as string | undefined)?.toUpperCase() ?? "BOOKING";
                   const rows: { label: string; value: string }[] = [];
-                  if (booking.fromCity && booking.toCity) rows.push({ label: "Route", value: `${booking.fromCity} → ${booking.toCity}` });
-                  if (booking.fromAirport && booking.toAirport) rows.push({ label: "Route", value: `${booking.fromAirport} → ${booking.toAirport}` });
+                  if (booking.fromCity && booking.toCity) {
+                    rows.push({ label: "Route", value: `${booking.fromCity} → ${booking.toCity}` });
+                  } else if (booking.fromAirport && booking.toAirport) {
+                    rows.push({ label: "Route", value: `${booking.fromAirport} → ${booking.toAirport}` });
+                  }
                   if (booking.departureDate) rows.push({ label: "Departure", value: `${booking.departureDate}${booking.departureTime ? ` at ${booking.departureTime}` : ""}` });
                   if (booking.arrivalDate) rows.push({ label: "Arrival", value: `${booking.arrivalDate}${booking.arrivalTime ? ` at ${booking.arrivalTime}` : ""}` });
                   if (booking.checkIn) rows.push({ label: "Check-in", value: String(booking.checkIn) });

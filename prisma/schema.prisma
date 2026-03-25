@@ -68,6 +68,7 @@ model FamilyProfile {
   paymentCards     PaymentCard[]
   points           Int                 @default(0)
   tier             CommunityTier       @default(EXPLORER)
+  senderEmails     String[]            @default([])
 }
 
 enum TravelFrequency {

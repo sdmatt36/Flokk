@@ -885,6 +885,96 @@ export function FamilySection() {
       </button>
 
       <InterestsCard />
+      <SenderEmailsCard />
+    </div>
+  );
+}
+
+// ── Sender emails ─────────────────────────────────────────────────────────────
+
+function SenderEmailsCard() {
+  const [emails, setEmails] = useState<string[]>([]);
+  const [newEmail, setNewEmail] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch("/api/profile/sender-emails")
+      .then((r) => r.json())
+      .then((d: { senderEmails?: string[] }) => setEmails(d.senderEmails ?? []))
+      .catch(() => {});
+  }, []);
+
+  async function handleAdd() {
+    const e = newEmail.trim().toLowerCase();
+    if (!e || !e.includes("@")) { setError("Enter a valid email address."); return; }
+    setAdding(true);
+    setError("");
+    const res = await fetch("/api/profile/sender-emails", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "add", email: e }),
+    });
+    const d = await res.json() as { senderEmails?: string[]; error?: string };
+    if (d.senderEmails) { setEmails(d.senderEmails); setNewEmail(""); }
+    else setError(d.error ?? "Failed to add.");
+    setAdding(false);
+  }
+
+  async function handleRemove(email: string) {
+    const res = await fetch("/api/profile/sender-emails", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "remove", email }),
+    });
+    const d = await res.json() as { senderEmails?: string[] };
+    if (d.senderEmails) setEmails(d.senderEmails);
+  }
+
+  const labelCls = "block text-xs font-semibold text-[#717171] uppercase tracking-wide mb-1";
+  const inputCls = "flex-1 border border-[#E8E8E8] rounded-lg px-3 py-2 text-sm text-[#1B3A5C] focus:outline-none focus:border-[#1B3A5C] bg-white";
+
+  return (
+    <div style={{ marginTop: "32px", borderTop: "1px solid #F0F0F0", paddingTop: "28px" }}>
+      <p className={labelCls} style={{ marginBottom: "4px" }}>Approved sender emails</p>
+      <p style={{ fontSize: "13px", color: "#717171", marginBottom: "16px", lineHeight: 1.5 }}>
+        Booking confirmation emails forwarded from these addresses will be auto-imported.
+      </p>
+
+      {emails.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "14px" }}>
+          {emails.map((e) => (
+            <div key={e} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", backgroundColor: "#F9F9F9", borderRadius: "8px", border: "1px solid #EEEEEE" }}>
+              <span style={{ fontSize: "13px", color: "#1B3A5C" }}>{e}</span>
+              <button
+                onClick={() => handleRemove(e)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "#AAAAAA", lineHeight: 1, padding: "0 4px" }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+        <input
+          type="email"
+          placeholder="you@example.com"
+          value={newEmail}
+          onChange={(e) => { setNewEmail(e.target.value); setError(""); }}
+          onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+          className={inputCls}
+        />
+        <button
+          onClick={handleAdd}
+          disabled={adding}
+          style={{ padding: "8px 16px", borderRadius: "8px", border: "none", backgroundColor: "#1B3A5C", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: adding ? "not-allowed" : "pointer", opacity: adding ? 0.7 : 1, whiteSpace: "nowrap" }}
+        >
+          {adding ? "Adding…" : "Add email"}
+        </button>
+      </div>
+      {error && <p style={{ fontSize: "12px", color: "#C4664A", marginTop: "6px" }}>{error}</p>}
     </div>
   );
 }
