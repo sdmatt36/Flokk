@@ -25,6 +25,9 @@ type TripRow = {
 
 type Filter = "all" | "missing" | "has";
 
+type UnsplashResult = { id: string; thumb: string; regular: string; alt: string };
+type PickerState = null | "loading" | "error" | UnsplashResult[];
+
 const CARD_STYLE: React.CSSProperties = {
   border: "1px solid #E5E5E5",
   borderRadius: "12px",
@@ -38,6 +41,25 @@ const CARD_MISSING_STYLE: React.CSSProperties = {
   ...CARD_STYLE,
   border: "2px solid #E53935",
 };
+
+async function searchUnsplash(query: string): Promise<UnsplashResult[]> {
+  const key = process.env.NEXT_PUBLIC_UNSPLASH_ACCESS_KEY;
+  if (!key) throw new Error("NEXT_PUBLIC_UNSPLASH_ACCESS_KEY not set");
+  const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=6&client_id=${key}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Unsplash ${res.status}`);
+  const data = await res.json();
+  return (data.results ?? []).map((r: {
+    id: string;
+    urls: { thumb: string; regular: string };
+    alt_description: string | null;
+  }) => ({
+    id: r.id,
+    thumb: r.urls.thumb,
+    regular: r.urls.regular,
+    alt: r.alt_description ?? "",
+  }));
+}
 
 function PhotoPreview({ url }: { url: string | null }) {
   if (!url) {
@@ -64,6 +86,74 @@ function PhotoPreview({ url }: { url: string | null }) {
   );
 }
 
+function UnsplashPicker({
+  picker,
+  onSelect,
+  onClose,
+}: {
+  picker: PickerState;
+  onSelect: (url: string) => void;
+  onClose: () => void;
+}) {
+  if (!picker) return null;
+
+  return (
+    <div style={{ marginTop: "8px", backgroundColor: "#F5F5F5", borderRadius: "8px", padding: "8px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+        <span style={{ fontSize: "10px", fontWeight: 700, color: "#555", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+          {picker === "loading" ? "Searching Unsplash…" : picker === "error" ? "Search failed" : "Pick a photo"}
+        </span>
+        <button
+          onClick={onClose}
+          style={{ background: "none", border: "none", cursor: "pointer", fontSize: "14px", color: "#999", padding: "0 2px", lineHeight: 1 }}
+        >
+          ×
+        </button>
+      </div>
+
+      {picker === "loading" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "4px" }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} style={{ height: "56px", backgroundColor: "#E5E5E5", borderRadius: "4px" }} />
+          ))}
+        </div>
+      )}
+
+      {picker === "error" && (
+        <p style={{ fontSize: "11px", color: "#E53935", margin: 0 }}>
+          Could not load results. Check NEXT_PUBLIC_UNSPLASH_ACCESS_KEY.
+        </p>
+      )}
+
+      {Array.isArray(picker) && picker.length === 0 && (
+        <p style={{ fontSize: "11px", color: "#999", margin: 0 }}>No results found.</p>
+      )}
+
+      {Array.isArray(picker) && picker.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "4px" }}>
+          {picker.map((photo) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={photo.id}
+              src={photo.thumb}
+              alt={photo.alt}
+              onClick={() => onSelect(photo.regular)}
+              style={{
+                width: "100%", height: "56px", objectFit: "cover",
+                borderRadius: "4px", cursor: "pointer",
+                border: "2px solid transparent",
+                transition: "border-color 0.15s",
+              }}
+              onMouseEnter={(e) => { (e.target as HTMLImageElement).style.borderColor = "#C4664A"; }}
+              onMouseLeave={(e) => { (e.target as HTMLImageElement).style.borderColor = "transparent"; }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SavedItemCard({
   item,
   onSaved,
@@ -75,6 +165,7 @@ function SavedItemCard({
   const [inputVal, setInputVal] = useState(item.placePhotoUrl ?? "");
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState<"ok" | "err" | null>(null);
+  const [picker, setPicker] = useState<PickerState>(null);
 
   const source = item.placePhotoUrl
     ? "placePhotoUrl"
@@ -102,16 +193,28 @@ function SavedItemCard({
   }
 
   function quickFill() {
-    const title = item.rawTitle ?? "";
-    const url = getVenueImage(title);
+    const url = getVenueImage(item.rawTitle ?? "");
     if (url) setInputVal(url);
+  }
+
+  async function openUnsplash() {
+    const query = [item.rawTitle, item.destinationCity].filter(Boolean).join(" ");
+    setPicker("loading");
+    try {
+      const results = await searchUnsplash(query);
+      setPicker(results);
+    } catch {
+      setPicker("error");
+    }
   }
 
   const hasMissingPhoto = !item.placePhotoUrl;
 
   return (
-    <div style={hasMissingPhoto ? CARD_MISSING_STYLE : CARD_STYLE}>
-      <PhotoPreview url={displayUrl} />
+    <div style={hasMissingPhoto ? { ...CARD_MISSING_STYLE, overflow: "visible" } : { ...CARD_STYLE, overflow: "visible" }}>
+      <div style={{ borderRadius: "10px 10px 0 0", overflow: "hidden" }}>
+        <PhotoPreview url={displayUrl} />
+      </div>
 
       <div style={{ padding: "10px 12px", flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
         <div>
@@ -174,7 +277,24 @@ function SavedItemCard({
           >
             Quick fill
           </button>
+          <button
+            onClick={openUnsplash}
+            style={{
+              padding: "5px 8px", fontSize: "11px", fontWeight: 600,
+              backgroundColor: "#fff", color: "#555",
+              border: "1px solid #CCC", borderRadius: "6px", cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Unsplash
+          </button>
         </div>
+
+        <UnsplashPicker
+          picker={picker}
+          onSelect={(url) => { setInputVal(url); setPicker(null); }}
+          onClose={() => setPicker(null)}
+        />
       </div>
     </div>
   );
@@ -190,6 +310,7 @@ function TripCard({
   const [inputVal, setInputVal] = useState(trip.heroImageUrl ?? "");
   const [saving, setSaving] = useState(false);
   const [flash, setFlash] = useState<"ok" | "err" | null>(null);
+  const [picker, setPicker] = useState<PickerState>(null);
 
   async function save(url: string | null) {
     setSaving(true);
@@ -210,11 +331,24 @@ function TripCard({
     }
   }
 
+  async function openUnsplash() {
+    const query = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(" ") || trip.title;
+    setPicker("loading");
+    try {
+      const results = await searchUnsplash(query);
+      setPicker(results);
+    } catch {
+      setPicker("error");
+    }
+  }
+
   const hasMissingPhoto = !trip.heroImageUrl;
 
   return (
-    <div style={hasMissingPhoto ? CARD_MISSING_STYLE : CARD_STYLE}>
-      <PhotoPreview url={trip.heroImageUrl} />
+    <div style={hasMissingPhoto ? { ...CARD_MISSING_STYLE, overflow: "visible" } : { ...CARD_STYLE, overflow: "visible" }}>
+      <div style={{ borderRadius: "10px 10px 0 0", overflow: "hidden" }}>
+        <PhotoPreview url={trip.heroImageUrl} />
+      </div>
 
       <div style={{ padding: "10px 12px", flex: 1, display: "flex", flexDirection: "column", gap: "6px" }}>
         <div>
@@ -242,7 +376,7 @@ function TripCard({
           }}
         />
 
-        <div style={{ display: "flex", gap: "6px" }}>
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
           <button
             onClick={() => save(inputVal || null)}
             disabled={saving}
@@ -266,7 +400,24 @@ function TripCard({
           >
             Clear
           </button>
+          <button
+            onClick={openUnsplash}
+            style={{
+              padding: "5px 8px", fontSize: "11px", fontWeight: 600,
+              backgroundColor: "#fff", color: "#555",
+              border: "1px solid #CCC", borderRadius: "6px", cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Unsplash
+          </button>
         </div>
+
+        <UnsplashPicker
+          picker={picker}
+          onSelect={(url) => { setInputVal(url); setPicker(null); }}
+          onClose={() => setPicker(null)}
+        />
       </div>
     </div>
   );
@@ -311,7 +462,6 @@ export function AdminPhotosClient() {
       const res = await fetch("/api/admin/photos/bulk-fill", { method: "POST" });
       const data = await res.json();
       setBulkResult(data.updated ?? 0);
-      // Refresh items list to reflect updates
       const refreshed = await fetch("/api/admin/photos/saved-items").then((r) => r.json());
       setItems(refreshed.items ?? []);
     } catch {
@@ -375,7 +525,6 @@ export function AdminPhotosClient() {
         {/* Saved Items tab */}
         {tab === "items" && (
           <>
-            {/* Toolbar */}
             <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px", flexWrap: "wrap" }}>
               <div style={{ display: "flex", gap: "6px" }}>
                 {(["all", "missing", "has"] as Filter[]).map((f) => (
