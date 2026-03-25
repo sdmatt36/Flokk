@@ -5,12 +5,11 @@ import { useState, useMemo } from "react";
 import { ChevronDown, Search } from "lucide-react";
 
 type Article = { title: string; copy: string };
-type Category = { title: string; icon: string; articles: Article[] };
+type Category = { title: string; articles: Article[] };
 
 const CATEGORIES: Category[] = [
   {
     title: "Saving content",
-    icon: "🔖",
     articles: [
       {
         title: "How to save a link from Instagram",
@@ -32,7 +31,6 @@ const CATEGORIES: Category[] = [
   },
   {
     title: "Planning trips",
-    icon: "🗺️",
     articles: [
       {
         title: "Creating your first trip",
@@ -54,7 +52,6 @@ const CATEGORIES: Category[] = [
   },
   {
     title: "Family profiles",
-    icon: "👨‍👩‍👧‍👦",
     articles: [
       {
         title: "Setting up your family profile",
@@ -76,7 +73,6 @@ const CATEGORIES: Category[] = [
   },
   {
     title: "Account & settings",
-    icon: "⚙️",
     articles: [
       {
         title: "Updating your email or password",
@@ -98,7 +94,6 @@ const CATEGORIES: Category[] = [
   },
   {
     title: "Billing",
-    icon: "💳",
     articles: [
       {
         title: "How the free tier works",
@@ -120,7 +115,6 @@ const CATEGORIES: Category[] = [
   },
   {
     title: "Troubleshooting",
-    icon: "🔧",
     articles: [
       {
         title: "A link didn't save correctly",
@@ -157,8 +151,7 @@ function CategorySection({ category, openArticle, onArticleToggle }: {
       }}
     >
       {/* Section header — always visible, never toggles */}
-      <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "24px 28px 0" }}>
-        <span style={{ fontSize: "20px" }}>{category.icon}</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", padding: "24px 28px 0" }}>
         <span style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C" }}>{category.title}</span>
         <span style={{ fontSize: "12px", color: "#999", fontWeight: 400 }}>
           {category.articles.length} articles
@@ -203,7 +196,7 @@ function CategorySection({ category, openArticle, onArticleToggle }: {
             )}
           </div>
         ))}
-        <div style={{ paddingTop: "16px", paddingBottom: "20px" }}>
+        <div style={{ paddingTop: "16px", paddingBottom: "20px", textAlign: "center" }}>
           <Link
             href="/contact"
             style={{ fontSize: "13px", color: "#C4664A", textDecoration: "none", fontWeight: 500 }}
