@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { getVenueImage } from "@/lib/destination-images";
 
 type SavedItemRow = {
