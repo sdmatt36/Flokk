@@ -57,6 +57,7 @@ model FamilyProfile {
   planningStyle    PlanningStyle?
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
+  nudgeSentAt      DateTime?
   members          FamilyMember[]
   interests        DeclaredInterest[]
   trips            Trip[]

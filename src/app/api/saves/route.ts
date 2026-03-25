@@ -4,7 +4,7 @@
 // Layers 2 (Claude classification), 3 (Google Places),
 // and 4 (community data) are not yet implemented.
 
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { z, ZodError } from "zod";
@@ -12,6 +12,7 @@ import { extractOgMetadata } from "@/lib/og-extract";
 import type { SourceType } from "@prisma/client";
 import { inngest } from "@/lib/inngest/client";
 import { getVenueImage } from "@/lib/destination-images";
+import { sendTransactional } from "@/lib/loops";
 
 const SaveSchema = z.object({
   url: z.string().url(),
@@ -124,6 +125,22 @@ export async function POST(request: Request) {
     if (!lat && !lng) {
       inngest.send({ name: "saves/enrich-item", data: { savedItemId: savedItem.id } })
         .catch((e) => console.error("[saves POST] inngest.send failed:", e));
+    }
+
+    // Loops: fire first-save if this is their first saved item
+    try {
+      const saveCount = await db.savedItem.count({ where: { familyProfileId: user.familyProfile.id } });
+      if (saveCount === 1) {
+        const clerkUser = await currentUser();
+        const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? user.email;
+        const firstName = clerkUser?.firstName ?? "";
+        await sendTransactional(email, "cmn5lkkpe0dkm0ix9bdca2o54", {
+          firstName,
+          itemTitle: savedItem.rawTitle ?? "",
+        });
+      }
+    } catch (e) {
+      console.error("[loops] first-save trigger failed:", e);
     }
 
     return NextResponse.json({ savedItem });

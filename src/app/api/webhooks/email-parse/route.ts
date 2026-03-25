@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
 import { getVenueImage } from "@/lib/destination-images";
+import { sendTransactional } from "@/lib/loops";
+import { clerkClient } from "@clerk/nextjs/server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -191,6 +193,40 @@ Return this exact JSON structure:
   console.log("[email-parse] final matched trip:", matchedTrip?.title ?? "none (will save unassigned)");
 
   const familyProfileId = user.familyProfile.id;
+
+  const userClerkId = user!.clerkId;
+
+  // Helper: fire Loops booking triggers after any savedItem is created from email
+  async function fireLoopsBookingTriggers(vendorName: string, tripTitle: string | null) {
+    try {
+      const clerk = await clerkClient();
+      const clerkUser = await clerk.users.getUser(userClerkId);
+      const firstName = clerkUser.firstName ?? "";
+
+      // booking-confirmed — every time
+      await sendTransactional(senderEmail, "cmn5ls3210rtf0ix38tilrgot", {
+        userName: firstName,
+        bookingDetails: vendorName || "your booking",
+        date: (extracted.departureDate ?? extracted.checkIn ?? "") as string,
+        confirmationNumber: (extracted.confirmationCode ?? "") as string,
+      });
+
+      // first-booking-imported — only on first email import
+      const importCount = await db.savedItem.count({
+        where: { familyProfileId, sourceType: "EMAIL_IMPORT" },
+      });
+      if (importCount === 1) {
+        await sendTransactional(senderEmail, "cmn5ln8cn0v1h0iyvn6glrqnb", {
+          firstName,
+          vendorName: vendorName || "your booking",
+          tripName: tripTitle || "your trip",
+        });
+      }
+    } catch (e) {
+      console.error("[loops] booking triggers failed:", e);
+    }
+  }
+
   const parsedSummary = {
     type: extracted.type,
     destination: extracted.city ?? extracted.toCity ?? null,
@@ -358,6 +394,7 @@ Return this exact JSON structure:
     }
 
     console.log("[email-parse] created hotel savedItem:", saved.id, "tripId:", saved.tripId, "dayIndex:", hotelDayIndex, "status:", hotelStatus);
+    await fireLoopsBookingTriggers(extracted.vendorName as string, matchedTrip?.title ?? null);
     return NextResponse.json({ success: true, parsed: parsedSummary, tripMatched: matchedTrip?.title ?? null, itemCreated: saved.id });
 
   } else {
@@ -440,6 +477,7 @@ Return this exact JSON structure:
     }
 
     console.log("[email-parse] created savedItem:", saved.id, "type:", extracted.type, "tripId:", saved.tripId, "dayIndex:", dayIndex, "startTime:", startTime, "status:", itemStatus);
+    await fireLoopsBookingTriggers((extracted.vendorName as string) ?? subject, matchedTrip?.title ?? null);
     return NextResponse.json({ success: true, parsed: parsedSummary, tripMatched: matchedTrip?.title ?? null, itemCreated: saved.id, dayIndex, startTime });
   }
 }

@@ -1,7 +1,8 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getTripCoverImage } from "@/lib/destination-images";
+import { sendTransactional } from "@/lib/loops";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,23 @@ export async function POST(req: Request) {
       heroImageUrl: staticCover ?? null,
     },
   });
+
+  // Loops: fire first-trip-created if this is their first trip
+  try {
+    const tripCount = await db.trip.count({ where: { familyProfileId: user.familyProfile.id } });
+    if (tripCount === 1) {
+      const clerkUser = await currentUser();
+      const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? user.email;
+      const firstName = clerkUser?.firstName ?? "";
+      await sendTransactional(email, "cmn5lhq4k0uk60iyud4tn6qa1", {
+        firstName,
+        tripName: trip.title,
+        tripDestination: trip.destinationCity ?? "",
+      });
+    }
+  } catch (e) {
+    console.error("[loops] first-trip trigger failed:", e);
+  }
 
   return NextResponse.json({ tripId: trip.id });
 }
