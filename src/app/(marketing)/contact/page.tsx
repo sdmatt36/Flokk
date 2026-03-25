@@ -22,12 +22,26 @@ export default function ContactPage() {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // TODO: wire to Resend — send to hello@flokktravel.com
-    // formData: { firstName, lastName, fullName: `${firstName} ${lastName}`.trim(), email, subject, message }
-    setSubmitted(true);
+    setSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ firstName, lastName, email, subject, message }),
+      });
+      if (!res.ok) throw new Error("Failed to send");
+      setSubmitted(true);
+    } catch {
+      setError("Something went wrong. Please email matt@flokktravel.com directly.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -110,11 +124,15 @@ export default function ContactPage() {
                   <label style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C" }}>Message</label>
                   <textarea value={message} onChange={(e) => setMessage(e.target.value)} required rows={6} placeholder="Tell us more..." style={{ ...inputStyle, resize: "vertical" }} />
                 </div>
+                {error && (
+                  <p style={{ fontSize: "14px", color: "#c0392b", margin: 0 }}>{error}</p>
+                )}
                 <button
                   type="submit"
-                  style={{ padding: "14px", backgroundColor: "#C4664A", color: "#fff", fontWeight: 700, fontSize: "15px", border: "none", borderRadius: "12px", cursor: "pointer" }}
+                  disabled={submitting}
+                  style={{ padding: "14px", backgroundColor: submitting ? "#a8533c" : "#C4664A", color: "#fff", fontWeight: 700, fontSize: "15px", border: "none", borderRadius: "12px", cursor: submitting ? "not-allowed" : "pointer", opacity: submitting ? 0.8 : 1 }}
                 >
-                  Send message
+                  {submitting ? "Sending..." : "Send message"}
                 </button>
               </form>
             )}
