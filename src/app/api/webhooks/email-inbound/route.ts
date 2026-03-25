@@ -4,14 +4,12 @@ import { inngest } from "@/lib/inngest/client";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  // ── Authenticate webhook request ────────────────────────────────────────────
-  const secret = process.env.WEBHOOK_SECRET;
-  if (secret && secret !== "change-me-local") {
-    const provided =
-      req.headers.get("x-webhook-secret") ??
-      req.nextUrl.searchParams.get("secret");
-    if (provided !== secret) {
-      console.warn("[email-inbound] rejected: invalid webhook secret");
+  // ── CloudMailin token authentication ──────────────────────────────────────
+  const expectedToken = process.env.CLOUDMAILIN_WEBHOOK_SECRET;
+  if (expectedToken) {
+    const token = req.headers.get("x-cloudmailin-token");
+    if (token !== expectedToken) {
+      console.warn("[email-inbound] rejected: invalid x-cloudmailin-token");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
   }
@@ -20,16 +18,15 @@ export async function POST(req: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const payload = await req.json() as Record<string, any>;
 
-    // ── Normalise payload — handle CloudMailin and standard JSON formats ───────
+    // ── Normalise — CloudMailin JSON (Normalized) format ─────────────────────
+    // envelope.from     → sender address
+    // envelope.to       → recipient address
+    // headers.subject   → subject line
+    // html              → HTML body
+    // plain             → plain text body
     //
-    // CloudMailin shape:
-    //   payload.envelope.from  — sender address
-    //   payload.headers.Subject (or .subject) — subject line
-    //   payload.html           — HTML body
-    //   payload.plain          — plain text body
-    //
-    // Standard (our own test format):
-    //   payload.from, payload.subject, payload.html, payload.text
+    // Also handles plain JSON (manual test posts):
+    // { from, subject, html, text }
 
     let from: string;
     let subject: string;
@@ -38,22 +35,22 @@ export async function POST(req: NextRequest) {
     let to: string;
 
     if (payload.envelope?.from) {
-      // CloudMailin format
-      from = String(payload.envelope.from ?? "");
-      subject = String(payload.headers?.Subject ?? payload.headers?.subject ?? "");
-      html = String(payload.html ?? "");
-      text = String(payload.plain ?? "");
-      to = String(payload.envelope?.to ?? payload.headers?.To ?? "");
+      // CloudMailin JSON (Normalized)
+      from    = String(payload.envelope.from ?? "");
+      to      = String(payload.envelope.to ?? "");
+      subject = String(payload.headers?.subject ?? payload.headers?.Subject ?? "");
+      html    = String(payload.html  ?? "");
+      text    = String(payload.plain ?? "");
     } else {
-      // Standard format
-      from = String(payload.from ?? "");
+      // Plain JSON (test / fallback)
+      from    = String(payload.from    ?? "");
+      to      = String(payload.to      ?? "");
       subject = String(payload.subject ?? "");
-      html = String(payload.html ?? "");
-      text = String(payload.text ?? "");
-      to = String(payload.to ?? "");
+      html    = String(payload.html    ?? "");
+      text    = String(payload.text    ?? "");
     }
 
-    console.log("[email-inbound] from:", from, "| subject:", subject);
+    console.log("[email-inbound] from:", from, "| to:", to, "| subject:", subject);
 
     if (!from || !subject) {
       console.warn("[email-inbound] missing from or subject — dropping");
