@@ -4,16 +4,6 @@ import { inngest } from "@/lib/inngest/client";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  // ── CloudMailin token authentication ──────────────────────────────────────
-  const expectedToken = process.env.CLOUDMAILIN_WEBHOOK_SECRET;
-  if (expectedToken) {
-    const token = req.headers.get("x-cloudmailin-token");
-    if (token !== expectedToken) {
-      console.warn("[email-inbound] rejected: invalid x-cloudmailin-token");
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
-
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const payload = await req.json() as Record<string, any>;
