@@ -12,6 +12,7 @@ type ContentItem = {
   ageGroup?: string | null;
   status: string;
   submittedAt: string;
+  publicationDate?: string | null;
   submittedBy?: string | null;
   rejectionReason?: string | null;
   sourceUrl?: string | null;
@@ -289,8 +290,13 @@ export function AdminContentClient() {
                       )}
                     </div>
                     <p style={{ fontSize: "11px", color: "#AAAAAA", margin: "4px 0 0" }}>
-                      {new Date(item.submittedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      Submitted {new Date(item.submittedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                     </p>
+                    {item.publicationDate && (
+                      <p style={{ fontSize: "11px", color: "#AAAAAA", margin: "2px 0 0" }}>
+                        Published {new Date(item.publicationDate).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                      </p>
+                    )}
                   </div>
                 </button>
                 <div style={{ display: "flex", flexDirection: "column", gap: "4px", padding: "10px 10px 10px 0", justifyContent: "center" }}>
@@ -350,11 +356,21 @@ export function AdminContentClient() {
                     href={activeItem.sourceUrl ?? activeItem.videoUrl ?? "#"}
                     target="_blank"
                     rel="noopener noreferrer"
-                    style={{ display: "inline-block", fontSize: "13px", color: "#C4664A", fontWeight: 600, marginBottom: "20px", textDecoration: "none" }}
+                    style={{ display: "inline-block", fontSize: "13px", color: "#C4664A", fontWeight: 600, marginBottom: "12px", textDecoration: "none" }}
                   >
                     Open original →
                   </a>
                 )}
+                <div style={{ display: "flex", gap: "16px", marginBottom: "20px", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "12px", color: "#AAAAAA" }}>
+                    Submitted {new Date(activeItem.submittedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  </span>
+                  {activeItem.publicationDate && (
+                    <span style={{ fontSize: "12px", color: "#AAAAAA" }}>
+                      Published {new Date(activeItem.publicationDate).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                    </span>
+                  )}
+                </div>
 
                 {activeItem.status === "pending" && (
                   <div style={{ backgroundColor: "#F9F9F9", borderRadius: "10px", padding: "16px", marginBottom: "20px" }}>

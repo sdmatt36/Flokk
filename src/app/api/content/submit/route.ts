@@ -47,8 +47,9 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();
-  const { url, title, description, destination, contentType, ageGroup, tags, ogTitle, ogImageUrl, ogDescription } = body;
+  const { url, title, description, destination, contentType, ageGroup, tags, ogTitle, ogImageUrl, ogDescription, publicationDate } = body;
   const resolvedTags: string[] = Array.isArray(tags) ? tags : [];
+  const resolvedPublicationDate: Date | null = publicationDate ? new Date(publicationDate as string) : null;
 
   if (!url) return NextResponse.json({ error: "URL required" }, { status: 400 });
 
@@ -104,6 +105,7 @@ export async function POST(req: NextRequest) {
         status: "pending",
         submittedBy: userId,
         submittedAt: new Date(),
+        publicationDate: resolvedPublicationDate,
       },
     });
     return NextResponse.json({ success: true, type: "video", id: video.id });
@@ -130,6 +132,7 @@ export async function POST(req: NextRequest) {
         submittedBy: userId,
         submittedAt: new Date(),
         authorType: "community",
+        publicationDate: resolvedPublicationDate,
       },
     });
     return NextResponse.json({ success: true, type: "article", id: article.id });

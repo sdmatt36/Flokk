@@ -72,6 +72,8 @@ export async function GET(req: NextRequest) {
         contentType: true,
         authorType: true,
         tags: true,
+        submittedAt: true,
+        publicationDate: true,
       },
     }),
     db.travelVideo.findMany({
@@ -89,6 +91,8 @@ export async function GET(req: NextRequest) {
         contentType: true,
         submittedBy: true,
         tags: true,
+        submittedAt: true,
+        publicationDate: true,
       },
     }),
   ]);
@@ -152,6 +156,8 @@ export async function GET(req: NextRequest) {
         contentType: a.contentType ?? "Article",
         isFlokk: a.authorType === "flokk",
         tags: a.tags ?? [],
+        submittedAt: a.submittedAt.toISOString(),
+        publicationDate: a.publicationDate?.toISOString() ?? null,
       };
     }),
     ...videos.map((v) => {
@@ -178,6 +184,8 @@ export async function GET(req: NextRequest) {
         contentType: v.contentType ?? "Video",
         isFlokk: !v.submittedBy,
         tags: v.tags ?? [],
+        submittedAt: v.submittedAt.toISOString(),
+        publicationDate: v.publicationDate?.toISOString() ?? null,
       };
     }),
   ].sort((a, b) => a.title.localeCompare(b.title));

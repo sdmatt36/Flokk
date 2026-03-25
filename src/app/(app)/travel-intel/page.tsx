@@ -22,6 +22,8 @@ type GuideItem = {
   contentType: string;
   isFlokk: boolean;
   tags: string[];
+  submittedAt: string | null;
+  publicationDate: string | null;
 };
 
 type FilterType = "All" | "Articles" | "Videos" | "Guides";
@@ -49,6 +51,20 @@ function matchesFilter(item: GuideItem, filter: FilterType): boolean {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatSubmittedAt(iso: string | null): string | null {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  } catch { return null; }
+}
+
+function formatPublicationDate(iso: string | null): string | null {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  } catch { return null; }
+}
 
 function safeHref(url: string | null): string | null {
   if (!url) return null;
@@ -123,6 +139,14 @@ function GuideCard({ item }: { item: GuideItem }) {
             {item.description}
           </p>
         )}
+        <div style={{ marginTop: "auto", paddingTop: "10px", display: "flex", flexDirection: "column", gap: "2px" }}>
+          {formatPublicationDate(item.publicationDate) && (
+            <span style={{ fontSize: "11px", color: "#AAAAAA" }}>Published {formatPublicationDate(item.publicationDate)}</span>
+          )}
+          {formatSubmittedAt(item.submittedAt) && (
+            <span style={{ fontSize: "11px", color: "#CCCCCC" }}>Submitted {formatSubmittedAt(item.submittedAt)}</span>
+          )}
+        </div>
       </div>
     </>
   );
@@ -182,6 +206,7 @@ function SubmitModal({ onClose }: { onClose: () => void }) {
   const [submitAgeGroups, setSubmitAgeGroups] = useState<string[]>(["All ages"]);
   const [submitTags, setSubmitTags] = useState<string[]>([]);
   const [submitNote, setSubmitNote] = useState("");
+  const [submitPublicationDate, setSubmitPublicationDate] = useState("");
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitDone, setSubmitDone] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -238,6 +263,7 @@ function SubmitModal({ onClose }: { onClose: () => void }) {
           ogTitle: ogData?.title ?? null,
           ogImageUrl: ogData?.imageUrl ?? null,
           ogDescription: ogData?.description ?? null,
+          publicationDate: submitPublicationDate.trim() || null,
         }),
       });
       if (!res.ok) {
@@ -422,6 +448,20 @@ function SubmitModal({ onClose }: { onClose: () => void }) {
                   rows={3}
                   style={{ width: "100%", border: "1.5px solid #E8E8E8", borderRadius: "12px", padding: "11px 14px", fontSize: "14px", color: "#1a1a1a", outline: "none", fontFamily: "inherit", boxSizing: "border-box", resize: "none", backgroundColor: "#fff" }}
                 />
+              </div>
+
+              {/* Publication date */}
+              <div>
+                <label style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: "6px" }}>
+                  Originally published <span style={{ fontWeight: 400, textTransform: "none" }}>(optional)</span>
+                </label>
+                <input
+                  type="month"
+                  value={submitPublicationDate}
+                  onChange={(e) => setSubmitPublicationDate(e.target.value)}
+                  style={{ width: "100%", border: "1.5px solid #E8E8E8", borderRadius: "12px", padding: "11px 14px", fontSize: "14px", color: "#1a1a1a", outline: "none", fontFamily: "inherit", boxSizing: "border-box", backgroundColor: "#fff" }}
+                />
+                <p style={{ fontSize: "11px", color: "#AAAAAA", marginTop: "5px" }}>When was this originally published? Shown as &quot;Published Jan 2026&quot;</p>
               </div>
 
               {submitError && (

@@ -526,6 +526,7 @@ model Article {
   tags            String[]  @default([])
   published       Boolean   @default(false)
   publishedAt     DateTime?
+  publicationDate DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   // Moderation
@@ -554,6 +555,7 @@ model TravelVideo {
   destination     String?
   submittedBy     String?
   published       Boolean  @default(false)
+  publicationDate DateTime?
   createdAt       DateTime @default(now())
   // Moderation
   status          String   @default("pending")
