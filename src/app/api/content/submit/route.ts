@@ -62,15 +62,14 @@ export async function POST(req: NextRequest) {
   const platform = resolvedIsVideo ? detectPlatform(url) : "other";
   const embedId = platform === "youtube" ? extractYouTubeId(url) : "";
 
-  // For YouTube: construct reliable thumbnail and use oEmbed for title
+  // For YouTube: construct reliable thumbnail and always use oEmbed for title.
+  // OG title from YouTube is unreliable ("- YouTube" or "Video - YouTube") — oEmbed returns the clean title.
   if (platform === "youtube" && embedId) {
     if (!extractedThumb) {
       extractedThumb = `https://img.youtube.com/vi/${embedId}/maxresdefault.jpg`;
     }
-    if (!extractedTitle || extractedTitle.startsWith("http")) {
-      const { title: oembedTitle } = await youtubeOEmbed(url);
-      if (oembedTitle) extractedTitle = oembedTitle;
-    }
+    const { title: oembedTitle } = await youtubeOEmbed(url);
+    if (oembedTitle) extractedTitle = oembedTitle;
   }
 
   // Generic fallback for non-YouTube URLs with no title
