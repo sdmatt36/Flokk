@@ -142,48 +142,11 @@ const CATEGORIES: Category[] = [
   },
 ];
 
-function ArticleAccordion({ article, isOpen, onToggle }: { article: Article; isOpen: boolean; onToggle: () => void }) {
-  return (
-    <div style={{ borderBottom: "1px solid #F0F0F0" }}>
-      <button
-        onClick={onToggle}
-        style={{
-          width: "100%",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "14px 0",
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          textAlign: "left",
-          gap: "12px",
-        }}
-      >
-        <span style={{ fontSize: "14px", fontWeight: 500, color: "#1B3A5C", lineHeight: 1.4 }}>
-          {article.title}
-        </span>
-        <ChevronDown
-          size={16}
-          style={{
-            color: "#C4664A",
-            flexShrink: 0,
-            transition: "transform 0.2s",
-            transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
-          }}
-        />
-      </button>
-      {isOpen && (
-        <p style={{ fontSize: "14px", lineHeight: 1.7, color: "#555", margin: "0 0 16px", paddingRight: "28px" }}>
-          {article.copy}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function CategorySection({ category, isOpen, onToggle }: { category: Category; isOpen: boolean; onToggle: () => void }) {
-  const [openArticle, setOpenArticle] = useState<string | null>(null);
+function CategorySection({ category, openArticle, onArticleToggle }: {
+  category: Category;
+  openArticle: string | null;
+  onArticleToggle: (title: string) => void;
+}) {
   return (
     <div
       style={{
@@ -193,66 +156,73 @@ function CategorySection({ category, isOpen, onToggle }: { category: Category; i
         backgroundColor: "#fff",
       }}
     >
-      <button
-        onClick={onToggle}
-        style={{
-          width: "100%",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "24px 28px",
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          textAlign: "left",
-          gap: "12px",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <span style={{ fontSize: "20px" }}>{category.icon}</span>
-          <span style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C" }}>{category.title}</span>
-          <span style={{ fontSize: "12px", color: "#999", fontWeight: 400 }}>
-            {category.articles.length} articles
-          </span>
-        </div>
-        <ChevronDown
-          size={18}
-          style={{
-            color: "#1B3A5C",
-            flexShrink: 0,
-            transition: "transform 0.2s",
-            transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
-          }}
-        />
-      </button>
+      {/* Section header — always visible, never toggles */}
+      <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "24px 28px 0" }}>
+        <span style={{ fontSize: "20px" }}>{category.icon}</span>
+        <span style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C" }}>{category.title}</span>
+        <span style={{ fontSize: "12px", color: "#999", fontWeight: 400 }}>
+          {category.articles.length} articles
+        </span>
+      </div>
 
-      {isOpen && (
-        <div style={{ padding: "0 28px 8px" }}>
-          {category.articles.map((article) => (
-            <ArticleAccordion
-              key={article.title}
-              article={article}
-              isOpen={openArticle === article.title}
-              onToggle={() => setOpenArticle((prev) => prev === article.title ? null : article.title)}
-            />
-          ))}
-          <div style={{ paddingTop: "16px", paddingBottom: "20px" }}>
-            <Link
-              href="/contact"
-              style={{ fontSize: "13px", color: "#C4664A", textDecoration: "none", fontWeight: 500 }}
+      <div style={{ padding: "8px 28px 8px" }}>
+        {category.articles.map((article) => (
+          <div key={article.title} style={{ borderBottom: "1px solid #F0F0F0" }}>
+            <button
+              onClick={() => onArticleToggle(article.title)}
+              style={{
+                width: "100%",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "14px 0",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                textAlign: "left",
+                gap: "12px",
+              }}
             >
-              Still need help? Contact us →
-            </Link>
+              <span style={{ fontSize: "14px", fontWeight: 500, color: "#1B3A5C", lineHeight: 1.4 }}>
+                {article.title}
+              </span>
+              <ChevronDown
+                size={16}
+                style={{
+                  color: "#C4664A",
+                  flexShrink: 0,
+                  transition: "transform 0.2s",
+                  transform: openArticle === article.title ? "rotate(180deg)" : "rotate(0deg)",
+                }}
+              />
+            </button>
+            {openArticle === article.title && (
+              <p style={{ fontSize: "14px", lineHeight: 1.7, color: "#555", margin: "0 0 16px", paddingRight: "28px" }}>
+                {article.copy}
+              </p>
+            )}
           </div>
+        ))}
+        <div style={{ paddingTop: "16px", paddingBottom: "20px" }}>
+          <Link
+            href="/contact"
+            style={{ fontSize: "13px", color: "#C4664A", textDecoration: "none", fontWeight: 500 }}
+          >
+            Still need help? Contact us →
+          </Link>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
 export default function HelpPage() {
   const [search, setSearch] = useState("");
-  const [openSection, setOpenSection] = useState<string | null>(CATEGORIES[0]?.title ?? null);
+  const [openArticle, setOpenArticle] = useState<string | null>(null);
+
+  function handleArticleToggle(title: string) {
+    setOpenArticle((prev) => prev === title ? null : title);
+  }
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -332,8 +302,8 @@ export default function HelpPage() {
                 <CategorySection
                   key={cat.title}
                   category={cat}
-                  isOpen={openSection === cat.title}
-                  onToggle={() => setOpenSection((prev) => prev === cat.title ? null : cat.title)}
+                  openArticle={openArticle}
+                  onArticleToggle={handleArticleToggle}
                 />
               ))}
             </div>
