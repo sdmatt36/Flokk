@@ -234,7 +234,9 @@ Return this exact JSON structure:
   };
 
   // Write to DB
-  if (extracted.type === "flight" && extracted.flightNumber) {
+  const resolvedTripId = matchedTrip?.id ?? trips[0]?.id ?? null;
+
+  if (extracted.type === "flight" && extracted.flightNumber && resolvedTripId) {
     let dayIndex: number | null = null;
     if (matchedTrip) {
       const trip = await db.trip.findUnique({ where: { id: matchedTrip.id }, select: { startDate: true } });
@@ -250,19 +252,19 @@ Return this exact JSON structure:
 
     const flight = await db.flight.create({
       data: {
-        tripId: matchedTrip?.id ?? trips[0]?.id ?? "",
+        tripId: resolvedTripId,
         type: "outbound",
-        airline: (extracted.airline as string) ?? "",
+        airline: (extracted.airline as string | null) ?? "",
         flightNumber: extracted.flightNumber as string,
-        fromAirport: (extracted.fromAirport as string) ?? "",
-        fromCity: (extracted.fromCity as string) ?? (extracted.fromAirport as string) ?? "",
-        toAirport: (extracted.toAirport as string) ?? "",
-        toCity: (extracted.toCity as string) ?? (extracted.toAirport as string) ?? "",
-        departureDate: (extracted.departureDate as string) ?? "",
-        departureTime: (extracted.departureTime as string) ?? "",
-        arrivalDate: (extracted.arrivalDate as string) ?? null,
-        arrivalTime: (extracted.arrivalTime as string) ?? null,
-        confirmationCode: (extracted.confirmationCode as string) ?? null,
+        fromAirport: (extracted.fromAirport as string | null) ?? "",
+        fromCity: (extracted.fromCity as string | null) ?? (extracted.fromAirport as string | null) ?? "",
+        toAirport: (extracted.toAirport as string | null) ?? "",
+        toCity: (extracted.toCity as string | null) ?? (extracted.toAirport as string | null) ?? "",
+        departureDate: (extracted.departureDate as string | null) ?? "",
+        departureTime: (extracted.departureTime as string | null) ?? "",
+        arrivalDate: (extracted.arrivalDate as string | null) ?? null,
+        arrivalTime: (extracted.arrivalTime as string | null) ?? null,
+        confirmationCode: (extracted.confirmationCode as string | null) ?? null,
         status: "booked",
         dayIndex,
       },
@@ -271,19 +273,19 @@ Return this exact JSON structure:
     if (extracted.returnDepartureDate) {
       await db.flight.create({
         data: {
-          tripId: matchedTrip?.id ?? trips[0]?.id ?? "",
+          tripId: resolvedTripId,
           type: "return",
-          airline: (extracted.airline as string) ?? "",
+          airline: (extracted.airline as string | null) ?? "",
           flightNumber: ((extracted.flightNumber as string) ?? "") + " (return)",
-          fromAirport: (extracted.returnFromAirport as string) ?? (extracted.toAirport as string) ?? "",
-          fromCity: (extracted.returnFromAirport as string) ?? (extracted.toCity as string) ?? "",
-          toAirport: (extracted.returnToAirport as string) ?? (extracted.fromAirport as string) ?? "",
-          toCity: (extracted.returnToAirport as string) ?? (extracted.fromCity as string) ?? "",
+          fromAirport: (extracted.returnFromAirport as string | null) ?? (extracted.toAirport as string | null) ?? "",
+          fromCity: (extracted.returnFromAirport as string | null) ?? (extracted.toCity as string | null) ?? "",
+          toAirport: (extracted.returnToAirport as string | null) ?? (extracted.fromAirport as string | null) ?? "",
+          toCity: (extracted.returnToAirport as string | null) ?? (extracted.fromCity as string | null) ?? "",
           departureDate: extracted.returnDepartureDate as string,
-          departureTime: (extracted.returnDepartureTime as string) ?? "",
+          departureTime: (extracted.returnDepartureTime as string | null) ?? "",
           arrivalDate: extracted.returnDepartureDate as string,
           arrivalTime: null,
-          confirmationCode: (extracted.confirmationCode as string) ?? null,
+          confirmationCode: (extracted.confirmationCode as string | null) ?? null,
           status: "booked",
           dayIndex: null,
         },
