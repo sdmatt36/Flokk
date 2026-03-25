@@ -16,9 +16,15 @@ export async function POST() {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!(await isAdmin(userId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  // Load all saved items missing placePhotoUrl that have a rawTitle
+  // Load saved items that are missing a photo OR have a non-image page URL (e.g. unsplash.com/photos/...)
   const items = await db.savedItem.findMany({
-    where: { placePhotoUrl: null, rawTitle: { not: null } },
+    where: {
+      rawTitle: { not: null },
+      OR: [
+        { placePhotoUrl: null },
+        { placePhotoUrl: { contains: "unsplash.com/photos/" } },
+      ],
+    },
     select: { id: true, rawTitle: true },
   });
 

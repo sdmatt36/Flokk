@@ -160,7 +160,10 @@ function PhotoArea({
   categoryTags?: string[];
 }) {
   const validThumbnail =
-    thumbnailUrl && thumbnailUrl.trim() !== "" && !thumbnailUrl.includes("unsplash.com/photo-undefined")
+    thumbnailUrl &&
+    thumbnailUrl.trim() !== "" &&
+    !thumbnailUrl.includes("unsplash.com/photo-undefined") &&
+    !thumbnailUrl.startsWith("https://unsplash.com/") // page URL, not a CDN image
       ? thumbnailUrl
       : null;
   const imgSrc = validThumbnail ?? getCategoryFallback(categoryTags, title) ?? getTripCoverImage(destinationCity, destinationCountry, null);
