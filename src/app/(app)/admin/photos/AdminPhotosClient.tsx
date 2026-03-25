@@ -10,7 +10,7 @@ type SavedItemRow = {
   destinationCountry: string | null;
   placePhotoUrl: string | null;
   mediaThumbnailUrl: string | null;
-  createdAt: string;
+  savedAt: string;
 };
 
 type TripRow = {

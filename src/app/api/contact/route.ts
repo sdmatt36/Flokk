@@ -7,7 +7,8 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   // Log key prefix inside the handler so it's read at request time, not module load
   const resendKey = process.env.RESEND_API_KEY;
-  console.log("[contact] RESEND_API_KEY first 4:", resendKey ? resendKey.slice(0, 4) : "MISSING");
+  console.log("[contact] RESEND_API_KEY first 8:", resendKey ? resendKey.slice(0, 8) : "MISSING");
+  console.log("[contact] from address: hello@flokktravel.com");
 
   const resend = new Resend(resendKey);
 
@@ -44,7 +45,11 @@ export async function POST(req: Request) {
         message,
       ].join("\n"),
     });
-    console.log("[contact] Resend notify response:", JSON.stringify(notifyRes));
+    console.log("[contact] Resend notify data:", JSON.stringify(notifyRes.data));
+    console.log("[contact] Resend notify error:", JSON.stringify(notifyRes.error));
+    if (notifyRes.error) {
+      console.error("[contact] RESEND FAILED (notify):", notifyRes.error.name, notifyRes.error.message);
+    }
 
     // Send confirmation to the sender
     console.log("[contact] attempting Resend confirmation to", email);
@@ -64,7 +69,11 @@ export async function POST(req: Request) {
         `"${message}"`,
       ].join("\n"),
     });
-    console.log("[contact] Resend confirm response:", JSON.stringify(confirmRes));
+    console.log("[contact] Resend confirm data:", JSON.stringify(confirmRes.data));
+    console.log("[contact] Resend confirm error:", JSON.stringify(confirmRes.error));
+    if (confirmRes.error) {
+      console.error("[contact] RESEND FAILED (confirm):", confirmRes.error.name, confirmRes.error.message);
+    }
 
     // Add to Loops as a contact
     await createLoopsContact(email, firstName, lastName);

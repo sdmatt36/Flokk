@@ -23,9 +23,9 @@ export async function GET() {
       destinationCountry: true,
       placePhotoUrl: true,
       mediaThumbnailUrl: true,
-      createdAt: true,
+      savedAt: true,
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: { savedAt: "desc" },
   });
 
   return NextResponse.json({ items });
