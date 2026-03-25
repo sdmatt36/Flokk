@@ -156,6 +156,8 @@ Return this exact JSON structure:
   "toCity": "string or null",
   "returnDepartureDate": "YYYY-MM-DD or null",
   "returnDepartureTime": "HH:MM or null",
+  "returnArrivalDate": "YYYY-MM-DD or null",
+  "returnArrivalTime": "HH:MM or null",
   "returnFromAirport": "IATA code or null",
   "returnToAirport": "IATA code or null",
   "address": "string or null",
@@ -343,6 +345,8 @@ Return this exact JSON structure:
       },
     });
 
+    console.log("[email-parse] attempting return flight creation:", extracted.returnDepartureDate ?? "null/undefined — WILL SKIP");
+
     if (extracted.returnDepartureDate) {
       // Compute dayIndex for return leg
       let returnDayIndex: number | null = null;
@@ -370,8 +374,8 @@ Return this exact JSON structure:
           toCity: (extracted.fromCity as string | null) ?? (extracted.returnToAirport as string | null) ?? "",
           departureDate: extracted.returnDepartureDate as string,
           departureTime: (extracted.returnDepartureTime as string | null) ?? "",
-          arrivalDate: null,
-          arrivalTime: null,
+          arrivalDate: (extracted.returnArrivalDate as string | null) ?? null,
+          arrivalTime: (extracted.returnArrivalTime as string | null) ?? null,
           confirmationCode: (extracted.confirmationCode as string | null) ?? null,
           status: "booked",
           dayIndex: returnDayIndex,
@@ -396,8 +400,8 @@ Return this exact JSON structure:
               toCity: extracted.fromCity,
               departureDate: extracted.returnDepartureDate,
               departureTime: extracted.returnDepartureTime,
-              arrivalDate: null,
-              arrivalTime: null,
+              arrivalDate: extracted.returnArrivalDate ?? null,
+              arrivalTime: extracted.returnArrivalTime ?? null,
               confirmationCode: extracted.confirmationCode,
               totalCost: null,
               currency: extracted.currency,
@@ -406,6 +410,8 @@ Return this exact JSON structure:
           },
         });
       }
+    } else {
+      console.log("[email-parse] skipping return flight: returnDepartureDate is", extracted.returnDepartureDate ?? "null/undefined");
     }
 
     // Vault booking document for flight

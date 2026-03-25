@@ -61,6 +61,8 @@ export async function PATCH(
   }
   if (Array.isArray(body.categoryTags)) updateData.categoryTags = body.categoryTags;
   if (typeof body.startTime === "string" || body.startTime === null) updateData.startTime = body.startTime ?? null;
+  if (typeof body.extractedCheckin === "string" || body.extractedCheckin === null) updateData.extractedCheckin = body.extractedCheckin ?? null;
+  if (typeof body.extractedCheckout === "string" || body.extractedCheckout === null) updateData.extractedCheckout = body.extractedCheckout ?? null;
   if (typeof body.isBooked === "boolean") {
     updateData.isBooked = body.isBooked;
     if (body.isBooked) updateData.bookedAt = new Date();

@@ -43,6 +43,20 @@ function ProfilePageContent() {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
+  const verifyStatus = searchParams.get("verify");
+  const [verifyToast, setVerifyToast] = useState<string | null>(
+    verifyStatus === "ok" ? "Email verified — you can now forward bookings from this address ✓"
+    : verifyStatus === "expired" ? "Verification link expired — please request a new one."
+    : verifyStatus === "invalid" ? "Invalid or already-used verification link."
+    : null
+  );
+  useEffect(() => {
+    if (verifyToast) {
+      const t = setTimeout(() => setVerifyToast(null), 6000);
+      return () => clearTimeout(t);
+    }
+  }, [verifyToast]);
+
   const active = NAV_ITEMS.find((n) => n.id === activeSection) ?? NAV_ITEMS[0];
   const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ") || "User";
   const email = user?.primaryEmailAddress?.emailAddress ?? "";
@@ -83,10 +97,17 @@ function ProfilePageContent() {
     );
   }
 
+  const toastColor = verifyStatus === "ok" ? "#4a7c59" : "#C4664A";
+
   // ── Desktop layout ──────────────────────────────────────────────────────────
   if (isDesktop) {
     return (
       <div style={{ display: "flex", minHeight: "100vh", backgroundColor: "#F9F9F9" }}>
+        {verifyToast && (
+          <div style={{ position: "fixed", top: "24px", left: "50%", transform: "translateX(-50%)", backgroundColor: toastColor, color: "#fff", fontSize: "13px", fontWeight: 600, padding: "10px 20px", borderRadius: "999px", zIndex: 9999, whiteSpace: "nowrap", pointerEvents: "none" }}>
+            {verifyToast}
+          </div>
+        )}
         {/* Sidebar */}
         <aside style={{
           width: "240px", flexShrink: 0,
@@ -143,6 +164,11 @@ function ProfilePageContent() {
   // ── Mobile layout ───────────────────────────────────────────────────────────
   return (
     <div style={{ backgroundColor: "#F9F9F9", minHeight: "100vh", paddingBottom: "80px" }}>
+      {verifyToast && (
+        <div style={{ position: "fixed", top: "24px", left: "50%", transform: "translateX(-50%)", backgroundColor: toastColor, color: "#fff", fontSize: "13px", fontWeight: 600, padding: "10px 20px", borderRadius: "999px", zIndex: 9999, whiteSpace: "nowrap", pointerEvents: "none" }}>
+          {verifyToast}
+        </div>
+      )}
       {/* Horizontal tab strip */}
       <div style={{
         backgroundColor: "#fff", borderBottom: "1px solid #E8E8E8",

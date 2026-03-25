@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import type { IntelItem } from "@/app/api/trips/[id]/booking-intel/route";
 
 const CATEGORY_LABEL: Record<IntelItem["category"], string> = {
@@ -53,6 +53,16 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
 }) {
   const [state, setState] = useState<"loading" | "hidden" | "ready">("loading");
   const [items, setItems] = useState<IntelItem[]>([]);
+  const [showBooked, setShowBooked] = useState(false);
+
+  const STATUS_ORDER: Record<IntelItem["status"], number> = { missing: 0, saved: 1, booked: 2 };
+  const { activeItems, bookedItems } = useMemo(() => {
+    const sorted = [...items].sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
+    return {
+      activeItems: sorted.filter(i => i.status !== "booked"),
+      bookedItems: sorted.filter(i => i.status === "booked"),
+    };
+  }, [items]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Compute daysAway from the startDate prop directly — never rely on API response
   const daysAway = computeDaysAway(startDate);
@@ -132,7 +142,7 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
             </div>
           ) : (
             <div>
-              {items.map((item, i) => (
+              {[...activeItems, ...(showBooked ? bookedItems : [])].map((item, i, arr) => (
                 <div
                   key={item.id}
                   style={{
@@ -140,7 +150,7 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
                     gap: "12px",
                     alignItems: "flex-start",
                     padding: "11px 0",
-                    borderBottom: i < items.length - 1 ? "1px solid rgba(0,0,0,0.05)" : "none",
+                    borderBottom: i < arr.length - 1 ? "1px solid rgba(0,0,0,0.05)" : "none",
                   }}
                 >
                   {/* Status dot */}
@@ -204,6 +214,14 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
                   </div>
                 </div>
               ))}
+              {bookedItems.length > 0 && (
+                <button
+                  onClick={() => setShowBooked(v => !v)}
+                  style={{ marginTop: "8px", background: "none", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: 600, color: "#4CAF50", padding: 0, fontFamily: "inherit" }}
+                >
+                  {showBooked ? "Hide booked items" : `Show ${bookedItems.length} booked item${bookedItems.length > 1 ? "s" : ""} ✓`}
+                </button>
+              )}
             </div>
           )}
 

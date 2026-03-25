@@ -1620,7 +1620,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [detailRemover, setDetailRemover] = useState<(() => void) | null>(null);
   const [editingFlight, setEditingFlight] = useState<Flight | null>(null);
   // Lodging edit: stores { id, rawTitle, startTime, websiteUrl, notes } fetched on demand
-  const [editingLodging, setEditingLodging] = useState<{ id: string; rawTitle: string; startTime: string; websiteUrl: string; notes: string } | null>(null);
+  const [editingLodging, setEditingLodging] = useState<{ id: string; rawTitle: string; extractedCheckin: string; extractedCheckout: string; websiteUrl: string; notes: string } | null>(null);
   const [lodgingSaving, setLodgingSaving] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [overDayIndex, setOverDayIndex] = useState<number | null>(null);
@@ -2128,21 +2128,35 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
                                                 <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{a.title}</p>
                                                 {a.savedItemId && (
-                                                  <button
-                                                    onClick={async e => {
-                                                      e.stopPropagation();
-                                                      try {
-                                                        const res = await fetch(`/api/saves/${a.savedItemId}`);
-                                                        const data = await res.json() as { item: { rawTitle: string | null; startTime: string | null; websiteUrl: string | null; notes: string | null } };
-                                                        const it = data.item;
-                                                        setEditingLodging({ id: a.savedItemId!, rawTitle: it.rawTitle ?? a.title, startTime: it.startTime ?? "", websiteUrl: it.websiteUrl ?? "", notes: it.notes ?? "" });
-                                                      } catch { /* ignore */ }
-                                                    }}
-                                                    style={{ background: "none", border: "none", cursor: "pointer", color: "#666", padding: "2px", lineHeight: 1, flexShrink: 0 }}
-                                                    title="Edit"
-                                                  >
-                                                    <Pencil size={16} />
-                                                  </button>
+                                                  <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
+                                                    <button
+                                                      onClick={async e => {
+                                                        e.stopPropagation();
+                                                        try {
+                                                          const res = await fetch(`/api/saves/${a.savedItemId}`);
+                                                          const data = await res.json() as { item: { rawTitle: string | null; extractedCheckin: string | null; extractedCheckout: string | null; websiteUrl: string | null; notes: string | null } };
+                                                          const it = data.item;
+                                                          setEditingLodging({ id: a.savedItemId!, rawTitle: it.rawTitle ?? a.title, extractedCheckin: it.extractedCheckin ?? "", extractedCheckout: it.extractedCheckout ?? "", websiteUrl: it.websiteUrl ?? "", notes: it.notes ?? "" });
+                                                        } catch { /* ignore */ }
+                                                      }}
+                                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#999", padding: "2px", lineHeight: 1 }}
+                                                      title="Edit"
+                                                    >
+                                                      <Pencil size={14} />
+                                                    </button>
+                                                    <button
+                                                      onClick={async e => {
+                                                        e.stopPropagation();
+                                                        if (!confirm(`Delete "${a.title}"? This cannot be undone.`)) return;
+                                                        await fetch(`/api/saves/${a.savedItemId}`, { method: "DELETE" });
+                                                        setRecAdditions(prev => prev.filter(r => r.savedItemId !== a.savedItemId));
+                                                      }}
+                                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px", lineHeight: 1 }}
+                                                      title="Delete"
+                                                    >
+                                                      <Trash2 size={14} />
+                                                    </button>
+                                                  </div>
                                                 )}
                                               </div>
                                               {(() => {
@@ -2390,12 +2404,12 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
             style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "560px", maxHeight: "85vh", overflowY: "auto", padding: "24px 20px 40px", paddingBottom: "max(40px, env(safe-area-inset-bottom))" }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
-              <p style={{ fontSize: "17px", fontWeight: 800, color: "#1a1a1a" }}>Edit Saved Item</p>
+              <p style={{ fontSize: "17px", fontWeight: 800, color: "#1a1a1a" }}>Edit Hotel / Lodging</p>
               <button onClick={() => setEditingLodging(null)} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#999", padding: "4px", lineHeight: 1 }}>×</button>
             </div>
-            {(["rawTitle", "startTime", "websiteUrl", "notes"] as const).map(field => {
-              const labels: Record<string, string> = { rawTitle: "Name", startTime: "Check-in Time", websiteUrl: "Website URL", notes: "Notes" };
-              const types: Record<string, string> = { rawTitle: "text", startTime: "time", websiteUrl: "url", notes: "textarea" };
+            {(["rawTitle", "extractedCheckin", "extractedCheckout", "websiteUrl", "notes"] as const).map(field => {
+              const labels: Record<string, string> = { rawTitle: "Hotel Name", extractedCheckin: "Check-in Date", extractedCheckout: "Check-out Date", websiteUrl: "Website URL", notes: "Notes" };
+              const types: Record<string, string> = { rawTitle: "text", extractedCheckin: "date", extractedCheckout: "date", websiteUrl: "url", notes: "textarea" };
               const val = editingLodging[field];
               return (
                 <div key={field} style={{ marginBottom: "14px" }}>
@@ -2428,14 +2442,15 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                       rawTitle: editingLodging.rawTitle,
-                      startTime: editingLodging.startTime || null,
+                      extractedCheckin: editingLodging.extractedCheckin || null,
+                      extractedCheckout: editingLodging.extractedCheckout || null,
                       websiteUrl: editingLodging.websiteUrl || null,
                       notes: editingLodging.notes,
                     }),
                   });
                   setRecAdditions(prev => prev.map(a =>
                     a.savedItemId === editingLodging.id
-                      ? { ...a, title: editingLodging.rawTitle, startTime: editingLodging.startTime || null }
+                      ? { ...a, title: editingLodging.rawTitle }
                       : a
                   ));
                   setEditingLodging(null);
@@ -3371,7 +3386,7 @@ function RecCard({ rec, isSaved, onToggle, onOpenDetail }: { rec: RecItem; isSav
 
 // ── Flight card ───────────────────────────────────────────────────────────────
 
-function FlightCard({ flight, onDelete, onMarkBooked }: { flight: Flight; onDelete: () => void; onMarkBooked?: () => void }) {
+function FlightCard({ flight, onDelete, onMarkBooked, onEdit }: { flight: Flight; onDelete: () => void; onMarkBooked?: () => void; onEdit?: () => void }) {
   const cabinLabel: Record<string, string> = { economy: "Economy", premium_economy: "Prem. Economy", business: "Business", first: "First" };
   const typeLabel: Record<string, string> = { outbound: "Outbound", return: "Return", connection: "Connection" };
   const isBooked = flight.status === "booked";
@@ -3437,13 +3452,24 @@ function FlightCard({ flight, onDelete, onMarkBooked }: { flight: Flight; onDele
             </span>
           )}
         </div>
-        <button
-          onClick={onDelete}
-          style={{ flexShrink: 0, background: "none", border: "none", cursor: "pointer", color: "#ccc", padding: "2px", lineHeight: 1 }}
-          title="Remove flight"
-        >
-          <Trash2 size={16} />
-        </button>
+        <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "#aaa", padding: "2px", lineHeight: 1 }}
+              title="Edit flight"
+            >
+              <Pencil size={16} />
+            </button>
+          )}
+          <button
+            onClick={onDelete}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#ccc", padding: "2px", lineHeight: 1 }}
+            title="Remove flight"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -3563,6 +3589,10 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [flights, setFlights] = useState<Flight[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [activityDefaultDate, setActivityDefaultDate] = useState<string | undefined>(undefined);
+  const [editingFlight, setEditingFlight] = useState<Flight | null>(null);
+  const [editingFlightVaultDocId, setEditingFlightVaultDocId] = useState<string | null>(null);
+  const [editingVaultDoc, setEditingVaultDoc] = useState<{ id: string; label: string; content: Record<string, unknown> } | null>(null);
+  const [vaultDocSaving, setVaultDocSaving] = useState(false);
 
   const fetchFlights = useCallback(() => {
     if (!tripId) return;
@@ -3846,6 +3876,45 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         />
       )}
 
+      {editingFlight && tripId && (
+        <EditFlightModal
+          flight={editingFlight}
+          tripId={tripId}
+          onClose={() => { setEditingFlight(null); setEditingFlightVaultDocId(null); }}
+          onSaved={(updated) => {
+            setFlights(prev => prev.map(f => f.id === updated.id ? updated : f));
+            if (editingFlightVaultDocId) {
+              const updatedContent = JSON.stringify({
+                type: "flight",
+                vendorName: updated.airline,
+                flightNumber: updated.flightNumber,
+                airline: updated.airline,
+                fromAirport: updated.fromAirport,
+                toAirport: updated.toAirport,
+                fromCity: updated.fromCity,
+                toCity: updated.toCity,
+                departureDate: updated.departureDate,
+                departureTime: updated.departureTime,
+                arrivalDate: updated.arrivalDate ?? null,
+                arrivalTime: updated.arrivalTime ?? null,
+                confirmationCode: updated.confirmationCode ?? null,
+              });
+              fetch(`/api/trips/${tripId}/vault/documents/${editingFlightVaultDocId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ content: updatedContent }),
+              }).then(() => {
+                setDocuments(prev => prev.map(d =>
+                  d.id === editingFlightVaultDocId ? { ...d, content: updatedContent } : d
+                ));
+              }).catch(() => {});
+            }
+            setEditingFlight(null);
+            setEditingFlightVaultDocId(null);
+          }}
+        />
+      )}
+
       {(showActivityModal || editingActivity) && tripId && (
         <AddActivityModal
           tripId={tripId}
@@ -3910,7 +3979,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                 <span style={{ fontSize: "11px", color: "#bbb", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>{flights.length}</span>
               </div>
               {flights.map(f => (
-                <FlightCard key={f.id} flight={f} onDelete={() => handleDeleteFlight(f.id)} onMarkBooked={() => handleMarkBooked(f.id)} />
+                <FlightCard key={f.id} flight={f} onDelete={() => handleDeleteFlight(f.id)} onMarkBooked={() => handleMarkBooked(f.id)} onEdit={() => setEditingFlight(f)} />
               ))}
             </div>
           )}
@@ -4091,6 +4160,22 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                   if (booking.contactPhone) rows.push({ label: "Phone", value: String(booking.contactPhone) });
                   if (booking.contactEmail) rows.push({ label: "Email", value: String(booking.contactEmail) });
                   if (Array.isArray(booking.guestNames) && booking.guestNames.length > 0) rows.push({ label: "Guests", value: (booking.guestNames as string[]).join(", ") });
+                  // For flight-type docs, find matching Flight record
+                  const matchedFlight = (booking.type as string) === "flight"
+                    ? flights.find(f => f.flightNumber === (booking.flightNumber as string))
+                    : null;
+
+                  function handleVaultEdit() {
+                    if (matchedFlight) {
+                      setEditingFlightVaultDocId(d.id);
+                      setEditingFlight(matchedFlight);
+                    } else {
+                      // Generic vault doc edit
+                      const parsed = (() => { try { return JSON.parse(d.content ?? "{}"); } catch { return {}; } })();
+                      setEditingVaultDoc({ id: d.id, label: d.label, content: parsed as Record<string, unknown> });
+                    }
+                  }
+
                   return (
                     <div key={d.id} style={{ backgroundColor: "#fff", border: "1px solid rgba(196,102,74,0.2)", borderRadius: "14px", padding: "16px", position: "relative" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
@@ -4107,6 +4192,9 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                           ))}
                         </div>
                       )}
+                      <button onClick={handleVaultEdit} style={{ position: "absolute", top: "12px", right: "36px", background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px" }} title="Edit">
+                        <Pencil size={14} />
+                      </button>
                       <button onClick={async () => { await fetch(`/api/trips/${tripId}/vault/documents/${d.id}`, { method: "DELETE" }); setDocuments(p => p.filter(x => x.id !== d.id)); }} style={{ position: "absolute", top: "12px", right: "12px", background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px" }} title="Delete">
                         <Trash2 size={14} />
                       </button>
@@ -4351,6 +4439,85 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           onRefreshItinerary={() => setItineraryVersion(v => v + 1)}
         />
       )}
+
+      {/* ── Generic Vault Booking Edit Modal ── */}
+      {editingVaultDoc && tripId && (() => {
+        const doc = editingVaultDoc;
+        const c = doc.content;
+        const fields: Array<{ key: string; label: string; type?: string }> = [];
+        const t = String(c.type ?? "");
+        if (t === "flight" || t === "train") {
+          fields.push(
+            { key: "vendorName", label: "Vendor / Airline" },
+            { key: "flightNumber", label: "Flight / Train #" },
+            { key: "fromCity", label: "From City" },
+            { key: "toCity", label: "To City" },
+            { key: "fromAirport", label: "From Airport" },
+            { key: "toAirport", label: "To Airport" },
+            { key: "departureDate", label: "Departure Date", type: "date" },
+            { key: "departureTime", label: "Departure Time", type: "time" },
+            { key: "arrivalDate", label: "Arrival Date", type: "date" },
+            { key: "arrivalTime", label: "Arrival Time", type: "time" },
+            { key: "confirmationCode", label: "Confirmation" },
+          );
+        } else {
+          fields.push(
+            { key: "vendorName", label: "Vendor Name" },
+            { key: "checkIn", label: "Check-in Date", type: "date" },
+            { key: "checkOut", label: "Check-out Date", type: "date" },
+            { key: "confirmationCode", label: "Confirmation" },
+            { key: "address", label: "Address" },
+            { key: "contactPhone", label: "Phone" },
+            { key: "contactEmail", label: "Email" },
+          );
+        }
+        const labelStyle = { fontSize: "11px", fontWeight: 700 as const, color: "#717171", textTransform: "uppercase" as const, letterSpacing: "0.07em", marginBottom: "5px", display: "block" };
+        const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", backgroundColor: "#fff", outline: "none", boxSizing: "border-box" as const };
+        return createPortal(
+          <div onClick={() => setEditingVaultDoc(null)} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+            <div onClick={e => e.stopPropagation()} style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "560px", maxHeight: "85vh", overflowY: "auto", padding: "24px 20px 40px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+                <p style={{ fontSize: "17px", fontWeight: 800, color: "#1a1a1a" }}>Edit Booking</p>
+                <button onClick={() => setEditingVaultDoc(null)} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#999", padding: "4px", lineHeight: 1 }}>×</button>
+              </div>
+              {fields.map(f => (
+                <div key={f.key} style={{ marginBottom: "14px" }}>
+                  <label style={labelStyle}>{f.label}</label>
+                  <input
+                    type={f.type ?? "text"}
+                    value={String(doc.content[f.key] ?? "")}
+                    onChange={e => setEditingVaultDoc(prev => prev ? { ...prev, content: { ...prev.content, [f.key]: e.target.value } } : null)}
+                    style={inputStyle}
+                  />
+                </div>
+              ))}
+              {vaultDocSaving && <p style={{ fontSize: "13px", color: "#888", marginBottom: "12px" }}>Saving…</p>}
+              <button
+                disabled={vaultDocSaving}
+                onClick={async () => {
+                  setVaultDocSaving(true);
+                  try {
+                    const updatedContent = JSON.stringify(doc.content);
+                    await fetch(`/api/trips/${tripId}/vault/documents/${doc.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ content: updatedContent }),
+                    });
+                    setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, content: updatedContent } : d));
+                    setEditingVaultDoc(null);
+                  } finally {
+                    setVaultDocSaving(false);
+                  }
+                }}
+                style={{ width: "100%", padding: "14px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Save changes
+              </button>
+            </div>
+          </div>,
+          document.body
+        );
+      })()}
     </div>
   );
 }

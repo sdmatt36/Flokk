@@ -884,24 +884,32 @@ export function FamilySection() {
         {saving ? "Saving..." : "Save changes"}
       </button>
 
-      <InterestsCard />
       <SenderEmailsCard />
+      <InterestsCard />
     </div>
   );
 }
 
 // ── Sender emails ─────────────────────────────────────────────────────────────
 
+type PendingVerification = { id: string; email: string; createdAt: string };
+
 function SenderEmailsCard() {
   const [emails, setEmails] = useState<string[]>([]);
+  const [pending, setPending] = useState<PendingVerification[]>([]);
   const [newEmail, setNewEmail] = useState("");
   const [adding, setAdding] = useState(false);
+  const [resending, setResending] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
   useEffect(() => {
     fetch("/api/profile/sender-emails")
       .then((r) => r.json())
-      .then((d: { senderEmails?: string[] }) => setEmails(d.senderEmails ?? []))
+      .then((d: { senderEmails?: string[]; pending?: PendingVerification[] }) => {
+        setEmails(d.senderEmails ?? []);
+        setPending(d.pending ?? []);
+      })
       .catch(() => {});
   }, []);
 
@@ -910,14 +918,21 @@ function SenderEmailsCard() {
     if (!e || !e.includes("@")) { setError("Enter a valid email address."); return; }
     setAdding(true);
     setError("");
+    setSuccessMsg("");
     const res = await fetch("/api/profile/sender-emails", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "add", email: e }),
     });
-    const d = await res.json() as { senderEmails?: string[]; error?: string };
-    if (d.senderEmails) { setEmails(d.senderEmails); setNewEmail(""); }
-    else setError(d.error ?? "Failed to add.");
+    const d = await res.json() as { senderEmails?: string[]; pending?: PendingVerification[]; sent?: boolean; alreadyVerified?: boolean; error?: string };
+    if (d.error) { setError(d.error); }
+    else if (d.alreadyVerified) { setError("This email is already verified."); }
+    else {
+      setEmails(d.senderEmails ?? emails);
+      setPending(d.pending ?? pending);
+      setNewEmail("");
+      setSuccessMsg(`Verification email sent to ${e}`);
+    }
     setAdding(false);
   }
 
@@ -928,7 +943,24 @@ function SenderEmailsCard() {
       body: JSON.stringify({ action: "remove", email }),
     });
     const d = await res.json() as { senderEmails?: string[] };
-    if (d.senderEmails) setEmails(d.senderEmails);
+    if (d.senderEmails !== undefined) {
+      setEmails(d.senderEmails);
+      setPending(prev => prev.filter(p => p.email !== email));
+    }
+  }
+
+  async function handleResend(email: string) {
+    setResending(email);
+    setSuccessMsg("");
+    const res = await fetch("/api/profile/sender-emails", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "resend", email }),
+    });
+    const d = await res.json() as { pending?: PendingVerification[]; sent?: boolean };
+    if (d.pending) setPending(d.pending);
+    if (d.sent) setSuccessMsg(`Verification email resent to ${email}`);
+    setResending(null);
   }
 
   const labelCls = "block text-xs font-semibold text-[#717171] uppercase tracking-wide mb-1";
@@ -938,20 +970,43 @@ function SenderEmailsCard() {
     <div style={{ marginTop: "32px", borderTop: "1px solid #F0F0F0", paddingTop: "28px" }}>
       <p className={labelCls} style={{ marginBottom: "4px" }}>Approved sender emails</p>
       <p style={{ fontSize: "13px", color: "#717171", marginBottom: "16px", lineHeight: 1.5 }}>
-        Booking confirmation emails forwarded from these addresses will be auto-imported.
+        Booking confirmation emails forwarded from these addresses will be auto-imported. Each address must be verified before it can be used.
       </p>
 
+      {/* Verified emails */}
       {emails.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "14px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
           {emails.map((e) => (
-            <div key={e} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", backgroundColor: "#F9F9F9", borderRadius: "8px", border: "1px solid #EEEEEE" }}>
-              <span style={{ fontSize: "13px", color: "#1B3A5C" }}>{e}</span>
-              <button
-                onClick={() => handleRemove(e)}
-                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "#AAAAAA", lineHeight: 1, padding: "0 4px" }}
-              >
-                ×
-              </button>
+            <div key={e} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", backgroundColor: "#F0FAF2", borderRadius: "8px", border: "1px solid rgba(74,124,89,0.2)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "11px", fontWeight: 700, color: "#4a7c59", backgroundColor: "rgba(74,124,89,0.12)", borderRadius: "999px", padding: "1px 7px" }}>Verified ✓</span>
+                <span style={{ fontSize: "13px", color: "#1B3A5C" }}>{e}</span>
+              </div>
+              <button onClick={() => handleRemove(e)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "#AAAAAA", lineHeight: 1, padding: "0 4px" }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Pending verifications */}
+      {pending.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
+          {pending.map((p) => (
+            <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", backgroundColor: "#FFFBF0", borderRadius: "8px", border: "1px solid rgba(245,158,11,0.25)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "11px", fontWeight: 700, color: "#92650a", backgroundColor: "rgba(245,158,11,0.12)", borderRadius: "999px", padding: "1px 7px", whiteSpace: "nowrap" }}>Awaiting verification</span>
+                <span style={{ fontSize: "13px", color: "#555" }}>{p.email}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                <button
+                  onClick={() => handleResend(p.email)}
+                  disabled={resending === p.email}
+                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: "#1B3A5C", fontWeight: 600, padding: "2px 4px", opacity: resending === p.email ? 0.5 : 1 }}
+                >
+                  {resending === p.email ? "Sending…" : "Resend"}
+                </button>
+                <button onClick={() => handleRemove(p.email)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "#AAAAAA", lineHeight: 1, padding: "0 4px" }}>×</button>
+              </div>
             </div>
           ))}
         </div>
@@ -962,7 +1017,7 @@ function SenderEmailsCard() {
           type="email"
           placeholder="you@example.com"
           value={newEmail}
-          onChange={(e) => { setNewEmail(e.target.value); setError(""); }}
+          onChange={(e) => { setNewEmail(e.target.value); setError(""); setSuccessMsg(""); }}
           onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
           className={inputCls}
         />
@@ -971,10 +1026,11 @@ function SenderEmailsCard() {
           disabled={adding}
           style={{ padding: "8px 16px", borderRadius: "8px", border: "none", backgroundColor: "#1B3A5C", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: adding ? "not-allowed" : "pointer", opacity: adding ? 0.7 : 1, whiteSpace: "nowrap" }}
         >
-          {adding ? "Adding…" : "Add email"}
+          {adding ? "Sending…" : "Add email"}
         </button>
       </div>
       {error && <p style={{ fontSize: "12px", color: "#C4664A", marginTop: "6px" }}>{error}</p>}
+      {successMsg && <p style={{ fontSize: "12px", color: "#4a7c59", marginTop: "6px" }}>{successMsg}</p>}
     </div>
   );
 }

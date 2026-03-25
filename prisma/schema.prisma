@@ -69,6 +69,18 @@ model FamilyProfile {
   points           Int                 @default(0)
   tier             CommunityTier       @default(EXPLORER)
   senderEmails     String[]            @default([])
+  senderEmailVerifications SenderEmailVerification[]
+}
+
+model SenderEmailVerification {
+  id              String        @id @default(cuid())
+  familyProfileId String
+  familyProfile   FamilyProfile @relation(fields: [familyProfileId], references: [id], onDelete: Cascade)
+  email           String
+  token           String        @unique
+  expiresAt       DateTime
+  verifiedAt      DateTime?
+  createdAt       DateTime      @default(now())
 }
 
 enum TravelFrequency {
