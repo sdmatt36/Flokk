@@ -326,9 +326,7 @@ function DroppableDay({ id, isOver, children }: { id: string; isOver: boolean; c
       ref={setNodeRef}
       style={{
         backgroundColor: isOver ? "rgba(196,102,74,0.04)" : "transparent",
-        borderRadius: "8px",
         transition: "background-color 0.15s ease",
-        minHeight: "8px",
       }}
     >
       {children}
@@ -1766,6 +1764,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [lodgingSaving, setLodgingSaving] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [overDayIndex, setOverDayIndex] = useState<number | null>(null);
+  const autoOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [dragErrorToast, setDragErrorToast] = useState<string | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
@@ -1911,23 +1911,55 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     return "Item";
   }
 
+  function getOverlayType(sortId: string): string {
+    if (sortId.startsWith("saved_")) return "Place";
+    if (sortId.startsWith("activity_")) return "Activity";
+    if (sortId.startsWith("flight_")) return "Flight";
+    if (sortId.startsWith("itinerary_")) {
+      const it = localItineraryItems.find(it => it.id === sortId.slice(10));
+      if (it?.type === "LODGING") return "Hotel";
+      if (it?.type === "TRAIN") return "Train";
+      if (it?.type === "FLIGHT") return "Flight";
+      return "Booking";
+    }
+    return "";
+  }
+
   function handleGlobalDragStart(event: DragStartEvent) {
     setActiveDragId(String(event.active.id));
   }
 
   function handleGlobalDragOver(event: DragOverEvent) {
     const { over } = event;
-    if (!over) { setOverDayIndex(null); return; }
+    if (!over) {
+      setOverDayIndex(null);
+      if (autoOpenTimerRef.current) { clearTimeout(autoOpenTimerRef.current); autoOpenTimerRef.current = null; }
+      return;
+    }
     const overId = String(over.id);
+    let hoveredDayIndex: number | null = null;
     if (overId.startsWith("day-")) {
-      setOverDayIndex(parseInt(overId.slice(4), 10));
+      hoveredDayIndex = parseInt(overId.slice(4), 10);
     } else {
       const idx = getItemDayIndex(overId);
-      setOverDayIndex(idx >= 0 ? idx : null);
+      hoveredDayIndex = idx >= 0 ? idx : null;
+    }
+    setOverDayIndex(hoveredDayIndex);
+
+    // Auto-expand a collapsed day after 300ms hover — lets the user see the drop zone
+    if (hoveredDayIndex !== null && hoveredDayIndex !== openDay) {
+      if (autoOpenTimerRef.current) { clearTimeout(autoOpenTimerRef.current); autoOpenTimerRef.current = null; }
+      autoOpenTimerRef.current = setTimeout(() => {
+        setOpenDay(hoveredDayIndex!);
+        autoOpenTimerRef.current = null;
+      }, 300);
+    } else {
+      if (autoOpenTimerRef.current) { clearTimeout(autoOpenTimerRef.current); autoOpenTimerRef.current = null; }
     }
   }
 
   function handleGlobalDragEnd(event: DragEndEvent) {
+    if (autoOpenTimerRef.current) { clearTimeout(autoOpenTimerRef.current); autoOpenTimerRef.current = null; }
     const { active, over } = event;
     setActiveDragId(null);
     setOverDayIndex(null);
@@ -1948,40 +1980,46 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   }
 
   function handleCrossDayMove(sortId: string, newDayIndex: number) {
+    function showDragError() {
+      setDragErrorToast("Could not move item. Please try again.");
+      setTimeout(() => setDragErrorToast(null), 3000);
+    }
     if (sortId.startsWith("saved_")) {
       const rawId = sortId.slice(6);
-      setRecAdditions(prev => prev.map(r =>
-        (r.savedItemId ?? r.title) === rawId ? { ...r, dayIndex: newDayIndex } : r
-      ));
+      const prev = recAdditions;
+      setRecAdditions(p => p.map(r => (r.savedItemId ?? r.title) === rawId ? { ...r, dayIndex: newDayIndex } : r));
       if (rawId) fetch(`/api/saves/${rawId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dayIndex: newDayIndex }),
-      }).catch(e => console.error("[crossDay saves]", e));
+      }).then(r => { if (!r.ok) throw new Error(); })
+        .catch(() => { setRecAdditions(prev); showDragError(); });
     } else if (sortId.startsWith("activity_")) {
       const id = sortId.slice(9);
-      setLocalActivities(prev => prev.map(a => a.id === id ? { ...a, dayIndex: newDayIndex } : a));
+      const prev = localActivities;
+      setLocalActivities(p => p.map(a => a.id === id ? { ...a, dayIndex: newDayIndex } : a));
       fetch(`/api/trips/${tripId}/activities/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dayIndex: newDayIndex }),
-      }).catch(e => console.error("[crossDay activities]", e));
+      }).then(r => { if (!r.ok) throw new Error(); })
+        .catch(() => { setLocalActivities(prev); showDragError(); });
     } else if (sortId.startsWith("flight_")) {
       const id = sortId.slice(7);
-      setLocalFlights(prev => prev.map(f => f.id === id ? { ...f, dayIndex: newDayIndex } : f));
+      const prev = localFlights;
+      setLocalFlights(p => p.map(f => f.id === id ? { ...f, dayIndex: newDayIndex } : f));
       fetch(`/api/trips/${tripId}/flights/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dayIndex: newDayIndex }),
-      }).catch(e => console.error("[crossDay flights]", e));
+      }).then(r => { if (!r.ok) throw new Error(); })
+        .catch(() => { setLocalFlights(prev); showDragError(); });
     } else if (sortId.startsWith("itinerary_")) {
       const id = sortId.slice(10);
-      setLocalItineraryItems(prev => prev.map(it => it.id === id ? { ...it, dayIndex: newDayIndex } : it));
+      const prev = localItineraryItems;
+      setLocalItineraryItems(p => p.map(it => it.id === id ? { ...it, dayIndex: newDayIndex } : it));
       fetch(`/api/trips/${tripId}/itinerary/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dayIndex: newDayIndex }),
-      }).catch(e => console.error("[crossDay itinerary]", e));
+      }).then(r => { if (!r.ok) throw new Error(); })
+        .catch(() => { setLocalItineraryItems(prev); showDragError(); });
     }
   }
 
@@ -2163,6 +2201,14 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         </div>
       )}
 
+      {/* Drag error toast */}
+      {dragErrorToast && (
+        <div style={{ marginBottom: "12px", backgroundColor: "#FDF0EE", border: "1.5px solid rgba(196,102,74,0.35)", borderRadius: "12px", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: "13px", color: "#C4664A", fontWeight: 600 }}>{dragErrorToast}</span>
+          <button onClick={() => setDragErrorToast(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#C4664A", padding: "0 0 0 12px", fontSize: "16px", lineHeight: 1 }}>×</button>
+        </div>
+      )}
+
       {/* Budget prompt or bar */}
       <BudgetPromptBanner tripId={tripId} />
 
@@ -2199,13 +2245,14 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                   const isOpen = openDay === i;
                   const allDayItems = buildDayItems(dayIndex);
                   return (
-                    <div key={i} style={{ borderBottom: i < tripDays.length - 1 ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
+                    <DroppableDay key={i} id={`day-${dayIndex}`} isOver={overDayIndex === dayIndex}>
+                    <div style={{ borderBottom: i < tripDays.length - 1 ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
 
-                      {/* Header row */}
+                      {/* Header row — highlight when dragging over a collapsed day */}
                       <div
                         onClick={() => toggle(i)}
                         className="hover:bg-black/[0.02]"
-                        style={{ display: "flex", alignItems: "center", padding: "14px 16px", cursor: "pointer", userSelect: "none" }}
+                        style={{ display: "flex", alignItems: "center", padding: "14px 16px", cursor: "pointer", userSelect: "none", backgroundColor: overDayIndex === dayIndex && !isOpen && activeDragId ? "rgba(196,102,74,0.06)" : undefined, transition: "background-color 0.15s ease" }}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <span style={{ fontSize: "15px", fontWeight: 800, color: "#1B3A5C" }}>{label}</span>
@@ -2239,11 +2286,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                         <div style={{ padding: "4px 12px 16px" }}>
 
                           {/* All day items — unified sortable list */}
-                          <DroppableDay id={`day-${dayIndex}`} isOver={overDayIndex === dayIndex}>
-                            <SortableContext
-                              items={allDayItems.map(a => a.sortId)}
-                              strategy={verticalListSortingStrategy}
-                            >
+                          <SortableContext
+                            items={allDayItems.map(a => a.sortId)}
+                            strategy={verticalListSortingStrategy}
+                          >
                               {allDayItems.flatMap((item, idx) => {
                                 const next = allDayItems[idx + 1];
                                 const item1Name = item.recAddition?.title ?? item.activity?.title ?? item.flight?.airline ?? item.itemType;
@@ -2621,8 +2667,13 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 ) : null,
                                 ];
                               })}
-                            </SortableContext>
-                          </DroppableDay>
+                            {/* Empty day drop placeholder — visible only during active drag */}
+                            {activeDragId && allDayItems.length === 0 && (
+                              <div style={{ border: "1px dashed rgba(196,102,74,0.35)", borderRadius: "8px", minHeight: "80px", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "4px" }}>
+                                <span style={{ fontSize: "12px", color: "#BBBBBB" }}>Drop here</span>
+                              </div>
+                            )}
+                          </SortableContext>
 
                           {/* + Add activity dashed button */}
                           <button
@@ -2669,15 +2720,20 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       </div>
 
                     </div>
+                    </DroppableDay>
                   );
                 })}
               </div>
               <DragOverlay>
-                {activeDragId ? (
-                  <div style={{ padding: "8px 14px", backgroundColor: "#fff", border: "1px solid rgba(196,102,74,0.35)", borderRadius: "10px", boxShadow: "0 4px 16px rgba(0,0,0,0.14)", fontSize: "13px", fontWeight: 600, color: "#1B3A5C", cursor: "grabbing" }}>
-                    {getOverlayLabel(activeDragId)}
-                  </div>
-                ) : null}
+                {activeDragId ? (() => {
+                  const typeLabel = getOverlayType(activeDragId);
+                  return (
+                    <div style={{ padding: "8px 14px", backgroundColor: "#fff", border: "1px solid rgba(196,102,74,0.35)", borderLeft: "3px solid #C4664A", borderRadius: "10px", boxShadow: "0 4px 16px rgba(0,0,0,0.14)", cursor: "grabbing", maxWidth: "220px" }}>
+                      {typeLabel && <div style={{ fontSize: "10px", fontWeight: 700, color: "#C4664A", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" }}>{typeLabel}</div>}
+                      <div style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C" }}>{getOverlayLabel(activeDragId)}</div>
+                    </div>
+                  );
+                })() : null}
               </DragOverlay>
               </DndContext>
             );
