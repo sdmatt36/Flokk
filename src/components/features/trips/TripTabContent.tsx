@@ -2382,7 +2382,13 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                   <Pencil size={16} />
                                                 </button>
                                               </div>
-                                              <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }}>{depTime}{arrTime ? ` → ${arrTime}` : ""}{f.duration ? ` · ${f.duration}` : ""}</p>
+                                              <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }}>
+                                                <span>Departs </span>
+                                                <span style={depTime ? {} : { color: "#BBBBBB" }}>{depTime ?? "Time TBC"}</span>
+                                                <span> · Arrives </span>
+                                                <span style={arrTime ? {} : { color: "#BBBBBB" }}>{arrTime ?? "Time TBC"}</span>
+                                                {f.duration ? <span> · {f.duration}</span> : null}
+                                              </p>
                                               <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
                                                 <span style={{ fontSize: "11px", fontWeight: 600, backgroundColor: f.status === "booked" ? "rgba(27,58,92,0.1)" : "rgba(0,0,0,0.06)", color: f.status === "booked" ? "#1B3A5C" : "#888", borderRadius: "999px", padding: "2px 8px" }}>
                                                   {f.status === "booked" ? "Booked" : "Saved"}
@@ -4403,6 +4409,9 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                             </>
                           ))}
                         </div>
+                      )}
+                      {(booking.type as string) === "flight" && (
+                        <p style={{ fontSize: "11px", color: "#BBBBBB", marginTop: "10px" }}>Re-forward confirmation to update times</p>
                       )}
                       <button onClick={handleVaultEdit} style={{ position: "absolute", top: "12px", right: "36px", background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px" }} title="Edit">
                         <Pencil size={14} />
