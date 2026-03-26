@@ -8,39 +8,42 @@ export const maxDuration = 60;
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ── Guest name resolution ─────────────────────────────────────────────────────
-// Cross-references raw airline names against known family members.
-// Airline format is typically: "LASTNAME FIRSTNAMEMIDDLE MR/MS/MSTR"
+// Airline booking format: "LASTNAME FIRSTNAMEMIDDLE MR/MS/MSTR"
+// e.g. "GREENE JODYCOUGHLIN MS"  → match member with firstName "Jody" → "Jody Greene"
+//      "GREENE BEAUJACKSON MSTR" → match member with firstName "Beau" → "Beau Greene"
 
 type KnownMember = { name: string | null };
 
 function resolveGuestName(raw: string, knownMembers: KnownMember[]): string {
-  // Strip trailing title
-  const cleaned = raw.replace(/\b(MR|MRS|MS|DR|MISS|MSTR)\.?\s*$/gi, "").trim().toLowerCase();
+  // 1. Strip trailing title
+  const stripped = raw.replace(/\b(MR|MRS|MS|DR|MISS|MSTR)\.?\s*$/gi, "").trim();
 
-  // Try to match against known family members by splitting their stored name
-  for (const member of knownMembers) {
-    if (!member.name) continue;
-    const nameParts = member.name.trim().split(/\s+/);
-    const first = nameParts[0]?.toLowerCase() ?? "";
-    const last  = nameParts[nameParts.length - 1]?.toLowerCase() ?? "";
+  // 2. Split into [LASTNAME, FIRSTNAMEMIDDLE]
+  const parts = stripped.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return raw;
 
-    // Match if cleaned airline string contains the member's first name
-    if (first && cleaned.includes(first)) {
-      return member.name;
-    }
-    // Also match on last name + first 3 chars of first name
-    if (last && first && cleaned.includes(last) && cleaned.includes(first.slice(0, 3))) {
-      return member.name;
+  const rawLastName  = parts[0];                          // e.g. "GREENE"
+  const rawFirstComp = parts.slice(1).join("") || "";     // e.g. "JODYCOUGHLIN"
+  const prefix4      = rawFirstComp.slice(0, 4).toLowerCase(); // e.g. "jody"
+
+  // 3. Try to match a known family member by first-name prefix
+  if (prefix4) {
+    for (const member of knownMembers) {
+      if (!member.name) continue;
+      // member.name is stored as "Jody Greene" — first token is the first name
+      const memberFirst = member.name.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+      if (memberFirst && memberFirst.startsWith(prefix4)) {
+        return member.name; // return the clean profile name directly
+      }
     }
   }
 
-  // Fallback: strip title, treat first token as last name, move to end
-  const parts = cleaned.split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return raw;
-  if (parts.length === 1) return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-  const lastName  = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-  const firstNames = parts.slice(1).map((p) => p.charAt(0).toUpperCase() + p.slice(1));
-  return [...firstNames, lastName].join(" ");
+  // 4. Fallback: title-case the parts and reorder to FirstName LastName
+  const tc = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+  if (parts.length === 1) return tc(rawLastName);
+  const lastName  = tc(rawLastName);
+  const firstName = tc(rawFirstComp);
+  return `${firstName} ${lastName}`;
 }
 
 // ── Cost parsing ──────────────────────────────────────────────────────────────
@@ -114,14 +117,14 @@ export async function POST(req: NextRequest) {
         senderEmails: { has: senderEmail },
         senderEmailVerifications: { some: { email: senderEmail, verifiedAt: { not: null } } },
       },
-      include: { trips: true },
+      include: { trips: true, members: true },
     });
 
     // Fallback: user's primary email
     if (!familyProfile) {
       const user = await db.user.findFirst({
         where: { email: senderEmail },
-        include: { familyProfile: { include: { trips: true } } },
+        include: { familyProfile: { include: { trips: true, members: true } } },
       });
       if (user?.familyProfile) familyProfile = user.familyProfile;
     }
@@ -136,12 +139,8 @@ export async function POST(req: NextRequest) {
       trips = await db.trip.findMany({ where: { familyProfileId: familyProfile.id } });
     }
 
-    // Fetch family members for name cross-referencing
-    const familyWithMembers = await db.familyProfile.findUnique({
-      where: { id: familyProfile.id },
-      include: { members: true },
-    });
-    const knownMembers = familyWithMembers?.members ?? [];
+    // Members are already included in the profile fetch above — no second query needed
+    const knownMembers = familyProfile.members ?? [];
     console.log("[email-inbound] known members:", knownMembers.map((m) => m.name));
 
     // ── Claude extraction ──────────────────────────────────────────────────────
@@ -221,7 +220,7 @@ Return this exact JSON structure:
     if (Array.isArray(extracted.guestNames)) {
       extracted.guestNames = (extracted.guestNames as string[]).map((n) => resolveGuestName(n, knownMembers));
     }
-    console.log("[email-inbound] resolved passengers:", extracted.guestNames);
+    console.log("[email-inbound] resolved guests:", extracted.guestNames);
 
     console.log("[email-inbound] parsed:", JSON.stringify(extracted));
     console.log("[email-inbound] airports — fromAirport:", extracted.fromAirport, "| toAirport:", extracted.toAirport, "| fromCity:", extracted.fromCity, "| toCity:", extracted.toCity, "| returnFromAirport:", extracted.returnFromAirport, "| returnToAirport:", extracted.returnToAirport);
