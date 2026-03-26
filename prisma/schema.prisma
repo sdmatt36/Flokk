@@ -231,8 +231,12 @@ model Trip {
   keyInfo          TripKeyInfo[]
   tips                  TripTip[]
   services              TripService[]
+  itineraryItems        ItineraryItem[]
   bookingIntelCache     Json?
   bookingIntelUpdatedAt DateTime?
+  budgetTotal           Float?
+  budgetSpent           Float?
+  budgetCurrency        String?           @default("USD")
 }
 
 enum TripStatus {
@@ -745,4 +749,32 @@ enum PointAction {
   QUESTION_ANSWERED
   ANSWER_MARKED_HELPFUL
   FEATURED_IN_TOP_LIST
+}
+
+// =============================================================================
+// ITINERARY ITEMS (email-imported confirmed bookings)
+// =============================================================================
+
+model ItineraryItem {
+  id               String   @id @default(cuid())
+  tripId           String
+  trip             Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  type             String   // FLIGHT | LODGING | TRAIN | ACTIVITY | CAR_RENTAL | RESTAURANT | OTHER
+  title            String
+  scheduledDate    String?
+  departureTime    String?
+  arrivalTime      String?
+  fromAirport      String?
+  toAirport        String?
+  fromCity         String?
+  toCity           String?
+  confirmationCode String?
+  notes            String?
+  address          String?
+  totalCost        Float?
+  currency         String?
+  passengers       String[] @default([])
+  dayIndex         Int?
+  sourceType       String   @default("EMAIL_IMPORT")
+  createdAt        DateTime @default(now())
 }

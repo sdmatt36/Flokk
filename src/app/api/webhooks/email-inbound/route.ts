@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
-import { getVenueImage } from "@/lib/destination-images";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -37,9 +36,7 @@ const COMMON_FIRST_NAMES: string[] = [
 function splitCompoundGivenName(compound: string): string {
   const upper = compound.toUpperCase();
   for (const name of COMMON_FIRST_NAMES) {
-    if (upper.startsWith(name) && upper.length > name.length + 2) {
-      return name;
-    }
+    if (upper.startsWith(name) && upper.length > name.length + 2) return name;
   }
   return compound;
 }
@@ -50,15 +47,20 @@ function tc(s: string): string {
 
 function cleanGuestName(raw: string): string {
   const parts = raw.trim().split(/\s+/);
-  while (parts.length > 0 && TITLE_SUFFIXES.has(parts[parts.length - 1].toUpperCase())) {
-    parts.pop();
-  }
+  while (parts.length > 0 && TITLE_SUFFIXES.has(parts[parts.length - 1].toUpperCase())) parts.pop();
   if (parts.length === 0) return raw;
   const surname = parts[0];
   if (parts.length === 1) return tc(surname);
-  const givenCompound = parts.slice(1).join("");
-  const firstName = splitCompoundGivenName(givenCompound);
+  const firstName = splitCompoundGivenName(parts.slice(1).join(""));
   return `${tc(firstName)} ${tc(surname)}`;
+}
+
+// ── Cost parsing ──────────────────────────────────────────────────────────────
+
+function parseCost(raw: unknown): number | null {
+  if (raw === null || raw === undefined) return null;
+  const n = parseFloat(String(raw).replace(/[^\d.]/g, ""));
+  return isNaN(n) || n <= 0 ? null : n;
 }
 
 // ── Trip matching helpers ──────────────────────────────────────────────────────
@@ -68,10 +70,20 @@ function tripMatchesDestination(
   keywords: string[]
 ): boolean {
   const haystack = [trip.title, trip.destinationCity, trip.destinationCountry]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+    .filter(Boolean).join(" ").toLowerCase();
   return keywords.some((kw) => haystack.includes(kw.toLowerCase()));
+}
+
+// ── dayIndex helper ──────────────────────────────────────────────────────────
+
+async function getDayIndex(tripId: string, dateStr: string): Promise<number | null> {
+  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true } });
+  if (!trip?.startDate) return null;
+  const rawStart = new Date(trip.startDate);
+  const shiftedStart = new Date(rawStart.getTime() + 12 * 60 * 60 * 1000);
+  const start = new Date(shiftedStart.getUTCFullYear(), shiftedStart.getUTCMonth(), shiftedStart.getUTCDate());
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return Math.round((new Date(y, m - 1, d).getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 // ── Route handler ──────────────────────────────────────────────────────────────
@@ -82,11 +94,7 @@ export async function POST(req: NextRequest) {
     const payload = await req.json() as Record<string, any>;
 
     // Normalise CloudMailin JSON (Normalized) or plain JSON
-    let from: string;
-    let subject: string;
-    let html: string;
-    let text: string;
-    let to: string;
+    let from: string, subject: string, html: string, text: string, to: string;
 
     if (payload.envelope?.from) {
       from    = String(payload.envelope.from ?? "");
@@ -109,12 +117,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Extract bare email address
     const senderEmailMatch = from.match(/<(.+?)>/);
     const senderEmail = senderEmailMatch?.[1]?.trim() ?? from.trim();
 
     // ── Look up FamilyProfile via verified sender email ────────────────────────
-    // First: senderEmails array (only populated after verification)
     let familyProfile = await db.familyProfile.findFirst({
       where: {
         senderEmails: { has: senderEmail },
@@ -123,15 +129,13 @@ export async function POST(req: NextRequest) {
       include: { trips: true },
     });
 
-    // Fallback: user's primary email (treat as implicitly verified)
+    // Fallback: user's primary email
     if (!familyProfile) {
       const user = await db.user.findFirst({
         where: { email: senderEmail },
         include: { familyProfile: { include: { trips: true } } },
       });
-      if (user?.familyProfile) {
-        familyProfile = user.familyProfile;
-      }
+      if (user?.familyProfile) familyProfile = user.familyProfile;
     }
 
     if (!familyProfile) {
@@ -139,16 +143,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ received: true });
     }
 
-    console.log("[email-inbound] matched familyProfile:", familyProfile.id);
-
-    // Trips fallback: if include returned empty, query directly
     let trips = familyProfile.trips;
     if (trips.length === 0) {
       trips = await db.trip.findMany({ where: { familyProfileId: familyProfile.id } });
-      console.log("[email-inbound] trips fallback — found:", trips.length);
     }
-
-    const familyProfileId = familyProfile.id;
 
     // ── Claude extraction ──────────────────────────────────────────────────────
     const emailContent = text
@@ -234,36 +232,25 @@ Return this exact JSON structure:
     const bookingDate = (extracted.checkIn ?? extracted.departureDate) as string | null;
 
     const destKeywords: string[] = [
-      extracted.city,
-      extracted.fromCity,
-      extracted.toCity,
-      extracted.country,
+      extracted.city, extracted.fromCity, extracted.toCity, extracted.country,
     ]
       .filter((v): v is string => typeof v === "string" && v.length > 0)
       .flatMap((v) => v.split(/[\s,/-]+/))
       .filter((v) => v.length > 2);
 
-    const subjectWords = subject
-      .replace(/fwd?:/i, "")
-      .split(/[\s|:\-–—]+/)
-      .map((w) => w.trim())
-      .filter((w) => w.length > 2);
+    const subjectWords = subject.replace(/fwd?:/i, "")
+      .split(/[\s|:\-–—]+/).map((w) => w.trim()).filter((w) => w.length > 2);
     const allKeywords = [...new Set([...destKeywords, ...subjectWords])];
-
-    console.log("[email-inbound] destination keywords:", allKeywords);
 
     let matchedTrip: typeof trips[0] | null = null;
 
-    // 1. Date range match
     if (bookingDate) {
       const [by, bm, bd] = bookingDate.split("-").map(Number);
       const booking = new Date(by, bm - 1, bd);
       const dateMatches = trips.filter((trip) => {
         if (!trip.startDate || !trip.endDate) return false;
-        const start = new Date(trip.startDate);
-        const end = new Date(trip.endDate);
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
+        const start = new Date(trip.startDate); start.setHours(0, 0, 0, 0);
+        const end = new Date(trip.endDate);     end.setHours(23, 59, 59, 999);
         return booking >= start && booking <= end;
       });
       dateMatches.sort((a, b) => {
@@ -275,52 +262,76 @@ Return this exact JSON structure:
         return durA - durB;
       });
       matchedTrip = dateMatches[0] ?? null;
-      console.log("[email-inbound] date match:", matchedTrip?.title ?? "none");
     }
 
-    // 2. Destination keyword match
     if (!matchedTrip && allKeywords.length > 0) {
       const now = new Date();
-      const destMatches = trips
+      matchedTrip = trips
         .filter((t) => tripMatchesDestination(t, allKeywords))
         .sort((a, b) => {
           const aDate = a.startDate ? new Date(a.startDate).getTime() : Infinity;
           const bDate = b.startDate ? new Date(b.startDate).getTime() : Infinity;
-          const aFuture = aDate >= now.getTime();
-          const bFuture = bDate >= now.getTime();
+          const aFuture = aDate >= now.getTime(), bFuture = bDate >= now.getTime();
           if (aFuture && !bFuture) return -1;
           if (!aFuture && bFuture) return 1;
           return aDate - bDate;
-        });
-      matchedTrip = destMatches[0] ?? null;
-      console.log("[email-inbound] keyword match:", matchedTrip?.title ?? "none");
+        })[0] ?? null;
     }
 
-    console.log("[email-inbound] final matched trip:", matchedTrip?.title ?? "none");
-
-    // ── Write to DB ────────────────────────────────────────────────────────────
     const resolvedTripId = matchedTrip?.id ?? trips[0]?.id ?? null;
-
     if (!resolvedTripId) {
       console.log("[email-inbound] no trip to assign — dropping");
       return NextResponse.json({ received: true, status: "no_trip" });
     }
 
-    if (extracted.type === "flight" && extracted.flightNumber) {
-      // dayIndex for outbound leg
-      let dayIndex: number | null = null;
-      if (matchedTrip && extracted.departureDate) {
-        const trip = await db.trip.findUnique({ where: { id: matchedTrip.id }, select: { startDate: true } });
-        if (trip?.startDate) {
-          const rawStart = new Date(trip.startDate);
-          const shiftedStart = new Date(rawStart.getTime() + 12 * 60 * 60 * 1000);
-          const start = new Date(shiftedStart.getUTCFullYear(), shiftedStart.getUTCMonth(), shiftedStart.getUTCDate());
-          const [dy, dm, dd] = (extracted.departureDate as string).split("-").map(Number);
-          dayIndex = Math.round((new Date(dy, dm - 1, dd).getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-        }
-      }
+    const passengers = Array.isArray(extracted.guestNames) ? (extracted.guestNames as string[]) : [];
 
-      const flight = await db.flight.create({
+    // ── FIX 4: cost helper ────────────────────────────────────────────────────
+    const parsedCost = parseCost(extracted.totalCost);
+    const detectedCurrency = (extracted.currency as string | null) ?? "USD";
+
+    async function incrementBudget(tripId: string, cost: number | null) {
+      if (!cost) return;
+      const t = await db.trip.findUnique({ where: { id: tripId }, select: { budgetCurrency: true } });
+      await db.trip.update({
+        where: { id: tripId },
+        data: {
+          budgetSpent: { increment: cost },
+          budgetCurrency: t?.budgetCurrency ?? detectedCurrency,
+        },
+      });
+    }
+
+    // ── Flights ───────────────────────────────────────────────────────────────
+    if (extracted.type === "flight" && extracted.flightNumber) {
+      const outboundDayIndex = extracted.departureDate
+        ? await getDayIndex(resolvedTripId, extracted.departureDate as string)
+        : null;
+
+      const outboundTitle = `${extracted.fromAirport ?? extracted.fromCity ?? "?"} → ${extracted.toAirport ?? extracted.toCity ?? "?"}`;
+
+      // Outbound ItineraryItem
+      const outboundItem = await db.itineraryItem.create({
+        data: {
+          tripId: resolvedTripId,
+          type: "FLIGHT",
+          title: outboundTitle,
+          scheduledDate: (extracted.departureDate as string | null) ?? null,
+          departureTime: (extracted.departureTime as string | null) ?? null,
+          arrivalTime: (extracted.arrivalTime as string | null) ?? null,
+          fromAirport: (extracted.fromAirport as string | null) ?? null,
+          toAirport: (extracted.toAirport as string | null) ?? null,
+          fromCity: (extracted.fromCity as string | null) ?? null,
+          toCity: (extracted.toCity as string | null) ?? null,
+          confirmationCode: (extracted.confirmationCode as string | null) ?? null,
+          passengers,
+          dayIndex: outboundDayIndex,
+        },
+      });
+      console.log("[email-inbound] created outbound ItineraryItem:", outboundItem.id);
+
+      // Also keep Flight record (powers booking intel card)
+      await db.flight.create({
         data: {
           tripId: resolvedTripId,
           type: "outbound",
@@ -336,12 +347,11 @@ Return this exact JSON structure:
           arrivalTime: (extracted.arrivalTime as string | null) ?? null,
           confirmationCode: (extracted.confirmationCode as string | null) ?? null,
           status: "booked",
-          dayIndex,
+          dayIndex: outboundDayIndex,
         },
       });
-      console.log("[email-inbound] created flight:", flight.id, "dayIndex:", dayIndex);
 
-      // Vault document for outbound leg
+      // Outbound vault doc
       if (matchedTrip) {
         await db.tripDocument.create({
           data: {
@@ -349,37 +359,45 @@ Return this exact JSON structure:
             label: `${(extracted.airline as string) ?? ""} ${extracted.flightNumber as string}`.trim(),
             type: "booking",
             content: JSON.stringify({
-              type: "flight", vendorName: extracted.airline,
-              flightNumber: extracted.flightNumber, airline: extracted.airline,
-              fromAirport: extracted.fromAirport, toAirport: extracted.toAirport,
+              type: "flight", vendorName: extracted.airline, flightNumber: extracted.flightNumber,
+              airline: extracted.airline, fromAirport: extracted.fromAirport, toAirport: extracted.toAirport,
               fromCity: extracted.fromCity, toCity: extracted.toCity,
               departureDate: extracted.departureDate, departureTime: extracted.departureTime,
               arrivalDate: extracted.arrivalDate, arrivalTime: extracted.arrivalTime,
               confirmationCode: extracted.confirmationCode,
               totalCost: extracted.totalCost, currency: extracted.currency,
-              guestNames: extracted.guestNames,
-              returnDepartureDate: extracted.returnDepartureDate,
+              guestNames: extracted.guestNames, returnDepartureDate: extracted.returnDepartureDate,
             }),
           },
         });
       }
 
-      // Return flight
-      console.log("[email-inbound] attempting return flight creation:", extracted.returnDepartureDate ?? "null/undefined — WILL SKIP");
+      // FIX 2: Return flight ItineraryItem
       if (extracted.returnDepartureDate) {
-        let returnDayIndex: number | null = null;
-        if (matchedTrip) {
-          const tripForReturn = await db.trip.findUnique({ where: { id: matchedTrip.id }, select: { startDate: true } });
-          if (tripForReturn?.startDate) {
-            const rawStart = new Date(tripForReturn.startDate);
-            const shiftedStart = new Date(rawStart.getTime() + 12 * 60 * 60 * 1000);
-            const start = new Date(shiftedStart.getUTCFullYear(), shiftedStart.getUTCMonth(), shiftedStart.getUTCDate());
-            const [ry, rm, rd] = (extracted.returnDepartureDate as string).split("-").map(Number);
-            returnDayIndex = Math.round((new Date(ry, rm - 1, rd).getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-          }
-        }
+        const returnDayIndex = await getDayIndex(resolvedTripId, extracted.returnDepartureDate as string);
+        const returnTitle = `${extracted.toAirport ?? extracted.toCity ?? "?"} → ${extracted.fromAirport ?? extracted.fromCity ?? "?"}`;
 
-        const returnFlight = await db.flight.create({
+        const returnItem = await db.itineraryItem.create({
+          data: {
+            tripId: resolvedTripId,
+            type: "FLIGHT",
+            title: returnTitle,
+            scheduledDate: extracted.returnDepartureDate as string,
+            departureTime: (extracted.returnDepartureTime as string | null) ?? null,
+            arrivalTime: (extracted.returnArrivalTime as string | null) ?? null,
+            fromAirport: (extracted.returnFromAirport as string | null) ?? (extracted.toAirport as string | null) ?? null,
+            toAirport: (extracted.returnToAirport as string | null) ?? (extracted.fromAirport as string | null) ?? null,
+            fromCity: (extracted.toCity as string | null) ?? null,
+            toCity: (extracted.fromCity as string | null) ?? null,
+            confirmationCode: (extracted.confirmationCode as string | null) ?? null,
+            passengers,
+            dayIndex: returnDayIndex,
+          },
+        });
+        console.log("[email-inbound] created return ItineraryItem:", returnItem.id);
+
+        // Also keep return Flight record
+        await db.flight.create({
           data: {
             tripId: resolvedTripId,
             type: "return",
@@ -398,9 +416,8 @@ Return this exact JSON structure:
             dayIndex: returnDayIndex,
           },
         });
-        console.log("[email-inbound] created return flight:", returnFlight.id, "dayIndex:", returnDayIndex);
 
-        // Vault document for return leg
+        // Return vault doc
         if (matchedTrip) {
           await db.tripDocument.create({
             data: {
@@ -411,90 +428,97 @@ Return this exact JSON structure:
                 type: "flight", vendorName: extracted.airline,
                 flightNumber: ((extracted.flightNumber as string) ?? "") + " (return)",
                 airline: extracted.airline,
-                fromAirport: extracted.returnFromAirport,
-                toAirport: extracted.returnToAirport,
-                fromCity: extracted.toCity,
-                toCity: extracted.fromCity,
-                departureDate: extracted.returnDepartureDate,
-                departureTime: extracted.returnDepartureTime,
-                arrivalDate: extracted.returnArrivalDate ?? null,
-                arrivalTime: extracted.returnArrivalTime ?? null,
+                fromAirport: extracted.returnFromAirport, toAirport: extracted.returnToAirport,
+                fromCity: extracted.toCity, toCity: extracted.fromCity,
+                departureDate: extracted.returnDepartureDate, departureTime: extracted.returnDepartureTime,
+                arrivalDate: extracted.returnArrivalDate ?? null, arrivalTime: extracted.returnArrivalTime ?? null,
                 confirmationCode: extracted.confirmationCode,
-                totalCost: null, currency: extracted.currency,
-                guestNames: extracted.guestNames,
+                totalCost: null, currency: extracted.currency, guestNames: extracted.guestNames,
               }),
             },
           });
         }
-      } else {
-        console.log("[email-inbound] skipping return flight: returnDepartureDate is", extracted.returnDepartureDate ?? "null/undefined");
       }
 
-      return NextResponse.json({ received: true, status: "success", type: "flight", id: flight.id, tripId: resolvedTripId });
+      await incrementBudget(resolvedTripId, parsedCost);
+      return NextResponse.json({ received: true, status: "success", type: "flight", tripId: resolvedTripId });
 
+    // ── Hotels ────────────────────────────────────────────────────────────────
     } else if (extracted.type === "hotel" && extracted.vendorName) {
-      let hotelDayIndex: number | null = null;
-      if (matchedTrip && extracted.checkIn) {
-        const trip = await db.trip.findUnique({ where: { id: matchedTrip.id }, select: { startDate: true } });
-        if (trip?.startDate) {
-          const rawStart = new Date(trip.startDate);
-          const shiftedStart = new Date(rawStart.getTime() + 12 * 60 * 60 * 1000);
-          const start = new Date(shiftedStart.getUTCFullYear(), shiftedStart.getUTCMonth(), shiftedStart.getUTCDate());
-          const [cy, cm, cd] = (extracted.checkIn as string).split("-").map(Number);
-          hotelDayIndex = Math.round((new Date(cy, cm - 1, cd).getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-        }
-      }
+      const hotelName = extracted.vendorName as string;
+      const checkInDate = (extracted.checkIn as string | null) ?? null;
+      const checkOutDate = (extracted.checkOut as string | null) ?? null;
 
-      const hotelStatus = (matchedTrip && hotelDayIndex != null) ? "SCHEDULED" : (matchedTrip ? "TRIP_ASSIGNED" : "UNORGANIZED");
-      const saved = await db.savedItem.create({
+      const checkInDayIndex = checkInDate ? await getDayIndex(resolvedTripId, checkInDate) : null;
+
+      // FIX 1: Check-in ItineraryItem (replaces SavedItem)
+      const checkInItem = await db.itineraryItem.create({
         data: {
-          familyProfileId,
-          tripId: matchedTrip?.id ?? null,
-          sourceType: "EMAIL_IMPORT",
-          rawTitle: extracted.vendorName as string,
-          destinationCity: (extracted.city as string) ?? null,
-          destinationCountry: (extracted.country as string) ?? null,
-          categoryTags: ["lodging"],
-          placePhotoUrl: getVenueImage(extracted.vendorName as string) ?? null,
-          status: hotelStatus,
-          isBooked: true,
-          bookedAt: new Date(),
-          extractedCheckin: (extracted.checkIn as string) ?? null,
-          extractedCheckout: (extracted.checkOut as string) ?? null,
-          ...(hotelDayIndex != null ? { dayIndex: hotelDayIndex } : {}),
+          tripId: resolvedTripId,
+          type: "LODGING",
+          title: `Check-in: ${hotelName}`,
+          scheduledDate: checkInDate,
+          confirmationCode: (extracted.confirmationCode as string | null) ?? null,
+          address: (extracted.address as string | null) ?? null,
+          totalCost: parsedCost,
+          currency: detectedCurrency,
+          notes: null,
+          passengers,
+          dayIndex: checkInDayIndex,
         },
       });
+      console.log("[email-inbound] created hotel check-in ItineraryItem:", checkInItem.id, "dayIndex:", checkInDayIndex);
 
+      // FIX 1: Check-out ItineraryItem
+      if (checkOutDate) {
+        const checkOutDayIndex = await getDayIndex(resolvedTripId, checkOutDate);
+        const checkOutItem = await db.itineraryItem.create({
+          data: {
+            tripId: resolvedTripId,
+            type: "LODGING",
+            title: `Check-out: ${hotelName}`,
+            scheduledDate: checkOutDate,
+            confirmationCode: (extracted.confirmationCode as string | null) ?? null,
+            address: (extracted.address as string | null) ?? null,
+            totalCost: parsedCost,
+            currency: detectedCurrency,
+            notes: "Check-out by 12:00 PM unless confirmed otherwise",
+            passengers,
+            dayIndex: checkOutDayIndex,
+          },
+        });
+        console.log("[email-inbound] created hotel check-out ItineraryItem:", checkOutItem.id, "dayIndex:", checkOutDayIndex);
+      }
+
+      // Vault contact + key info + doc
       if (matchedTrip && (extracted.contactPhone || extracted.contactEmail)) {
         await db.tripContact.create({
           data: {
             tripId: matchedTrip.id,
-            name: extracted.vendorName as string,
+            name: hotelName,
             role: "Hotel",
             phone: (extracted.contactPhone as string) ?? null,
             email: (extracted.contactEmail as string) ?? null,
           },
         });
       }
-
       if (matchedTrip && extracted.confirmationCode) {
         await db.tripKeyInfo.create({
           data: {
             tripId: matchedTrip.id,
-            label: `${extracted.vendorName as string} confirmation`,
+            label: `${hotelName} confirmation`,
             value: extracted.confirmationCode as string,
           },
         });
       }
-
       if (matchedTrip) {
         await db.tripDocument.create({
           data: {
             tripId: matchedTrip.id,
-            label: extracted.vendorName as string,
+            label: hotelName,
             type: "booking",
             content: JSON.stringify({
-              type: extracted.type, vendorName: extracted.vendorName,
+              type: "hotel", vendorName: hotelName,
               checkIn: extracted.checkIn, checkOut: extracted.checkOut,
               address: extracted.address, city: extracted.city, country: extracted.country,
               confirmationCode: extracted.confirmationCode,
@@ -506,51 +530,40 @@ Return this exact JSON structure:
         });
       }
 
-      console.log("[email-inbound] created hotel savedItem:", saved.id, "dayIndex:", hotelDayIndex, "status:", hotelStatus);
-      return NextResponse.json({ received: true, status: "success", type: "hotel", id: saved.id, tripId: resolvedTripId });
+      await incrementBudget(resolvedTripId, parsedCost);
+      return NextResponse.json({ received: true, status: "success", type: "hotel", tripId: resolvedTripId });
 
+    // ── Train / activity / other (replaces SavedItem) ─────────────────────────
     } else {
-      // Train, activity, restaurant, car rental, unknown
-      let dayIndex: number | null = null;
-      let startTime: string | null = null;
       const confirmedDate = (extracted.departureDate ?? extracted.checkIn ?? extracted.arrivalDate) as string | null;
-
-      if (matchedTrip && confirmedDate) {
-        const trip = await db.trip.findUnique({ where: { id: matchedTrip.id }, select: { startDate: true } });
-        if (trip?.startDate) {
-          const rawStart = new Date(trip.startDate);
-          const shiftedStart = new Date(rawStart.getTime() + 12 * 60 * 60 * 1000);
-          const start = new Date(shiftedStart.getUTCFullYear(), shiftedStart.getUTCMonth(), shiftedStart.getUTCDate());
-          const [dy, dm, dd] = confirmedDate.split("-").map(Number);
-          dayIndex = Math.round((new Date(dy, dm - 1, dd).getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-        }
-        startTime = (extracted.departureTime as string | null) ?? null;
-      }
+      const dayIndex = confirmedDate ? await getDayIndex(resolvedTripId, confirmedDate) : null;
 
       const routeParts: string[] = [];
       if (extracted.fromCity && extracted.toCity) routeParts.push(`${extracted.fromCity as string} → ${extracted.toCity as string}`);
       if (extracted.departureTime) routeParts.push(`departs ${extracted.departureTime as string}`);
       if (extracted.arrivalTime) routeParts.push(`arrives ${extracted.arrivalTime as string}`);
-      const autoDescription = routeParts.length > 0 ? routeParts.join(" · ") : null;
+      const autoNotes = routeParts.length > 0 ? routeParts.join(" · ") : null;
 
-      const itemStatus = (matchedTrip && dayIndex != null) ? "SCHEDULED" : (matchedTrip ? "TRIP_ASSIGNED" : "UNORGANIZED");
-      const trainTitle = (extracted.vendorName as string) ?? subject;
+      const itemTitle = (extracted.vendorName as string | null) ?? subject;
+      const itemTypeStr = (extracted.type as string | null) ?? "OTHER";
 
-      const saved = await db.savedItem.create({
+      const item = await db.itineraryItem.create({
         data: {
-          familyProfileId,
-          tripId: matchedTrip?.id ?? null,
-          sourceType: "EMAIL_IMPORT",
-          rawTitle: trainTitle,
-          rawDescription: autoDescription,
-          destinationCity: ((extracted.city ?? extracted.toCity) as string) ?? null,
-          categoryTags: [(extracted.type as string) ?? "other"],
-          placePhotoUrl: getVenueImage(trainTitle) ?? null,
-          status: itemStatus,
-          isBooked: true,
-          bookedAt: new Date(),
-          ...(dayIndex != null ? { dayIndex } : {}),
-          ...(startTime ? { startTime } : {}),
+          tripId: resolvedTripId,
+          type: itemTypeStr.toUpperCase(),
+          title: itemTitle,
+          scheduledDate: confirmedDate,
+          departureTime: (extracted.departureTime as string | null) ?? null,
+          arrivalTime: (extracted.arrivalTime as string | null) ?? null,
+          fromCity: (extracted.fromCity as string | null) ?? null,
+          toCity: (extracted.toCity as string | null) ?? null,
+          confirmationCode: (extracted.confirmationCode as string | null) ?? null,
+          notes: autoNotes,
+          address: (extracted.address as string | null) ?? null,
+          totalCost: parsedCost,
+          currency: detectedCurrency,
+          passengers,
+          dayIndex,
         },
       });
 
@@ -558,17 +571,16 @@ Return this exact JSON structure:
         await db.tripKeyInfo.create({
           data: {
             tripId: matchedTrip.id,
-            label: `${(extracted.vendorName as string) ?? subject} confirmation`,
+            label: `${itemTitle} confirmation`,
             value: extracted.confirmationCode as string,
           },
         });
       }
-
       if (matchedTrip) {
         await db.tripDocument.create({
           data: {
             tripId: matchedTrip.id,
-            label: (extracted.vendorName as string) ?? subject,
+            label: itemTitle,
             type: "booking",
             content: JSON.stringify({
               type: extracted.type, vendorName: extracted.vendorName,
@@ -584,8 +596,9 @@ Return this exact JSON structure:
         });
       }
 
-      console.log("[email-inbound] created savedItem:", saved.id, "type:", extracted.type, "dayIndex:", dayIndex, "startTime:", startTime, "status:", itemStatus);
-      return NextResponse.json({ received: true, status: "success", type: extracted.type, id: saved.id, tripId: resolvedTripId });
+      console.log("[email-inbound] created ItineraryItem:", item.id, "type:", itemTypeStr, "dayIndex:", dayIndex);
+      await incrementBudget(resolvedTripId, parsedCost);
+      return NextResponse.json({ received: true, status: "success", type: itemTypeStr, tripId: resolvedTripId });
     }
 
   } catch (err) {

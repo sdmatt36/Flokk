@@ -1476,6 +1476,124 @@ function BudgetPromptBanner({ tripId }: { tripId?: string }) {
   );
 }
 
+// ── Budget bar (FIX 5) ────────────────────────────────────────────────────────
+
+function BudgetBar({ tripId }: { tripId?: string }) {
+  const [budgetTotal, setBudgetTotal] = useState<number | null>(null);
+  const [budgetSpent, setBudgetSpent] = useState<number>(0);
+  const [budgetCurrency, setBudgetCurrency] = useState<string>("USD");
+  const [loaded, setLoaded] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [inputTotal, setInputTotal] = useState("");
+  const [inputCurrency, setInputCurrency] = useState("USD");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!tripId) return;
+    fetch(`/api/trips/${tripId}/budget`)
+      .then((r) => r.json())
+      .then((d) => {
+        setBudgetTotal(d.budgetTotal ?? null);
+        setBudgetSpent(d.budgetSpent ?? 0);
+        setBudgetCurrency(d.budgetCurrency ?? "USD");
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, [tripId]);
+
+  async function handleSave() {
+    if (!tripId) return;
+    const total = parseFloat(inputTotal);
+    if (isNaN(total) || total <= 0) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/trips/${tripId}/budget`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ budgetTotal: total, budgetCurrency: inputCurrency }),
+      });
+      const d = await res.json();
+      setBudgetTotal(d.budgetTotal ?? null);
+      setBudgetCurrency(d.budgetCurrency ?? "USD");
+      setShowForm(false);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!loaded) return null;
+  if (budgetSpent <= 0 && budgetTotal == null) return null;
+
+  const currencies = ["USD", "GBP", "EUR", "JPY", "KRW", "AUD"];
+  const pct = budgetTotal && budgetTotal > 0 ? Math.min(100, (budgetSpent / budgetTotal) * 100) : 0;
+
+  return (
+    <div style={{ backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: "12px", padding: "16px 18px", marginBottom: "16px" }}>
+      {budgetTotal != null ? (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C" }}>
+              {budgetCurrency} {budgetSpent.toLocaleString()} of {budgetCurrency} {budgetTotal.toLocaleString()} tracked
+            </span>
+            <span style={{ fontSize: "12px", color: "#717171" }}>{Math.round(pct)}%</span>
+          </div>
+          <div style={{ height: "6px", borderRadius: "999px", backgroundColor: "#EEEEEE", overflow: "hidden" }}>
+            <div style={{ height: "100%", borderRadius: "999px", backgroundColor: "#C4664A", width: `${pct}%`, transition: "width 0.4s ease" }} />
+          </div>
+        </>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+          <span style={{ fontSize: "13px", color: "#1B3A5C", fontWeight: 500 }}>
+            {budgetCurrency} {budgetSpent.toLocaleString()} tracked so far
+          </span>
+          {!showForm && (
+            <button
+              onClick={() => { setShowForm(true); setInputCurrency(budgetCurrency); }}
+              style={{ fontSize: "12px", color: "#C4664A", background: "none", border: "none", cursor: "pointer", fontWeight: 600, padding: 0, whiteSpace: "nowrap" }}
+            >
+              + Set budget
+            </button>
+          )}
+        </div>
+      )}
+
+      {showForm && (
+        <div style={{ marginTop: "12px", display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          <select
+            value={inputCurrency}
+            onChange={(e) => setInputCurrency(e.target.value)}
+            style={{ padding: "7px 10px", borderRadius: "8px", border: "1px solid #E0E0E0", fontSize: "13px", color: "#1B3A5C", backgroundColor: "#fff" }}
+          >
+            {currencies.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <input
+            type="number"
+            min="0"
+            step="100"
+            value={inputTotal}
+            onChange={(e) => setInputTotal(e.target.value)}
+            placeholder="Total budget"
+            style={{ flex: 1, minWidth: "100px", padding: "7px 12px", borderRadius: "8px", border: "1px solid #E0E0E0", fontSize: "13px", color: "#1B3A5C", outline: "none" }}
+          />
+          <button
+            onClick={handleSave}
+            disabled={saving || !inputTotal}
+            style={{ padding: "7px 14px", borderRadius: "8px", border: "none", backgroundColor: inputTotal ? "#C4664A" : "#E0E0E0", color: inputTotal ? "#fff" : "#aaa", fontSize: "13px", fontWeight: 700, cursor: inputTotal ? "pointer" : "default" }}
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+          <button
+            onClick={() => setShowForm(false)}
+            style={{ fontSize: "12px", color: "#aaa", background: "none", border: "none", cursor: "pointer" }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Activity detail modal ─────────────────────────────────────────────────────
 function ActivityDetailModal({ activity, onClose, onEdit, onRemove, onMarkBooked, onAddToItinerary }: {
   activity: Activity;
@@ -1987,6 +2105,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           startDate={tripStartDate}
         />
       )}
+
+      {/* Budget bar — shown when budgetSpent > 0 or budgetTotal is set */}
+      <BudgetBar tripId={tripId} />
 
       {/* Split content area */}
       <div style={{ display: "flex", flexDirection: isDesktop ? "row" : "column", gap: "24px", alignItems: "flex-start" }}>
