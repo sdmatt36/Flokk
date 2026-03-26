@@ -31,6 +31,90 @@ const APPROVAL_CHECKLIST = [
 
 type EditFields = { title: string; url: string; contentType: string; destination: string; ageGroup: string; tags: string; description: string };
 
+function BetaInviteForm() {
+  const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [status, setStatus] = useState<"idle" | "sending" | "success" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim() || !firstName.trim()) return;
+    setStatus("sending");
+    setErrorMsg("");
+    try {
+      const res = await fetch("/api/admin/send-beta-invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: email.trim(), firstName: firstName.trim() }),
+      });
+      if (!res.ok) {
+        const d = await res.json() as { error?: string };
+        throw new Error(d.error ?? "Send failed");
+      }
+      setStatus("success");
+      setEmail("");
+      setFirstName("");
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : "Unknown error");
+      setStatus("error");
+    }
+  }
+
+  return (
+    <div style={{ backgroundColor: "#fff", border: "1px solid #E8E8E8", borderRadius: "12px", padding: "20px 24px", marginBottom: "20px" }}>
+      <p style={{ fontSize: "12px", fontWeight: 700, color: "#1B3A5C", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 16px" }}>
+        Send Beta Invite
+      </p>
+      <form onSubmit={handleSend} style={{ display: "flex", gap: "10px", alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 180px" }}>
+          <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#717171", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "5px" }}>
+            First name
+          </label>
+          <input
+            type="text"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            placeholder="Sarah"
+            required
+            style={{ width: "100%", padding: "9px 12px", borderRadius: "8px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
+          />
+        </div>
+        <div style={{ flex: "2 1 220px" }}>
+          <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#717171", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "5px" }}>
+            Email address
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="sarah@example.com"
+            required
+            style={{ width: "100%", padding: "9px 12px", borderRadius: "8px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={status === "sending"}
+          style={{ flexShrink: 0, padding: "9px 20px", borderRadius: "8px", border: "none", backgroundColor: status === "sending" ? "#E5E5E5" : "#C4664A", color: status === "sending" ? "#aaa" : "#fff", fontSize: "14px", fontWeight: 700, cursor: status === "sending" ? "not-allowed" : "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+        >
+          {status === "sending" ? "Sending…" : "Send invite"}
+        </button>
+      </form>
+      {status === "success" && (
+        <p style={{ fontSize: "13px", color: "#16a34a", fontWeight: 600, margin: "10px 0 0" }}>
+          Invite sent successfully.
+        </p>
+      )}
+      {status === "error" && (
+        <p style={{ fontSize: "13px", color: "#C4664A", fontWeight: 600, margin: "10px 0 0" }}>
+          Error: {errorMsg}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function AdminContentClient() {
   const [items, setItems] = useState<{ articles: ContentItem[]; videos: ContentItem[] }>({
     articles: [],
@@ -190,6 +274,11 @@ export function AdminContentClient() {
             ← Exit admin
           </Link>
         </div>
+      </div>
+
+      {/* Beta invite form */}
+      <div style={{ maxWidth: "1200px", margin: "20px auto 0", padding: "0 24px" }}>
+        <BetaInviteForm />
       </div>
 
       {/* Status tabs */}
