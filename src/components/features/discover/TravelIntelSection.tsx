@@ -692,10 +692,10 @@ export function TravelIntelSection({ submitOpen, onSubmitClose }: { submitOpen?:
           </button>
         </div>
         <h2 className={playfair.className} style={{ fontSize: "26px", fontWeight: 900, color: "#1B3A5C", margin: "0 0 8px", lineHeight: 1.2 }}>
-          Travel Intel
+          Community Picks
         </h2>
         <p style={{ fontSize: "14px", color: "#717171", margin: 0 }}>
-          Activities completed by our community — searchable by destination
+          Places and activities saved by families who&apos;ve been there — searchable by destination.
         </p>
       </div>
 
