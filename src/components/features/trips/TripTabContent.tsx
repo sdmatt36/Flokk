@@ -2,10 +2,6 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, DragOverlay, useDroppable } from "@dnd-kit/core";
-import type { DragEndEvent, DragStartEvent, DragOverEvent } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 
@@ -299,57 +295,6 @@ function FilledSlot({
   );
 }
 
-// ── Drag-and-drop primitives ──────────────────────────────────────────────────
-
-// Droppable zone for an entire day row (header + body).
-// Data carries dayIndex so handlers can read it from event.over.data.current.
-function DroppableDay({ id, dayIndex, isOver, children }: {
-  id: string;
-  dayIndex: number;
-  isOver: boolean;
-  children: React.ReactNode;
-}) {
-  const { setNodeRef } = useDroppable({ id, data: { dayIndex } });
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        backgroundColor: isOver ? "rgba(196,102,74,0.04)" : "transparent",
-        transition: "background-color 0.15s ease",
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-// Sortable item with a dedicated grip handle. Pass dayIndex so dnd-kit carries
-// it in event.active.data / event.over.data — no need to reverse-lookup state.
-function SortableItem({ sortId, dayIndex, children }: {
-  sortId: string;
-  dayIndex: number;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  children: (handle: { listeners: any; attributes: any }) => React.ReactNode;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: sortId,
-    data: { dayIndex },
-  });
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.4 : 1,
-        position: "relative",
-        zIndex: isDragging ? 100 : undefined,
-      }}
-    >
-      {children({ listeners, attributes })}
-    </div>
-  );
-}
 
 function EmptySlot({ onClick }: { onClick?: () => void }) {
   return (
@@ -1765,14 +1710,16 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   // Lodging edit: stores { id, rawTitle, startTime, websiteUrl, notes } fetched on demand
   const [editingLodging, setEditingLodging] = useState<{ id: string; rawTitle: string; extractedCheckin: string; extractedCheckout: string; websiteUrl: string; notes: string } | null>(null);
   const [lodgingSaving, setLodgingSaving] = useState(false);
-  const [activeDragId, setActiveDragId] = useState<string | null>(null);
-  const [overDayIndex, setOverDayIndex] = useState<number | null>(null);
-  const autoOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dragErrorToast, setDragErrorToast] = useState<string | null>(null);
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
-  );
+  const [openMoveMenuId, setOpenMoveMenuId] = useState<string | null>(null);
+
+  // Close move menu on outside click
+  useEffect(() => {
+    if (!openMoveMenuId) return;
+    const handler = () => setOpenMoveMenuId(null);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [openMoveMenuId]);
 
   // Sync local copies from props (new items added, etc.)
   useEffect(() => { setLocalActivities(activities); }, [activities]);
@@ -1913,99 +1860,49 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   }
 
 
-  /** Short label for DragOverlay ghost */
-  function getOverlayLabel(sortId: string): string {
-    if (sortId.startsWith("saved_")) return recAdditions.find(r => (r.savedItemId ?? r.title) === sortId.slice(6))?.title ?? "Item";
-    if (sortId.startsWith("activity_")) return localActivities.find(a => a.id === sortId.slice(9))?.title ?? "Activity";
-    if (sortId.startsWith("flight_")) { const f = localFlights.find(f => f.id === sortId.slice(7)); return f ? `${f.fromAirport} → ${f.toAirport}` : "Flight"; }
-    if (sortId.startsWith("itinerary_")) return localItineraryItems.find(it => it.id === sortId.slice(10))?.title ?? "Booking";
-    return "Item";
+  /** Simple array move helper (replaces arrayMove from @dnd-kit/sortable) */
+  function localArrayMove<T>(arr: T[], from: number, to: number): T[] {
+    const result = [...arr];
+    const [item] = result.splice(from, 1);
+    result.splice(to, 0, item);
+    return result;
   }
 
-  function getOverlayType(sortId: string): string {
-    if (sortId.startsWith("saved_")) return "Place";
-    if (sortId.startsWith("activity_")) return "Activity";
-    if (sortId.startsWith("flight_")) return "Flight";
-    if (sortId.startsWith("itinerary_")) {
-      const it = localItineraryItems.find(it => it.id === sortId.slice(10));
-      if (it?.type === "LODGING") return "Hotel";
-      if (it?.type === "TRAIN") return "Train";
-      if (it?.type === "FLIGHT") return "Flight";
-      return "Booking";
+  function handleReorder(sortId: string, direction: "up" | "down") {
+    // Determine which day this item lives on
+    let dayIdx: number | null = null;
+    if (sortId.startsWith("saved_")) {
+      const rawId = sortId.slice(6);
+      dayIdx = recAdditions.find(r => (r.savedItemId ?? r.title) === rawId)?.dayIndex ?? null;
+    } else if (sortId.startsWith("activity_")) {
+      dayIdx = localActivities.find(a => a.id === sortId.slice(9))?.dayIndex ?? null;
+    } else if (sortId.startsWith("flight_")) {
+      dayIdx = localFlights.find(f => f.id === sortId.slice(7))?.dayIndex ?? null;
+    } else if (sortId.startsWith("itinerary_")) {
+      dayIdx = localItineraryItems.find(it => it.id === sortId.slice(10))?.dayIndex ?? null;
     }
-    return "";
-  }
+    if (dayIdx === null) return;
 
-  function handleDragStart(event: DragStartEvent) {
-    setActiveDragId(String(event.active.id));
-  }
+    const dayItems = buildDayItems(dayIdx);
+    const currentIndex = dayItems.findIndex(it => it.sortId === sortId);
+    if (currentIndex === -1) return;
+    const newIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (newIndex < 0 || newIndex >= dayItems.length) return;
 
-  function handleDragOver(event: DragOverEvent) {
-    const { over } = event;
-    // Resolve which day is being hovered — prefer data.dayIndex, fall back to id parsing
-    const hoveredDayIndex: number | null = over
-      ? ((over.data.current?.dayIndex as number | undefined) ?? (String(over.id).startsWith("day-") ? parseInt(String(over.id).slice(4), 10) : null))
-      : null;
-
-    setOverDayIndex(hoveredDayIndex);
-
-    // Auto-expand a collapsed day after 400ms hover so the user can drop into it
-    if (hoveredDayIndex !== null && hoveredDayIndex !== openDay) {
-      if (!autoOpenTimerRef.current) {
-        autoOpenTimerRef.current = setTimeout(() => {
-          setOpenDay(hoveredDayIndex);
-          autoOpenTimerRef.current = null;
-        }, 400);
+    const reordered = localArrayMove(dayItems, currentIndex, newIndex);
+    reordered.forEach((item, i) => {
+      if (item.itemType === "saved" && item.rawId) {
+        setRecAdditions(prev => prev.map(r => r.savedItemId === item.rawId ? { ...r, sortOrder: i } : r));
+        fetch(`/api/saves/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
+      } else if (item.itemType === "activity" && item.rawId) {
+        setLocalActivities(prev => prev.map(a => a.id === item.rawId ? { ...a, sortOrder: i } : a));
+        fetch(`/api/trips/${tripId}/activities/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
+      } else if (item.itemType === "flight" && item.rawId) {
+        setLocalFlights(prev => prev.map(f => f.id === item.rawId ? { ...f, sortOrder: i } : f));
+        fetch(`/api/trips/${tripId}/flights/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
       }
-    } else {
-      if (autoOpenTimerRef.current) { clearTimeout(autoOpenTimerRef.current); autoOpenTimerRef.current = null; }
-    }
-  }
-
-  function handleDragEnd(event: DragEndEvent) {
-    if (autoOpenTimerRef.current) { clearTimeout(autoOpenTimerRef.current); autoOpenTimerRef.current = null; }
-    const { active, over } = event;
-    setActiveDragId(null);
-    setOverDayIndex(null);
-    if (!over) return;
-
-    const activeId = String(active.id);
-    const overId = String(over.id);
-
-    // Source day comes from the item's own data (set in SortableItem)
-    const sourceDayIndex = active.data.current?.dayIndex as number | undefined;
-    if (sourceDayIndex === undefined) return;
-
-    // Target day: prefer data.dayIndex, fall back to parsing "day-N" ids
-    const targetDayIndex: number | undefined =
-      (over.data.current?.dayIndex as number | undefined) ??
-      (overId.startsWith("day-") ? parseInt(overId.slice(4), 10) : undefined);
-    if (targetDayIndex === undefined) return;
-
-    if (sourceDayIndex !== targetDayIndex) {
-      // Cross-day: update dayIndex via API
-      handleCrossDayMove(activeId, targetDayIndex);
-    } else if (activeId !== overId) {
-      // Same-day: reorder by updating sortOrder
-      const dayItems = buildDayItems(sourceDayIndex);
-      const oldIndex = dayItems.findIndex(a => a.sortId === activeId);
-      const newIndex = dayItems.findIndex(a => a.sortId === overId);
-      if (oldIndex === -1 || newIndex === -1) return;
-      const reordered = arrayMove(dayItems, oldIndex, newIndex);
-      reordered.forEach((item, i) => {
-        if (item.itemType === "saved" && item.rawId) {
-          setRecAdditions(prev => prev.map(r => r.savedItemId === item.rawId ? { ...r, sortOrder: i } : r));
-          fetch(`/api/saves/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
-        } else if (item.itemType === "activity" && item.rawId) {
-          setLocalActivities(prev => prev.map(a => a.id === item.rawId ? { ...a, sortOrder: i } : a));
-          fetch(`/api/trips/${tripId}/activities/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
-        } else if (item.itemType === "flight" && item.rawId) {
-          setLocalFlights(prev => prev.map(f => f.id === item.rawId ? { ...f, sortOrder: i } : f));
-          fetch(`/api/trips/${tripId}/flights/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
-        }
-        // itinerary items: no sortOrder API — semantic weight governs order
-      });
-    }
+      // itinerary items: semantic weight governs order, no sortOrder API
+    });
   }
 
   function handleCrossDayMove(sortId: string, newDayIndex: number) {
@@ -2268,20 +2165,18 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
               );
             }
             return (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
               <div style={{ borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", overflow: "hidden", backgroundColor: "#fff" }}>
                 {tripDays.map(({ dayIndex, label, date, shortDate }, i) => {
                   const isOpen = openDay === i;
                   const allDayItems = buildDayItems(dayIndex);
                   return (
-                    <DroppableDay key={i} id={`day-${dayIndex}`} dayIndex={dayIndex} isOver={overDayIndex === dayIndex}>
-                    <div style={{ borderBottom: i < tripDays.length - 1 ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
+                    <div key={i} style={{ borderBottom: i < tripDays.length - 1 ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
 
-                      {/* Header row — highlight when dragging over a collapsed day */}
+                      {/* Header row */}
                       <div
                         onClick={() => toggle(i)}
                         className="hover:bg-black/[0.02]"
-                        style={{ display: "flex", alignItems: "center", padding: "14px 16px", cursor: "pointer", userSelect: "none", backgroundColor: overDayIndex === dayIndex && !isOpen && activeDragId ? "rgba(196,102,74,0.06)" : undefined, transition: "background-color 0.15s ease" }}
+                        style={{ display: "flex", alignItems: "center", padding: "14px 16px", cursor: "pointer", userSelect: "none" }}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <span style={{ fontSize: "15px", fontWeight: 800, color: "#1B3A5C" }}>{label}</span>
@@ -2314,11 +2209,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       <div style={{ maxHeight: isOpen ? "3000px" : "0", overflow: isOpen ? "visible" : "hidden", transition: "max-height 0.3s ease" }}>
                         <div style={{ padding: "4px 12px 16px" }}>
 
-                          {/* All day items — unified sortable list */}
-                          <SortableContext
-                            items={allDayItems.map(a => a.sortId)}
-                            strategy={verticalListSortingStrategy}
-                          >
+                          {/* All day items */}
+                          <div>
                               {allDayItems.flatMap((item, idx) => {
                                 const next = allDayItems[idx + 1];
                                 const item1Name = item.recAddition?.title ?? item.activity?.title ?? item.flight?.airline ?? item.itemType;
@@ -2349,20 +2241,22 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 }
 
                                 return [
-                                <SortableItem key={item.sortId} sortId={item.sortId} dayIndex={dayIndex}>
-                                  {({ listeners, attributes }) => (
-                                    <div style={{ display: "flex", alignItems: "stretch", marginBottom: "8px" }}>
-                                      {/* Drag handle */}
-                                      <div
-                                        onClick={e => e.stopPropagation()}
-                                        {...attributes}
-                                        {...listeners}
-                                        style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "28px", flexShrink: 0, cursor: "grab", touchAction: "none" }}
-                                      >
-                                        <GripVertical size={15} style={{ color: "#C0C0C0" }} />
-                                      </div>
+                                <div key={item.sortId} style={{ display: "flex", alignItems: "stretch", marginBottom: "8px" }}>
+                                  {/* Up/down reorder controls */}
+                                  <div style={{ width: "22px", flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1px", paddingRight: "4px" }}>
+                                    <button
+                                      onClick={e => { e.stopPropagation(); handleReorder(item.sortId, "up"); }}
+                                      disabled={idx === 0}
+                                      style={{ background: "none", border: "none", cursor: idx === 0 ? "default" : "pointer", color: idx === 0 ? "#D8D8D8" : "#C4664A", fontSize: "13px", lineHeight: 1, padding: "1px 0", fontWeight: 700 }}
+                                    >↑</button>
+                                    <button
+                                      onClick={e => { e.stopPropagation(); handleReorder(item.sortId, "down"); }}
+                                      disabled={idx === allDayItems.length - 1}
+                                      style={{ background: "none", border: "none", cursor: idx === allDayItems.length - 1 ? "default" : "pointer", color: idx === allDayItems.length - 1 ? "#D8D8D8" : "#C4664A", fontSize: "13px", lineHeight: 1, padding: "1px 0", fontWeight: 700 }}
+                                    >↓</button>
+                                  </div>
 
-                                      {/* Saved item card */}
+                                  {/* Saved item card */}
                                       {item.itemType === "saved" && item.recAddition && (() => {
                                         const a = item.recAddition;
                                         return (
@@ -2678,9 +2572,33 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                           </div>
                                         );
                                       })()}
-                                    </div>
-                                  )}
-                                </SortableItem>,
+
+                                  {/* Move to day dropdown */}
+                                  <div style={{ position: "relative", flexShrink: 0, marginLeft: "6px", display: "flex", alignItems: "center" }}>
+                                    <button
+                                      onClick={e => { e.stopPropagation(); setOpenMoveMenuId(prev => prev === item.sortId ? null : item.sortId); }}
+                                      style={{ background: "none", border: "none", cursor: "pointer", fontSize: "11px", color: "#AAAAAA", padding: "4px 5px", borderRadius: "6px", fontWeight: 500, whiteSpace: "nowrap", lineHeight: 1 }}
+                                    >Move</button>
+                                    {openMoveMenuId === item.sortId && (
+                                      <div
+                                        onClick={e => e.stopPropagation()}
+                                        style={{ position: "absolute", right: 0, top: "100%", zIndex: 200, backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.12)", borderRadius: "10px", boxShadow: "0 4px 16px rgba(0,0,0,0.12)", minWidth: "155px", padding: "4px 0" }}
+                                      >
+                                        {tripDays.map(d => (
+                                          <button
+                                            key={d.dayIndex}
+                                            disabled={d.dayIndex === dayIndex}
+                                            onClick={() => { handleCrossDayMove(item.sortId, d.dayIndex); setOpenMoveMenuId(null); }}
+                                            style={{ display: "flex", alignItems: "center", gap: "6px", width: "100%", background: "none", border: "none", cursor: d.dayIndex === dayIndex ? "default" : "pointer", fontSize: "12px", color: d.dayIndex === dayIndex ? "#C4664A" : "#333", padding: "8px 14px", textAlign: "left", fontWeight: d.dayIndex === dayIndex ? 700 : 400 }}
+                                          >
+                                            <span style={{ width: "10px", flexShrink: 0, fontSize: "10px" }}>{d.dayIndex === dayIndex ? "✓" : ""}</span>
+                                            <span>{d.label} — {d.shortDate}</span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>,
                                 // Transit row between consecutive timed+coordinated items
                                 transitData ? (
                                   <div key={`transit_${idx}`} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "2px 28px 6px", marginBottom: "2px" }}>
@@ -2696,13 +2614,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 ) : null,
                                 ];
                               })}
-                            {/* Empty day drop placeholder — visible only during active drag */}
-                            {activeDragId && allDayItems.length === 0 && (
-                              <div style={{ border: "1px dashed rgba(196,102,74,0.35)", borderRadius: "8px", minHeight: "80px", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "4px" }}>
-                                <span style={{ fontSize: "12px", color: "#BBBBBB" }}>Drop here</span>
-                              </div>
-                            )}
-                          </SortableContext>
+                          </div>
 
                           {/* + Add activity dashed button */}
                           <button
@@ -2749,22 +2661,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       </div>
 
                     </div>
-                    </DroppableDay>
                   );
                 })}
               </div>
-              <DragOverlay>
-                {activeDragId ? (() => {
-                  const typeLabel = getOverlayType(activeDragId);
-                  return (
-                    <div style={{ padding: "8px 14px", backgroundColor: "#fff", border: "1px solid rgba(196,102,74,0.35)", borderLeft: "3px solid #C4664A", borderRadius: "10px", boxShadow: "0 4px 16px rgba(0,0,0,0.14)", cursor: "grabbing", maxWidth: "220px" }}>
-                      {typeLabel && <div style={{ fontSize: "10px", fontWeight: 700, color: "#C4664A", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "2px" }}>{typeLabel}</div>}
-                      <div style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C" }}>{getOverlayLabel(activeDragId)}</div>
-                    </div>
-                  );
-                })() : null}
-              </DragOverlay>
-              </DndContext>
             );
           })()}
         </div>{/* end left panel */}
