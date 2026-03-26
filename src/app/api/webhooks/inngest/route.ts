@@ -8,5 +8,7 @@ import { nudgeInactiveUsers } from "@/lib/inngest/functions/nudge-inactive-users
 export const { GET, POST, PUT } = serve({
   client: inngest,
   serveHost: "https://www.flokktravel.com",
+  signingKey: process.env.INNGEST_SIGNING_KEY,
+  signingKeyFallback: process.env.INNGEST_SIGNING_KEY_FALLBACK,
   functions: [parseBookingEmail, enrichSeededSaves, enrichSavedItem, nudgeInactiveUsers],
 });
