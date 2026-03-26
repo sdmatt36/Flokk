@@ -1812,8 +1812,26 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
 
   /** Build the sorted UnifiedDayItem list for any given dayIndex (extracted from render) */
   function buildDayItems(targetDayIndex: number): UnifiedDayItem[] {
+    // Build a set of normalized titles from ItineraryItems on this day so we can
+    // dedup SavedItems/RecAdditions that represent the same booking. Hotel items
+    // are stored as "Check-in: Foo" / "Check-out: Foo" — strip that prefix when
+    // comparing so a RecAddition titled "Foo" is still correctly suppressed.
+    const itineraryTitlesForDay = new Set(
+      localItineraryItems
+        .filter(it => it.dayIndex === targetDayIndex)
+        .flatMap(it => {
+          const lower = it.title.trim().toLowerCase();
+          const normalized = lower.replace(/^check-(?:in|out):\s*/, "");
+          return normalized !== lower ? [lower, normalized] : [lower];
+        })
+    );
+
     return [
-      ...recAdditions.filter(a => a.dayIndex === targetDayIndex).map(a => ({
+      ...recAdditions.filter(a => {
+        if (a.dayIndex !== targetDayIndex) return false;
+        // Skip if an ItineraryItem already covers this booking
+        return !itineraryTitlesForDay.has(a.title.trim().toLowerCase());
+      }).map(a => ({
         sortId: `saved_${a.savedItemId ?? a.title}`,
         itemType: "saved" as const,
         sortOrder: a.sortOrder ?? 0,

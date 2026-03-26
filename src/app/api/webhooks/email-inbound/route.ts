@@ -102,6 +102,71 @@ function tripMatchesDestination(
   return keywords.some((kw) => haystack.includes(kw.toLowerCase()));
 }
 
+// ── Vault flight field resolution ────────────────────────────────────────────
+// When Claude fails to extract airports/times on a re-forward, fill in missing
+// fields from a prior vault TripDocument for the same trip+confirmationCode.
+// Called before creating the outbound FLIGHT ItineraryItem so geocoding and the
+// card title are correct even when the current extraction is incomplete.
+
+type FlightFields = {
+  fromAirport: string | null;
+  toAirport: string | null;
+  fromCity: string | null;
+  toCity: string | null;
+  departureTime: string | null;
+  arrivalTime: string | null;
+};
+
+async function resolveFlightFieldsFromVault(
+  tripId: string,
+  confirmationCode: string | null,
+  extracted: Record<string, unknown>
+): Promise<FlightFields> {
+  const result: FlightFields = {
+    fromAirport: (extracted.fromAirport as string | null) ?? null,
+    toAirport: (extracted.toAirport as string | null) ?? null,
+    fromCity: (extracted.fromCity as string | null) ?? null,
+    toCity: (extracted.toCity as string | null) ?? null,
+    departureTime: (extracted.departureTime as string | null) ?? null,
+    arrivalTime: (extracted.arrivalTime as string | null) ?? null,
+  };
+
+  // All key fields present — no vault lookup needed
+  if (result.fromAirport && result.toAirport && result.departureTime) return result;
+  // No confirmation code — can't match vault docs
+  if (!confirmationCode) return result;
+
+  const priorDocs = await db.tripDocument.findMany({
+    where: { tripId, type: "booking" },
+    select: { content: true },
+  });
+
+  for (const doc of priorDocs) {
+    let b: Record<string, unknown> = {};
+    try { b = JSON.parse(doc.content ?? "{}"); } catch { continue; }
+    if ((b.confirmationCode as string | null) !== confirmationCode) continue;
+    if ((b.type as string | null)?.toLowerCase() !== "flight") continue;
+
+    const df = (b.fromAirport as string | null)?.trim() || null;
+    const dt = (b.toAirport as string | null)?.trim() || null;
+    const dep = (b.departureTime as string | null)?.trim() || null;
+    const arr = (b.arrivalTime as string | null)?.trim() || null;
+    const dfc = (b.fromCity as string | null)?.trim() || null;
+    const dtc = (b.toCity as string | null)?.trim() || null;
+
+    if (!result.fromAirport && df) result.fromAirport = df;
+    if (!result.toAirport && dt) result.toAirport = dt;
+    if (!result.departureTime && dep) result.departureTime = dep;
+    if (!result.arrivalTime && arr) result.arrivalTime = arr;
+    if (!result.fromCity && dfc) result.fromCity = dfc;
+    if (!result.toCity && dtc) result.toCity = dtc;
+
+    if (result.fromAirport && result.toAirport) break;
+  }
+
+  return result;
+}
+
 // ── dayIndex helper ──────────────────────────────────────────────────────────
 
 async function getDayIndex(tripId: string, dateStr: string): Promise<number> {
@@ -347,8 +412,16 @@ Return this exact JSON structure:
         ? await getDayIndex(resolvedTripId, extracted.departureDate as string)
         : null;
 
-      const outboundFrom = (extracted.fromAirport as string | null) || (extracted.fromCity as string | null) || null;
-      const outboundTo   = (extracted.toAirport   as string | null) || (extracted.toCity   as string | null) || null;
+      // Resolve airports/times — fills in any fields Claude missed by checking
+      // prior vault docs for the same trip+confirmationCode (re-forward resilience)
+      const outboundConf = (extracted.confirmationCode as string | null) ?? null;
+      const resolved = await resolveFlightFieldsFromVault(resolvedTripId, outboundConf, extracted);
+      if (resolved.fromAirport !== extracted.fromAirport || resolved.toAirport !== extracted.toAirport) {
+        console.log(`[email-inbound] resolved flight fields from prior vault — from: ${resolved.fromAirport} to: ${resolved.toAirport} dep: ${resolved.departureTime}`);
+      }
+
+      const outboundFrom = resolved.fromAirport || resolved.fromCity || null;
+      const outboundTo   = resolved.toAirport   || resolved.toCity   || null;
       const outboundTitle = outboundFrom && outboundTo
         ? `${outboundFrom} → ${outboundTo}`
         : outboundFrom ? `${outboundFrom} → (destination)` : outboundTo ? `(origin) → ${outboundTo}` : (extracted.flightNumber as string) ?? "Flight";
@@ -360,13 +433,13 @@ Return this exact JSON structure:
           type: "FLIGHT",
           title: outboundTitle,
           scheduledDate: (extracted.departureDate as string | null) ?? null,
-          departureTime: (extracted.departureTime as string | null) ?? null,
-          arrivalTime: (extracted.arrivalTime as string | null) ?? null,
-          fromAirport: (extracted.fromAirport as string | null) ?? null,
-          toAirport: (extracted.toAirport as string | null) ?? null,
-          fromCity: (extracted.fromCity as string | null) ?? null,
-          toCity: (extracted.toCity as string | null) ?? null,
-          confirmationCode: (extracted.confirmationCode as string | null) ?? null,
+          departureTime: resolved.departureTime,
+          arrivalTime: resolved.arrivalTime,
+          fromAirport: resolved.fromAirport,
+          toAirport: resolved.toAirport,
+          fromCity: resolved.fromCity,
+          toCity: resolved.toCity,
+          confirmationCode: outboundConf,
           totalCost: parsedCost,
           currency: detectedCurrency,
           passengers,
@@ -374,7 +447,7 @@ Return this exact JSON structure:
         },
       });
       // Geocode arrival airport (where the family lands — critical map pin)
-      const outboundArrival = (extracted.toAirport as string | null) ?? (extracted.toCity as string | null);
+      const outboundArrival = resolved.toAirport ?? resolved.toCity ?? (extracted.toCity as string | null);
       if (outboundArrival) {
         const geo = await geocodePlace(`${outboundArrival} airport`);
         if (geo) await db.itineraryItem.update({ where: { id: outboundItem.id }, data: { latitude: geo.lat, longitude: geo.lng } });
