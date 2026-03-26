@@ -70,8 +70,25 @@ async function geocodePlace(query: string): Promise<{ lat: number; lng: number; 
 
 function parseCost(raw: unknown): number | null {
   if (raw === null || raw === undefined) return null;
-  const n = parseFloat(String(raw).replace(/[^\d.]/g, ""));
+  const cleaned = String(raw).trim()
+    .replace(/\b(KRW|USD|GBP|JPY|EUR|AUD)\b/gi, "")
+    .replace(/[£$€¥]/g, "")
+    .replace(/,/g, "")
+    .trim();
+  const n = parseFloat(cleaned);
   return isNaN(n) || n <= 0 ? null : n;
+}
+
+function detectCurrency(raw: unknown): string | null {
+  if (raw === null || raw === undefined) return null;
+  const s = String(raw);
+  if (/\bKRW\b/i.test(s)) return "KRW";
+  if (/\bGBP\b/i.test(s) || s.includes("£")) return "GBP";
+  if (/\bEUR\b/i.test(s) || s.includes("€")) return "EUR";
+  if (/\bJPY\b/i.test(s) || s.includes("¥")) return "JPY";
+  if (/\bAUD\b/i.test(s)) return "AUD";
+  if (/\bUSD\b/i.test(s) || s.includes("$")) return "USD";
+  return null;
 }
 
 // ── Trip matching helpers ──────────────────────────────────────────────────────
@@ -310,7 +327,7 @@ Return this exact JSON structure:
 
     // ── FIX 4: cost helper ────────────────────────────────────────────────────
     const parsedCost = parseCost(extracted.totalCost);
-    const detectedCurrency = (extracted.currency as string | null) ?? "USD";
+    const detectedCurrency = (extracted.currency as string | null) ?? detectCurrency(extracted.totalCost) ?? "USD";
 
     async function incrementBudget(tripId: string, cost: number | null) {
       if (!cost) return;
@@ -350,6 +367,8 @@ Return this exact JSON structure:
           fromCity: (extracted.fromCity as string | null) ?? null,
           toCity: (extracted.toCity as string | null) ?? null,
           confirmationCode: (extracted.confirmationCode as string | null) ?? null,
+          totalCost: parsedCost,
+          currency: detectedCurrency,
           passengers,
           dayIndex: outboundDayIndex,
         },
