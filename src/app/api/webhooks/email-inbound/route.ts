@@ -615,17 +615,19 @@ Return this exact JSON structure:
       // FIX 1: Check-out ItineraryItem
       if (checkOutDate) {
         const checkOutDayIndex = await getDayIndex(resolvedTripId, checkOutDate);
+        const extractedCheckOutTime = null; // hotel emails rarely specify time; default applied below
         const checkOutItem = await db.itineraryItem.create({
           data: {
             tripId: resolvedTripId,
             type: "LODGING",
             title: `Check-out: ${hotelName}`,
             scheduledDate: checkOutDate,
+            departureTime: extractedCheckOutTime ?? "11:00",
             confirmationCode: (extracted.confirmationCode as string | null) ?? null,
             address: (extracted.address as string | null) ?? null,
             totalCost: parsedCost,
             currency: detectedCurrency,
-            notes: "Check-out by 12:00 PM unless confirmed otherwise",
+            notes: null,
             passengers,
             dayIndex: checkOutDayIndex,
           },

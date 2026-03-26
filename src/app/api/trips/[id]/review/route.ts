@@ -80,6 +80,8 @@ ${dayStrings.length > 0 ? dayStrings.join("\n\n") : "No scheduled items yet."}`;
       max_tokens: 1000,
       system: `You are a knowledgeable family travel assistant reviewing a trip itinerary. Your job is to give 3–5 specific, actionable observations about this itinerary. Focus on: timing conflicts (e.g. checkout before departure), gaps (empty days before long flights), missing logistics (no airport transfer noted before early flight), pacing issues (too many activities in one day), and practical suggestions specific to the destination and family composition.
 
+When a check-out item has no scheduled time, assume 11:00 — this is the industry standard hotel check-out time. Apply this assumption in your conflict analysis rather than treating the check-out as simply unscheduled.
+
 Be specific — reference actual day numbers, item names, and times from the schedule. Do not be generic. Do not say "looks great overall."
 
 Return ONLY a JSON array of 3–5 strings, each one observation. No preamble, no markdown, no backticks. Example format:
