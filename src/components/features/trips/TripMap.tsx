@@ -70,7 +70,6 @@ function flyToDay(map: any, mapboxgl: any, markers: MarkerDef[], center: [number
 type MapSavedItem = { title: string; lat: number; lng: number; dayIndex?: number | null };
 
 export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, destinationCity, destinationCountry, savedItems = [], activities = [] }: { activeDay: number | null; flyTarget?: { lat: number; lng: number } | null; onFlyTargetConsumed?: () => void; tripId?: string; destinationCity?: string | null; destinationCountry?: string | null; savedItems?: MapSavedItem[]; activities?: MapSavedItem[] }) {
-  console.log('[TripMap] received activeDay prop:', activeDay);
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);

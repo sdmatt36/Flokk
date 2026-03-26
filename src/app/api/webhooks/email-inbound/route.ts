@@ -46,6 +46,26 @@ function resolveGuestName(raw: string, knownMembers: KnownMember[]): string {
   return `${firstName} ${lastName}`;
 }
 
+// ── Geocoding ─────────────────────────────────────────────────────────────────
+
+async function geocodePlace(query: string): Promise<{ lat: number; lng: number; placeId?: string } | null> {
+  try {
+    const key = process.env.GOOGLE_MAPS_API_KEY ?? process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY;
+    if (!key) return null;
+    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${key}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const data = await res.json() as { results?: Array<{ geometry: { location: { lat: number; lng: number } }; place_id?: string }> };
+    const first = data.results?.[0];
+    if (!first) return null;
+    const { lat, lng } = first.geometry.location;
+    console.log(`[email-inbound] geocoded "${query}" → lat: ${lat}, lng: ${lng}`);
+    return { lat, lng, placeId: first.place_id };
+  } catch {
+    return null;
+  }
+}
+
 // ── Cost parsing ──────────────────────────────────────────────────────────────
 
 function parseCost(raw: unknown): number | null {
@@ -334,6 +354,12 @@ Return this exact JSON structure:
           dayIndex: outboundDayIndex,
         },
       });
+      // Geocode arrival airport (where the family lands — critical map pin)
+      const outboundArrival = (extracted.toAirport as string | null) ?? (extracted.toCity as string | null);
+      if (outboundArrival) {
+        const geo = await geocodePlace(`${outboundArrival} airport`);
+        if (geo) await db.itineraryItem.update({ where: { id: outboundItem.id }, data: { latitude: geo.lat, longitude: geo.lng } });
+      }
       console.log("[email-inbound] created outbound ItineraryItem:", outboundItem.id);
 
       // Also keep Flight record (powers booking intel card)
@@ -402,6 +428,12 @@ Return this exact JSON structure:
             dayIndex: returnDayIndex,
           },
         });
+        // Geocode return arrival airport
+        const returnArrival = (extracted.returnToAirport as string | null) ?? (extracted.fromAirport as string | null) ?? (extracted.fromCity as string | null);
+        if (returnArrival) {
+          const geo = await geocodePlace(`${returnArrival} airport`);
+          if (geo) await db.itineraryItem.update({ where: { id: returnItem.id }, data: { latitude: geo.lat, longitude: geo.lng } });
+        }
         console.log("[email-inbound] created return ItineraryItem:", returnItem.id);
 
         // Also keep return Flight record
@@ -480,6 +512,12 @@ Return this exact JSON structure:
           dayIndex: checkInDayIndex,
         },
       });
+      // Geocode hotel by name + city
+      const hotelCity = (extracted.city as string | null) ?? (extracted.toCity as string | null) ?? "";
+      const hotelGeo = await geocodePlace(`${hotelName}${hotelCity ? " " + hotelCity : ""}`);
+      if (hotelGeo) {
+        await db.itineraryItem.update({ where: { id: checkInItem.id }, data: { latitude: hotelGeo.lat, longitude: hotelGeo.lng } });
+      }
       console.log("[email-inbound] created hotel check-in ItineraryItem:", checkInItem.id, "dayIndex:", checkInDayIndex);
 
       // FIX 1: Check-out ItineraryItem
@@ -500,6 +538,7 @@ Return this exact JSON structure:
             dayIndex: checkOutDayIndex,
           },
         });
+        if (hotelGeo) await db.itineraryItem.update({ where: { id: checkOutItem.id }, data: { latitude: hotelGeo.lat, longitude: hotelGeo.lng } });
         console.log("[email-inbound] created hotel check-out ItineraryItem:", checkOutItem.id, "dayIndex:", checkOutDayIndex);
       }
 
@@ -609,6 +648,14 @@ Return this exact JSON structure:
         });
       }
 
+      // Geocode: trains → origin station; others → vendor name + city
+      const geocodeQuery = itemTypeStr === "TRAIN"
+        ? `${(extracted.fromCity as string | null) ?? (extracted.vendorName as string | null) ?? ""} train station`.trim()
+        : `${itemTitle}${(extracted.city as string | null) ? " " + (extracted.city as string) : ""}`.trim();
+      if (geocodeQuery) {
+        const geo = await geocodePlace(geocodeQuery);
+        if (geo) await db.itineraryItem.update({ where: { id: item.id }, data: { latitude: geo.lat, longitude: geo.lng } });
+      }
       console.log("[email-inbound] created ItineraryItem:", item.id, "type:", itemTypeStr, "dayIndex:", dayIndex);
       await incrementBudget(resolvedTripId, parsedCost);
       return NextResponse.json({ received: true, status: "success", type: itemTypeStr, tripId: resolvedTripId });

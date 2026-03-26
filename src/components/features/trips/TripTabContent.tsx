@@ -1375,9 +1375,29 @@ const AIRPORT_COORDS: Record<string, { lat: number; lng: number }> = {
 type RecAddition = { dayIndex: number; title: string; location: string; img?: string; savedItemId?: string; lat?: number | null; lng?: number | null; isBooked?: boolean; sortOrder: number; startTime?: string | null; categoryTags?: string[] };
 
 // Unified sortable item — combines SavedItems, ManualActivities, and Flights into one sortable list per day
+type ItineraryItemLocal = {
+  id: string;
+  type: string;
+  title: string;
+  scheduledDate: string | null;
+  departureTime: string | null;
+  arrivalTime: string | null;
+  fromCity: string | null;
+  toCity: string | null;
+  confirmationCode: string | null;
+  notes: string | null;
+  address: string | null;
+  totalCost: number | null;
+  currency: string | null;
+  passengers: string[];
+  dayIndex: number | null;
+  latitude: number | null;
+  longitude: number | null;
+};
+
 type UnifiedDayItem = {
-  sortId: string;  // "saved_xxx" | "activity_xxx" | "flight_xxx"
-  itemType: "saved" | "activity" | "flight";
+  sortId: string;  // "saved_xxx" | "activity_xxx" | "flight_xxx" | "itinerary_xxx"
+  itemType: "saved" | "activity" | "flight" | "itinerary";
   sortOrder: number;
   rawId: string;
   startTime?: string | null;   // for time-based sorting and transit
@@ -1386,6 +1406,7 @@ type UnifiedDayItem = {
   recAddition?: RecAddition;
   activity?: Activity;
   flight?: Flight;
+  itineraryItem?: ItineraryItemLocal;
 };
 
 const ITINERARY_KEY = (tripId?: string) => `flokk_itinerary_additions_${tripId ?? "default"}`;
@@ -1733,6 +1754,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   // Local copies of activities/flights so drag-reorder can update them independently of parent prop
   const [localActivities, setLocalActivities] = useState<Activity[]>([]);
   const [localFlights, setLocalFlights] = useState<Flight[]>([]);
+  const [localItineraryItems, setLocalItineraryItems] = useState<ItineraryItemLocal[]>([]);
   const [expandedSlotKey, setExpandedSlotKey] = useState<string | null>(null);
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
   const [detailRemover, setDetailRemover] = useState<(() => void) | null>(null);
@@ -1822,6 +1844,16 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           flight: f,
         };
       }),
+    ...localItineraryItems.filter(it => it.dayIndex === targetDayIndex).map(it => ({
+        sortId: `itinerary_${it.id}`,
+        itemType: "itinerary" as const,
+        sortOrder: 999,
+        rawId: it.id,
+        startTime: it.departureTime ?? null,
+        lat: it.latitude ?? null,
+        lng: it.longitude ?? null,
+        itineraryItem: it,
+      })),
     ].sort((a, b) => {
       const tA = timeToMinutes(a.startTime);
       const tB = timeToMinutes(b.startTime);
@@ -1842,6 +1874,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     if (sortId.startsWith("flight_")) {
       return localFlights.find(f => f.id === sortId.slice(7))?.dayIndex ?? -1;
     }
+    if (sortId.startsWith("itinerary_")) {
+      return localItineraryItems.find(it => it.id === sortId.slice(10))?.dayIndex ?? -1;
+    }
     return -1;
   }
 
@@ -1857,6 +1892,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     if (sortId.startsWith("flight_")) {
       const f = localFlights.find(f => f.id === sortId.slice(7));
       return f ? `${f.fromAirport} → ${f.toAirport}` : "Flight";
+    }
+    if (sortId.startsWith("itinerary_")) {
+      return localItineraryItems.find(it => it.id === sortId.slice(10))?.title ?? "Booking";
     }
     return "Item";
   }
@@ -1924,6 +1962,14 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ dayIndex: newDayIndex }),
       }).catch(e => console.error("[crossDay flights]", e));
+    } else if (sortId.startsWith("itinerary_")) {
+      const id = sortId.slice(10);
+      setLocalItineraryItems(prev => prev.map(it => it.id === id ? { ...it, dayIndex: newDayIndex } : it));
+      fetch(`/api/trips/${tripId}/itinerary/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dayIndex: newDayIndex }),
+      }).catch(e => console.error("[crossDay itinerary]", e));
     }
   }
 
@@ -1972,6 +2018,17 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       })
       .catch(e => console.error("[ItineraryRead] API fetch failed:", e));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch email-imported ItineraryItems (LODGING, TRAIN, etc. — not FLIGHT)
+  useEffect(() => {
+    if (!tripId) return;
+    fetch(`/api/trips/${tripId}/itinerary-items`)
+      .then(r => r.json())
+      .then(({ items }: { items: ItineraryItemLocal[] }) => {
+        if (Array.isArray(items)) setLocalItineraryItems(items);
+      })
+      .catch(() => {});
+  }, [tripId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialize sortOrder for activities if all are 0 (seeded trips)
   useEffect(() => {
@@ -2071,13 +2128,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     return () => ro.disconnect();
   }, []);
 
-  const toggle = (i: number) => {
-    const next = openDay === i ? -1 : i;
-    console.log('[accordion] day clicked, setting openDay to:', next);
-    setOpenDay(next);
-  };
-
-  console.log('[parent] passing day to TripMap:', openDay >= 0 ? openDay : null);
+  const toggle = (i: number) => setOpenDay((prev) => (prev === i ? -1 : i));
 
   return (
     <div style={{ overflowX: "hidden" }}>
@@ -2130,6 +2181,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
               );
             }
             return (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleGlobalDragStart} onDragOver={handleGlobalDragOver} onDragEnd={handleGlobalDragEnd}>
               <div style={{ borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", overflow: "hidden", backgroundColor: "#fff" }}>
                 {tripDays.map(({ dayIndex, label, date, shortDate }, i) => {
                   const isOpen = openDay === i;
@@ -2175,11 +2227,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                         <div style={{ padding: "4px 12px 16px" }}>
 
                           {/* All day items — unified sortable list */}
-                          <DndContext
-                            sensors={sensors}
-                            collisionDetection={closestCenter}
-                            onDragEnd={(event) => handleDragEnd(event, dayIndex, allDayItems)}
-                          >
+                          <DroppableDay id={`day-${dayIndex}`} isOver={overDayIndex === dayIndex}>
                             <SortableContext
                               items={allDayItems.map(a => a.sortId)}
                               strategy={verticalListSortingStrategy}
@@ -2397,6 +2445,35 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                           </div>
                                         );
                                       })()}
+                                      {/* ItineraryItem card (email-imported booking: LODGING, TRAIN, etc.) */}
+                                      {item.itemType === "itinerary" && item.itineraryItem && (() => {
+                                        const it = item.itineraryItem;
+                                        const typeIcon: Record<string, string> = { LODGING: "🏨", TRAIN: "🚄", ACTIVITY: "🎯", RESTAURANT: "🍽️", CAR_RENTAL: "🚗", OTHER: "📋" };
+                                        const icon = typeIcon[it.type] ?? "📋";
+                                        return (
+                                          <div style={{ flex: 1, display: "flex", gap: "10px", alignItems: "flex-start", backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: "12px", padding: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+                                            <div style={{ width: "26px", height: "26px", borderRadius: "50%", backgroundColor: "rgba(27,58,92,0.06)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px" }}>
+                                              {icon}
+                                            </div>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                              <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{it.title}</p>
+                                              {it.departureTime && (
+                                                <p style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, lineHeight: 1.4 }}>
+                                                  {it.departureTime}{it.arrivalTime ? ` → ${it.arrivalTime}` : ""}
+                                                </p>
+                                              )}
+                                              {it.notes && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }}>{it.notes}</p>}
+                                              <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
+                                                <span style={{ fontSize: "11px", fontWeight: 600, backgroundColor: "rgba(27,58,92,0.08)", color: "#1B3A5C", borderRadius: "999px", padding: "2px 8px" }}>
+                                                  {it.type.charAt(0) + it.type.slice(1).toLowerCase().replace("_", " ")}
+                                                </span>
+                                                {it.confirmationCode && <span style={{ fontSize: "11px", color: "#555", fontFamily: "monospace" }}>{it.confirmationCode}</span>}
+                                                {it.totalCost != null && <span style={{ fontSize: "11px", color: "#717171" }}>{it.currency ?? ""} {it.totalCost.toLocaleString()}</span>}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
                                     </div>
                                   )}
                                 </SortableWrapper>,
@@ -2416,7 +2493,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 ];
                               })}
                             </SortableContext>
-                          </DndContext>
+                          </DroppableDay>
 
                           {/* + Add activity dashed button */}
                           <button
@@ -2466,13 +2543,21 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                   );
                 })}
               </div>
+              <DragOverlay>
+                {activeDragId ? (
+                  <div style={{ padding: "8px 14px", backgroundColor: "#fff", border: "1px solid rgba(196,102,74,0.35)", borderRadius: "10px", boxShadow: "0 4px 16px rgba(0,0,0,0.14)", fontSize: "13px", fontWeight: 600, color: "#1B3A5C", cursor: "grabbing" }}>
+                    {getOverlayLabel(activeDragId)}
+                  </div>
+                ) : null}
+              </DragOverlay>
+              </DndContext>
             );
           })()}
         </div>{/* end left panel */}
 
         {/* Right panel: map — stacks below on mobile, sticky sidebar on desktop */}
         <div style={{ width: isDesktop ? "42%" : "100%", position: isDesktop ? "sticky" : "relative", top: 0, height: isDesktop ? (leftHeight ? `${leftHeight}px` : "500px") : "300px", minHeight: "260px", maxHeight: "600px" }}>
-          <TripMap activeDay={openDay >= 0 ? openDay : null} flyTarget={flyTarget} onFlyTargetConsumed={onFlyTargetConsumed} tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} savedItems={recAdditions.filter(a => a.lat != null && a.lng != null) as { title: string; lat: number; lng: number; dayIndex?: number | null }[]} activities={localActivities.filter(a => a.lat != null && a.lng != null).map(a => ({ title: a.title, lat: a.lat!, lng: a.lng!, dayIndex: a.dayIndex }))} />
+          <TripMap activeDay={openDay >= 0 ? openDay : null} flyTarget={flyTarget} onFlyTargetConsumed={onFlyTargetConsumed} tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} savedItems={recAdditions.filter(a => a.lat != null && a.lng != null) as { title: string; lat: number; lng: number; dayIndex?: number | null }[]} activities={[...localActivities.filter(a => a.lat != null && a.lng != null).map(a => ({ title: a.title, lat: a.lat!, lng: a.lng!, dayIndex: a.dayIndex })), ...localItineraryItems.filter(it => it.latitude != null && it.longitude != null).map(it => ({ title: it.title, lat: it.latitude!, lng: it.longitude!, dayIndex: it.dayIndex ?? null }))]} />
         </div>{/* end right panel */}
 
       </div>

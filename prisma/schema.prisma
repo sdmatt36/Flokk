@@ -775,6 +775,8 @@ model ItineraryItem {
   currency         String?
   passengers       String[] @default([])
   dayIndex         Int?
+  latitude         Float?
+  longitude        Float?
   sourceType       String   @default("EMAIL_IMPORT")
   createdAt        DateTime @default(now())
 }
