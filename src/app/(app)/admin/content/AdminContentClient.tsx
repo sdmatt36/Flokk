@@ -63,9 +63,14 @@ function BetaInviteForm() {
 
   return (
     <div style={{ backgroundColor: "#fff", border: "1px solid #E8E8E8", borderRadius: "12px", padding: "20px 24px", marginBottom: "20px" }}>
-      <p style={{ fontSize: "12px", fontWeight: 700, color: "#1B3A5C", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 16px" }}>
-        Send Beta Invite
-      </p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+        <p style={{ fontSize: "12px", fontWeight: 700, color: "#1B3A5C", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
+          Send Beta Invite
+        </p>
+        <a href="/admin/email-preview" target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#C4664A", textDecoration: "none", fontWeight: 500 }}>
+          Preview email
+        </a>
+      </div>
       <form onSubmit={handleSend} style={{ display: "flex", gap: "10px", alignItems: "flex-end", flexWrap: "wrap" }}>
         <div style={{ flex: "1 1 180px" }}>
           <label style={{ display: "block", fontSize: "11px", fontWeight: 600, color: "#717171", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "5px" }}>
