@@ -1885,11 +1885,61 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         itineraryItem: it,
       })),
     ].sort((a, b) => {
+      const wA = getItemSortWeight(a);
+      const wB = getItemSortWeight(b);
+      if (wA !== wB) return wA - wB;
+      // Same category: sort by departure/start time
       const tA = timeToMinutes(a.startTime);
       const tB = timeToMinutes(b.startTime);
       if (tA !== tB) return tA - tB;
+      // Same time: preserve user's manual sortOrder
       return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
     });
+
+    // ── semantic sort weight ─────────────────────────────────────────────────
+    // Priority within a day:
+    //  10 — FLIGHT arrival (family just landed)
+    //  20 — LODGING check-in
+    //  50 — activities / saved places (default mid-day)
+    //  70 — TRAIN departure
+    //  80 — LODGING check-out
+    //  90 — FLIGHT departure (going to the airport)
+    function getItemSortWeight(item: UnifiedDayItem): number {
+      const dest = (destinationCity ?? "").toLowerCase().trim();
+
+      // True if a city/airport string references the trip destination
+      function matchesDest(city: string | null | undefined): boolean {
+        if (!dest || !city) return false;
+        const c = city.toLowerCase();
+        return c.includes(dest) || dest.split(/[\s,/-]+/).some(w => w.length > 2 && c.includes(w));
+      }
+
+      if (item.itemType === "itinerary" && item.itineraryItem) {
+        const it = item.itineraryItem;
+        if (it.type === "FLIGHT") {
+          // Arrival = toCity or toAirport contains destination city
+          const isArrival = matchesDest(it.toCity) || matchesDest(it.toAirport);
+          return isArrival ? 10 : 90;
+        }
+        if (it.type === "LODGING") {
+          return it.title.toLowerCase().includes("check-out") ? 80 : 20;
+        }
+        if (it.type === "TRAIN") return 70;
+        return 50; // ACTIVITY, OTHER
+      }
+
+      if (item.itemType === "flight" && item.flight) {
+        const f = item.flight;
+        // Flight model stores type "outbound" (→ destination = arrival) or "return"
+        if (f.type === "outbound") return 10;
+        if (f.type === "return") return 90;
+        // Fallback: city match
+        return matchesDest(f.toCity) || matchesDest(f.toAirport) ? 10 : 90;
+      }
+
+      // Saved places and manual activities — middle of the day
+      return 50;
+    }
   }
 
   /** Return the dayIndex of the item with the given sortId */
