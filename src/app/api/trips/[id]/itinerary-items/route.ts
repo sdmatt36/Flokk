@@ -27,7 +27,7 @@ export async function GET(
   }
 
   const items = await db.itineraryItem.findMany({
-    where: { tripId, NOT: { type: "FLIGHT" } },
+    where: { tripId },
     orderBy: [{ dayIndex: "asc" }, { createdAt: "asc" }],
     select: {
       id: true,
@@ -36,6 +36,8 @@ export async function GET(
       scheduledDate: true,
       departureTime: true,
       arrivalTime: true,
+      fromAirport: true,
+      toAirport: true,
       fromCity: true,
       toCity: true,
       confirmationCode: true,

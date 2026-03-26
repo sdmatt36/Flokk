@@ -1382,6 +1382,8 @@ type ItineraryItemLocal = {
   scheduledDate: string | null;
   departureTime: string | null;
   arrivalTime: string | null;
+  fromAirport: string | null;
+  toAirport: string | null;
   fromCity: string | null;
   toCity: string | null;
   confirmationCode: string | null;
@@ -1831,7 +1833,17 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         lng: a.lng ?? null,
         activity: a,
       })),
-      ...localFlights.filter(f => f.dayIndex === targetDayIndex).map(f => {
+      ...localFlights.filter(f => {
+        if (f.dayIndex !== targetDayIndex) return false;
+        // Skip Flight records that are covered by a FLIGHT ItineraryItem (email-imported)
+        // to avoid showing the same booking twice. Match by confirmationCode or fromAirport+toAirport+dayIndex.
+        return !localItineraryItems.some(it =>
+          it.type === "FLIGHT" && (
+            (f.confirmationCode && it.confirmationCode && f.confirmationCode === it.confirmationCode) ||
+            (it.fromAirport && it.toAirport && it.fromAirport === f.fromAirport && it.toAirport === f.toAirport && it.dayIndex === f.dayIndex)
+          )
+        );
+      }).map(f => {
         const arrCoords = AIRPORT_COORDS[(f.toAirport ?? "").toUpperCase().trim()];
         return {
           sortId: `flight_${f.id}`,
@@ -2451,30 +2463,141 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                           </div>
                                         );
                                       })()}
-                                      {/* ItineraryItem card (email-imported booking: LODGING, TRAIN, etc.) */}
+                                      {/* ItineraryItem card (email-imported confirmed booking) */}
                                       {item.itemType === "itinerary" && item.itineraryItem && (() => {
                                         const it = item.itineraryItem;
-                                        const typeIcon: Record<string, string> = { LODGING: "🏨", TRAIN: "🚄", ACTIVITY: "🎯", RESTAURANT: "🍽️", CAR_RENTAL: "🚗", OTHER: "📋" };
-                                        const icon = typeIcon[it.type] ?? "📋";
-                                        return (
-                                          <div style={{ flex: 1, display: "flex", gap: "10px", alignItems: "flex-start", backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: "12px", padding: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
-                                            <div style={{ width: "26px", height: "26px", borderRadius: "50%", backgroundColor: "rgba(27,58,92,0.06)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px" }}>
-                                              {icon}
+                                        // Shared card shell: white bg, terracotta left border, no icon/emoji
+                                        const cardStyle: React.CSSProperties = { flex: 1, backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderLeft: "3px solid #C4664A", borderRadius: "12px", padding: "12px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
+                                        const bookedBadge = <span style={{ fontSize: "11px", fontWeight: 600, backgroundColor: "rgba(74,124,89,0.1)", color: "#4a7c59", borderRadius: "999px", padding: "2px 8px" }}>Booked</span>;
+                                        const pencilBtn = (onClick: () => void) => (
+                                          <button onClick={e => { e.stopPropagation(); onClick(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px", flexShrink: 0 }} title="Edit">
+                                            <Pencil size={14} />
+                                          </button>
+                                        );
+                                        function formatDateShort(d: string | null): string | null {
+                                          if (!d) return null;
+                                          try {
+                                            const dt = new Date(d + "T12:00:00");
+                                            const wd = dt.toLocaleDateString("en-US", { weekday: "short" });
+                                            const mo = dt.toLocaleDateString("en-US", { month: "short" });
+                                            return `${wd} ${mo} ${dt.getDate()}`;
+                                          } catch { return d; }
+                                        }
+
+                                        // ── FLIGHT ───────────────────────────────────────────────────────
+                                        if (it.type === "FLIGHT") {
+                                          const matchFlight = it.confirmationCode
+                                            ? localFlights.find(f => f.confirmationCode === it.confirmationCode)
+                                            : localFlights.find(f => f.fromAirport === it.fromAirport && f.toAirport === it.toAirport && f.dayIndex === it.dayIndex);
+                                          const from = it.fromAirport || matchFlight?.fromAirport || "";
+                                          const to = it.toAirport || matchFlight?.toAirport || "";
+                                          const route = from && to ? `${from} → ${to}` : (from || to || it.title);
+                                          const airlineLabel = matchFlight?.airline && matchFlight?.flightNumber
+                                            ? `${matchFlight.airline} · ${matchFlight.flightNumber}` : null;
+                                          const depTime = it.departureTime;
+                                          const arrTime = it.arrivalTime;
+                                          const paxLabel = it.passengers.length > 0
+                                            ? it.passengers.length <= 2
+                                              ? it.passengers.join(", ")
+                                              : `${it.passengers.length} passengers`
+                                            : null;
+                                          return (
+                                            <div style={cardStyle}>
+                                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{route}</p>
+                                                  {airlineLabel && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "3px" }}>{airlineLabel}</p>}
+                                                  <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "6px" }}>
+                                                    Departs <span style={depTime ? {} : { color: "#BBBBBB" }}>{depTime ?? "Time TBC"}</span>
+                                                    {" · "}Arrives <span style={arrTime ? {} : { color: "#BBBBBB" }}>{arrTime ?? "Time TBC"}</span>
+                                                  </p>
+                                                  <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                                                    {bookedBadge}
+                                                    {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {it.confirmationCode}</span>}
+                                                    {paxLabel && <span style={{ fontSize: "11px", color: "#999" }}>{paxLabel}</span>}
+                                                  </div>
+                                                </div>
+                                                {matchFlight && pencilBtn(() => setEditingFlight(matchFlight))}
+                                              </div>
                                             </div>
+                                          );
+                                        }
+
+                                        // ── LODGING ──────────────────────────────────────────────────────
+                                        if (it.type === "LODGING") {
+                                          const isCheckOut = /^check-out:/i.test(it.title);
+                                          const hotelName = it.title.replace(/^check-in:\s*/i, "").replace(/^check-out:\s*/i, "");
+                                          const dateLabel = isCheckOut ? "Check-out" : "Check-in";
+                                          const dateFormatted = formatDateShort(it.scheduledDate);
+                                          const costLabel = it.totalCost != null ? `${it.currency ?? ""} ${it.totalCost.toLocaleString()}`.trim() : null;
+                                          return (
+                                            <div style={cardStyle}>
+                                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{hotelName}</p>
+                                                  {dateFormatted && (
+                                                    <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "6px" }}>
+                                                      {dateLabel} · {dateFormatted}
+                                                    </p>
+                                                  )}
+                                                  <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                                                    {bookedBadge}
+                                                    {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {it.confirmationCode}</span>}
+                                                    {costLabel && <span style={{ fontSize: "11px", color: "#999" }}>{costLabel}</span>}
+                                                  </div>
+                                                </div>
+                                                {/* Edit pencil — vault doc edit is managed from the Vault tab */}
+                                                <button onClick={e => e.stopPropagation()} style={{ background: "none", border: "none", cursor: "default", color: "#DDDDDD", padding: "2px", flexShrink: 0 }} title="Edit from Vault tab">
+                                                  <Pencil size={14} />
+                                                </button>
+                                              </div>
+                                            </div>
+                                          );
+                                        }
+
+                                        // ── TRAIN ────────────────────────────────────────────────────────
+                                        if (it.type === "TRAIN") {
+                                          const trainRoute = it.fromCity && it.toCity ? `${it.fromCity} → ${it.toCity}` : it.title;
+                                          const operator = it.fromCity && it.toCity && it.title !== trainRoute ? it.title : null;
+                                          const depTime = it.departureTime;
+                                          const arrTime = it.arrivalTime;
+                                          return (
+                                            <div style={cardStyle}>
+                                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{trainRoute}</p>
+                                                  {operator && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "3px" }}>{operator}</p>}
+                                                  {(depTime || arrTime) && (
+                                                    <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "6px" }}>
+                                                      Departs <span style={depTime ? {} : { color: "#BBBBBB" }}>{depTime ?? "Time TBC"}</span>
+                                                      {" · "}Arrives <span style={arrTime ? {} : { color: "#BBBBBB" }}>{arrTime ?? "Time TBC"}</span>
+                                                    </p>
+                                                  )}
+                                                  <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                                                    {bookedBadge}
+                                                    {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {it.confirmationCode}</span>}
+                                                  </div>
+                                                </div>
+                                                <button onClick={e => e.stopPropagation()} style={{ background: "none", border: "none", cursor: "default", color: "#DDDDDD", padding: "2px", flexShrink: 0 }} title="Edit from Vault tab">
+                                                  <Pencil size={14} />
+                                                </button>
+                                              </div>
+                                            </div>
+                                          );
+                                        }
+
+                                        // ── OTHER (ACTIVITY, RESTAURANT, CAR_RENTAL, etc.) ───────────────
+                                        const typeLabel = it.type.charAt(0) + it.type.slice(1).toLowerCase().replace(/_/g, " ");
+                                        return (
+                                          <div style={cardStyle}>
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                               <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{it.title}</p>
-                                              {it.departureTime && (
-                                                <p style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, lineHeight: 1.4 }}>
-                                                  {it.departureTime}{it.arrivalTime ? ` → ${it.arrivalTime}` : ""}
-                                                </p>
-                                              )}
-                                              {it.notes && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }}>{it.notes}</p>}
-                                              <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
-                                                <span style={{ fontSize: "11px", fontWeight: 600, backgroundColor: "rgba(27,58,92,0.08)", color: "#1B3A5C", borderRadius: "999px", padding: "2px 8px" }}>
-                                                  {it.type.charAt(0) + it.type.slice(1).toLowerCase().replace("_", " ")}
-                                                </span>
-                                                {it.confirmationCode && <span style={{ fontSize: "11px", color: "#555", fontFamily: "monospace" }}>{it.confirmationCode}</span>}
-                                                {it.totalCost != null && <span style={{ fontSize: "11px", color: "#717171" }}>{it.currency ?? ""} {it.totalCost.toLocaleString()}</span>}
+                                              {it.notes && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "6px" }}>{it.notes}</p>}
+                                              <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                                                {bookedBadge}
+                                                <span style={{ fontSize: "11px", color: "#999" }}>{typeLabel}</span>
+                                                {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {it.confirmationCode}</span>}
+                                                {it.totalCost != null && <span style={{ fontSize: "11px", color: "#999" }}>{it.currency ?? ""} {it.totalCost.toLocaleString()}</span>}
                                               </div>
                                             </div>
                                           </div>
