@@ -1712,6 +1712,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [editingLodging, setEditingLodging] = useState<{ id: string; rawTitle: string; extractedCheckin: string; extractedCheckout: string; websiteUrl: string; notes: string } | null>(null);
   const [lodgingSaving, setLodgingSaving] = useState(false);
   const [dragErrorToast, setDragErrorToast] = useState<string | null>(null);
+  const [conflictToast, setConflictToast] = useState<string | null>(null);
+  const [dismissedConflictDays, setDismissedConflictDays] = useState<Set<number>>(new Set());
+  const [autoSortConfirmDay, setAutoSortConfirmDay] = useState<number | null>(null);
   const [openMoveMenuId, setOpenMoveMenuId] = useState<string | null>(null);
   const [moveMenuAnchor, setMoveMenuAnchor] = useState<{ top: number; left: number; width: number } | null>(null);
   const moveMenuRef = useRef<HTMLDivElement | null>(null);
@@ -1857,6 +1860,116 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   }
 
 
+  // ── Conflict detection ────────────────────────────────────────────────────
+  function timeToMinutes(time: string): number {
+    const parts = time.split(":");
+    return Number(parts[0]) * 60 + (Number(parts[1]) || 0);
+  }
+
+  function detectDayConflicts(items: UnifiedDayItem[]): string[] {
+    const warnings: string[] = [];
+
+    const itItems = items
+      .filter(i => i.itemType === "itinerary" && i.itineraryItem)
+      .map(i => ({ unified: i, it: i.itineraryItem! }));
+
+    const checkOuts = itItems.filter(({ it }) => it.type === "LODGING" && /check-out/i.test(it.title));
+
+    // Departures: TRAIN items + FLIGHT items with high sortOrder (departure flights)
+    const departures = itItems.filter(({ it, unified }) =>
+      it.type === "TRAIN" ||
+      (it.type === "FLIGHT" && (unified.sortOrder ?? 0) >= 85)
+    );
+
+    // Flight model records (non-itinerary) also count as potential departures
+    const flightRecordDeps = items.filter(i => i.itemType === "flight" && i.flight?.departureTime);
+
+    // Rule 1: check-out present on same day as any departure
+    for (const { it: checkout } of checkOuts) {
+      const checkoutTime = checkout.departureTime; // null for most LODGING — no checkout time stored
+      for (const { it: dep } of departures) {
+        if (!dep.departureTime) continue;
+        if (checkoutTime) {
+          if (timeToMinutes(checkoutTime) > timeToMinutes(dep.departureTime)) {
+            warnings.push(
+              `Check-out is scheduled after your ${dep.type === "FLIGHT" ? "flight" : "train"} departure at ${dep.departureTime}`
+            );
+          }
+        } else {
+          warnings.push(
+            `Confirm checkout time before your ${dep.type === "FLIGHT" ? "flight" : "train"} at ${dep.departureTime}`
+          );
+        }
+      }
+      for (const depItem of flightRecordDeps) {
+        const dt = depItem.flight!.departureTime;
+        if (!dt) continue;
+        if (checkoutTime) {
+          if (timeToMinutes(checkoutTime) > timeToMinutes(dt)) {
+            warnings.push(`Check-out is scheduled after your flight departure at ${dt}`);
+          }
+        } else {
+          warnings.push(`Confirm checkout time before your flight at ${dt}`);
+        }
+      }
+    }
+
+    // Rule 2: hotel check-in time before flight arrival time (only when both times are set)
+    const arrivalFlights = itItems.filter(({ it, unified }) =>
+      it.type === "FLIGHT" && (unified.sortOrder ?? 100) <= 15 && !!it.arrivalTime
+    );
+    const checkIns = itItems.filter(({ it }) =>
+      it.type === "LODGING" && !/check-out/i.test(it.title) && !!it.departureTime
+    );
+    for (const { it: arrival } of arrivalFlights) {
+      for (const { it: checkin } of checkIns) {
+        if (timeToMinutes(checkin.departureTime!) < timeToMinutes(arrival.arrivalTime!)) {
+          warnings.push(`Hotel check-in is before your flight arrives at ${arrival.arrivalTime}`);
+        }
+      }
+    }
+
+    // Rule 3: multiple departure flights from different origin airports
+    const depFlights = itItems.filter(({ it, unified }) =>
+      it.type === "FLIGHT" && (unified.sortOrder ?? 0) >= 85 && !!it.fromAirport
+    );
+    if (depFlights.length > 1) {
+      const origins = [...new Set(depFlights.map(({ it }) => it.fromAirport).filter(Boolean))];
+      if (origins.length > 1) {
+        warnings.push(`Multiple departing flights from different airports on this day`);
+      }
+    }
+
+    return warnings;
+  }
+
+  function showConflictToast(msg: string) {
+    setConflictToast(msg);
+    setTimeout(() => setConflictToast(null), 4000);
+  }
+
+  // Computes hypothetical conflicts for source/dest days after a cross-day move,
+  // using current state (before setState is called). Called from handleCrossDayMove.
+  function checkConflictsAfterMove(sortId: string, sourceDayIdx: number, destDayIdx: number): void {
+    const movedItem = buildDayItems(sourceDayIdx).find(i => i.sortId === sortId);
+    const futureSourceItems = buildDayItems(sourceDayIdx).filter(i => i.sortId !== sortId);
+    const futureDestItems = movedItem
+      ? [...buildDayItems(destDayIdx), movedItem]
+      : buildDayItems(destDayIdx);
+
+    const destConflicts = detectDayConflicts(futureDestItems);
+    if (destConflicts.length > 0) {
+      const dayLabel = tripDaysAll[destDayIdx]?.label ?? `Day ${destDayIdx + 1}`;
+      showConflictToast(`Heads up: scheduling conflict on ${dayLabel} — check the day for details`);
+      return;
+    }
+    const sourceConflicts = detectDayConflicts(futureSourceItems);
+    if (sourceConflicts.length > 0) {
+      const dayLabel = tripDaysAll[sourceDayIdx]?.label ?? `Day ${sourceDayIdx + 1}`;
+      showConflictToast(`Heads up: scheduling conflict on ${dayLabel} — check the day for details`);
+    }
+  }
+
   /** Simple array move helper (replaces arrayMove from @dnd-kit/sortable) */
   function localArrayMove<T>(arr: T[], from: number, to: number): T[] {
     const result = [...arr];
@@ -1909,6 +2022,21 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     function showDragError() {
       setDragErrorToast("Could not move item. Please try again.");
       setTimeout(() => setDragErrorToast(null), 3000);
+    }
+    // Determine source day for post-move conflict checking
+    let sourceDayIndex: number | null = null;
+    if (sortId.startsWith("saved_")) {
+      const rawId = sortId.slice(6);
+      sourceDayIndex = recAdditions.find(r => (r.savedItemId ?? r.title) === rawId)?.dayIndex ?? null;
+    } else if (sortId.startsWith("activity_")) {
+      sourceDayIndex = localActivities.find(a => a.id === sortId.slice(9))?.dayIndex ?? null;
+    } else if (sortId.startsWith("flight_")) {
+      sourceDayIndex = localFlights.find(f => f.id === sortId.slice(7))?.dayIndex ?? null;
+    } else if (sortId.startsWith("itinerary_")) {
+      sourceDayIndex = localItineraryItems.find(it => it.id === sortId.slice(10))?.dayIndex ?? null;
+    }
+    if (sourceDayIndex !== null && sourceDayIndex !== newDayIndex) {
+      checkConflictsAfterMove(sortId, sourceDayIndex, newDayIndex);
     }
     // Open the destination day so the user sees the item arrive
     setOpenDay(newDayIndex);
@@ -2172,6 +2300,14 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         </div>
       )}
 
+      {/* Conflict toast — amber, fixed bottom-center, auto-dismisses after 4s */}
+      {conflictToast && typeof window !== "undefined" && createPortal(
+        <div style={{ position: "fixed", bottom: "28px", left: "50%", transform: "translateX(-50%)", zIndex: 10000, backgroundColor: "#FFFBEB", border: "1.5px solid #D97706", borderRadius: "10px", padding: "10px 16px", boxShadow: "0 4px 20px rgba(0,0,0,0.15)", maxWidth: "340px", width: "calc(100% - 32px)", pointerEvents: "none" }}>
+          <span style={{ fontSize: "13px", color: "#92400E", fontWeight: 500 }}>{conflictToast}</span>
+        </div>,
+        document.body
+      )}
+
       {/* Budget prompt or bar */}
       <BudgetPromptBanner tripId={tripId} />
 
@@ -2206,6 +2342,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                 {tripDays.map(({ dayIndex, label, date, shortDate }, i) => {
                   const isOpen = openDay === i;
                   const allDayItems = buildDayItems(dayIndex);
+                  const dayConflicts = detectDayConflicts(allDayItems);
+                  const hasConflict = dayConflicts.length > 0 && !dismissedConflictDays.has(dayIndex);
                   return (
                     <div key={i} style={{ borderBottom: i < tripDays.length - 1 ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
 
@@ -2238,6 +2376,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                               </span>
                             ) : null;
                           })()}
+                          {hasConflict && (
+                            <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#D97706", flexShrink: 0, display: "inline-block" }} title="Scheduling conflict" />
+                          )}
                           <ChevronDown size={16} style={{ color: "#717171", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s ease", flexShrink: 0 }} />
                         </div>
                       </div>
@@ -2245,6 +2386,21 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       {/* Expandable body */}
                       <div style={{ maxHeight: isOpen ? "3000px" : "0", overflow: isOpen ? "visible" : "hidden", transition: "max-height 0.3s ease" }}>
                         <div style={{ padding: "4px 12px 16px" }}>
+
+                          {/* Conflict warning banner */}
+                          {isOpen && hasConflict && (
+                            <div style={{ borderLeft: "3px solid #D97706", backgroundColor: "#FFFBEB", borderRadius: "0 8px 8px 0", padding: "10px 12px", marginBottom: "10px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
+                              <div style={{ flex: 1 }}>
+                                {dayConflicts.map((w, wi) => (
+                                  <p key={wi} style={{ fontSize: "13px", color: "#1B3A5C", lineHeight: 1.4, margin: 0, marginBottom: wi < dayConflicts.length - 1 ? "4px" : 0 }}>{w}</p>
+                                ))}
+                              </div>
+                              <button
+                                onClick={e => { e.stopPropagation(); setDismissedConflictDays(prev => { const next = new Set(prev); next.add(dayIndex); return next; }); }}
+                                style={{ fontSize: "12px", color: "#92400E", background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0, fontWeight: 500 }}
+                              >Dismiss</button>
+                            </div>
+                          )}
 
                           {/* All day items */}
                           <div>
@@ -2643,6 +2799,39 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 ) : null,
                                 ];
                               })}
+                          </div>
+
+                          {/* Auto-sort day link */}
+                          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "2px" }}>
+                            {autoSortConfirmDay === dayIndex ? (
+                              <span style={{ fontSize: "12px", color: "#AAAAAA", padding: "4px 0" }}>Day re-sorted</span>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  const items = buildDayItems(dayIndex);
+                                  const withWeight = items.map(item => ({ item, w: getItemSortWeight(item) }));
+                                  withWeight.sort((a, b) => a.w - b.w);
+                                  withWeight.forEach(({ item }, idx) => {
+                                    if (item.itemType === "saved" && item.rawId) {
+                                      setRecAdditions(prev => prev.map(r => r.savedItemId === item.rawId ? { ...r, sortOrder: idx } : r));
+                                      fetch(`/api/saves/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx }) }).catch(console.error);
+                                    } else if (item.itemType === "activity" && item.rawId) {
+                                      setLocalActivities(prev => prev.map(a => a.id === item.rawId ? { ...a, sortOrder: idx } : a));
+                                      fetch(`/api/trips/${tripId}/activities/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx }) }).catch(console.error);
+                                    } else if (item.itemType === "flight" && item.rawId) {
+                                      setLocalFlights(prev => prev.map(f => f.id === item.rawId ? { ...f, sortOrder: idx } : f));
+                                      fetch(`/api/trips/${tripId}/flights/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx }) }).catch(console.error);
+                                    } else if (item.itemType === "itinerary" && item.rawId) {
+                                      setLocalItineraryItems(prev => prev.map(it => it.id === item.rawId ? { ...it, sortOrder: idx } : it));
+                                      fetch(`/api/trips/${tripId}/itinerary/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx }) }).catch(console.error);
+                                    }
+                                  });
+                                  setAutoSortConfirmDay(dayIndex);
+                                  setTimeout(() => setAutoSortConfirmDay(prev => prev === dayIndex ? null : prev), 2000);
+                                }}
+                                style={{ fontSize: "12px", color: "#AAAAAA", background: "none", border: "none", cursor: "pointer", padding: "4px 0", textDecoration: "underline" }}
+                              >Auto-sort day</button>
+                            )}
                           </div>
 
                           {/* + Add activity dashed button */}
