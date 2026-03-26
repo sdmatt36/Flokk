@@ -30,15 +30,6 @@ const CATEGORIES: Category[] = [
     ],
   },
   {
-    title: "Importing bookings",
-    articles: [
-      {
-        title: "How to import your booking confirmations",
-        copy: "Flokk can automatically read your booking confirmation emails and file them into the right trip — flights, hotels, and trains all supported.\n\nHow it works:\n1. Forward your confirmation email to trips@flokktravel.com\n2. Send it from an email address linked to your Flokk account\n3. Flokk reads the confirmation, extracts the details, and adds them to your trip automatically\n\nTo link an email address, go to Profile → Approved Sender Emails and add the address you book with. You will receive a short verification email to confirm it.\n\nWhat gets imported: Flights (airline, route, times, confirmation code, passengers), Hotels (property name, check-in and check-out dates, confirmation code, total cost), Trains (route, departure and arrival times, confirmation code).\n\nSupported platforms: Booking.com, Expedia, Airbnb, most major airlines, Rail.Ninja, and any standard booking confirmation email.\n\nTips: Forward the original confirmation not a screenshot. If a booking does not import check that your sending address is verified in Profile. One email per forward.",
-      },
-    ],
-  },
-  {
     title: "Planning trips",
     articles: [
       {
@@ -56,6 +47,10 @@ const CATEGORIES: Category[] = [
       {
         title: "Exporting to Apple Maps or Google Maps",
         copy: "On any itinerary item that has a location, tap the transit card or the directions link. On iPhone, this opens Apple Maps with the route pre-loaded. On Android, it opens Google Maps. On desktop, it opens Google Maps in your browser.",
+      },
+      {
+        title: "How to import your booking confirmations",
+        copy: "Flokk can automatically read your booking confirmation emails and file them into the right trip — flights, hotels, and trains all supported.\n\nHow it works:\n1. Forward your confirmation email to trips@flokktravel.com\n2. Send it from an email address linked to your Flokk account\n3. Flokk reads the confirmation, extracts the details, and adds them to your trip automatically\n\nTo link an email address, go to Profile → Approved Sender Emails and add the address you book with. You will receive a short verification email to confirm it.\n\nWhat gets imported: Flights (airline, route, times, confirmation code, passengers), Hotels (property name, check-in and check-out dates, confirmation code, total cost), Trains (route, departure and arrival times, confirmation code).\n\nSupported platforms: Booking.com, Expedia, Airbnb, most major airlines, Rail.Ninja, and any standard booking confirmation email.\n\nTips: Forward the original confirmation not a screenshot. If a booking does not import check that your sending address is verified in Profile. One email per forward.",
       },
     ],
   },
