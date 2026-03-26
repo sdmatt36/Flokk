@@ -2771,7 +2771,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
             destinationCountry={destinationCountry}
             savedItems={recAdditions.filter(a => a.lat != null && a.lng != null) as { title: string; lat: number; lng: number; dayIndex?: number | null }[]}
             activities={localActivities.filter(a => a.lat != null && a.lng != null).map(a => ({ title: a.title, lat: a.lat!, lng: a.lng!, dayIndex: a.dayIndex }))}
-            importedBookingPins={localItineraryItems
+            importedBookingPins={[...localItineraryItems]
+              .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
               .filter(it => it.latitude != null && it.longitude != null && it.latitude !== 0 && it.longitude !== 0)
               .map(it => ({ id: it.id, title: it.title, type: it.type, dayIndex: it.dayIndex ?? null, latitude: it.latitude!, longitude: it.longitude! }))}
           />
