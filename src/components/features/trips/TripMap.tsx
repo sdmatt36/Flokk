@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Share2, Map as MapIcon, ChevronLeft } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
@@ -76,7 +76,6 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
   const markersRef = useRef<any[]>([]);
   const mapboxRef = useRef<any>(null);
   const initializedRef = useRef(false);
-  const [mapLoaded, setMapLoaded] = useState(false);
   const [toast, setToast] = useState(false);
   const [fetchedItems, setFetchedItems] = useState<MapSavedItem[]>([]);
 
@@ -96,18 +95,15 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
       .catch(() => {});
   }, [tripId]);
 
-  // Merge prop savedItems and fetched items, dedup by coords — exclude flight-type items
-  const allSavedItems = useMemo(() => {
+  // Merge prop savedItems and fetched items, dedup by coords
+  const allSavedItems = (() => {
     const merged = [...savedItems];
     for (const fi of fetchedItems) {
       const dup = merged.some((m) => Math.abs(m.lat - fi.lat) < 0.0001 && Math.abs(m.lng - fi.lng) < 0.0001);
       if (!dup) merged.push(fi);
     }
-    return merged.filter((s) => {
-      const t = (s as any).type as string | undefined;
-      return !t || (t.toUpperCase() !== "FLIGHT" && t.toUpperCase() !== "TRAIN");
-    });
-  }, [savedItems, fetchedItems]);
+    return merged;
+  })();
 
   // Initialize map once
   useEffect(() => {
@@ -134,7 +130,6 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
       map.on("load", () => {
         if (!destroyed) {
           initializedRef.current = true;
-          setMapLoaded(true);
           map.resize();
           // Center on destination immediately; markers will be added by the effect below
           map.flyTo({ center: destCoords, zoom: 12, duration: 0 });
@@ -167,7 +162,7 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
 
   // Respond to day changes — show pins for items on that day (or all if day=0)
   useEffect(() => {
-    if (!mapLoaded || !initializedRef.current || !mapRef.current) return;
+    if (!initializedRef.current || !mapRef.current) return;
     let filteredSaved = allSavedItems;
     let filteredActivities = activities;
     if (activeDay !== null) {
@@ -184,7 +179,7 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
     ];
     addMarkersInternal(allFiltered);
     flyToDay(mapRef.current, mapboxRef.current, allFiltered, destCoords);
-  }, [mapLoaded, activeDay, allSavedItems, activities]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeDay, allSavedItems, activities]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fly to a specific coordinate when flyTarget is set
   useEffect(() => {
