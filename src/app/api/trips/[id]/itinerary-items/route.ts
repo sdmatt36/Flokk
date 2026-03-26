@@ -49,6 +49,7 @@ export async function GET(
       dayIndex: true,
       latitude: true,
       longitude: true,
+      sortOrder: true,
     },
   });
 

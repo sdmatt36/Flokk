@@ -778,5 +778,6 @@ model ItineraryItem {
   latitude         Float?
   longitude        Float?
   sourceType       String   @default("EMAIL_IMPORT")
+  sortOrder        Int      @default(0)
   createdAt        DateTime @default(now())
 }

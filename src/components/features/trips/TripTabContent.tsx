@@ -1341,6 +1341,7 @@ type ItineraryItemLocal = {
   dayIndex: number | null;
   latitude: number | null;
   longitude: number | null;
+  sortOrder: number;
 };
 
 type UnifiedDayItem = {
@@ -1743,11 +1744,23 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         })
     );
 
+    // True if a TRAIN ItineraryItem exists on this day
+    const hasTrainItineraryOnDay = localItineraryItems.some(
+      it => it.dayIndex === targetDayIndex && it.type === "TRAIN"
+    );
+
     return [
       ...recAdditions.filter(a => {
         if (a.dayIndex !== targetDayIndex) return false;
         // Skip if an ItineraryItem already covers this booking
-        return !itineraryTitlesForDay.has(a.title.trim().toLowerCase());
+        if (itineraryTitlesForDay.has(a.title.trim().toLowerCase())) return false;
+        // Suppress Rail.Ninja / train saved items when a TRAIN ItineraryItem exists on the same day
+        if (hasTrainItineraryOnDay) {
+          const cats = (a.categoryTags ?? []).join(" ").toLowerCase();
+          const titleLower = a.title.trim().toLowerCase();
+          if (/train|transit|rail/i.test(cats) || /rail\.ninja|train/i.test(titleLower)) return false;
+        }
+        return true;
       }).map(a => ({
         sortId: `saved_${a.savedItemId ?? a.title}`,
         itemType: "saved" as const,
@@ -1794,7 +1807,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     ...localItineraryItems.filter(it => it.dayIndex === targetDayIndex).map(it => ({
         sortId: `itinerary_${it.id}`,
         itemType: "itinerary" as const,
-        sortOrder: 999,
+        sortOrder: it.sortOrder ?? 0,
         rawId: it.id,
         startTime: it.departureTime ?? null,
         lat: it.latitude ?? null,
@@ -1900,8 +1913,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       } else if (item.itemType === "flight" && item.rawId) {
         setLocalFlights(prev => prev.map(f => f.id === item.rawId ? { ...f, sortOrder: i } : f));
         fetch(`/api/trips/${tripId}/flights/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
+      } else if (item.itemType === "itinerary" && item.rawId) {
+        setLocalItineraryItems(prev => prev.map(it => it.id === item.rawId ? { ...it, sortOrder: i } : it));
+        fetch(`/api/trips/${tripId}/itinerary/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
       }
-      // itinerary items: semantic weight governs order, no sortOrder API
     });
   }
 
@@ -1910,6 +1925,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       setDragErrorToast("Could not move item. Please try again.");
       setTimeout(() => setDragErrorToast(null), 3000);
     }
+    // Open the destination day so the user sees the item arrive
+    setOpenDay(newDayIndex);
     if (sortId.startsWith("saved_")) {
       const rawId = sortId.slice(6);
       const prev = recAdditions;
