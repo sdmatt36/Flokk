@@ -54,6 +54,9 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
   const [state, setState] = useState<"loading" | "hidden" | "ready">("loading");
   const [items, setItems] = useState<IntelItem[]>([]);
   const [showBooked, setShowBooked] = useState(false);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewObservations, setReviewObservations] = useState<string[] | null>(null);
+  const [reviewError, setReviewError] = useState(false);
 
   const STATUS_ORDER: Record<IntelItem["status"], number> = { missing: 0, saved: 1, booked: 2 };
   const { activeItems, bookedItems } = useMemo(() => {
@@ -83,6 +86,22 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
       })
       .catch(() => setState("hidden"));
   }, [tripId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleReviewItinerary = async () => {
+    setReviewLoading(true);
+    setReviewError(false);
+    setReviewObservations(null);
+    try {
+      const res = await fetch(`/api/trips/${tripId}/review`, { method: "POST" });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json() as { observations: string[] };
+      setReviewObservations(data.observations);
+    } catch {
+      setReviewError(true);
+    } finally {
+      setReviewLoading(false);
+    }
+  };
 
   if (state === "hidden") return null;
 
@@ -231,6 +250,64 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
               Updated based on what&apos;s in your trip vault
             </p>
           )}
+
+          {/* Schedule Review */}
+          <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+            {reviewObservations === null && !reviewLoading && (
+              <button
+                onClick={handleReviewItinerary}
+                style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "13px", fontWeight: 600, color: "#C4664A", fontFamily: "inherit" }}
+              >
+                Review my itinerary →
+              </button>
+            )}
+
+            {reviewLoading && (
+              <p style={{ fontSize: "13px", color: "#AAA", fontStyle: "italic", margin: 0 }}>Reviewing your itinerary...</p>
+            )}
+
+            {reviewError && (
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <p style={{ fontSize: "13px", color: "#888", margin: 0 }}>Unable to review right now.</p>
+                <button
+                  onClick={handleReviewItinerary}
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "13px", color: "#C4664A", fontFamily: "inherit" }}
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+
+            {reviewObservations && reviewObservations.length > 0 && (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                  <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", color: "#AAA", textTransform: "uppercase" }}>
+                    Itinerary Review
+                  </span>
+                  <button
+                    onClick={() => setReviewObservations(null)}
+                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "12px", color: "#BBB", fontFamily: "inherit" }}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+                <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {reviewObservations.map((obs, i) => (
+                    <li key={i} style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
+                      <span style={{ marginTop: "6px", width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#C4664A", flexShrink: 0, display: "inline-block" }} />
+                      <span style={{ fontSize: "13px", color: "#1B3A5C", lineHeight: 1.5 }}>{obs}</span>
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={handleReviewItinerary}
+                  style={{ marginTop: "10px", background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "12px", color: "#BBB", fontFamily: "inherit" }}
+                >
+                  Re-run review
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </>
