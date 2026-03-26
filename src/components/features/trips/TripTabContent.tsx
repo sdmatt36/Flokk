@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, DragOverlay, useDroppable } from "@dnd-kit/core";
+import { DndContext, closestCenter, MouseSensor, TouchSensor, useSensor, useSensors, DragOverlay, useDroppable } from "@dnd-kit/core";
 import type { DragEndEvent, DragStartEvent, DragOverEvent } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -299,28 +299,17 @@ function FilledSlot({
   );
 }
 
-// Sortable wrapper for FilledSlot — used in itinerary drag-to-reorder
-type FilledSlotProps = Parameters<typeof FilledSlot>[0];
-function SortableFilledSlot({ sortId, ...props }: FilledSlotProps & { sortId: string }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sortId });
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.5 : 1,
-        zIndex: isDragging ? 100 : undefined,
-        position: "relative",
-      }}
-    >
-      <FilledSlot {...props} dragHandleListeners={listeners} dragHandleAttributes={attributes} />
-    </div>
-  );
-}
+// ── Drag-and-drop primitives ──────────────────────────────────────────────────
 
-function DroppableDay({ id, isOver, children }: { id: string; isOver: boolean; children: React.ReactNode }) {
-  const { setNodeRef } = useDroppable({ id });
+// Droppable zone for an entire day row (header + body).
+// Data carries dayIndex so handlers can read it from event.over.data.current.
+function DroppableDay({ id, dayIndex, isOver, children }: {
+  id: string;
+  dayIndex: number;
+  isOver: boolean;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef } = useDroppable({ id, data: { dayIndex } });
   return (
     <div
       ref={setNodeRef}
@@ -334,15 +323,29 @@ function DroppableDay({ id, isOver, children }: { id: string; isOver: boolean; c
   );
 }
 
-// Generic sortable wrapper — used for flights and activities which have custom render content
-function SortableWrapper({ sortId, children }: {
+// Sortable item with a dedicated grip handle. Pass dayIndex so dnd-kit carries
+// it in event.active.data / event.over.data — no need to reverse-lookup state.
+function SortableItem({ sortId, dayIndex, children }: {
   sortId: string;
+  dayIndex: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   children: (handle: { listeners: any; attributes: any }) => React.ReactNode;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: sortId });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: sortId,
+    data: { dayIndex },
+  });
   return (
-    <div ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1, position: "relative", zIndex: isDragging ? 100 : undefined }}>
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.4 : 1,
+        position: "relative",
+        zIndex: isDragging ? 100 : undefined,
+      }}
+    >
       {children({ listeners, attributes })}
     </div>
   );
@@ -1767,7 +1770,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const autoOpenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dragErrorToast, setDragErrorToast] = useState<string | null>(null);
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
   );
 
@@ -1775,40 +1778,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   useEffect(() => { setLocalActivities(activities); }, [activities]);
   useEffect(() => { setLocalFlights(flights); }, [flights]);
 
-  function handleDragEnd(event: DragEndEvent, dayIdx: number, currentDayItems: UnifiedDayItem[]) {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = currentDayItems.findIndex(a => a.sortId === String(active.id));
-    const newIndex = currentDayItems.findIndex(a => a.sortId === String(over.id));
-    if (oldIndex === -1 || newIndex === -1) return;
-    const reordered = arrayMove(currentDayItems, oldIndex, newIndex);
-    // Optimistic update + persist per item type (never deletes — UPDATE only)
-    reordered.forEach((item, i) => {
-      const newOrder = i;
-      if (item.itemType === "saved" && item.rawId) {
-        setRecAdditions(prev => prev.map(r => r.savedItemId === item.rawId ? { ...r, sortOrder: newOrder } : r));
-        fetch(`/api/saves/${item.rawId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sortOrder: newOrder }),
-        }).catch(e => console.error("[sortOrder PATCH saved]", e));
-      } else if (item.itemType === "activity" && item.rawId) {
-        setLocalActivities(prev => prev.map(a => a.id === item.rawId ? { ...a, sortOrder: newOrder } : a));
-        fetch(`/api/trips/${tripId}/activities/${item.rawId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sortOrder: newOrder }),
-        }).catch(e => console.error("[sortOrder PATCH activity]", e));
-      } else if (item.itemType === "flight" && item.rawId) {
-        setLocalFlights(prev => prev.map(f => f.id === item.rawId ? { ...f, sortOrder: newOrder } : f));
-        fetch(`/api/trips/${tripId}/flights/${item.rawId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sortOrder: newOrder }),
-        }).catch(e => console.error("[sortOrder PATCH flight]", e));
-      }
-    });
-  }
+  // ── Drag handlers — clean rebuild ────────────────────────────────────────
 
   /** Build the sorted UnifiedDayItem list for any given dayIndex (extracted from render) */
   function buildDayItems(targetDayIndex: number): UnifiedDayItem[] {
@@ -1942,40 +1912,13 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     }
   }
 
-  /** Return the dayIndex of the item with the given sortId */
-  function getItemDayIndex(sortId: string): number {
-    if (sortId.startsWith("saved_")) {
-      const rawId = sortId.slice(6);
-      return recAdditions.find(r => (r.savedItemId ?? r.title) === rawId)?.dayIndex ?? -1;
-    }
-    if (sortId.startsWith("activity_")) {
-      return localActivities.find(a => a.id === sortId.slice(9))?.dayIndex ?? -1;
-    }
-    if (sortId.startsWith("flight_")) {
-      return localFlights.find(f => f.id === sortId.slice(7))?.dayIndex ?? -1;
-    }
-    if (sortId.startsWith("itinerary_")) {
-      return localItineraryItems.find(it => it.id === sortId.slice(10))?.dayIndex ?? -1;
-    }
-    return -1;
-  }
 
-  /** Short label for DragOverlay ghost card */
+  /** Short label for DragOverlay ghost */
   function getOverlayLabel(sortId: string): string {
-    if (sortId.startsWith("saved_")) {
-      const rawId = sortId.slice(6);
-      return recAdditions.find(r => (r.savedItemId ?? r.title) === rawId)?.title ?? "Item";
-    }
-    if (sortId.startsWith("activity_")) {
-      return localActivities.find(a => a.id === sortId.slice(9))?.title ?? "Activity";
-    }
-    if (sortId.startsWith("flight_")) {
-      const f = localFlights.find(f => f.id === sortId.slice(7));
-      return f ? `${f.fromAirport} → ${f.toAirport}` : "Flight";
-    }
-    if (sortId.startsWith("itinerary_")) {
-      return localItineraryItems.find(it => it.id === sortId.slice(10))?.title ?? "Booking";
-    }
+    if (sortId.startsWith("saved_")) return recAdditions.find(r => (r.savedItemId ?? r.title) === sortId.slice(6))?.title ?? "Item";
+    if (sortId.startsWith("activity_")) return localActivities.find(a => a.id === sortId.slice(9))?.title ?? "Activity";
+    if (sortId.startsWith("flight_")) { const f = localFlights.find(f => f.id === sortId.slice(7)); return f ? `${f.fromAirport} → ${f.toAirport}` : "Flight"; }
+    if (sortId.startsWith("itinerary_")) return localItineraryItems.find(it => it.id === sortId.slice(10))?.title ?? "Booking";
     return "Item";
   }
 
@@ -1993,57 +1936,75 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     return "";
   }
 
-  function handleGlobalDragStart(event: DragStartEvent) {
+  function handleDragStart(event: DragStartEvent) {
     setActiveDragId(String(event.active.id));
   }
 
-  function handleGlobalDragOver(event: DragOverEvent) {
+  function handleDragOver(event: DragOverEvent) {
     const { over } = event;
-    if (!over) {
-      setOverDayIndex(null);
-      if (autoOpenTimerRef.current) { clearTimeout(autoOpenTimerRef.current); autoOpenTimerRef.current = null; }
-      return;
-    }
-    const overId = String(over.id);
-    let hoveredDayIndex: number | null = null;
-    if (overId.startsWith("day-")) {
-      hoveredDayIndex = parseInt(overId.slice(4), 10);
-    } else {
-      const idx = getItemDayIndex(overId);
-      hoveredDayIndex = idx >= 0 ? idx : null;
-    }
+    // Resolve which day is being hovered — prefer data.dayIndex, fall back to id parsing
+    const hoveredDayIndex: number | null = over
+      ? ((over.data.current?.dayIndex as number | undefined) ?? (String(over.id).startsWith("day-") ? parseInt(String(over.id).slice(4), 10) : null))
+      : null;
+
     setOverDayIndex(hoveredDayIndex);
 
-    // Auto-expand a collapsed day after 300ms hover — lets the user see the drop zone
+    // Auto-expand a collapsed day after 400ms hover so the user can drop into it
     if (hoveredDayIndex !== null && hoveredDayIndex !== openDay) {
-      if (autoOpenTimerRef.current) { clearTimeout(autoOpenTimerRef.current); autoOpenTimerRef.current = null; }
-      autoOpenTimerRef.current = setTimeout(() => {
-        setOpenDay(hoveredDayIndex!);
-        autoOpenTimerRef.current = null;
-      }, 300);
+      if (!autoOpenTimerRef.current) {
+        autoOpenTimerRef.current = setTimeout(() => {
+          setOpenDay(hoveredDayIndex);
+          autoOpenTimerRef.current = null;
+        }, 400);
+      }
     } else {
       if (autoOpenTimerRef.current) { clearTimeout(autoOpenTimerRef.current); autoOpenTimerRef.current = null; }
     }
   }
 
-  function handleGlobalDragEnd(event: DragEndEvent) {
+  function handleDragEnd(event: DragEndEvent) {
     if (autoOpenTimerRef.current) { clearTimeout(autoOpenTimerRef.current); autoOpenTimerRef.current = null; }
     const { active, over } = event;
     setActiveDragId(null);
     setOverDayIndex(null);
     if (!over) return;
+
     const activeId = String(active.id);
     const overId = String(over.id);
-    const sourceDayIndex = getItemDayIndex(activeId);
-    if (sourceDayIndex === -1) return;
-    const targetDayIndex = overId.startsWith("day-")
-      ? parseInt(overId.slice(4), 10)
-      : getItemDayIndex(overId);
-    if (targetDayIndex === -1) return;
+
+    // Source day comes from the item's own data (set in SortableItem)
+    const sourceDayIndex = active.data.current?.dayIndex as number | undefined;
+    if (sourceDayIndex === undefined) return;
+
+    // Target day: prefer data.dayIndex, fall back to parsing "day-N" ids
+    const targetDayIndex: number | undefined =
+      (over.data.current?.dayIndex as number | undefined) ??
+      (overId.startsWith("day-") ? parseInt(overId.slice(4), 10) : undefined);
+    if (targetDayIndex === undefined) return;
+
     if (sourceDayIndex !== targetDayIndex) {
+      // Cross-day: update dayIndex via API
       handleCrossDayMove(activeId, targetDayIndex);
     } else if (activeId !== overId) {
-      handleDragEnd(event, sourceDayIndex, buildDayItems(sourceDayIndex));
+      // Same-day: reorder by updating sortOrder
+      const dayItems = buildDayItems(sourceDayIndex);
+      const oldIndex = dayItems.findIndex(a => a.sortId === activeId);
+      const newIndex = dayItems.findIndex(a => a.sortId === overId);
+      if (oldIndex === -1 || newIndex === -1) return;
+      const reordered = arrayMove(dayItems, oldIndex, newIndex);
+      reordered.forEach((item, i) => {
+        if (item.itemType === "saved" && item.rawId) {
+          setRecAdditions(prev => prev.map(r => r.savedItemId === item.rawId ? { ...r, sortOrder: i } : r));
+          fetch(`/api/saves/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
+        } else if (item.itemType === "activity" && item.rawId) {
+          setLocalActivities(prev => prev.map(a => a.id === item.rawId ? { ...a, sortOrder: i } : a));
+          fetch(`/api/trips/${tripId}/activities/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
+        } else if (item.itemType === "flight" && item.rawId) {
+          setLocalFlights(prev => prev.map(f => f.id === item.rawId ? { ...f, sortOrder: i } : f));
+          fetch(`/api/trips/${tripId}/flights/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
+        }
+        // itinerary items: no sortOrder API — semantic weight governs order
+      });
     }
   }
 
@@ -2307,13 +2268,13 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
               );
             }
             return (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleGlobalDragStart} onDragOver={handleGlobalDragOver} onDragEnd={handleGlobalDragEnd}>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
               <div style={{ borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", overflow: "hidden", backgroundColor: "#fff" }}>
                 {tripDays.map(({ dayIndex, label, date, shortDate }, i) => {
                   const isOpen = openDay === i;
                   const allDayItems = buildDayItems(dayIndex);
                   return (
-                    <DroppableDay key={i} id={`day-${dayIndex}`} isOver={overDayIndex === dayIndex}>
+                    <DroppableDay key={i} id={`day-${dayIndex}`} dayIndex={dayIndex} isOver={overDayIndex === dayIndex}>
                     <div style={{ borderBottom: i < tripDays.length - 1 ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
 
                       {/* Header row — highlight when dragging over a collapsed day */}
@@ -2388,7 +2349,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 }
 
                                 return [
-                                <SortableWrapper key={item.sortId} sortId={item.sortId}>
+                                <SortableItem key={item.sortId} sortId={item.sortId} dayIndex={dayIndex}>
                                   {({ listeners, attributes }) => (
                                     <div style={{ display: "flex", alignItems: "stretch", marginBottom: "8px" }}>
                                       {/* Drag handle */}
@@ -2719,7 +2680,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                       })()}
                                     </div>
                                   )}
-                                </SortableWrapper>,
+                                </SortableItem>,
                                 // Transit row between consecutive timed+coordinated items
                                 transitData ? (
                                   <div key={`transit_${idx}`} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "2px 28px 6px", marginBottom: "2px" }}>
