@@ -68,8 +68,9 @@ function flyToDay(map: any, mapboxgl: any, markers: MarkerDef[], center: [number
 }
 
 type MapSavedItem = { title: string; lat: number; lng: number; dayIndex?: number | null };
+type ImportedBookingPin = { id: string; title: string; type: string; dayIndex: number | null; latitude: number; longitude: number };
 
-export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, destinationCity, destinationCountry, savedItems = [], activities = [] }: { activeDay: number | null; flyTarget?: { lat: number; lng: number } | null; onFlyTargetConsumed?: () => void; tripId?: string; destinationCity?: string | null; destinationCountry?: string | null; savedItems?: MapSavedItem[]; activities?: MapSavedItem[] }) {
+export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, destinationCity, destinationCountry, savedItems = [], activities = [], importedBookingPins = [] }: { activeDay: number | null; flyTarget?: { lat: number; lng: number } | null; onFlyTargetConsumed?: () => void; tripId?: string; destinationCity?: string | null; destinationCountry?: string | null; savedItems?: MapSavedItem[]; activities?: MapSavedItem[]; importedBookingPins?: ImportedBookingPin[] }) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -165,6 +166,7 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
     if (!initializedRef.current || !mapRef.current) return;
     let filteredSaved: typeof allSavedItems;
     let filteredActivities: typeof activities;
+    let filteredBookings: typeof importedBookingPins;
     if (activeDay !== null) {
       // Strict match: only show items whose dayIndex equals the active day.
       // Items with null/undefined dayIndex are excluded — never shown as a fallback.
@@ -172,17 +174,23 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
         s => s.dayIndex != null && (s.dayIndex === activeDay || (s as any).day_index === activeDay)
       );
       filteredActivities = activities.filter(a => a.dayIndex != null && a.dayIndex === activeDay);
+      filteredBookings = importedBookingPins.filter(
+        p => p.dayIndex != null && p.dayIndex === activeDay && p.latitude !== 0 && p.longitude !== 0
+      );
     } else {
       filteredSaved = allSavedItems;
       filteredActivities = activities;
+      filteredBookings = importedBookingPins.filter(p => p.latitude !== 0 && p.longitude !== 0);
     }
+    const offset = filteredSaved.length + filteredActivities.length;
     const allFiltered = [
       ...filteredSaved.map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" })),
       ...filteredActivities.map((a, i) => ({ num: filteredSaved.length + i + 1, label: a.title, lat: a.lat, lng: a.lng, color: "#2E7D52" })),
+      ...filteredBookings.map((p, i) => ({ num: offset + i + 1, label: p.title, lat: p.latitude, lng: p.longitude, color: "#C4664A" })),
     ];
     addMarkersInternal(allFiltered);
     flyToDay(mapRef.current, mapboxRef.current, allFiltered, destCoords);
-  }, [activeDay, allSavedItems, activities]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeDay, allSavedItems, activities, importedBookingPins]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fly to a specific coordinate when flyTarget is set
   useEffect(() => {
@@ -210,9 +218,15 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
   function getActiveMarkers(): MarkerDef[] {
     const filteredSaved = activeDay !== null ? allSavedItems.filter(s => s.dayIndex === activeDay) : allSavedItems;
     const filteredActs = activeDay !== null ? activities.filter(a => a.dayIndex === activeDay) : activities;
+    const filteredBookings = (activeDay !== null
+      ? importedBookingPins.filter(p => p.dayIndex === activeDay)
+      : importedBookingPins
+    ).filter(p => p.latitude !== 0 && p.longitude !== 0);
+    const offset = filteredSaved.length + filteredActs.length;
     return [
       ...filteredSaved.map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" })),
       ...filteredActs.map((a, i) => ({ num: filteredSaved.length + i + 1, label: a.title, lat: a.lat, lng: a.lng, color: "#2E7D52" })),
+      ...filteredBookings.map((p, i) => ({ num: offset + i + 1, label: p.title, lat: p.latitude, lng: p.longitude, color: "#C4664A" })),
     ];
   }
 

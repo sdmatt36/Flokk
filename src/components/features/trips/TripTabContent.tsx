@@ -2686,7 +2686,19 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
 
         {/* Right panel: map — stacks below on mobile, sticky sidebar on desktop */}
         <div style={{ width: isDesktop ? "42%" : "100%", position: isDesktop ? "sticky" : "relative", top: 0, height: isDesktop ? (leftHeight ? `${leftHeight}px` : "500px") : "300px", minHeight: "260px", maxHeight: "600px" }}>
-          <TripMap activeDay={openDay >= 0 ? openDay : null} flyTarget={flyTarget} onFlyTargetConsumed={onFlyTargetConsumed} tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} savedItems={recAdditions.filter(a => a.lat != null && a.lng != null) as { title: string; lat: number; lng: number; dayIndex?: number | null }[]} activities={[...localActivities.filter(a => a.lat != null && a.lng != null).map(a => ({ title: a.title, lat: a.lat!, lng: a.lng!, dayIndex: a.dayIndex })), ...localItineraryItems.filter(it => it.latitude != null && it.longitude != null).map(it => ({ title: it.title, lat: it.latitude!, lng: it.longitude!, dayIndex: it.dayIndex ?? null }))]} />
+          <TripMap
+            activeDay={openDay >= 0 ? openDay : null}
+            flyTarget={flyTarget}
+            onFlyTargetConsumed={onFlyTargetConsumed}
+            tripId={tripId}
+            destinationCity={destinationCity}
+            destinationCountry={destinationCountry}
+            savedItems={recAdditions.filter(a => a.lat != null && a.lng != null) as { title: string; lat: number; lng: number; dayIndex?: number | null }[]}
+            activities={localActivities.filter(a => a.lat != null && a.lng != null).map(a => ({ title: a.title, lat: a.lat!, lng: a.lng!, dayIndex: a.dayIndex }))}
+            importedBookingPins={localItineraryItems
+              .filter(it => it.latitude != null && it.longitude != null && it.latitude !== 0 && it.longitude !== 0)
+              .map(it => ({ id: it.id, title: it.title, type: it.type, dayIndex: it.dayIndex ?? null, latitude: it.latitude!, longitude: it.longitude! }))}
+          />
         </div>{/* end right panel */}
 
       </div>
