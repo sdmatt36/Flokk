@@ -1713,20 +1713,56 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [lodgingSaving, setLodgingSaving] = useState(false);
   const [dragErrorToast, setDragErrorToast] = useState<string | null>(null);
   const [openMoveMenuId, setOpenMoveMenuId] = useState<string | null>(null);
+  const [moveMenuAnchor, setMoveMenuAnchor] = useState<{ top: number; left: number; width: number } | null>(null);
+  const moveMenuRef = useRef<HTMLDivElement | null>(null);
 
-  // Close move menu on outside click
+  // Close move menu on mousedown outside the dropdown
   useEffect(() => {
     if (!openMoveMenuId) return;
-    const handler = () => setOpenMoveMenuId(null);
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
+    const handler = (e: MouseEvent) => {
+      if (moveMenuRef.current && moveMenuRef.current.contains(e.target as Node)) return;
+      setOpenMoveMenuId(null);
+      setMoveMenuAnchor(null);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, [openMoveMenuId]);
+
+  // Pre-compute trip days at component level so the portal dropdown can reference them
+  const tripDaysAll = generateTripDays(tripStartDate ?? null, tripEndDate ?? null);
 
   // Sync local copies from props (new items added, etc.)
   useEffect(() => { setLocalActivities(activities); }, [activities]);
   useEffect(() => { setLocalFlights(flights); }, [flights]);
 
-  // ── Drag handlers — clean rebuild ────────────────────────────────────────
+  // ── Semantic sort weight ──────────────────────────────────────────────────
+  // Used ONLY for initial sortOrder assignment on first load.
+  // After that, items are sorted purely by their persisted sortOrder value.
+  //
+  //  10 — FLIGHT arrival   20 — LODGING check-in   50 — activities / saved
+  //  70 — TRAIN            80 — LODGING check-out  90 — FLIGHT departure
+  function getItemSortWeight(item: UnifiedDayItem): number {
+    const dest = (destinationCity ?? "").toLowerCase().trim();
+    function matchesDest(city: string | null | undefined): boolean {
+      if (!dest || !city) return false;
+      const c = city.toLowerCase();
+      return c.includes(dest) || dest.split(/[\s,/-]+/).some(w => w.length > 2 && c.includes(w));
+    }
+    if (item.itemType === "itinerary" && item.itineraryItem) {
+      const it = item.itineraryItem;
+      if (it.type === "FLIGHT") return (matchesDest(it.toCity) || matchesDest(it.toAirport)) ? 10 : 90;
+      if (it.type === "LODGING") return it.title.toLowerCase().includes("check-out") ? 80 : 20;
+      if (it.type === "TRAIN") return 70;
+      return 50;
+    }
+    if (item.itemType === "flight" && item.flight) {
+      const f = item.flight;
+      if (f.type === "outbound") return 10;
+      if (f.type === "return") return 90;
+      return matchesDest(f.toCity) || matchesDest(f.toAirport) ? 10 : 90;
+    }
+    return 50;
+  }
 
   /** Build the sorted UnifiedDayItem list for any given dayIndex (extracted from render) */
   function buildDayItems(targetDayIndex: number): UnifiedDayItem[] {
@@ -1814,62 +1850,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         lng: it.longitude ?? null,
         itineraryItem: it,
       })),
-    ].sort((a, b) => {
-      const wA = getItemSortWeight(a);
-      const wB = getItemSortWeight(b);
-      if (wA !== wB) return wA - wB;
-      // Same category: sort by departure/start time
-      const tA = timeToMinutes(a.startTime);
-      const tB = timeToMinutes(b.startTime);
-      if (tA !== tB) return tA - tB;
-      // Same time: preserve user's manual sortOrder
-      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
-    });
-
-    // ── semantic sort weight ─────────────────────────────────────────────────
-    // Priority within a day:
-    //  10 — FLIGHT arrival (family just landed)
-    //  20 — LODGING check-in
-    //  50 — activities / saved places (default mid-day)
-    //  70 — TRAIN departure
-    //  80 — LODGING check-out
-    //  90 — FLIGHT departure (going to the airport)
-    function getItemSortWeight(item: UnifiedDayItem): number {
-      const dest = (destinationCity ?? "").toLowerCase().trim();
-
-      // True if a city/airport string references the trip destination
-      function matchesDest(city: string | null | undefined): boolean {
-        if (!dest || !city) return false;
-        const c = city.toLowerCase();
-        return c.includes(dest) || dest.split(/[\s,/-]+/).some(w => w.length > 2 && c.includes(w));
-      }
-
-      if (item.itemType === "itinerary" && item.itineraryItem) {
-        const it = item.itineraryItem;
-        if (it.type === "FLIGHT") {
-          // Arrival = toCity or toAirport contains destination city
-          const isArrival = matchesDest(it.toCity) || matchesDest(it.toAirport);
-          return isArrival ? 10 : 90;
-        }
-        if (it.type === "LODGING") {
-          return it.title.toLowerCase().includes("check-out") ? 80 : 20;
-        }
-        if (it.type === "TRAIN") return 70;
-        return 50; // ACTIVITY, OTHER
-      }
-
-      if (item.itemType === "flight" && item.flight) {
-        const f = item.flight;
-        // Flight model stores type "outbound" (→ destination = arrival) or "return"
-        if (f.type === "outbound") return 10;
-        if (f.type === "return") return 90;
-        // Fallback: city match
-        return matchesDest(f.toCity) || matchesDest(f.toAirport) ? 10 : 90;
-      }
-
-      // Saved places and manual activities — middle of the day
-      return 50;
-    }
+    // Sort purely by sortOrder — semantic weight is baked into the initial sortOrder
+    // values on first load (see initialization effects below), so manual reordering
+    // always wins without the semantic weight overriding on every re-render.
+    ].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }
 
 
@@ -1901,6 +1885,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     if (currentIndex === -1) return;
     const newIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
     if (newIndex < 0 || newIndex >= dayItems.length) return;
+    console.log("[reorder] moving item at index", currentIndex, "to", newIndex, "in day", dayIdx, "sortId:", sortId);
 
     const reordered = localArrayMove(dayItems, currentIndex, newIndex);
     reordered.forEach((item, i) => {
@@ -2012,13 +1997,48 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       .catch(e => console.error("[ItineraryRead] API fetch failed:", e));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch email-imported ItineraryItems (LODGING, TRAIN, etc. — not FLIGHT)
+  // Fetch email-imported ItineraryItems (LODGING, TRAIN, FLIGHT, etc.)
+  // On first load (all sortOrders = 0), assign semantic-weight-based initial
+  // sortOrders so the default day order is sensible, then persist to DB.
+  // After that, sortOrder is the single source of truth — handleReorder just
+  // swaps sortOrder values and re-renders in the new order.
   useEffect(() => {
     if (!tripId) return;
     fetch(`/api/trips/${tripId}/itinerary-items`)
       .then(r => r.json())
       .then(({ items }: { items: ItineraryItemLocal[] }) => {
-        if (Array.isArray(items)) setLocalItineraryItems(items);
+        if (!Array.isArray(items) || items.length === 0) return;
+        const allZero = items.every(it => (it.sortOrder ?? 0) === 0);
+        if (allZero) {
+          // Group by dayIndex, sort each day semantically, assign sortOrder = weight * 10
+          const byDay = new Map<number, ItineraryItemLocal[]>();
+          for (const it of items) {
+            const d = it.dayIndex ?? 0;
+            if (!byDay.has(d)) byDay.set(d, []);
+            byDay.get(d)!.push(it);
+          }
+          const initialized = [...items];
+          for (const dayItems of byDay.values()) {
+            // Compute semantic weight using a temporary UnifiedDayItem wrapper
+            const withWeight = dayItems.map(it => ({
+              it,
+              w: getItemSortWeight({ sortId: `itinerary_${it.id}`, itemType: "itinerary" as const, sortOrder: 0, rawId: it.id, itineraryItem: it }),
+            }));
+            withWeight.sort((a, b) => a.w - b.w);
+            withWeight.forEach(({ it }, i) => {
+              const idx = initialized.findIndex(x => x.id === it.id);
+              if (idx !== -1) initialized[idx] = { ...initialized[idx], sortOrder: i };
+              fetch(`/api/trips/${tripId}/itinerary/${it.id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sortOrder: i }),
+              }).catch(e => console.error("[initSortOrder itinerary]", e));
+            });
+          }
+          setLocalItineraryItems(initialized);
+        } else {
+          setLocalItineraryItems(items);
+        }
       })
       .catch(() => {});
   }, [tripId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -2590,30 +2610,22 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                         );
                                       })()}
 
-                                  {/* Move to day dropdown */}
-                                  <div style={{ position: "relative", flexShrink: 0, marginLeft: "6px", display: "flex", alignItems: "center" }}>
+                                  {/* Move to day — button only; dropdown rendered via portal below */}
+                                  <div style={{ flexShrink: 0, marginLeft: "6px", display: "flex", alignItems: "center" }}>
                                     <button
-                                      onClick={e => { e.stopPropagation(); setOpenMoveMenuId(prev => prev === item.sortId ? null : item.sortId); }}
+                                      onClick={e => {
+                                        e.stopPropagation();
+                                        if (openMoveMenuId === item.sortId) {
+                                          setOpenMoveMenuId(null);
+                                          setMoveMenuAnchor(null);
+                                        } else {
+                                          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                                          setMoveMenuAnchor({ top: rect.bottom + 4, left: rect.right, width: rect.width });
+                                          setOpenMoveMenuId(item.sortId);
+                                        }
+                                      }}
                                       style={{ background: "none", border: "none", cursor: "pointer", fontSize: "11px", color: "#AAAAAA", padding: "4px 5px", borderRadius: "6px", fontWeight: 500, whiteSpace: "nowrap", lineHeight: 1 }}
                                     >Move</button>
-                                    {openMoveMenuId === item.sortId && (
-                                      <div
-                                        onClick={e => e.stopPropagation()}
-                                        style={{ position: "absolute", right: 0, top: "100%", zIndex: 200, backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.12)", borderRadius: "10px", boxShadow: "0 4px 16px rgba(0,0,0,0.12)", minWidth: "155px", padding: "4px 0" }}
-                                      >
-                                        {tripDays.map(d => (
-                                          <button
-                                            key={d.dayIndex}
-                                            disabled={d.dayIndex === dayIndex}
-                                            onClick={() => { handleCrossDayMove(item.sortId, d.dayIndex); setOpenMoveMenuId(null); }}
-                                            style={{ display: "flex", alignItems: "center", gap: "6px", width: "100%", background: "none", border: "none", cursor: d.dayIndex === dayIndex ? "default" : "pointer", fontSize: "12px", color: d.dayIndex === dayIndex ? "#C4664A" : "#333", padding: "8px 14px", textAlign: "left", fontWeight: d.dayIndex === dayIndex ? 700 : 400 }}
-                                          >
-                                            <span style={{ width: "10px", flexShrink: 0, fontSize: "10px" }}>{d.dayIndex === dayIndex ? "✓" : ""}</span>
-                                            <span>{d.label} — {d.shortDate}</span>
-                                          </button>
-                                        ))}
-                                      </div>
-                                    )}
                                   </div>
                                 </div>,
                                 // Transit row between consecutive timed+coordinated items
@@ -2684,6 +2696,69 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
             );
           })()}
         </div>{/* end left panel */}
+
+        {/* Move-to-day portal dropdown — rendered at document.body to escape overflow:hidden containers */}
+        {typeof window !== "undefined" && openMoveMenuId && moveMenuAnchor && createPortal(
+          <div
+            ref={moveMenuRef}
+            style={{
+              position: "fixed",
+              top: moveMenuAnchor.top,
+              left: Math.max(8, moveMenuAnchor.left - 160),
+              zIndex: 9999,
+              backgroundColor: "#fff",
+              border: "1px solid #e2e8f0",
+              borderRadius: "8px",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+              minWidth: "160px",
+              maxHeight: "300px",
+              overflowY: "auto",
+              padding: "4px 0",
+            }}
+          >
+            {tripDaysAll.map(d => {
+              // Extract current day from the openMoveMenuId's context — find the item
+              const activeSortId = openMoveMenuId;
+              let currentDayIndex: number | null = null;
+              if (activeSortId.startsWith("saved_")) {
+                const rawId = activeSortId.slice(6);
+                currentDayIndex = recAdditions.find(r => (r.savedItemId ?? r.title) === rawId)?.dayIndex ?? null;
+              } else if (activeSortId.startsWith("activity_")) {
+                currentDayIndex = localActivities.find(a => a.id === activeSortId.slice(9))?.dayIndex ?? null;
+              } else if (activeSortId.startsWith("flight_")) {
+                currentDayIndex = localFlights.find(f => f.id === activeSortId.slice(7))?.dayIndex ?? null;
+              } else if (activeSortId.startsWith("itinerary_")) {
+                currentDayIndex = localItineraryItems.find(it => it.id === activeSortId.slice(10))?.dayIndex ?? null;
+              }
+              const isCurrent = d.dayIndex === currentDayIndex;
+              return (
+                <button
+                  key={d.dayIndex}
+                  disabled={isCurrent}
+                  onClick={() => {
+                    handleCrossDayMove(activeSortId, d.dayIndex);
+                    setOpenMoveMenuId(null);
+                    setMoveMenuAnchor(null);
+                  }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "6px",
+                    width: "100%", background: "none", border: "none",
+                    cursor: isCurrent ? "default" : "pointer",
+                    fontSize: "12px",
+                    color: isCurrent ? "#C4664A" : "#333",
+                    padding: "8px 14px",
+                    textAlign: "left",
+                    fontWeight: isCurrent ? 700 : 400,
+                  }}
+                >
+                  <span style={{ width: "10px", flexShrink: 0, fontSize: "10px" }}>{isCurrent ? "✓" : ""}</span>
+                  <span>{d.label} — {d.shortDate}</span>
+                </button>
+              );
+            })}
+          </div>,
+          document.body
+        )}
 
         {/* Right panel: map — stacks below on mobile, sticky sidebar on desktop */}
         <div style={{ width: isDesktop ? "42%" : "100%", position: isDesktop ? "sticky" : "relative", top: 0, height: isDesktop ? (leftHeight ? `${leftHeight}px` : "500px") : "300px", minHeight: "260px", maxHeight: "600px" }}>
