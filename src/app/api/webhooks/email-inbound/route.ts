@@ -7,28 +7,40 @@ export const maxDuration = 60;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// ── Guest name cleaning (FIX 3) ───────────────────────────────────────────────
-// Handles airline booking format: "LASTNAME FIRSTNAMEMIDDLE MR/MS/MSTR"
-// e.g. "GREENE JODYCOUGHLIN MS" → "Jodycoughlin Greene"
+// ── Guest name resolution ─────────────────────────────────────────────────────
+// Cross-references raw airline names against known family members.
+// Airline format is typically: "LASTNAME FIRSTNAMEMIDDLE MR/MS/MSTR"
 
-function cleanGuestName(raw: string): string {
-  // Remove trailing title
-  const withoutTitle = raw.replace(/\b(MR|MRS|MS|DR|MISS|MSTR)\.?\s*$/gi, "").trim();
+type KnownMember = { name: string | null };
 
-  const parts = withoutTitle.trim().split(/\s+/);
+function resolveGuestName(raw: string, knownMembers: KnownMember[]): string {
+  // Strip trailing title
+  const cleaned = raw.replace(/\b(MR|MRS|MS|DR|MISS|MSTR)\.?\s*$/gi, "").trim().toLowerCase();
 
-  if (parts.length < 2) {
-    return parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+  // Try to match against known family members by splitting their stored name
+  for (const member of knownMembers) {
+    if (!member.name) continue;
+    const nameParts = member.name.trim().split(/\s+/);
+    const first = nameParts[0]?.toLowerCase() ?? "";
+    const last  = nameParts[nameParts.length - 1]?.toLowerCase() ?? "";
+
+    // Match if cleaned airline string contains the member's first name
+    if (first && cleaned.includes(first)) {
+      return member.name;
+    }
+    // Also match on last name + first 3 chars of first name
+    if (last && first && cleaned.includes(last) && cleaned.includes(first.slice(0, 3))) {
+      return member.name;
+    }
   }
 
-  // First part is lastname, remaining are firstname(s)
-  const lastName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
-
-  const firstParts = parts.slice(1).map((p) => {
-    return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
-  });
-
-  return [...firstParts, lastName].join(" ");
+  // Fallback: strip title, treat first token as last name, move to end
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return raw;
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+  const lastName  = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+  const firstNames = parts.slice(1).map((p) => p.charAt(0).toUpperCase() + p.slice(1));
+  return [...firstNames, lastName].join(" ");
 }
 
 // ── Cost parsing ──────────────────────────────────────────────────────────────
@@ -124,6 +136,14 @@ export async function POST(req: NextRequest) {
       trips = await db.trip.findMany({ where: { familyProfileId: familyProfile.id } });
     }
 
+    // Fetch family members for name cross-referencing
+    const familyWithMembers = await db.familyProfile.findUnique({
+      where: { id: familyProfile.id },
+      include: { members: true },
+    });
+    const knownMembers = familyWithMembers?.members ?? [];
+    console.log("[email-inbound] known members:", knownMembers.map((m) => m.name));
+
     // ── Claude extraction ──────────────────────────────────────────────────────
     const emailContent = text
       ? text.substring(0, 8000)
@@ -197,10 +217,11 @@ Return this exact JSON structure:
       return NextResponse.json({ received: true, status: "low_confidence" });
     }
 
-    // Clean guest names
+    // Resolve guest names against known family members
     if (Array.isArray(extracted.guestNames)) {
-      extracted.guestNames = (extracted.guestNames as string[]).map(cleanGuestName);
+      extracted.guestNames = (extracted.guestNames as string[]).map((n) => resolveGuestName(n, knownMembers));
     }
+    console.log("[email-inbound] resolved passengers:", extracted.guestNames);
 
     console.log("[email-inbound] parsed:", JSON.stringify(extracted));
     console.log("[email-inbound] airports — fromAirport:", extracted.fromAirport, "| toAirport:", extracted.toAirport, "| fromCity:", extracted.fromCity, "| toCity:", extracted.toCity, "| returnFromAirport:", extracted.returnFromAirport, "| returnToAirport:", extracted.returnToAirport);
