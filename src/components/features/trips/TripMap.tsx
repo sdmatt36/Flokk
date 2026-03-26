@@ -160,18 +160,21 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
     return () => observer.disconnect();
   }, []);
 
-  // Respond to day changes — show pins for items on that day (or all if day=0)
+  // Respond to day changes — show pins for items on that day only
   useEffect(() => {
     if (!initializedRef.current || !mapRef.current) return;
-    let filteredSaved = allSavedItems;
-    let filteredActivities = activities;
+    let filteredSaved: typeof allSavedItems;
+    let filteredActivities: typeof activities;
     if (activeDay !== null) {
-      filteredSaved = allSavedItems.filter(s => s.dayIndex === activeDay || (s as any).day_index === activeDay);
-      filteredActivities = activities.filter(a => a.dayIndex === activeDay);
-      if (filteredSaved.length === 0 && filteredActivities.length === 0) {
-        filteredSaved = allSavedItems;
-        filteredActivities = activities;
-      }
+      // Strict match: only show items whose dayIndex equals the active day.
+      // Items with null/undefined dayIndex are excluded — never shown as a fallback.
+      filteredSaved = allSavedItems.filter(
+        s => s.dayIndex != null && (s.dayIndex === activeDay || (s as any).day_index === activeDay)
+      );
+      filteredActivities = activities.filter(a => a.dayIndex != null && a.dayIndex === activeDay);
+    } else {
+      filteredSaved = allSavedItems;
+      filteredActivities = activities;
     }
     const allFiltered = [
       ...filteredSaved.map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" })),

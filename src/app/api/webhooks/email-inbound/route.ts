@@ -67,14 +67,19 @@ function tripMatchesDestination(
 
 // ── dayIndex helper ──────────────────────────────────────────────────────────
 
-async function getDayIndex(tripId: string, dateStr: string): Promise<number | null> {
-  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true } });
-  if (!trip?.startDate) return null;
+async function getDayIndex(tripId: string, dateStr: string): Promise<number> {
+  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } });
+  if (!trip?.startDate) return 0;
   const rawStart = new Date(trip.startDate);
   const shiftedStart = new Date(rawStart.getTime() + 12 * 60 * 60 * 1000);
   const start = new Date(shiftedStart.getUTCFullYear(), shiftedStart.getUTCMonth(), shiftedStart.getUTCDate());
   const [y, m, d] = dateStr.split("-").map(Number);
-  return Math.round((new Date(y, m - 1, d).getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  const idx = Math.round((new Date(y, m - 1, d).getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  const duration = trip.endDate
+    ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24))
+    : 30;
+  if (idx < 0 || idx > duration) return 0;
+  return idx;
 }
 
 // ── Route handler ──────────────────────────────────────────────────────────────
