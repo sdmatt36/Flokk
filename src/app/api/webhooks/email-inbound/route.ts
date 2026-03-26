@@ -7,52 +7,28 @@ export const maxDuration = 60;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-// ── Guest name cleaning ────────────────────────────────────────────────────────
-
-const TITLE_SUFFIXES = new Set(["MR", "MS", "MRS", "MSTR", "DR"]);
-
-const COMMON_FIRST_NAMES: string[] = [
-  "STEPHANIE","MARGARET","VICTORIA","KIMBERLY","JENNIFER","PATRICIA","JESSICA",
-  "MATTHEW","MICHAEL","WILLIAM","CHARLES","RICHARD","TIMOTHY","STEPHEN","BARBARA",
-  "DOUGLAS","JEFFREY","ANTHONY","RAYMOND","RUSSELL","BRADLEY","STANLEY",
-  "SANDRA","GEORGE","DONALD","THOMAS","ROBERT","DANIEL","ARTHUR","WALTER",
-  "OLIVER","SOPHIA","RACHEL","MEGAN","KAREN","HELEN","GRACE","EMILY",
-  "DIANE","DONNA","CAROL","ALICE","SARAH","LAURA","ROBIN","NANCY",
-  "HOLLY","JULIA","MARIA","LINDA","DIANA","CLAIRE","SANDY","JANET",
-  "MILES","SCOTT","BRIAN","PETER","ROGER","JAMES","FRANK","DAVID",
-  "JASON","KEVIN","BRYAN","DEREK","BLAKE","BRETT","LANCE","BARRY",
-  "BRUCE","CRAIG","FLOYD","GRANT","PERRY","RALPH","RANDY","TERRY",
-  "VINCE","WADE","BEAU","JOHN","JANE","MARY","ANNE","KATE","LILY",
-  "ROSE","JACK","JODY","ERIC","ALAN","ADAM","ALEX","ANNA","BETH",
-  "CARL","DANA","DAVE","EVAN","GLEN","GREG","IVAN","JADE","JOEL",
-  "JOSH","JUNE","KARL","KENT","KURT","LARS","LEAH","LEON","LISA",
-  "LORI","LUIS","LYNN","MARC","MIKE","NEIL","NICK","NINA","PETE",
-  "PHIL","RICK","RITA","RORY","ROSS","RUBY","RYAN","SEAN","SETH",
-  "STAN","TARA","THEO","TINA","TODD","TROY","VERA","AMY","BOB",
-  "KIM","RON","TOM","TIM","SUE","JOE","DAN","RAY","PAT","LEE",
-  "KEN","ZAC","MAX","SAM","IAN",
-].sort((a, b) => b.length - a.length);
-
-function splitCompoundGivenName(compound: string): string {
-  const upper = compound.toUpperCase();
-  for (const name of COMMON_FIRST_NAMES) {
-    if (upper.startsWith(name) && upper.length > name.length + 2) return name;
-  }
-  return compound;
-}
-
-function tc(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-}
+// ── Guest name cleaning (FIX 3) ───────────────────────────────────────────────
+// Handles airline booking format: "LASTNAME FIRSTNAMEMIDDLE MR/MS/MSTR"
+// e.g. "GREENE JODYCOUGHLIN MS" → "Jodycoughlin Greene"
 
 function cleanGuestName(raw: string): string {
-  const parts = raw.trim().split(/\s+/);
-  while (parts.length > 0 && TITLE_SUFFIXES.has(parts[parts.length - 1].toUpperCase())) parts.pop();
-  if (parts.length === 0) return raw;
-  const surname = parts[0];
-  if (parts.length === 1) return tc(surname);
-  const firstName = splitCompoundGivenName(parts.slice(1).join(""));
-  return `${tc(firstName)} ${tc(surname)}`;
+  // Remove trailing title
+  const withoutTitle = raw.replace(/\b(MR|MRS|MS|DR|MISS|MSTR)\.?\s*$/gi, "").trim();
+
+  const parts = withoutTitle.trim().split(/\s+/);
+
+  if (parts.length < 2) {
+    return parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+  }
+
+  // First part is lastname, remaining are firstname(s)
+  const lastName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1).toLowerCase();
+
+  const firstParts = parts.slice(1).map((p) => {
+    return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
+  });
+
+  return [...firstParts, lastName].join(" ");
 }
 
 // ── Cost parsing ──────────────────────────────────────────────────────────────
@@ -227,6 +203,7 @@ Return this exact JSON structure:
     }
 
     console.log("[email-inbound] parsed:", JSON.stringify(extracted));
+    console.log("[email-inbound] airports — fromAirport:", extracted.fromAirport, "| toAirport:", extracted.toAirport, "| fromCity:", extracted.fromCity, "| toCity:", extracted.toCity, "| returnFromAirport:", extracted.returnFromAirport, "| returnToAirport:", extracted.returnToAirport);
 
     // ── Match trip ─────────────────────────────────────────────────────────────
     const bookingDate = (extracted.checkIn ?? extracted.departureDate) as string | null;
@@ -308,7 +285,11 @@ Return this exact JSON structure:
         ? await getDayIndex(resolvedTripId, extracted.departureDate as string)
         : null;
 
-      const outboundTitle = `${extracted.fromAirport ?? extracted.fromCity ?? "?"} → ${extracted.toAirport ?? extracted.toCity ?? "?"}`;
+      const outboundFrom = (extracted.fromAirport as string | null) || (extracted.fromCity as string | null) || null;
+      const outboundTo   = (extracted.toAirport   as string | null) || (extracted.toCity   as string | null) || null;
+      const outboundTitle = outboundFrom && outboundTo
+        ? `${outboundFrom} → ${outboundTo}`
+        : outboundFrom ? `${outboundFrom} → (destination)` : outboundTo ? `(origin) → ${outboundTo}` : (extracted.flightNumber as string) ?? "Flight";
 
       // Outbound ItineraryItem
       const outboundItem = await db.itineraryItem.create({
@@ -351,26 +332,28 @@ Return this exact JSON structure:
         },
       });
 
-      // Outbound vault doc
-      if (matchedTrip) {
-        await db.tripDocument.create({
-          data: {
-            tripId: matchedTrip.id,
-            label: `${(extracted.airline as string) ?? ""} ${extracted.flightNumber as string}`.trim(),
-            type: "booking",
-            content: JSON.stringify({
-              type: "flight", vendorName: extracted.airline, flightNumber: extracted.flightNumber,
-              airline: extracted.airline, fromAirport: extracted.fromAirport, toAirport: extracted.toAirport,
-              fromCity: extracted.fromCity, toCity: extracted.toCity,
-              departureDate: extracted.departureDate, departureTime: extracted.departureTime,
-              arrivalDate: extracted.arrivalDate, arrivalTime: extracted.arrivalTime,
-              confirmationCode: extracted.confirmationCode,
-              totalCost: extracted.totalCost, currency: extracted.currency,
-              guestNames: extracted.guestNames, returnDepartureDate: extracted.returnDepartureDate,
-            }),
-          },
-        });
-      }
+      // Outbound vault doc — always create using resolvedTripId
+      const outboundVaultLabel = outboundFrom && outboundTo
+        ? `${outboundFrom} → ${outboundTo}`
+        : `${(extracted.airline as string) ?? ""} ${extracted.flightNumber as string}`.trim();
+      await db.tripDocument.create({
+        data: {
+          tripId: resolvedTripId,
+          label: outboundVaultLabel,
+          type: "booking",
+          content: JSON.stringify({
+            type: "flight", vendorName: extracted.airline, flightNumber: extracted.flightNumber,
+            airline: extracted.airline, fromAirport: extracted.fromAirport, toAirport: extracted.toAirport,
+            fromCity: extracted.fromCity, toCity: extracted.toCity,
+            departureDate: extracted.departureDate, departureTime: extracted.departureTime,
+            arrivalDate: extracted.arrivalDate, arrivalTime: extracted.arrivalTime,
+            confirmationCode: extracted.confirmationCode,
+            totalCost: extracted.totalCost, currency: extracted.currency,
+            guestNames: extracted.guestNames, returnDepartureDate: extracted.returnDepartureDate,
+          }),
+        },
+      });
+      console.log("[email-inbound] created outbound vault doc for trip:", resolvedTripId);
 
       // FIX 2: Return flight ItineraryItem
       if (extracted.returnDepartureDate) {
@@ -417,27 +400,32 @@ Return this exact JSON structure:
           },
         });
 
-        // Return vault doc
-        if (matchedTrip) {
-          await db.tripDocument.create({
-            data: {
-              tripId: matchedTrip.id,
-              label: `${(extracted.airline as string) ?? ""} ${extracted.flightNumber as string} (return)`.trim(),
-              type: "booking",
-              content: JSON.stringify({
-                type: "flight", vendorName: extracted.airline,
-                flightNumber: ((extracted.flightNumber as string) ?? "") + " (return)",
-                airline: extracted.airline,
-                fromAirport: extracted.returnFromAirport, toAirport: extracted.returnToAirport,
-                fromCity: extracted.toCity, toCity: extracted.fromCity,
-                departureDate: extracted.returnDepartureDate, departureTime: extracted.returnDepartureTime,
-                arrivalDate: extracted.returnArrivalDate ?? null, arrivalTime: extracted.returnArrivalTime ?? null,
-                confirmationCode: extracted.confirmationCode,
-                totalCost: null, currency: extracted.currency, guestNames: extracted.guestNames,
-              }),
-            },
-          });
-        }
+        // Return vault doc — always create using resolvedTripId
+        const returnVaultFrom = (extracted.returnFromAirport as string | null) || (extracted.toAirport as string | null) || null;
+        const returnVaultTo   = (extracted.returnToAirport   as string | null) || (extracted.fromAirport as string | null) || null;
+        const returnVaultLabel = returnVaultFrom && returnVaultTo
+          ? `${returnVaultFrom} → ${returnVaultTo}`
+          : `${(extracted.airline as string) ?? ""} ${extracted.flightNumber as string} (return)`.trim();
+        await db.tripDocument.create({
+          data: {
+            tripId: resolvedTripId,
+            label: returnVaultLabel,
+            type: "booking",
+            content: JSON.stringify({
+              type: "flight", vendorName: extracted.airline,
+              flightNumber: ((extracted.flightNumber as string) ?? "") + " (return)",
+              airline: extracted.airline,
+              fromAirport: extracted.returnFromAirport ?? extracted.toAirport,
+              toAirport: extracted.returnToAirport ?? extracted.fromAirport,
+              fromCity: extracted.toCity, toCity: extracted.fromCity,
+              departureDate: extracted.returnDepartureDate, departureTime: extracted.returnDepartureTime,
+              arrivalDate: extracted.returnArrivalDate ?? null, arrivalTime: extracted.returnArrivalTime ?? null,
+              confirmationCode: extracted.confirmationCode,
+              totalCost: null, currency: extracted.currency, guestNames: extracted.guestNames,
+            }),
+          },
+        });
+        console.log("[email-inbound] created return vault doc for trip:", resolvedTripId);
       }
 
       await incrementBudget(resolvedTripId, parsedCost);
