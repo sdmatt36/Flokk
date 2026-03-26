@@ -2077,6 +2077,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     setOpenDay(next);
   };
 
+  console.log('[parent] passing day to TripMap:', openDay >= 0 ? openDay : null);
+
   return (
     <div style={{ overflowX: "hidden" }}>
 
@@ -2470,7 +2472,6 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
 
         {/* Right panel: map — stacks below on mobile, sticky sidebar on desktop */}
         <div style={{ width: isDesktop ? "42%" : "100%", position: isDesktop ? "sticky" : "relative", top: 0, height: isDesktop ? (leftHeight ? `${leftHeight}px` : "500px") : "300px", minHeight: "260px", maxHeight: "600px" }}>
-          {console.log('[parent] passing day to TripMap:', openDay >= 0 ? openDay : null)}
           <TripMap activeDay={openDay >= 0 ? openDay : null} flyTarget={flyTarget} onFlyTargetConsumed={onFlyTargetConsumed} tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} savedItems={recAdditions.filter(a => a.lat != null && a.lng != null) as { title: string; lat: number; lng: number; dayIndex?: number | null }[]} activities={localActivities.filter(a => a.lat != null && a.lng != null).map(a => ({ title: a.title, lat: a.lat!, lng: a.lng!, dayIndex: a.dayIndex }))} />
         </div>{/* end right panel */}
 
