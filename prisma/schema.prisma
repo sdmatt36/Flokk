@@ -237,6 +237,7 @@ model Trip {
   budgetTotal           Float?
   budgetSpent           Float?
   budgetCurrency        String?           @default("USD")
+  isAnonymous           Boolean           @default(true)
 }
 
 enum TripStatus {

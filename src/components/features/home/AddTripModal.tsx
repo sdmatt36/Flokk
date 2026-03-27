@@ -33,6 +33,7 @@ function AddTripModal({ onClose }: { onClose: () => void }) {
   const [destination, setDestination] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [isAnonymous, setIsAnonymous] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -48,7 +49,7 @@ function AddTripModal({ onClose }: { onClose: () => void }) {
       const res = await fetch("/api/trips", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ destination, startDate, endDate }),
+        body: JSON.stringify({ destination, startDate, endDate, isAnonymous }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
@@ -180,6 +181,24 @@ function AddTripModal({ onClose }: { onClose: () => void }) {
                 }}
               />
             </div>
+          </div>
+
+          {/* Community sharing */}
+          <div style={{ paddingTop: "4px", borderTop: "1px solid #F0F0F0" }}>
+            <p style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a1a", marginBottom: "4px" }}>Community sharing</p>
+            <p style={{ fontSize: "12px", color: "#888", marginBottom: "10px" }}>Control how your name appears if this trip is shared with the Flokk community.</p>
+            <label style={{ display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={!isAnonymous}
+                onChange={(e) => setIsAnonymous(!e.target.checked)}
+                style={{ width: "16px", height: "16px", marginTop: "2px", accentColor: "#C4664A", cursor: "pointer", flexShrink: 0 }}
+              />
+              <div>
+                <span style={{ fontSize: "13px", color: "#1a1a1a" }}>Show our family name on community trips</span>
+                <p style={{ fontSize: "12px", color: "#AAAAAA", marginTop: "2px" }}>Off by default. When on, your family name appears on your trips in Discover.</p>
+              </div>
+            </label>
           </div>
 
           {error && (

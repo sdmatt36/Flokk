@@ -4195,7 +4195,7 @@ type SavedRec = {
   tags: string;
 };
 
-export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null }) {
+export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [itineraryVersion, setItineraryVersion] = useState(0);
@@ -4212,6 +4212,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [editingFlightVaultDocId, setEditingFlightVaultDocId] = useState<string | null>(null);
   const [editingVaultDoc, setEditingVaultDoc] = useState<{ id: string; label: string; content: Record<string, unknown> } | null>(null);
   const [vaultDocSaving, setVaultDocSaving] = useState(false);
+  const [isAnonymous, setIsAnonymous] = useState<boolean>(initialIsAnonymous);
 
   const fetchFlights = useCallback(() => {
     if (!tripId) return;
@@ -5044,6 +5045,36 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                 ))}
               </div>
             )}
+          </div>
+
+          {/* ── COMMUNITY SHARING ── */}
+          <div style={{ paddingTop: "8px" }}>
+            <div style={{ marginBottom: "14px" }}>
+              <p style={{ fontSize: "16px", fontWeight: 800, color: "#1a1a1a", marginBottom: "2px" }}>Community Sharing</p>
+              <p style={{ fontSize: "12px", color: "#717171" }}>Control how your name appears if this trip is shared with the Flokk community.</p>
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={!isAnonymous}
+                onChange={async (e) => {
+                  const newValue = !e.target.checked;
+                  setIsAnonymous(newValue);
+                  if (tripId) {
+                    await fetch(`/api/trips/${tripId}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ isAnonymous: newValue }),
+                    }).catch(console.error);
+                  }
+                }}
+                style={{ width: "16px", height: "16px", accentColor: "#C4664A", cursor: "pointer", flexShrink: 0 }}
+              />
+              <span style={{ fontSize: "14px", color: "#1a1a1a" }}>Show our family name on community trips</span>
+            </label>
+            <p style={{ fontSize: "12px", color: "#AAAAAA", marginTop: "6px", marginLeft: "28px" }}>
+              Off by default. When on, your family name appears on your trips in Discover.
+            </p>
           </div>
 
         </div>

@@ -128,6 +128,7 @@ type PublicTrip = {
   startDate: string | null;
   endDate: string | null;
   heroImageUrl: string | null;
+  isAnonymous: boolean;
   _count: { savedItems: number };
   familyProfile: { familyName: string | null } | null;
 };
@@ -424,7 +425,7 @@ export default function DiscoverPage() {
                   ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24))
                   : null;
                 const destination = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ");
-                const familyName = trip.familyProfile?.familyName;
+                const familyName = trip.isAnonymous ? "A Flokk family" : (trip.familyProfile?.familyName ?? null);
                 return (
                   <Link key={trip.id} href={`/trips/${trip.id}`} style={{ textDecoration: "none", display: "block" }}>
                     <div

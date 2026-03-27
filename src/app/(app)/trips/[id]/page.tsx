@@ -233,6 +233,7 @@ export default async function TripDetailPage({
           tripEndDate={trip.endDate ? trip.endDate.toISOString() : null}
           destinationCity={trip.destinationCity ?? null}
           destinationCountry={trip.destinationCountry ?? null}
+          initialIsAnonymous={trip.isAnonymous}
         />
       )}
 

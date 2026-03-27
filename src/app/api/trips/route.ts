@@ -36,11 +36,12 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const { destination, startDate, endDate, status } = body as {
+  const { destination, startDate, endDate, status, isAnonymous } = body as {
     destination: string;
     startDate: string;
     endDate: string;
     status?: string;
+    isAnonymous?: boolean;
   };
 
   if (!destination || !startDate || !endDate) {
@@ -71,6 +72,7 @@ export async function POST(req: Request) {
       status: (status === "COMPLETED" ? "COMPLETED" : "PLANNING") as "PLANNING" | "COMPLETED",
       privacy: "PRIVATE",
       heroImageUrl: staticCover ?? null,
+      isAnonymous: isAnonymous ?? true,
     },
   });
 

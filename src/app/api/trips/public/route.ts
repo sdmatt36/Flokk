@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
       startDate: true,
       endDate: true,
       heroImageUrl: true,
+      isAnonymous: true,
       _count: { select: { savedItems: true } },
       familyProfile: { select: { familyName: true } },
     },
