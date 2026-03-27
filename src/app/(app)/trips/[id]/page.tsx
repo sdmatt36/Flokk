@@ -234,6 +234,7 @@ export default async function TripDetailPage({
           destinationCity={trip.destinationCity ?? null}
           destinationCountry={trip.destinationCountry ?? null}
           initialIsAnonymous={trip.isAnonymous}
+          shareToken={trip.shareToken ?? undefined}
         />
       )}
 

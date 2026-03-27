@@ -130,7 +130,7 @@ type PublicTrip = {
   heroImageUrl: string | null;
   isAnonymous: boolean;
   _count: { savedItems: number };
-  familyProfile: { familyName: string | null } | null;
+  familyProfile: { familyName: string | null; homeCity: string | null } | null;
 };
 
 type SearchTrip = {
@@ -425,7 +425,13 @@ export default function DiscoverPage() {
                   ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24))
                   : null;
                 const destination = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ");
-                const familyName = trip.isAnonymous ? "A Flokk family" : (trip.familyProfile?.familyName ?? null);
+                const familyName = trip.isAnonymous
+                  ? "Flokk Family — Anonymous"
+                  : trip.familyProfile?.familyName
+                  ? trip.familyProfile.homeCity
+                    ? `${trip.familyProfile.familyName} Family, ${trip.familyProfile.homeCity}`
+                    : `${trip.familyProfile.familyName} Family`
+                  : null;
                 return (
                   <Link key={trip.id} href={`/trips/${trip.id}`} style={{ textDecoration: "none", display: "block" }}>
                     <div
@@ -447,7 +453,7 @@ export default function DiscoverPage() {
                           {nights ? `${nights} nights` : ""}
                           {nights && trip._count.savedItems > 0 ? " · " : ""}
                           {trip._count.savedItems > 0 ? `${trip._count.savedItems} saves` : ""}
-                          {familyName ? `${nights || trip._count.savedItems > 0 ? " · " : ""}by ${familyName}` : ""}
+                          {familyName ? `${nights || trip._count.savedItems > 0 ? " · " : ""}${familyName}` : ""}
                         </p>
                       </div>
                     </div>

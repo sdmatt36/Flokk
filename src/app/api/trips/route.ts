@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { sendTransactional } from "@/lib/loops";
+import { nanoid } from "nanoid";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,7 @@ export async function POST(req: Request) {
       privacy: "PRIVATE",
       heroImageUrl: staticCover ?? null,
       isAnonymous: isAnonymous ?? true,
+      shareToken: nanoid(12),
     },
   });
 

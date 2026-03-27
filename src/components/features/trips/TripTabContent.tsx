@@ -51,6 +51,8 @@ import {
   Waves,
   Weight,
   Share2,
+  Check,
+  Settings,
   ChevronDown,
   DollarSign,
   Star,
@@ -4195,7 +4197,7 @@ type SavedRec = {
   tags: string;
 };
 
-export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean }) {
+export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true, shareToken }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean; shareToken?: string }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [itineraryVersion, setItineraryVersion] = useState(0);
@@ -4213,6 +4215,9 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [editingVaultDoc, setEditingVaultDoc] = useState<{ id: string; label: string; content: Record<string, unknown> } | null>(null);
   const [vaultDocSaving, setVaultDocSaving] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState<boolean>(initialIsAnonymous);
+  const [anonymousSaved, setAnonymousSaved] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [showTripSettings, setShowTripSettings] = useState(false);
 
   const fetchFlights = useCallback(() => {
     if (!tripId) return;
@@ -4297,6 +4302,38 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
     })
       .then(() => setFlights(prev => prev.map(f => f.id === flightId ? { ...f, dayIndex: null } : f)))
       .catch(e => console.error("[removeFlightFromDay]", e));
+  }
+
+  async function handleShare() {
+    if (!shareToken) return;
+    const url = `https://www.flokktravel.com/share/${shareToken}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const el = document.createElement("textarea");
+      el.value = url;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2000);
+  }
+
+  async function handleAnonymousToggle(checked: boolean) {
+    setIsAnonymous(!checked);
+    try {
+      await fetch(`/api/trips/${tripId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isAnonymous: !checked }),
+      });
+      setAnonymousSaved(true);
+      setTimeout(() => setAnonymousSaved(false), 1500);
+    } catch {
+      setIsAnonymous(checked);
+    }
   }
 
   // ── Notes state ───────────────────────────────────────────────────────────
@@ -4470,6 +4507,35 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               }}
             >
               <Plus size={13} /> Save Link
+            </button>
+            {shareToken && (
+              <button
+                onClick={handleShare}
+                style={{
+                  display: "flex", alignItems: "center", gap: "4px",
+                  padding: "6px 12px",
+                  backgroundColor: "transparent", color: shareCopied ? "#6B8F71" : "#C4664A",
+                  border: `1.5px solid ${shareCopied ? "#6B8F71" : "#C4664A"}`, borderRadius: "20px",
+                  fontSize: "12px", fontWeight: 700, cursor: "pointer",
+                  whiteSpace: "nowrap",
+                  transition: "color 0.15s, border-color 0.15s",
+                }}
+              >
+                {shareCopied ? <><Check size={12} /> Link copied</> : <><Share2 size={12} /> Share trip</>}
+              </button>
+            )}
+            <button
+              onClick={() => setShowTripSettings(true)}
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center",
+                width: "30px", height: "30px",
+                backgroundColor: "transparent", color: "#AAAAAA",
+                border: "1.5px solid #EEEEEE", borderRadius: "50%",
+                cursor: "pointer", flexShrink: 0,
+              }}
+              title="Trip settings"
+            >
+              <Settings size={14} />
             </button>
           </div>
         )}
@@ -5047,36 +5113,6 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
             )}
           </div>
 
-          {/* ── COMMUNITY SHARING ── */}
-          <div style={{ paddingTop: "8px" }}>
-            <div style={{ marginBottom: "14px" }}>
-              <p style={{ fontSize: "16px", fontWeight: 800, color: "#1a1a1a", marginBottom: "2px" }}>Community Sharing</p>
-              <p style={{ fontSize: "12px", color: "#717171" }}>Control how your name appears if this trip is shared with the Flokk community.</p>
-            </div>
-            <label style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={!isAnonymous}
-                onChange={async (e) => {
-                  const newValue = !e.target.checked;
-                  setIsAnonymous(newValue);
-                  if (tripId) {
-                    await fetch(`/api/trips/${tripId}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ isAnonymous: newValue }),
-                    }).catch(console.error);
-                  }
-                }}
-                style={{ width: "16px", height: "16px", accentColor: "#C4664A", cursor: "pointer", flexShrink: 0 }}
-              />
-              <span style={{ fontSize: "14px", color: "#1a1a1a" }}>Show our family name on community trips</span>
-            </label>
-            <p style={{ fontSize: "12px", color: "#AAAAAA", marginTop: "6px", marginLeft: "28px" }}>
-              Off by default. When on, your family name appears on your trips in Discover.
-            </p>
-          </div>
-
         </div>
       )}
 
@@ -5171,6 +5207,48 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           document.body
         );
       })()}
+
+      {/* ── Trip Settings Modal ── */}
+      {showTripSettings && createPortal(
+        <div
+          onClick={() => setShowTripSettings(false)}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.45)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "560px", padding: "24px 20px 40px" }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+              <p style={{ fontSize: "17px", fontWeight: 800, color: "#1a1a1a" }}>Trip Settings</p>
+              <button onClick={() => setShowTripSettings(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#717171", padding: "4px" }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="pt-4 border-t border-gray-100">
+              <p className="text-sm font-semibold text-[#0A1628] mb-3">Community visibility</p>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!isAnonymous}
+                  onChange={(e) => handleAnonymousToggle(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-[#C4664A]"
+                />
+                <div>
+                  <p className="text-sm text-[#0A1628]">Show our family name on community trips</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    When on, your trip appears with your family name on Discover. Off by default.
+                  </p>
+                </div>
+              </label>
+              {anonymousSaved && (
+                <p className="text-xs text-green-600 mt-2 ml-7">Saved</p>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
