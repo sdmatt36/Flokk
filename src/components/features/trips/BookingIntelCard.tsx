@@ -225,10 +225,17 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
                         Book →
                       </a>
                     )}
-                    {item.status === "missing" && !item.bookingUrl && (
+                    {item.status === "missing" && !item.bookingUrl && item.category !== "flights" && (
                       <span style={{ fontSize: "12px", fontWeight: 700, color: "#C4664A" }}>
                         Book →
                       </span>
+                    )}
+                    {item.status === "missing" && item.category === "flights" && (
+                      <p style={{ fontSize: "12px", color: "#888", margin: 0, lineHeight: 1.45 }}>
+                        Forward your confirmation email to{" "}
+                        <span style={{ fontWeight: 600, color: "#1B3A5C" }}>trips@flokktravel.com</span>
+                        {" "}and it will appear here automatically.
+                      </p>
                     )}
                   </div>
                 </div>

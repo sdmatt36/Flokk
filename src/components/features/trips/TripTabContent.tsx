@@ -4418,12 +4418,19 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
 
   return (
     <div style={{ padding: "0 24px", maxWidth: "900px", margin: "0 auto" }}>
-      {/* Tab bar + Action buttons — two rows */}
-      <div style={{ borderBottom: "1px solid rgba(0,0,0,0.08)", marginBottom: "20px" }}>
-        {/* Row 1: tabs */}
+      {/* Tab bar + actions — single row */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          borderBottom: "1px solid rgba(0,0,0,0.08)",
+          marginBottom: "20px",
+        }}
+      >
         <div
           style={{
             display: "flex",
+            flex: 1,
             overflowX: "auto",
             WebkitOverflowScrolling: "touch" as const,
             scrollbarWidth: "none" as const,
@@ -4459,22 +4466,8 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
             );
           })}
         </div>
-        {/* Row 2: action buttons */}
         {tripId && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "6px", paddingTop: "8px", paddingBottom: "10px", flexWrap: "wrap" }}>
-            <button
-              onClick={() => setShowFlightModal(true)}
-              style={{
-                display: "flex", alignItems: "center", gap: "4px",
-                padding: "6px 12px",
-                backgroundColor: "transparent", color: "#1B3A5C",
-                border: "1.5px solid #1B3A5C", borderRadius: "20px",
-                fontSize: "12px", fontWeight: 700, cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <Plane size={12} /> Flight
-            </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "12px", flexShrink: 0 }}>
             <button
               onClick={() => setDropLinkOpen(true)}
               style={{
