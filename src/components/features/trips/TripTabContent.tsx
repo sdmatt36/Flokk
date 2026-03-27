@@ -71,6 +71,7 @@ import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
 import { parseDateForDisplay } from "@/lib/dates";
 import { getTripCoverImage, getItemImage } from "@/lib/destination-images";
 import { BookingIntelCard } from "@/components/features/trips/BookingIntelCard";
+import { ShareTripButton } from "@/components/features/trips/ShareTripButton";
 
 type Tab = "saved" | "itinerary" | "recommended" | "packing" | "notes" | "vault";
 
@@ -4218,7 +4219,6 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [vaultDocSaving, setVaultDocSaving] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState<boolean>(initialIsAnonymous);
   const [anonymousSaved, setAnonymousSaved] = useState(false);
-  const [shareCopied, setShareCopied] = useState(false);
   const [showTripSettings, setShowTripSettings] = useState(false);
 
   const fetchFlights = useCallback(() => {
@@ -4304,23 +4304,6 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
     })
       .then(() => setFlights(prev => prev.map(f => f.id === flightId ? { ...f, dayIndex: null } : f)))
       .catch(e => console.error("[removeFlightFromDay]", e));
-  }
-
-  async function handleShare() {
-    if (!shareToken) return;
-    const url = `https://www.flokktravel.com/share/${shareToken}`;
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      const el = document.createElement("textarea");
-      el.value = url;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand("copy");
-      document.body.removeChild(el);
-    }
-    setShareCopied(true);
-    setTimeout(() => setShareCopied(false), 2000);
   }
 
   async function handleAnonymousToggle(checked: boolean) {
@@ -4483,21 +4466,12 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
             >
               <Plus size={13} /> Save Link
             </button>
-            {shareToken && (
-              <button
-                onClick={handleShare}
-                style={{
-                  display: "flex", alignItems: "center", gap: "4px",
-                  padding: "6px 12px",
-                  backgroundColor: "transparent", color: shareCopied ? "#6B8F71" : "#C4664A",
-                  border: `1.5px solid ${shareCopied ? "#6B8F71" : "#C4664A"}`, borderRadius: "20px",
-                  fontSize: "12px", fontWeight: 700, cursor: "pointer",
-                  whiteSpace: "nowrap",
-                  transition: "color 0.15s, border-color 0.15s",
-                }}
-              >
-                {shareCopied ? <><Check size={12} /> Link copied</> : <><Share2 size={12} /> Share trip</>}
-              </button>
+            {shareToken && tripId && (
+              <ShareTripButton
+                shareToken={shareToken}
+                tripId={tripId}
+                tripTitle={tripTitle ?? "this trip"}
+              />
             )}
             <button
               onClick={() => setShowTripSettings(true)}
