@@ -46,10 +46,11 @@ function SkeletonRow() {
   );
 }
 
-export function BookingIntelCard({ tripId, destinationCity, startDate }: {
+export function BookingIntelCard({ tripId, destinationCity, startDate, onAddFlight }: {
   tripId: string;
   destinationCity?: string | null;
   startDate?: string | null;
+  onAddFlight?: () => void;
 }) {
   const [state, setState] = useState<"loading" | "hidden" | "ready">("loading");
   const [items, setItems] = useState<IntelItem[]>([]);
@@ -231,11 +232,26 @@ export function BookingIntelCard({ tripId, destinationCity, startDate }: {
                       </span>
                     )}
                     {item.status === "missing" && item.category === "flights" && (
-                      <p style={{ fontSize: "12px", color: "#888", margin: 0, lineHeight: 1.45 }}>
-                        Forward your confirmation email to{" "}
-                        <span style={{ fontWeight: 600, color: "#1B3A5C" }}>trips@flokktravel.com</span>
-                        {" "}and it will appear here automatically.
-                      </p>
+                      <div style={{ marginTop: "4px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                          {onAddFlight && (
+                            <button
+                              onClick={onAddFlight}
+                              style={{
+                                fontSize: "12px", fontWeight: 600, color: "#C4664A",
+                                border: "1px solid #C4664A", borderRadius: "6px",
+                                padding: "3px 10px", background: "none", cursor: "pointer",
+                                fontFamily: "inherit", whiteSpace: "nowrap",
+                              }}
+                            >
+                              + Add flight manually
+                            </button>
+                          )}
+                          <span style={{ fontSize: "12px", color: "#AAAAAA" }}>or forward confirmation to{" "}
+                            <span style={{ fontWeight: 600, color: "#1B3A5C" }}>trips@flokktravel.com</span>
+                          </span>
+                        </div>
+                      </div>
                     )}
                   </div>
                 </div>
