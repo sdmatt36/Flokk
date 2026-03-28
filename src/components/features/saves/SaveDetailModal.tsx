@@ -489,33 +489,31 @@ export function SaveDetailModal({
                 </a>
               ) : null}
 
-              {/* Mark as booked / Booked badge */}
-              {isBooked ? (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "10px", borderRadius: "999px", backgroundColor: "rgba(107,143,113,0.12)", border: "1.5px solid rgba(107,143,113,0.3)" }}>
-                  <span style={{ fontSize: "14px", fontWeight: 700, color: "#4a7c59" }}>✓ Booked</span>
-                </div>
-              ) : (
-                <button
-                  onClick={async () => {
-                    const res = await fetch(`/api/saves/${itemId}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ isBooked: true }),
-                    });
-                    if (res.ok) {
-                      setIsBooked(true);
-                      onMarkedBooked?.(itemId);
-                    }
-                  }}
-                  style={{
-                    width: "100%", padding: "11px", borderRadius: "999px",
-                    backgroundColor: "transparent", border: "1.5px solid rgba(107,143,113,0.5)",
-                    fontSize: "13px", fontWeight: 700, color: "#4a7c59", cursor: "pointer",
-                  }}
-                >
-                  Mark as booked ✓
-                </button>
-              )}
+              {/* Mark as booked — toggleable */}
+              <button
+                onClick={async () => {
+                  const newBooked = !isBooked;
+                  setIsBooked(newBooked);
+                  const res = await fetch(`/api/saves/${itemId}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ isBooked: newBooked }),
+                  });
+                  if (!res.ok) {
+                    setIsBooked(!newBooked); // revert on failure
+                  } else if (newBooked) {
+                    onMarkedBooked?.(itemId);
+                  }
+                }}
+                style={{
+                  width: "100%", padding: "11px", borderRadius: "999px",
+                  backgroundColor: isBooked ? "rgba(107,143,113,0.12)" : "transparent",
+                  border: isBooked ? "1.5px solid rgba(107,143,113,0.3)" : "1.5px solid rgba(107,143,113,0.5)",
+                  fontSize: "13px", fontWeight: 700, color: "#4a7c59", cursor: "pointer",
+                }}
+              >
+                {isBooked ? "✓ Booked" : "Mark as booked"}
+              </button>
 
               {/* Add/Change trip */}
               <div style={{ position: "relative" }}>

@@ -7,6 +7,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import he from "he";
 import { z, ZodError } from "zod";
 import { extractOgMetadata } from "@/lib/og-extract";
 import type { SourceType } from "@prisma/client";
@@ -69,14 +70,18 @@ export async function POST(request: Request) {
       return img;
     }
 
+    const stripRawUnicode = (str: string) => str.replace(/&#x[0-9a-fA-F]+;/gi, "").trim();
+    const cleanText = (s: string | null | undefined): string | null =>
+      s ? (stripRawUnicode(he.decode(s)) || null) : null;
+
     // If preview data was passed from the UI, use it directly (skip live OG fetch)
-    let rawTitle = title ?? null;
-    let rawDescription = description ?? null;
+    let rawTitle = cleanText(title);
+    let rawDescription = cleanText(description);
     let mediaThumbnailUrl = sanitizeImageUrl(thumbnailUrl);
     if (!title) {
       const meta = await extractOgMetadata(url);
-      rawTitle = meta.title ?? null;
-      rawDescription = meta.description ?? null;
+      rawTitle = cleanText(meta.title);
+      rawDescription = cleanText(meta.description);
       mediaThumbnailUrl = sanitizeImageUrl(meta.image);
     }
 

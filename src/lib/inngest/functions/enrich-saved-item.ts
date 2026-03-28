@@ -1,6 +1,7 @@
 import { inngest } from "../client";
 import { db } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
+import he from "he";
 import { getVenueImage } from "@/lib/destination-images";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -98,30 +99,39 @@ export const enrichSavedItem = inngest.createFunction(
       return { status: "skipped", reason: "no_item_or_title" };
     }
 
+    const stripRawUnicode = (str: string) => str.replace(/&#x[0-9a-fA-F]+;/gi, "").trim();
+    const cleanTitle = stripRawUnicode(he.decode(item.rawTitle));
+    const cleanDescription = item.rawDescription
+      ? stripRawUnicode(he.decode(item.rawDescription))
+      : null;
+
     // Step 1: Geocode if lat is null
     const coords = await step.run("geocode", async () => {
       if (item.lat != null) return null;
-      return await geocode(item.rawTitle!, item.destinationCity, item.destinationCountry);
+      return await geocode(cleanTitle, item.destinationCity, item.destinationCountry);
     });
 
     // Step 2: Places — website, photo, rating (skipped if venue map has a curated photo)
-    const curatedPhoto = getVenueImage(item.rawTitle!);
+    const curatedPhoto = getVenueImage(cleanTitle);
     const place = await step.run("places", async () => {
       if (curatedPhoto) return { photoUrl: curatedPhoto } as { website?: string; photoUrl?: string; rating?: number };
       const lat = coords?.lat ?? null;
       const lng = coords?.lng ?? null;
-      return await getPlaceDetails(item.rawTitle!, lat, lng);
+      return await getPlaceDetails(cleanTitle, lat, lng);
     });
 
     // Step 3: Claude description if missing
     const description = await step.run("describe", async () => {
-      if (item.rawDescription) return null;
-      return await generateDescription(item.rawTitle!, item.destinationCity, item.destinationCountry);
+      if (cleanDescription) return null;
+      return await generateDescription(cleanTitle, item.destinationCity, item.destinationCountry);
     });
 
     // Step 4: UPDATE — never delete, only add missing data
     await step.run("update", async () => {
       const updateData: Record<string, unknown> = {};
+      // Always write cleaned title/description
+      updateData.rawTitle = cleanTitle;
+      if (cleanDescription) updateData.rawDescription = cleanDescription;
       if (coords) { updateData.lat = coords.lat; updateData.lng = coords.lng; }
       if (place.website && !item.sourceUrl) updateData.sourceUrl = place.website;
       if (place.photoUrl) updateData.placePhotoUrl = place.photoUrl;
