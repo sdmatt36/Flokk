@@ -1709,6 +1709,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [localFlights, setLocalFlights] = useState<Flight[]>([]);
   const [localItineraryItems, setLocalItineraryItems] = useState<ItineraryItemLocal[]>([]);
   const [expandedSlotKey, setExpandedSlotKey] = useState<string | null>(null);
+  const [selectedItineraryItem, setSelectedItineraryItem] = useState<ItineraryItemLocal | null>(null);
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
   const [detailRemover, setDetailRemover] = useState<(() => void) | null>(null);
   const [editingFlight, setEditingFlight] = useState<Flight | null>(null);
@@ -2694,7 +2695,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                               : `${it.passengers.length} passengers`
                                             : null;
                                           return (
-                                            <div style={cardStyle}>
+                                            <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => setSelectedItineraryItem(it)}>
                                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                   <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{route}</p>
@@ -2723,7 +2724,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                           const dateFormatted = formatDateShort(it.scheduledDate);
                                           const costLabel = it.totalCost != null ? `${it.currency ?? ""} ${it.totalCost.toLocaleString()}`.trim() : null;
                                           return (
-                                            <div style={cardStyle}>
+                                            <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => setSelectedItineraryItem(it)}>
                                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                   <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{hotelName}</p>
@@ -2754,7 +2755,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                           const depTime = it.departureTime;
                                           const arrTime = it.arrivalTime;
                                           return (
-                                            <div style={cardStyle}>
+                                            <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => setSelectedItineraryItem(it)}>
                                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                   <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{trainRoute}</p>
@@ -3116,6 +3117,109 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         </div>,
         document.body
       )}
+      {selectedItineraryItem && (() => {
+        const sit = selectedItineraryItem;
+        function fmtDateModal(d: string | null): string | null {
+          if (!d) return null;
+          try {
+            const dt = new Date(d + "T12:00:00");
+            return dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+          } catch { return d; }
+        }
+        const typeLabel = sit.type.charAt(0) + sit.type.slice(1).toLowerCase().replace(/_/g, " ");
+        const rowStyle: React.CSSProperties = { fontSize: "13px", color: "#1a1a1a", fontWeight: 500 };
+        const lblStyle: React.CSSProperties = { fontSize: "11px", color: "#999", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" };
+        const gridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 16px", marginBottom: "16px" };
+        const titleStyle: React.CSSProperties = { fontSize: "22px", fontWeight: 800, color: "#1B3A5C", marginBottom: "14px", fontFamily: "'Playfair Display', Georgia, serif", lineHeight: 1.2 };
+        return (
+          <div
+            style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 500, display: "flex", alignItems: isDesktop ? "center" : "flex-end", justifyContent: "center", padding: isDesktop ? "16px" : "0" }}
+            onClick={() => setSelectedItineraryItem(null)}
+          >
+            <div
+              style={{ backgroundColor: "#fff", width: "100%", maxWidth: isDesktop ? "440px" : undefined, borderRadius: isDesktop ? "16px" : "20px 20px 0 0", padding: "24px", maxHeight: "85vh", overflowY: "auto" }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#999" }}>{typeLabel}</span>
+                <button onClick={() => setSelectedItineraryItem(null)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", color: "#AAAAAA" }}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              {sit.type === "FLIGHT" && (() => {
+                const from = sit.fromAirport || sit.fromCity || "";
+                const to = sit.toAirport || sit.toCity || "";
+                const route = from && to ? `${from} → ${to}` : (from || to || sit.title);
+                const paxLabel = sit.passengers.length > 0
+                  ? sit.passengers.length <= 2 ? sit.passengers.join(", ") : `${sit.passengers.length} passengers`
+                  : null;
+                return (
+                  <div>
+                    <p style={titleStyle}>{route}</p>
+                    <div style={gridStyle}>
+                      {sit.scheduledDate && <><span style={lblStyle}>Date</span><span style={rowStyle}>{fmtDateModal(sit.scheduledDate)}</span></>}
+                      {sit.departureTime && <><span style={lblStyle}>Departs</span><span style={rowStyle}>{sit.departureTime}</span></>}
+                      {sit.arrivalTime && <><span style={lblStyle}>Arrives</span><span style={rowStyle}>{sit.arrivalTime}</span></>}
+                      {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
+                      {paxLabel && <><span style={lblStyle}>Passengers</span><span style={rowStyle}>{paxLabel}</span></>}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {sit.type === "LODGING" && (() => {
+                const hotelName = sit.title.replace(/^check-in:\s*/i, "").replace(/^check-out:\s*/i, "");
+                const isCheckOut = /^check-out:/i.test(sit.title);
+                const costLabel = sit.totalCost != null ? `${sit.currency ?? ""} ${sit.totalCost.toLocaleString()}`.trim() : null;
+                const guestsLabel = sit.passengers.length > 0
+                  ? sit.passengers.length <= 2 ? sit.passengers.join(", ") : `${sit.passengers.length} guests`
+                  : null;
+                return (
+                  <div>
+                    <p style={titleStyle}>{hotelName}</p>
+                    <div style={gridStyle}>
+                      <span style={lblStyle}>{isCheckOut ? "Check-out" : "Check-in"}</span>
+                      <span style={rowStyle}>{fmtDateModal(sit.scheduledDate) ?? "—"}</span>
+                      {sit.address && <><span style={lblStyle}>Address</span><span style={rowStyle}>{sit.address}</span></>}
+                      {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
+                      {costLabel && <><span style={lblStyle}>Total</span><span style={rowStyle}>{costLabel}</span></>}
+                      {guestsLabel && <><span style={lblStyle}>Guests</span><span style={rowStyle}>{guestsLabel}</span></>}
+                    </div>
+                    {sit.address && (
+                      <a
+                        href={`https://maps.google.com/?q=${encodeURIComponent(sit.address)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: "block", textAlign: "center", backgroundColor: "#C4664A", color: "#fff", fontWeight: 600, padding: "12px", borderRadius: "10px", fontSize: "14px", textDecoration: "none", marginTop: "8px" }}
+                      >
+                        Open in Maps
+                      </a>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {sit.type === "TRAIN" && (() => {
+                const trainRoute = sit.fromCity && sit.toCity ? `${sit.fromCity} → ${sit.toCity}` : sit.title;
+                const operator = sit.fromCity && sit.toCity && sit.title !== trainRoute ? sit.title : null;
+                return (
+                  <div>
+                    <p style={titleStyle}>{trainRoute}</p>
+                    <div style={gridStyle}>
+                      {operator && <><span style={lblStyle}>Operator</span><span style={rowStyle}>{operator}</span></>}
+                      {sit.scheduledDate && <><span style={lblStyle}>Date</span><span style={rowStyle}>{fmtDateModal(sit.scheduledDate)}</span></>}
+                      {sit.departureTime && <><span style={lblStyle}>Departs</span><span style={rowStyle}>{sit.departureTime}</span></>}
+                      {sit.arrivalTime && <><span style={lblStyle}>Arrives</span><span style={rowStyle}>{sit.arrivalTime}</span></>}
+                      {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -4815,6 +4919,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                   if (booking.arrivalDate) rows.push({ label: "Arrival", value: `${booking.arrivalDate}${booking.arrivalTime ? ` at ${booking.arrivalTime}` : ""}` });
                   if (booking.checkIn) rows.push({ label: "Check-in", value: String(booking.checkIn) });
                   if (booking.checkOut) rows.push({ label: "Check-out", value: String(booking.checkOut) });
+                  if (booking.address) rows.push({ label: "Address", value: String(booking.address) });
                   if (booking.confirmationCode) rows.push({ label: "Confirmation", value: String(booking.confirmationCode) });
                   if (booking.totalCost) rows.push({ label: "Total", value: `${booking.totalCost}${booking.currency ? ` ${booking.currency}` : ""}` });
                   if (booking.contactPhone) rows.push({ label: "Phone", value: String(booking.contactPhone) });
@@ -4854,6 +4959,16 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                       )}
                       {(booking.type as string) === "flight" && (
                         <p style={{ fontSize: "11px", color: "#BBBBBB", marginTop: "10px" }}>Re-forward confirmation to update times</p>
+                      )}
+                      {(booking.type as string) === "lodging" && booking.address && (
+                        <a
+                          href={`https://maps.google.com/?q=${encodeURIComponent(String(booking.address))}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: "inline-block", marginTop: "10px", fontSize: "12px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
+                        >
+                          Open in Maps →
+                        </a>
                       )}
                       <button onClick={handleVaultEdit} style={{ position: "absolute", top: "12px", right: "36px", background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px" }} title="Edit">
                         <Pencil size={14} />
