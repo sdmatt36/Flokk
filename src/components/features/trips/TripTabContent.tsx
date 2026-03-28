@@ -2384,9 +2384,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                         className="hover:bg-black/[0.02]"
                         style={{ display: "flex", alignItems: "center", padding: "14px 16px", cursor: "pointer", userSelect: "none" }}
                       >
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ fontSize: "15px", fontWeight: 800, color: "#1B3A5C" }}>{label}</span>
-                          <span style={{ fontSize: "13px", color: "#888", marginLeft: "10px" }}>{date}</span>
+                        <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: "8px", overflow: "hidden" }}>
+                          <span style={{ fontSize: "15px", fontWeight: 800, color: "#1B3A5C", whiteSpace: "nowrap" }}>{label}</span>
+                          <span style={{ fontSize: "13px", color: "#888", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{date}</span>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
                           {(() => {
