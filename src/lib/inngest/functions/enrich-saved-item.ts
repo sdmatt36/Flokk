@@ -7,6 +7,45 @@ import { getVenueImage } from "@/lib/destination-images";
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
 
+function isInstagramCaption(title: string): boolean {
+  return /on Instagram/i.test(title) || /^[^:]+:\s*[""]/.test(title);
+}
+
+async function extractInstagramTitle(
+  caption: string,
+  city: string | null,
+  country: string | null
+): Promise<{ title: string; description: string } | null> {
+  try {
+    const location = [city, country].filter(Boolean).join(", ");
+    const response = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 150,
+      messages: [{
+        role: "user",
+        content: `Extract the place name from this Instagram caption and write a one-sentence description.
+
+Caption: "${caption}"
+${location ? `Known location context: ${location}` : ""}
+
+Rules:
+- Title: the place name only, max 5 words. Format "Place Name, City" if the city is clear from context. Never include the Instagram username, the phrase "on Instagram", quote marks, hashtags (#), @ mentions, or engagement text like "Would you visit".
+- Description: one sentence about the place for family travelers. No hashtags, no usernames, no engagement bait.
+- If you cannot identify a specific named place, return null for both.
+
+Respond with JSON only: {"title":"...","description":"..."} or {"title":null,"description":null}`,
+      }],
+    });
+    const content = response.content[0];
+    if (content.type !== "text") return null;
+    const parsed = JSON.parse(content.text.trim()) as { title: string | null; description: string | null };
+    if (!parsed.title) return null;
+    return { title: parsed.title, description: parsed.description ?? "" };
+  } catch {
+    return null;
+  }
+}
+
 async function geocode(
   title: string,
   city: string | null,
@@ -90,6 +129,7 @@ export const enrichSavedItem = inngest.createFunction(
           mediaThumbnailUrl: true,
           placePhotoUrl: true,
           sourceUrl: true,
+          sourceType: true,
           lat: true,
         },
       });
@@ -105,38 +145,48 @@ export const enrichSavedItem = inngest.createFunction(
       ? stripRawUnicode(he.decode(item.rawDescription))
       : null;
 
-    // Step 1: Geocode if lat is null
-    const coords = await step.run("geocode", async () => {
-      if (item.lat != null) return null;
-      return await geocode(cleanTitle, item.destinationCity, item.destinationCountry);
+    // Step 1: Extract clean title/description from Instagram captions
+    const instagramExtracted = await step.run("extract-instagram-title", async () => {
+      if (item.sourceType !== "INSTAGRAM" && !isInstagramCaption(cleanTitle)) return null;
+      return await extractInstagramTitle(cleanTitle, item.destinationCity, item.destinationCountry);
     });
 
-    // Step 2: Places — website, photo, rating (skipped if venue map has a curated photo)
-    const curatedPhoto = getVenueImage(cleanTitle);
+    // Use extracted title for all downstream steps if available
+    const workingTitle = instagramExtracted?.title ?? cleanTitle;
+    const workingDescription = instagramExtracted?.description || cleanDescription;
+
+    // Step 2: Geocode if lat is null
+    const coords = await step.run("geocode", async () => {
+      if (item.lat != null) return null;
+      return await geocode(workingTitle, item.destinationCity, item.destinationCountry);
+    });
+
+    // Step 3: Places — website, photo, rating (skipped if venue map has a curated photo)
+    const curatedPhoto = getVenueImage(workingTitle);
     const place = await step.run("places", async () => {
       if (curatedPhoto) return { photoUrl: curatedPhoto } as { website?: string; photoUrl?: string; rating?: number };
       const lat = coords?.lat ?? null;
       const lng = coords?.lng ?? null;
-      return await getPlaceDetails(cleanTitle, lat, lng);
+      return await getPlaceDetails(workingTitle, lat, lng);
     });
 
-    // Step 3: Claude description if missing
+    // Step 4: Claude description if missing
     const description = await step.run("describe", async () => {
-      if (cleanDescription) return null;
-      return await generateDescription(cleanTitle, item.destinationCity, item.destinationCountry);
+      if (workingDescription) return null;
+      return await generateDescription(workingTitle, item.destinationCity, item.destinationCountry);
     });
 
-    // Step 4: UPDATE — never delete, only add missing data
+    // Step 5: UPDATE — never delete, only add missing data
     await step.run("update", async () => {
       const updateData: Record<string, unknown> = {};
-      // Always write cleaned title/description
-      updateData.rawTitle = cleanTitle;
-      if (cleanDescription) updateData.rawDescription = cleanDescription;
+      // Always write cleaned title; use extracted description if available
+      updateData.rawTitle = workingTitle;
+      if (workingDescription) updateData.rawDescription = workingDescription;
       if (coords) { updateData.lat = coords.lat; updateData.lng = coords.lng; }
       if (place.website && !item.sourceUrl) updateData.sourceUrl = place.website;
       if (place.photoUrl) updateData.placePhotoUrl = place.photoUrl;
       if (typeof place.rating === "number") updateData.relevanceScore = place.rating;
-      if (description) updateData.rawDescription = description;
+      if (description && !workingDescription) updateData.rawDescription = description;
       // Only mark ENRICHED after all enrichment steps have been attempted
       updateData.extractionStatus = "ENRICHED";
 
