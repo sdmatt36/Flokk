@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import Anthropic from "@anthropic-ai/sdk";
+import he from "he";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -74,6 +75,19 @@ function forceHttps(url: string | null): string | null {
   return url.startsWith("http://") ? url.replace("http://", "https://") : url;
 }
 
+function sanitizeImageUrl(url: string | null): string | null {
+  if (!url) return null;
+  if (!url.startsWith("http")) return null;
+  if (url.includes("{") || url.includes("}")) return null;
+  if (url.includes("cdninstagram.com") || url.includes("fbcdn.net")) return null;
+  return url;
+}
+
+function cleanText(str: string | null | undefined): string | null {
+  if (!str) return null;
+  return he.decode(str).replace(/&#x[0-9a-fA-F]+;/gi, "").trim() || null;
+}
+
 function heuristicCategory(url: string): string {
   const u = url.toLowerCase();
   if (/hotel|inn|resort|lodge|hostel|suites?|ryokan|villa|metropolitan|granvia|hilton|marriott|hyatt|sheraton|westin|ritz/.test(u)) return "hotel";
@@ -129,9 +143,9 @@ Rules:
 
         if (parsed.title && !parsed.title.startsWith("http")) {
           return NextResponse.json({
-            title: parsed.title,
-            imageUrl: forceHttps(imageUrl),
-            description,
+            title: cleanText(parsed.title),
+            imageUrl: sanitizeImageUrl(forceHttps(imageUrl)),
+            description: cleanText(description),
             city: parsed.city ?? null,
             country: parsed.country ?? null,
             category: parsed.category ?? heuristicCategory(url),
@@ -143,9 +157,9 @@ Rules:
     }
 
     return NextResponse.json({
-      title: title ?? null,
-      imageUrl: forceHttps(imageUrl),
-      description,
+      title: cleanText(title),
+      imageUrl: sanitizeImageUrl(forceHttps(imageUrl)),
+      description: cleanText(description),
       city: null,
       country: null,
       category: heuristicCategory(url),

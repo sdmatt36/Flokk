@@ -95,7 +95,9 @@ export function DropLinkModal({
           data.imageUrl &&
           typeof data.imageUrl === "string" &&
           data.imageUrl.startsWith("http") &&
-          !data.imageUrl.includes("{")
+          !data.imageUrl.includes("{") &&
+          !data.imageUrl.includes("cdninstagram.com") &&
+          !data.imageUrl.includes("fbcdn.net")
             ? data.imageUrl
             : "";
         const card: ExtractedCard = {
@@ -220,7 +222,7 @@ export function DropLinkModal({
         : effectiveId === SAVE_LATER
           ? "Save for later →"
           : selectedDayIndex !== null
-            ? `Save to Day ${selectedDayIndex} · ${selectedTrip?.title ?? ""} →`
+            ? `Save to Day ${selectedDayIndex + 1} · ${selectedTrip?.title ?? ""} →`
             : `Save to ${selectedTrip?.title ?? ""} →`;
 
   return (
