@@ -286,7 +286,10 @@ export function BookingIntelCard({ tripId, destinationCity, startDate, onAddFlig
             )}
 
             {reviewLoading && (
-              <p style={{ fontSize: "13px", color: "#AAA", fontStyle: "italic", margin: 0 }}>Reviewing your itinerary...</p>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                <span style={{ fontSize: "13px", color: "#C4664A", fontWeight: 600, fontStyle: "italic" }}>Flokking...</span>
+                <span style={{ fontSize: "12px", color: "#AAA" }}>This takes about 10 seconds. Please be patient.</span>
+              </div>
             )}
 
             {reviewError && (
