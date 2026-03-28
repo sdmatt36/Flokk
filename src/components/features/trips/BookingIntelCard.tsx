@@ -56,7 +56,7 @@ export function BookingIntelCard({ tripId, destinationCity, startDate, onAddFlig
   const [items, setItems] = useState<IntelItem[]>([]);
   const [showBooked, setShowBooked] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
-  const [reviewObservations, setReviewObservations] = useState<string[] | null>(null);
+  const [reviewObservations, setReviewObservations] = useState<{ text: string; searchQuery: string }[] | null>(null);
   const [reviewError, setReviewError] = useState(false);
 
   const STATUS_ORDER: Record<IntelItem["status"], number> = { missing: 0, saved: 1, booked: 2 };
@@ -95,7 +95,7 @@ export function BookingIntelCard({ tripId, destinationCity, startDate, onAddFlig
     try {
       const res = await fetch(`/api/trips/${tripId}/review`, { method: "POST" });
       if (!res.ok) throw new Error("Failed");
-      const data = await res.json() as { observations: string[] };
+      const data = await res.json() as { observations: { text: string; searchQuery: string }[] };
       setReviewObservations(data.observations);
     } catch {
       setReviewError(true);
@@ -318,7 +318,19 @@ export function BookingIntelCard({ tripId, destinationCity, startDate, onAddFlig
                   {reviewObservations.map((obs, i) => (
                     <li key={i} style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
                       <span style={{ marginTop: "6px", width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#C4664A", flexShrink: 0, display: "inline-block" }} />
-                      <span style={{ fontSize: "13px", color: "#1B3A5C", lineHeight: 1.5 }}>{obs}</span>
+                      <div>
+                        <span style={{ fontSize: "13px", color: "#1B3A5C", lineHeight: 1.5 }}>{obs.text}</span>
+                        {obs.searchQuery && (
+                          <a
+                            href={`https://www.google.com/search?q=${encodeURIComponent(obs.searchQuery)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ display: "block", marginTop: "3px", fontSize: "12px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
+                          >
+                            Search →
+                          </a>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>

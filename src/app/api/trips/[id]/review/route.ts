@@ -84,17 +84,24 @@ When a check-out item has no scheduled time, assume 11:00 — this is the indust
 
 Be specific — reference actual day numbers, item names, and times from the schedule. Do not be generic. Do not say "looks great overall."
 
-Return ONLY a JSON array of 3–5 strings, each one observation. No preamble, no markdown, no backticks. Example format:
-["Day 6 has a 09:58 train departure but check-out is not scheduled — add a check-out item for Day 6 morning.", "Day 2 and Day 4 are completely empty with no activities saved — consider adding saved items or a placeholder."]`,
+Return ONLY a JSON array of 3–5 strings, each one observation. After each observation text, on a new line within the same string, include a SEARCH: tag with a concise Google search query for the main place or action mentioned. Format: SEARCH: Gyeongbokgung Palace Seoul family visit. If the observation is about a logistics issue rather than a specific place, use a relevant search e.g. SEARCH: Seoul airport transfer Gimpo family. Always include exactly one SEARCH: line per observation. No preamble, no markdown, no backticks. Example format:
+["Day 6 has a 09:58 train departure but check-out is not scheduled — add a check-out item for Day 6 morning.\nSEARCH: Seoul hotel check-out time train departure tips", "Day 2 and Day 4 are completely empty with no activities saved — consider adding saved items or a placeholder.\nSEARCH: Seoul family activities kids Day trip"]`,
       messages: [{ role: "user", content: scheduleString }],
     });
 
     const text = msg.content[0].type === "text" ? msg.content[0].text : "[]";
-    const observations = JSON.parse(text) as string[];
+    const rawArray = JSON.parse(text) as string[];
+    const observations = rawArray.map((item: string) => {
+      const lines = item.split("\n");
+      const text = lines.filter(l => !l.startsWith("SEARCH:")).join(" ").trim();
+      const searchLine = lines.find(l => l.startsWith("SEARCH:"));
+      const searchQuery = searchLine ? searchLine.replace("SEARCH:", "").trim() : "";
+      return { text, searchQuery };
+    });
     return NextResponse.json({ observations });
   } catch {
     return NextResponse.json({
-      observations: ["Unable to analyse itinerary at this time. Please try again."],
+      observations: [{ text: "Unable to analyse itinerary at this time. Please try again.", searchQuery: "" }],
     });
   }
 }
