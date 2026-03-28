@@ -2331,6 +2331,31 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       {/* Split content area */}
       <div style={{ display: "flex", flexDirection: isDesktop ? "row" : "column", gap: "24px", alignItems: "flex-start" }}>
 
+        {/* Map — top on mobile (order -1), right column on desktop */}
+        {!isDesktop && (
+          <div style={{ width: "100%", borderRadius: "12px", overflow: "hidden" }}>
+            <div style={{ height: "192px", borderRadius: "12px", overflow: "hidden" }}>
+              <TripMap
+                activeDay={openDay >= 0 ? openDay : null}
+                flyTarget={flyTarget}
+                onFlyTargetConsumed={onFlyTargetConsumed}
+                tripId={tripId}
+                destinationCity={destinationCity}
+                destinationCountry={destinationCountry}
+                savedItems={recAdditions.filter(a => a.lat != null && a.lng != null) as { title: string; lat: number; lng: number; dayIndex?: number | null }[]}
+                activities={localActivities.filter(a => a.lat != null && a.lng != null).map(a => ({ title: a.title, lat: a.lat!, lng: a.lng!, dayIndex: a.dayIndex }))}
+                importedBookingPins={[...localItineraryItems]
+                  .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+                  .filter(it => it.latitude != null && it.longitude != null && it.latitude !== 0 && it.longitude !== 0)
+                  .map(it => ({ id: it.id, title: it.title, type: it.type, dayIndex: it.dayIndex ?? null, latitude: it.latitude!, longitude: it.longitude! }))}
+              />
+            </div>
+            <p style={{ fontSize: "11px", color: "#AAAAAA", marginTop: "6px", textAlign: "center" }}>
+              Map updates as you navigate days
+            </p>
+          </div>
+        )}
+
         {/* Left panel: accordion */}
         <div ref={leftPanelRef} style={{ width: isDesktop ? "58%" : "100%", minWidth: 0 }}>
           {(() => {
@@ -2954,8 +2979,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           document.body
         )}
 
-        {/* Right panel: map — stacks below on mobile, sticky sidebar on desktop */}
-        <div style={{ width: isDesktop ? "42%" : "100%", position: isDesktop ? "sticky" : "relative", top: 0, height: isDesktop ? (leftHeight ? `${leftHeight}px` : "500px") : "300px", minHeight: "260px", maxHeight: "600px" }}>
+        {/* Right panel: map — desktop sticky sidebar only (mobile map renders above) */}
+        {isDesktop && <div style={{ width: "42%", position: "sticky", top: 0, height: leftHeight ? `${leftHeight}px` : "500px", minHeight: "260px", maxHeight: "600px" }}>
           <TripMap
             activeDay={openDay >= 0 ? openDay : null}
             flyTarget={flyTarget}
@@ -2970,7 +2995,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
               .filter(it => it.latitude != null && it.longitude != null && it.latitude !== 0 && it.longitude !== 0)
               .map(it => ({ id: it.id, title: it.title, type: it.type, dayIndex: it.dayIndex ?? null, latitude: it.latitude!, longitude: it.longitude! }))}
           />
-        </div>{/* end right panel */}
+        </div>}{/* end right panel (desktop only) */}
 
       </div>
 
