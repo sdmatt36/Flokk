@@ -4915,15 +4915,21 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                   } else if (booking.fromAirport && booking.toAirport) {
                     rows.push({ label: "Route", value: `${booking.fromAirport} → ${booking.toAirport}` });
                   }
-                  if (booking.departureDate) rows.push({ label: "Departure", value: `${booking.departureDate}${booking.departureTime ? ` at ${booking.departureTime}` : ""}` });
-                  if (booking.arrivalDate) rows.push({ label: "Arrival", value: `${booking.arrivalDate}${booking.arrivalTime ? ` at ${booking.arrivalTime}` : ""}` });
-                  if (booking.checkIn) rows.push({ label: "Check-in", value: String(booking.checkIn) });
-                  if (booking.checkOut) rows.push({ label: "Check-out", value: String(booking.checkOut) });
+                  function fmtVaultDate(d: unknown): string {
+                    if (!d) return "";
+                    try {
+                      const dt = new Date(String(d) + "T12:00:00");
+                      return dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+                    } catch { return String(d); }
+                  }
+                  if (booking.departureDate) rows.push({ label: "Departure", value: `${fmtVaultDate(booking.departureDate)}${booking.departureTime ? ` at ${booking.departureTime}` : ""}` });
+                  if (booking.arrivalDate) rows.push({ label: "Arrival", value: `${fmtVaultDate(booking.arrivalDate)}${booking.arrivalTime ? ` at ${booking.arrivalTime}` : ""}` });
+                  if (booking.checkIn) rows.push({ label: "Check-in", value: fmtVaultDate(booking.checkIn) });
+                  if (booking.checkOut) rows.push({ label: "Check-out", value: fmtVaultDate(booking.checkOut) });
                   if (booking.address) rows.push({ label: "Address", value: String(booking.address) });
                   if (booking.confirmationCode) rows.push({ label: "Confirmation", value: String(booking.confirmationCode) });
                   if (booking.totalCost) rows.push({ label: "Total", value: `${booking.totalCost}${booking.currency ? ` ${booking.currency}` : ""}` });
                   if (booking.contactPhone) rows.push({ label: "Phone", value: String(booking.contactPhone) });
-                  if (booking.contactEmail) rows.push({ label: "Email", value: String(booking.contactEmail) });
                   if (Array.isArray(booking.guestNames) && booking.guestNames.length > 0) rows.push({ label: "Guests", value: (booking.guestNames as string[]).join(", ") });
                   // For flight-type docs, find matching Flight record
                   const matchedFlight = (booking.type as string) === "flight"

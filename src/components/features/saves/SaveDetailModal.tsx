@@ -188,6 +188,7 @@ export function SaveDetailModal({
       .replace(/\d+[KkMm]?\s*likes?,?\s*/gi, "")
       .replace(/\d+\s*comments?,?\s*/gi, "")
       .replace(/[-–]\s*\w+\s+on\s+\w+\s+\d+,?\s*\d*:?\s*/gi, "")
+      .replace(/#\w+/g, "")
       .replace(/^["']|["']$/g, "")
       .replace(/\s+/g, " ")
       .trim();
