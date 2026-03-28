@@ -745,8 +745,8 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
             )}
             {!item.statusBooked && onMarkBooked && (
               <button type="button" onClick={onMarkBooked}
-                style={{ padding: "11px", borderRadius: "999px", backgroundColor: "transparent", border: "1.5px solid rgba(107,143,113,0.5)", fontSize: "13px", fontWeight: 700, color: "#4a7c59", cursor: "pointer" }}>
-                Mark as booked ✓
+                style={{ width: "100%", padding: "13px", borderRadius: "999px", backgroundColor: "transparent", border: "1.5px solid #C4664A", fontSize: "14px", fontWeight: 700, color: "#C4664A", cursor: "pointer" }}>
+                Book it →
               </button>
             )}
             {assignedDay !== undefined ? (
@@ -4960,9 +4960,9 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                       {(booking.type as string) === "flight" && (
                         <p style={{ fontSize: "11px", color: "#BBBBBB", marginTop: "10px" }}>Re-forward confirmation to update times</p>
                       )}
-                      {(booking.type as string) === "lodging" && booking.address && (
+                      {(booking.type as string) === "lodging" && typeof booking.address === "string" && booking.address && (
                         <a
-                          href={`https://maps.google.com/?q=${encodeURIComponent(String(booking.address))}`}
+                          href={`https://maps.google.com/?q=${encodeURIComponent(booking.address)}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           style={{ display: "inline-block", marginTop: "10px", fontSize: "12px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}

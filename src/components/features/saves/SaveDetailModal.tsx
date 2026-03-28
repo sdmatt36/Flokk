@@ -10,6 +10,7 @@ type SaveItem = {
   rawTitle: string | null;
   rawDescription: string | null;
   mediaThumbnailUrl: string | null;
+  placePhotoUrl: string | null;
   destinationCity: string | null;
   destinationCountry: string | null;
   categoryTags: string[];
@@ -182,6 +183,16 @@ export function SaveDetailModal({
   const gradient = getGradient(tags);
   const location = [item?.destinationCity, item?.destinationCountry].filter(Boolean).join(", ");
 
+  function cleanDesc(desc: string): string {
+    return desc
+      .replace(/\d+[KkMm]?\s*likes?,?\s*/gi, "")
+      .replace(/\d+\s*comments?,?\s*/gi, "")
+      .replace(/[-–]\s*\w+\s+on\s+\w+\s+\d+,?\s*\d*:?\s*/gi, "")
+      .replace(/^["']|["']$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   function getDisplayTitle(rawTitle: string | null, sourceUrl: string | null): string {
     if (rawTitle && !rawTitle.startsWith("http")) return rawTitle;
     const fallbackUrl = rawTitle ?? sourceUrl;
@@ -221,11 +232,14 @@ export function SaveDetailModal({
       >
         {/* Hero */}
         <div style={{ height: "220px", position: "relative", flexShrink: 0 }}>
-          {item?.mediaThumbnailUrl ? (
-            <div style={{ width: "100%", height: "100%", backgroundImage: `url('${item.mediaThumbnailUrl.replace("http://", "https://")}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
-          ) : (
-            <div style={{ width: "100%", height: "100%", backgroundImage: `url('${getTripCoverImage(item?.destinationCity, item?.destinationCountry, null)}')`, backgroundSize: "cover", backgroundPosition: "center", backgroundColor: "#1a1a1a" }} />
-          )}
+          {(() => {
+            const heroImg = item?.mediaThumbnailUrl ?? item?.placePhotoUrl;
+            if (heroImg) {
+              return <div style={{ width: "100%", height: "100%", backgroundImage: `url('${heroImg.replace("http://", "https://")}')`, backgroundSize: "cover", backgroundPosition: "center" }} />;
+            }
+            const coverImg = getTripCoverImage(item?.destinationCity, item?.destinationCountry, null);
+            return <div style={{ width: "100%", height: "100%", backgroundImage: coverImg ? `url('${coverImg}')` : undefined, backgroundSize: "cover", backgroundPosition: "center", backgroundColor: "#1a1a1a" }} />;
+          })()}
           {/* dark overlay for text legibility */}
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.0) 30%, rgba(0,0,0,0.65) 100%)" }} />
 
@@ -330,11 +344,15 @@ export function SaveDetailModal({
             </div>
 
             {/* Description */}
-            {item.rawDescription && (
-              <p style={{ fontSize: "14px", color: "#444", lineHeight: 1.6, marginBottom: "16px" }}>
-                {item.rawDescription}
-              </p>
-            )}
+            {item.rawDescription && (() => {
+              const cleaned = cleanDesc(item.rawDescription);
+              if (cleaned.length < 10) return null;
+              return (
+                <p style={{ fontSize: "14px", color: "#444", lineHeight: 1.6, marginBottom: "16px" }}>
+                  {cleaned}
+                </p>
+              );
+            })()}
 
             {/* Trip assignment */}
             <div style={{ marginBottom: "16px", padding: "12px 14px", borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -489,31 +507,33 @@ export function SaveDetailModal({
                 </a>
               ) : null}
 
-              {/* Mark as booked — toggleable */}
-              <button
-                onClick={async () => {
-                  const newBooked = !isBooked;
-                  setIsBooked(newBooked);
-                  const res = await fetch(`/api/saves/${itemId}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ isBooked: newBooked }),
-                  });
-                  if (!res.ok) {
-                    setIsBooked(!newBooked); // revert on failure
-                  } else if (newBooked) {
-                    onMarkedBooked?.(itemId);
-                  }
-                }}
-                style={{
-                  width: "100%", padding: "11px", borderRadius: "999px",
-                  backgroundColor: isBooked ? "rgba(107,143,113,0.12)" : "transparent",
-                  border: isBooked ? "1.5px solid rgba(107,143,113,0.3)" : "1.5px solid rgba(107,143,113,0.5)",
-                  fontSize: "13px", fontWeight: 700, color: "#4a7c59", cursor: "pointer",
-                }}
-              >
-                {isBooked ? "✓ Booked" : "Mark as booked"}
-              </button>
+              {/* Book it — toggleable */}
+              {isBooked ? (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "8px" }}>
+                  <span style={{ fontSize: "12px", color: "#AAAAAA", fontWeight: 500 }}>Booked</span>
+                  <button
+                    onClick={async () => {
+                      setIsBooked(false);
+                      const res = await fetch(`/api/saves/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isBooked: false }) });
+                      if (!res.ok) setIsBooked(true);
+                    }}
+                    style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: "#CCCCCC", padding: 0, fontFamily: "inherit" }}
+                  >
+                    (undo)
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={async () => {
+                    setIsBooked(true);
+                    const res = await fetch(`/api/saves/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isBooked: true }) });
+                    if (!res.ok) { setIsBooked(false); } else { onMarkedBooked?.(itemId); }
+                  }}
+                  style={{ width: "100%", padding: "13px", borderRadius: "999px", backgroundColor: "transparent", border: "1.5px solid #C4664A", fontSize: "14px", fontWeight: 700, color: "#C4664A", cursor: "pointer" }}
+                >
+                  Book it →
+                </button>
+              )}
 
               {/* Add/Change trip */}
               <div style={{ position: "relative" }}>
