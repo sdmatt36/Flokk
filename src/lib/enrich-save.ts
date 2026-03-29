@@ -24,6 +24,20 @@ const PLACE_TYPE_MAP: Record<string, string> = {
   store: "shopping",
 };
 
+async function resolveRedirect(url: string): Promise<string> {
+  try {
+    const res = await fetch(url, { method: "HEAD", redirect: "follow" });
+    return res.url;
+  } catch {
+    try {
+      const res = await fetch(url, { redirect: "follow" });
+      return res.url;
+    } catch {
+      return url;
+    }
+  }
+}
+
 function extractGoogleMapsPlace(url: string): string | null {
   try {
     // Pattern: /maps/place/Place+Name/@lat,lng or /maps/place/Place+Name/
@@ -249,7 +263,12 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
     /maps\.google\.com|google\.com\/maps|maps\.app\.goo\.gl/.test(item.sourceUrl ?? "");
 
   if (isGoogleMaps && item.sourceUrl) {
-    const parsedName = extractGoogleMapsPlace(item.sourceUrl);
+    let resolvedUrl = item.sourceUrl;
+    if (item.sourceUrl.includes("maps.app.goo.gl") || item.sourceUrl.includes("goo.gl")) {
+      resolvedUrl = await resolveRedirect(item.sourceUrl);
+      console.log(`[enrich] resolved redirect: ${resolvedUrl}`);
+    }
+    const parsedName = extractGoogleMapsPlace(resolvedUrl);
     if (parsedName) {
       const mapsPlace = await lookupGoogleMapsPlace(parsedName);
       if (mapsPlace) {
