@@ -9,6 +9,91 @@ import { getVenueImage } from "@/lib/destination-images";
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
 
+const PLACE_TYPE_MAP: Record<string, string> = {
+  restaurant: "food",
+  cafe: "food",
+  bar: "food",
+  food: "food",
+  lodging: "lodging",
+  tourist_attraction: "culture",
+  museum: "culture",
+  art_gallery: "culture",
+  park: "outdoor",
+  natural_feature: "outdoor",
+  shopping_mall: "shopping",
+  store: "shopping",
+};
+
+function extractGoogleMapsPlace(url: string): string | null {
+  try {
+    // Pattern: /maps/place/Place+Name/@lat,lng or /maps/place/Place+Name/
+    const placeMatch = url.match(/maps\/place\/([^/@?]+)/);
+    if (placeMatch) {
+      return decodeURIComponent(placeMatch[1].replace(/\+/g, " ")).trim();
+    }
+    // Pattern: ?q=Place+Name
+    const qMatch = url.match(/[?&]q=([^&]+)/);
+    if (qMatch) {
+      return decodeURIComponent(qMatch[1].replace(/\+/g, " ")).trim();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+interface GoogleMapsLookupResult {
+  title: string;
+  lat: number;
+  lng: number;
+  photoUrl?: string;
+  rating?: number;
+  category?: string;
+}
+
+async function lookupGoogleMapsPlace(
+  placeName: string
+): Promise<GoogleMapsLookupResult | null> {
+  try {
+    const url =
+      `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?` +
+      `input=${encodeURIComponent(placeName)}&inputtype=textquery&` +
+      `fields=name,geometry,photos,rating,types&` +
+      `key=${GOOGLE_MAPS_API_KEY}`;
+    const res = await fetch(url);
+    const data = (await res.json()) as {
+      status: string;
+      candidates: {
+        name?: string;
+        geometry?: { location: { lat: number; lng: number } };
+        photos?: { photo_reference: string }[];
+        rating?: number;
+        types?: string[];
+      }[];
+    };
+    if (data.status !== "OK" || !data.candidates[0]) return null;
+    const c = data.candidates[0];
+    if (!c.name || !c.geometry) return null;
+
+    const result: GoogleMapsLookupResult = {
+      title: c.name,
+      lat: c.geometry.location.lat,
+      lng: c.geometry.location.lng,
+    };
+    if (typeof c.rating === "number") result.rating = c.rating;
+    if (c.photos?.[0]?.photo_reference) {
+      result.photoUrl =
+        `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&` +
+        `photo_reference=${c.photos[0].photo_reference}&key=${GOOGLE_MAPS_API_KEY}`;
+    }
+    const matchedType = c.types?.find((t) => PLACE_TYPE_MAP[t]);
+    result.category = matchedType ? PLACE_TYPE_MAP[matchedType] : "culture";
+    return result;
+  } catch {
+    return null;
+  }
+}
+
 function isInstagramCaption(title: string): boolean {
   return /on Instagram/i.test(title) || /^[^:]+:\s*[""]/.test(title);
 }
@@ -151,30 +236,56 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
     ? stripRawUnicode(he.decode(item.rawDescription))
     : null;
 
-  // Step 1: Extract clean title/description from Instagram captions
   let workingTitle = cleanTitle;
   let workingDescription = cleanDescription;
-  if (item.sourceType === "INSTAGRAM" || isInstagramCaption(cleanTitle)) {
-    const extracted = await extractInstagramTitle(cleanTitle, item.destinationCity, item.destinationCountry);
-    if (extracted) {
-      workingTitle = extracted.title;
-      workingDescription = extracted.description || cleanDescription;
+  let coords: { lat: number; lng: number } | null = null;
+  let place: { website?: string; photoUrl?: string; rating?: number } = {};
+  let mapsCategory: string | null = null;
+  let skipNormalEnrichment = false;
+
+  // Step 0: Google Maps — extract place name from URL, skip OG title, go straight to Places API
+  const isGoogleMaps =
+    item.sourceType === "GOOGLE_MAPS" ||
+    /maps\.google\.com|google\.com\/maps|maps\.app\.goo\.gl/.test(item.sourceUrl ?? "");
+
+  if (isGoogleMaps && item.sourceUrl) {
+    const parsedName = extractGoogleMapsPlace(item.sourceUrl);
+    if (parsedName) {
+      const mapsPlace = await lookupGoogleMapsPlace(parsedName);
+      if (mapsPlace) {
+        workingTitle = mapsPlace.title;
+        coords = { lat: mapsPlace.lat, lng: mapsPlace.lng };
+        if (mapsPlace.photoUrl) place.photoUrl = mapsPlace.photoUrl;
+        if (typeof mapsPlace.rating === "number") place.rating = mapsPlace.rating;
+        if (mapsPlace.category) mapsCategory = mapsPlace.category;
+        skipNormalEnrichment = true;
+        console.log(`[enrich] Google Maps fast-path: "${workingTitle}" (${coords.lat}, ${coords.lng})`);
+      }
     }
   }
 
-  // Step 2: Geocode if lat is null
-  let coords: { lat: number; lng: number } | null = null;
-  if (item.lat == null) {
-    coords = await geocode(workingTitle, item.destinationCity, item.destinationCountry);
-  }
+  if (!skipNormalEnrichment) {
+    // Step 1: Extract clean title/description from Instagram captions
+    if (item.sourceType === "INSTAGRAM" || isInstagramCaption(cleanTitle)) {
+      const extracted = await extractInstagramTitle(cleanTitle, item.destinationCity, item.destinationCountry);
+      if (extracted) {
+        workingTitle = extracted.title;
+        workingDescription = extracted.description || cleanDescription;
+      }
+    }
 
-  // Step 3: Places — website, photo, rating (skip if venue map has a curated photo)
-  const curatedPhoto = getVenueImage(workingTitle);
-  let place: { website?: string; photoUrl?: string; rating?: number } = {};
-  if (curatedPhoto) {
-    place = { photoUrl: curatedPhoto };
-  } else {
-    place = await getPlaceDetails(workingTitle, coords?.lat ?? null, coords?.lng ?? null);
+    // Step 2: Geocode if lat is null
+    if (item.lat == null) {
+      coords = await geocode(workingTitle, item.destinationCity, item.destinationCountry);
+    }
+
+    // Step 3: Places — website, photo, rating (skip if venue map has a curated photo)
+    const curatedPhoto = getVenueImage(workingTitle);
+    if (curatedPhoto) {
+      place = { photoUrl: curatedPhoto };
+    } else {
+      place = await getPlaceDetails(workingTitle, coords?.lat ?? null, coords?.lng ?? null);
+    }
   }
 
   // Step 4: Claude description if still missing
@@ -202,6 +313,7 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   if (place.photoUrl) updateData.placePhotoUrl = place.photoUrl;
   if (typeof place.rating === "number") updateData.relevanceScore = place.rating;
   if (description && !workingDescription) updateData.rawDescription = description;
+  if (mapsCategory) updateData.categoryTags = [mapsCategory];
   updateData.extractionStatus = "ENRICHED";
 
   await db.savedItem.update({ where: { id: item.id }, data: updateData });
