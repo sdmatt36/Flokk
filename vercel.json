@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/nudge-users",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/trip-lifecycle",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}

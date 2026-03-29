@@ -108,12 +108,18 @@ async function generateDescription(
       max_tokens: 120,
       messages: [{
         role: "user",
-        content: `Write a 1-2 sentence family travel description for "${title}"${location ? ` in ${location}` : ""}. Focus on what makes it good for families with kids. Be specific and practical. Return only the description text.`,
+        content: `Write a 1-2 sentence family travel description for "${title}"${location ? ` in ${location}` : ""}. Focus on what makes it good for families with kids. Be specific and practical. Return only the description text.
+
+If you cannot determine a specific named place, restaurant, hotel, or attraction from the title provided, return exactly: null
+
+Only return content when you are confident it describes a real, specific place. Never return generic phrases like "saved based on your interests" or "a great pick for families" when you don't have specific information about the actual place.`,
       }],
     });
     const content = response.content[0];
     if (content.type !== "text") return null;
-    return content.text.trim();
+    const text = content.text.trim();
+    if (text === "null" || text.toLowerCase() === "null") return null;
+    return text;
   } catch {
     return null;
   }
@@ -178,8 +184,18 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   }
 
   // Step 5: UPDATE — never delete, only add missing data
+  // If title is empty after all extraction steps, fall back to URL hostname (e.g. "airbnb.com")
+  let finalTitle = workingTitle;
+  if (!finalTitle && item.sourceUrl) {
+    try {
+      finalTitle = new URL(item.sourceUrl).hostname.replace("www.", "");
+    } catch {
+      // keep workingTitle (empty string)
+    }
+  }
+
   const updateData: Record<string, unknown> = {};
-  updateData.rawTitle = workingTitle;
+  updateData.rawTitle = finalTitle;
   if (workingDescription) updateData.rawDescription = workingDescription;
   if (coords) { updateData.lat = coords.lat; updateData.lng = coords.lng; }
   if (place.website && !item.sourceUrl) updateData.sourceUrl = place.website;
