@@ -1,3 +1,6 @@
+// DISABLED — enrichment moved to direct call in saves API route.
+// See src/lib/enrich-save.ts. Inngest trigger removed from saves route.
+// Kept here so the Inngest serve handler doesn't break on import.
 import { inngest } from "../client";
 import { db } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";

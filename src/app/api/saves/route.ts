@@ -11,9 +11,9 @@ import he from "he";
 import { z, ZodError } from "zod";
 import { extractOgMetadata } from "@/lib/og-extract";
 import type { SourceType } from "@prisma/client";
-import { inngest } from "@/lib/inngest/client";
 import { getVenueImage } from "@/lib/destination-images";
 import { sendTransactional } from "@/lib/loops";
+import { enrichSavedItem } from "@/lib/enrich-save";
 
 const SaveSchema = z.object({
   url: z.string().url(),
@@ -126,10 +126,10 @@ export async function POST(request: Request) {
       },
     });
 
-    // Fire enrichment pipeline if lat/lng not already provided
+    // Fire enrichment directly — no Inngest
     if (!lat && !lng) {
-      inngest.send({ name: "saves/enrich-item", data: { savedItemId: savedItem.id } })
-        .catch((e) => console.error("[saves POST] inngest.send failed:", e));
+      enrichSavedItem(savedItem.id)
+        .catch((e) => console.error("[enrich] failed:", e));
     }
 
     // Loops: fire first-save if this is their first saved item
@@ -159,6 +159,7 @@ export async function POST(request: Request) {
 }
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function GET(request: Request) {
   try {
