@@ -112,6 +112,22 @@ function isInstagramCaption(title: string): boolean {
   return /on Instagram/i.test(title) || /^[^:]+:\s*[""]/.test(title);
 }
 
+function cleanInstagramFallback(rawTitle: string | null): string {
+  if (!rawTitle) return "Instagram save";
+  let clean = rawTitle
+    .replace(/^.+on Instagram:\s*/i, "")
+    .replace(/^["']/, "")
+    .replace(/#\w+/g, "")
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, "")
+    .replace(/\d+[KkMm]?\s*likes?.*$/i, "")
+    .replace(/\d+\s*comments?.*$/i, "")
+    .replace(/\s+/g, " ")
+    .replace(/^[^\w]+|[^\w]+$/g, "")
+    .trim();
+  if (clean.length > 60) clean = clean.substring(0, 57) + "...";
+  return clean || "Instagram save";
+}
+
 async function extractInstagramTitle(
   caption: string,
   city: string | null,
@@ -290,6 +306,9 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
       if (extracted) {
         workingTitle = extracted.title;
         workingDescription = extracted.description || cleanDescription;
+      } else {
+        // Claude couldn't identify a specific place — clean the caption rather than show the raw dirty title
+        workingTitle = cleanInstagramFallback(item.rawTitle);
       }
     }
 
