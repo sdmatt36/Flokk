@@ -122,7 +122,9 @@ export async function GET(
   if (!trip.startDate) return NextResponse.json({ show: false });
 
   const daysAway = daysUntil(trip.startDate);
-  if (daysAway < 0 || daysAway > WINDOW_DAYS) return NextResponse.json({ show: false });
+  // Show during the trip (daysAway <= 0) until the day after it ends
+  const daysUntilEnd = trip.endDate ? daysUntil(trip.endDate) : daysAway;
+  if (daysUntilEnd < -1 || daysAway > WINDOW_DAYS) return NextResponse.json({ show: false });
 
   const items: IntelItem[] = [];
   const { destinationCity, destinationCountry, flights, savedItems, manualActivities, keyInfo, documents } = trip;
