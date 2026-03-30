@@ -2322,6 +2322,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           tripId={tripId}
           destinationCity={destinationCity}
           startDate={tripStartDate}
+          endDate={tripEndDate}
           onAddFlight={onAddFlight}
         />
       )}

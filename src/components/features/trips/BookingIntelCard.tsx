@@ -46,10 +46,11 @@ function SkeletonRow() {
   );
 }
 
-export function BookingIntelCard({ tripId, destinationCity, startDate, onAddFlight }: {
+export function BookingIntelCard({ tripId, destinationCity, startDate, endDate, onAddFlight }: {
   tripId: string;
   destinationCity?: string | null;
   startDate?: string | null;
+  endDate?: string | null;
   onAddFlight?: () => void;
 }) {
   const [state, setState] = useState<"loading" | "hidden" | "ready">("loading");
@@ -71,7 +72,25 @@ export function BookingIntelCard({ tripId, destinationCity, startDate, onAddFlig
   // Compute daysAway from the startDate prop directly — never rely on API response
   const daysAway = computeDaysAway(startDate);
   const urgencyLabel = daysAway != null ? getUrgencyLabel(daysAway) : null;
-  console.log("[BookingIntelCard] daysAway:", daysAway, "urgencyLabel:", urgencyLabel);
+
+  const tripDuration =
+    startDate && endDate
+      ? Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24))
+      : null;
+  const tripInProgress = daysAway !== null && daysAway <= 0 && (tripDuration === null || daysAway > -tripDuration);
+  const tripJustEnded = daysAway !== null && tripDuration !== null && daysAway <= -tripDuration;
+
+  const cardHeading = tripInProgress
+    ? "Your trip is underway"
+    : tripJustEnded
+    ? "How did it go?"
+    : "Things to sort before you go";
+
+  const cardSubheading = tripInProgress && destinationCity
+    ? `You're in ${destinationCity} now`
+    : (destinationCity || startDate)
+    ? `Based on your trip${destinationCity ? ` to ${destinationCity}` : ""}${startDate ? ` on ${new Date(startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}${urgencyLabel && !tripInProgress ? ` — ${urgencyLabel}` : ""}`
+    : null;
 
   useEffect(() => {
     if (!tripId) { setState("hidden"); return; }
@@ -105,10 +124,6 @@ export function BookingIntelCard({ tripId, destinationCity, startDate, onAddFlig
   };
 
   if (state === "hidden") return null;
-
-  const dateLabel = startDate
-    ? new Date(startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-    : null;
 
   return (
     <>
@@ -144,11 +159,11 @@ export function BookingIntelCard({ tripId, destinationCity, startDate, onAddFlig
               fontFamily: '"Playfair Display", Georgia, "Times New Roman", serif',
               lineHeight: 1.2,
             }}>
-              Things to sort before you go
+              {cardHeading}
             </h3>
-            {(destinationCity || dateLabel) && (
+            {cardSubheading && (
               <p style={{ fontSize: "12px", color: "#888", margin: 0 }}>
-                {`Based on your trip${destinationCity ? ` to ${destinationCity}` : ""}${dateLabel ? ` on ${dateLabel}` : ""}${urgencyLabel ? ` — ${urgencyLabel}` : ""}`}
+                {cardSubheading}
               </p>
             )}
           </div>

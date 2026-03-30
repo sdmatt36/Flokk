@@ -10,16 +10,28 @@ export async function POST() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Fetch all unenriched saves on PUBLIC trips
+  // Fetch dirty saves across all trips — not limited to PUBLIC
   const items = await db.savedItem.findMany({
     where: {
-      OR: [{ lat: null }, { extractionStatus: { not: "ENRICHED" } }],
-      trip: { privacy: "PUBLIC" },
+      OR: [
+        { rawTitle: { contains: "on Instagram", mode: "insensitive" } },
+        { rawTitle: { equals: "Google Maps" } },
+        { rawTitle: { equals: "google.com" } },
+        { extractionStatus: { not: "ENRICHED" } },
+        {
+          AND: [
+            { placePhotoUrl: null },
+            { mediaThumbnailUrl: null },
+            { sourceType: { not: "MANUAL" } },
+          ],
+        },
+      ],
     },
     select: { id: true },
+    take: 50,
   });
 
-  console.log(`[enrich-all-saves] found ${items.length} items to enrich`);
+  console.log(`[enrich-all-saves] found ${items.length} dirty items to enrich`);
 
   let enriched = 0;
   for (const item of items) {
@@ -29,8 +41,7 @@ export async function POST() {
     } catch (e) {
       console.error(`[enrich-all-saves] failed for ${item.id}:`, e);
     }
-    // 100ms delay between items to avoid rate limits
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 200));
   }
 
   return NextResponse.json({ total: items.length, enriched });
