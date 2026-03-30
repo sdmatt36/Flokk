@@ -301,13 +301,15 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
 
   if (!skipNormalEnrichment) {
     // Step 1: Extract clean title/description from Instagram captions
+    let instagramPlaceFound = false;
     if (item.sourceType === "INSTAGRAM" || isInstagramCaption(cleanTitle)) {
       const extracted = await extractInstagramTitle(cleanTitle, item.destinationCity, item.destinationCountry);
       if (extracted) {
         workingTitle = extracted.title;
         workingDescription = extracted.description || cleanDescription;
+        instagramPlaceFound = true;
       } else {
-        // Claude couldn't identify a specific place — clean the caption rather than show the raw dirty title
+        // Claude couldn't identify a specific place — clean the caption and flag for user confirmation
         workingTitle = cleanInstagramFallback(item.rawTitle);
       }
     }
@@ -352,6 +354,10 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   if (typeof place.rating === "number") updateData.relevanceScore = place.rating;
   if (description && !workingDescription) updateData.rawDescription = description;
   if (mapsCategory) updateData.categoryTags = [mapsCategory];
+  // Flag Instagram saves where Claude couldn't identify a specific place — prompt user to identify
+  if ((item.sourceType === "INSTAGRAM" || isInstagramCaption(cleanTitle)) && !instagramPlaceFound && !skipNormalEnrichment) {
+    updateData.needsPlaceConfirmation = true;
+  }
   updateData.extractionStatus = "ENRICHED";
 
   await db.savedItem.update({ where: { id: item.id }, data: updateData });

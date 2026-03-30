@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
@@ -30,6 +30,15 @@ type Save = {
   dayIndex: number | null;
   distance: string | null;
   img: string | null;
+  needsPlaceConfirmation: boolean;
+};
+
+type PlaceResult = {
+  place_id: string;
+  name: string;
+  formatted_address: string;
+  geometry?: { location: { lat: number; lng: number } };
+  photos?: { photo_reference: string }[];
 };
 
 const FILTER_PILLS = ["All", "Culture", "Food", "Kids", "Lodging", "Outdoor", "Shopping", "Transportation", "Unorganized"];
@@ -47,6 +56,7 @@ type ApiItem = {
   tripId: string | null;
   dayIndex: number | null;
   trip: { id: string; title: string } | null;
+  needsPlaceConfirmation: boolean;
 };
 
 const SOURCE_LABEL_MAP: Record<string, string> = {
@@ -74,6 +84,7 @@ function mapApiItem(item: ApiItem): Save {
     dayIndex: item.dayIndex ?? null,
     distance: null,
     img: getItemImage(item.rawTitle, item.placePhotoUrl, item.mediaThumbnailUrl, item.categoryTags[0] ?? null, item.destinationCity, item.destinationCountry),
+    needsPlaceConfirmation: item.needsPlaceConfirmation ?? false,
   };
 }
 
@@ -88,9 +99,10 @@ type SaveCardProps = {
   onCardClick: (id: string) => void;
   availableTrips: { id: string; title: string }[];
   onDeleted?: (id: string) => void;
+  onIdentifyPlace?: (id: string) => void;
 };
 
-function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted }: SaveCardProps) {
+function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace }: SaveCardProps) {
   const visibleTags = save.tags.slice(0, 3);
   const extraTags = save.tags.length - visibleTags.length;
   const isDropdownOpen = openDropdown === save.id;
@@ -194,6 +206,19 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
         >
           {save.title}
         </p>
+
+        {/* Place identification prompt */}
+        {save.needsPlaceConfirmation && onIdentifyPlace && (
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+            <span style={{ fontSize: "11px", color: "#999" }}>What place is this?</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); onIdentifyPlace(save.id); }}
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "11px", color: "#C4664A", fontWeight: 600, fontFamily: "inherit" }}
+            >
+              Identify place →
+            </button>
+          </div>
+        )}
 
         {/* Location */}
         {save.location && (
@@ -392,7 +417,7 @@ function SectionHeader({ icon, title, badge, count, action }: {
 
 // ─── CardGrid ─────────────────────────────────────────────────────────────────
 
-function CardGrid({ cards, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted }: {
+function CardGrid({ cards, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace }: {
   cards: Save[];
   openDropdown: string | null;
   setOpenDropdown: (id: string | null) => void;
@@ -401,11 +426,12 @@ function CardGrid({ cards, openDropdown, setOpenDropdown, assignTrip, onTripClic
   onCardClick: (id: string) => void;
   availableTrips: { id: string; title: string }[];
   onDeleted?: (id: string) => void;
+  onIdentifyPlace?: (id: string) => void;
 }) {
   return (
     <div className="grid grid-cols-3 lg:grid-cols-3 md:grid-cols-2 sm:grid-cols-1" style={{ gap: "16px" }}>
       {cards.map((save) => (
-        <SaveCard key={save.id} save={save} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={onTripClick} onCardClick={onCardClick} availableTrips={availableTrips} onDeleted={onDeleted} />
+        <SaveCard key={save.id} save={save} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={onTripClick} onCardClick={onCardClick} availableTrips={availableTrips} onDeleted={onDeleted} onIdentifyPlace={onIdentifyPlace} />
       ))}
     </div>
   );
@@ -424,6 +450,11 @@ export function SavesScreen() {
   const [showFabModal, setShowFabModal] = useState(false);
   const [fabUrl, setFabUrl] = useState("");
   const [modalItemId, setModalItemId] = useState<string | null>(null);
+  const [identifyingItem, setIdentifyingItem] = useState<string | null>(null);
+  const [placeQuery, setPlaceQuery] = useState("");
+  const [placeResults, setPlaceResults] = useState<PlaceResult[]>([]);
+  const [identifying, setIdentifying] = useState(false);
+  const placeSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -437,6 +468,47 @@ export function SavesScreen() {
   }, []);
 
   const unorganizedCount = saves.filter((s) => s.assigned === null).length;
+
+  const handlePlaceSearch = (query: string) => {
+    if (placeSearchTimeout.current) clearTimeout(placeSearchTimeout.current);
+    if (query.length < 3) { setPlaceResults([]); return; }
+    placeSearchTimeout.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/places/search?q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        setPlaceResults(data.places ?? []);
+      } catch { setPlaceResults([]); }
+    }, 300);
+  };
+
+  const handleSelectPlace = async (place: PlaceResult) => {
+    if (!identifyingItem) return;
+    setIdentifying(true);
+    try {
+      const res = await fetch(`/api/saves/${identifyingItem}/identify`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rawTitle: place.name,
+          lat: place.geometry?.location?.lat ?? null,
+          lng: place.geometry?.location?.lng ?? null,
+          photoReference: place.photos?.[0]?.photo_reference ?? null,
+          needsPlaceConfirmation: false,
+        }),
+      });
+      const data = await res.json() as { savedItem?: { placePhotoUrl?: string | null } };
+      const photoUrl = data.savedItem?.placePhotoUrl ?? null;
+      setSaves((prev) => prev.map((s) =>
+        s.id === identifyingItem
+          ? { ...s, title: place.name, img: photoUrl ?? s.img, needsPlaceConfirmation: false }
+          : s
+      ));
+    } catch { /* silent */ }
+    setIdentifyingItem(null);
+    setPlaceQuery("");
+    setPlaceResults([]);
+    setIdentifying(false);
+  };
 
   const assignTrip = (id: string, tripTitle: string) => {
     if (tripTitle === "+ Create new trip") { setOpenDropdown(null); return; }
@@ -603,7 +675,7 @@ Your saved places, all in one spot
                 count={cards.length}
                 action={matchedTrip ? { label: "View trip →", onClick: handleViewTrip } : undefined}
               />
-              <CardGrid cards={cards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={handleViewTrip} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} />
+              <CardGrid cards={cards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={handleViewTrip} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} onIdentifyPlace={setIdentifyingItem} />
             </div>
           );
         })}
@@ -617,11 +689,62 @@ Your saved places, all in one spot
               count={unorganizedCards.length}
               action={{ label: "Assign all →", onClick: () => setActiveFilter("Unorganized") }}
             />
-            <CardGrid cards={unorganizedCards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={(name) => { const t = availableTrips.find((tr) => tr.title === name); if (t) router.push(`/trips/${t.id}`); }} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} />
+            <CardGrid cards={unorganizedCards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={(name) => { const t = availableTrips.find((tr) => tr.title === name); if (t) router.push(`/trips/${t.id}`); }} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} onIdentifyPlace={setIdentifyingItem} />
           </div>
         )}
 
       </div>
+
+      {/* Place identification modal */}
+      {identifyingItem && (
+        <div
+          onClick={() => { setIdentifyingItem(null); setPlaceQuery(""); setPlaceResults([]); }}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: "#fff", borderRadius: "20px", width: "100%", maxWidth: "360px", padding: "24px", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}
+          >
+            <h3 style={{ fontSize: "17px", fontWeight: 800, color: "#1B3A5C", margin: "0 0 4px", fontFamily: '"Playfair Display", Georgia, serif', lineHeight: 1.2 }}>
+              What place is this?
+            </h3>
+            <p style={{ fontSize: "12px", color: "#999", margin: "0 0 16px" }}>
+              Type the place name and we&apos;ll find it
+            </p>
+            <input
+              type="text"
+              value={placeQuery}
+              onChange={(e) => { setPlaceQuery(e.target.value); handlePlaceSearch(e.target.value); }}
+              placeholder="e.g. Dragon Hill Spa Seoul"
+              autoFocus
+              style={{ display: "block", width: "100%", border: "1.5px solid #e5e7eb", borderRadius: "10px", padding: "10px 12px", fontSize: "14px", color: "#1a1a1a", outline: "none", marginBottom: "8px", boxSizing: "border-box", fontFamily: "inherit" }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = "#C4664A"; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = "#e5e7eb"; }}
+            />
+            {placeResults.length > 0 && (
+              <div style={{ border: "1px solid #f0f0f0", borderRadius: "10px", overflow: "hidden", marginBottom: "12px" }}>
+                {placeResults.map((place, i) => (
+                  <button
+                    key={place.place_id}
+                    onClick={() => handleSelectPlace(place)}
+                    disabled={identifying}
+                    style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", background: "none", border: "none", cursor: "pointer", borderBottom: i < placeResults.length - 1 ? "1px solid #f5f5f5" : "none", fontFamily: "inherit" }}
+                  >
+                    <p style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 2px" }}>{place.name}</p>
+                    <p style={{ fontSize: "11px", color: "#999", margin: 0 }}>{place.formatted_address}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => { setIdentifyingItem(null); setPlaceQuery(""); setPlaceResults([]); }}
+              style={{ width: "100%", background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "#bbb", padding: "8px 0", fontFamily: "inherit" }}
+            >
+              Skip for now
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Save detail modal */}
       {modalItemId && (

@@ -305,8 +305,9 @@ model SavedItem {
   bookedAt            DateTime?
   userRating          Int?
   userNote            String?
-  sortOrder           Int       @default(0)
-  startTime           String?
+  sortOrder                Int       @default(0)
+  startTime                String?
+  needsPlaceConfirmation   Boolean   @default(false)
 }
 
 enum SourceType {
