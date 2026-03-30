@@ -55,13 +55,19 @@ function createMarkerEl(m: MarkerDef): HTMLElement {
   return wrap;
 }
 
+function isValidCoord(lat: number | null | undefined, lng: number | null | undefined): boolean {
+  return lat != null && lng != null && lat !== 0 && lng !== 0 &&
+    lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+}
+
 function flyToDay(map: any, mapboxgl: any, markers: MarkerDef[], center: [number, number]) {
-  if (markers.length >= 2) {
+  const valid = markers.filter((m) => isValidCoord(m.lat, m.lng));
+  if (valid.length >= 2) {
     const bounds = new mapboxgl.LngLatBounds();
-    markers.forEach((m) => bounds.extend([m.lng, m.lat]));
+    valid.forEach((m) => bounds.extend([m.lng, m.lat]));
     map.fitBounds(bounds, { padding: 60, duration: 800 });
-  } else if (markers.length === 1) {
-    map.flyTo({ center: [markers[0].lng, markers[0].lat], zoom: 13, duration: 800 });
+  } else if (valid.length === 1) {
+    map.flyTo({ center: [valid[0].lng, valid[0].lat], zoom: 13, duration: 800 });
   } else {
     map.flyTo({ center, zoom: 10, duration: 800 });
   }
@@ -182,11 +188,14 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
       filteredActivities = activities;
       filteredBookings = importedBookingPins.filter(p => p.latitude !== 0 && p.longitude !== 0);
     }
-    const offset = filteredSaved.length + filteredActivities.length;
+    const validSaved = filteredSaved.filter(s => isValidCoord(s.lat, s.lng));
+    const validActivities = filteredActivities.filter(a => isValidCoord(a.lat, a.lng));
+    const validBookings = filteredBookings.filter(p => isValidCoord(p.latitude, p.longitude));
+    const offset = validSaved.length + validActivities.length;
     const allFiltered = [
-      ...filteredSaved.map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" })),
-      ...filteredActivities.map((a, i) => ({ num: filteredSaved.length + i + 1, label: a.title, lat: a.lat, lng: a.lng, color: "#2E7D52" })),
-      ...filteredBookings.map((p, i) => ({ num: offset + i + 1, label: p.title, lat: p.latitude, lng: p.longitude, color: "#C4664A" })),
+      ...validSaved.map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" })),
+      ...validActivities.map((a, i) => ({ num: validSaved.length + i + 1, label: a.title, lat: a.lat, lng: a.lng, color: "#2E7D52" })),
+      ...validBookings.map((p, i) => ({ num: offset + i + 1, label: p.title, lat: p.latitude, lng: p.longitude, color: "#C4664A" })),
     ];
     addMarkersInternal(allFiltered);
     flyToDay(mapRef.current, mapboxRef.current, allFiltered, destCoords);

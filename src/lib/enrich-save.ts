@@ -272,6 +272,7 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   let place: { website?: string; photoUrl?: string; rating?: number } = {};
   let mapsCategory: string | null = null;
   let skipNormalEnrichment = false;
+  let instagramPlaceFound = false;
 
   // Step 0: Google Maps — extract place name from URL, skip OG title, go straight to Places API
   const isGoogleMaps =
@@ -301,7 +302,6 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
 
   if (!skipNormalEnrichment) {
     // Step 1: Extract clean title/description from Instagram captions
-    let instagramPlaceFound = false;
     if (item.sourceType === "INSTAGRAM" || isInstagramCaption(cleanTitle)) {
       const extracted = await extractInstagramTitle(cleanTitle, item.destinationCity, item.destinationCountry);
       if (extracted) {

@@ -185,6 +185,8 @@ export function SaveDetailModal({
 
   function cleanDesc(desc: string): string {
     return desc
+      // Strip full Instagram engagement prefix: "17K likes, 122 comments - username on Instagram Date: "
+      .replace(/^\d+[KkMm]?\s*likes?,\s*\d+\s*comments?\s*[-–]\s*[^\n]+?:\s*/i, "")
       .replace(/\d+[KkMm]?\s*likes?,?\s*/gi, "")
       .replace(/\d+\s*comments?,?\s*/gi, "")
       .replace(/[-–]\s*\w+\s+on\s+\w+\s+\d+,?\s*\d*:?\s*/gi, "")

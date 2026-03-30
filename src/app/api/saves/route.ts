@@ -1,3 +1,9 @@
+function sanitizeThumbnailUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.includes("cdninstagram.com") || url.includes("fbcdn.net") || url.includes("scontent")) return null;
+  return url;
+}
+
 // Extraction pipeline entry point.
 // Full architecture documented in src/lib/og-extract.ts.
 // Current state: Layer 1 (metadata) only.
@@ -195,8 +201,9 @@ export async function GET(request: Request) {
           orderBy: { savedAt: "desc" },
           include: { trip: { select: { id: true, title: true } } },
         });
-        console.log("[GET /api/saves] public trip", tripId, "returning", saves.length, "saves");
-        return NextResponse.json({ saves }, { headers: { "Cache-Control": "no-store" } });
+        const sanitizedPublic = saves.map(s => ({ ...s, mediaThumbnailUrl: sanitizeThumbnailUrl(s.mediaThumbnailUrl) }));
+        console.log("[GET /api/saves] public trip", tripId, "returning", sanitizedPublic.length, "saves");
+        return NextResponse.json({ saves: sanitizedPublic }, { headers: { "Cache-Control": "no-store" } });
       }
     }
 
@@ -228,10 +235,11 @@ export async function GET(request: Request) {
     });
 
     console.log("[GET /api/saves] tripId param:", tripId ?? "none");
-    console.log("[GET /api/saves] returning", saves.length, "saves for familyProfile", user.familyProfile.id);
+    const sanitized = saves.map(s => ({ ...s, mediaThumbnailUrl: sanitizeThumbnailUrl(s.mediaThumbnailUrl) }));
+    console.log("[GET /api/saves] returning", sanitized.length, "saves for familyProfile", user.familyProfile.id);
 
     return NextResponse.json(
-      { saves },
+      { saves: sanitized },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch (error) {

@@ -2440,7 +2440,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 const next = allDayItems[idx + 1];
                                 const item1Name = item.recAddition?.title ?? item.activity?.title ?? item.flight?.airline ?? item.itemType;
                                 const item2Name = next ? (next.recAddition?.title ?? next.activity?.title ?? next.flight?.airline ?? next.itemType) : "";
-                                const hasCoords = item.startTime && item.lat && item.lng && next?.startTime && next?.lat && next?.lng;
+                                const isValidTransitCoord = (lat: number | null | undefined, lng: number | null | undefined) =>
+                                  lat != null && lng != null && lat !== 0 && lng !== 0 && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+                                const hasCoords = item.startTime && isValidTransitCoord(item.lat, item.lng) && next?.startTime && isValidTransitCoord(next?.lat, next?.lng);
 
                                 // Post-arrival transit intelligence: detect arrival (train/flight) → hotel pairs
                                 const isArrival = item.itemType === "flight" ||
