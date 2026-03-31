@@ -57,7 +57,7 @@ function getGradient(tags: string[]) {
 function cleanDisplayDescription(raw: string | null | undefined): string {
   if (!raw) return "";
   let s = raw;
-  s = s.replace(/^\d[\d,.KkMmBb]*\s*likes?,.*?:\s*/is, "");
+  s = s.replace(/^\d[\d,.KkMmBb]*\s*likes?,[\s\S]*?:\s*/i, "");
   s = s.replace(/^[\w.]+\s+on\s+\w+:\s*/i, "");
   s = s.replace(/#\w+/g, "");
   s = s.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{1F1E0}-\u{1F1FF}\u{FE00}-\u{FEFF}\u{2300}-\u{27FF}]/gu, "");
