@@ -153,6 +153,14 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
 
   const destCoords = getDestinationCoords(destinationCity, destinationCountry);
 
+  // Fuzzy-match destinationCity against CITY_CENTERS keys (handles "Seoul, South Korea" → "Seoul")
+  const cityKey = Object.keys(CITY_CENTERS).find(k =>
+    destinationCity?.toLowerCase().includes(k.toLowerCase())
+  ) ?? "";
+  const fallbackCenter = CITY_CENTERS[cityKey] ?? ([destCoords[1], destCoords[0]] as [number, number]);
+  const anchorLat = fallbackCenter[0];
+  const anchorLng = fallbackCenter[1];
+
   // Fetch saves with coordinates for this trip
   useEffect(() => {
     if (!tripId) return;
@@ -263,8 +271,7 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
       ...validBookings.map((p, i) => ({ num: offset + i + 1, label: p.title, lat: p.latitude, lng: p.longitude, color: "#C4664A" })),
     ];
     addMarkersInternal(allFiltered);
-    // destCoords is [lng, lat] — pass as anchorLat/anchorLng for proximity filter
-    flyToDay(mapRef.current, mapboxRef.current, allFiltered, destCoords, destCoords[1], destCoords[0]);
+    flyToDay(mapRef.current, mapboxRef.current, allFiltered, destCoords, anchorLat, anchorLng);
   }, [activeDay, allSavedItems, activities, importedBookingPins]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fly to a specific coordinate when flyTarget is set

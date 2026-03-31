@@ -60,9 +60,8 @@ function cleanDisplayDescription(raw: string | null | undefined): string {
   s = s.replace(/^\d[\d,.KkMmBb]*\s*likes?,.*?:\s*/is, "");
   s = s.replace(/^[\w.]+\s+on\s+\w+:\s*/i, "");
   s = s.replace(/#\w+/g, "");
-  s = s.replace(/[\u{1F300}-\u{1FFFF}]/gu, "");
-  s = s.replace(/[\u{2600}-\u{27BF}]/gu, "");
-  s = s.replace(/[.,"'\s]+$/, "");
+  s = s.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{1F1E0}-\u{1F1FF}\u{FE00}-\u{FEFF}\u{2300}-\u{27FF}]/gu, "");
+  s = s.replace(/[\s.,"'"""]+$/, "").trim();
   s = s.replace(/\s+/g, " ").trim();
   return s.length > 200 ? s.substring(0, 200) + "..." : s;
 }
