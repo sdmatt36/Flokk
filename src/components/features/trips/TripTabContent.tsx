@@ -5,6 +5,19 @@ import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 
+function cleanDisplayDescription(raw: string | null | undefined): string {
+  if (!raw) return "";
+  let s = raw;
+  s = s.replace(/^\d[\d,.KkMmBb]*\s*likes?,.*?:\s*/is, "");
+  s = s.replace(/^[\w.]+\s+on\s+\w+:\s*/i, "");
+  s = s.replace(/#\w+/g, "");
+  s = s.replace(/[\u{1F300}-\u{1FFFF}]/gu, "");
+  s = s.replace(/[\u{2600}-\u{27BF}]/gu, "");
+  s = s.replace(/[.,"'\s]+$/, "");
+  s = s.replace(/\s+/g, " ").trim();
+  return s.length > 200 ? s.substring(0, 200) + "..." : s;
+}
+
 function useIsDesktop() {
   const [isDesktop, setIsDesktop] = useState(false);
   useEffect(() => {
@@ -2443,6 +2456,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 const isValidTransitCoord = (lat: number | null | undefined, lng: number | null | undefined) =>
                                   lat != null && lng != null && lat !== 0 && lng !== 0 && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
                                 const hasCoords = item.startTime && isValidTransitCoord(item.lat, item.lng) && next?.startTime && isValidTransitCoord(next?.lat, next?.lng);
+                                const prevHasCoords = item.lat != null && item.lng != null && item.lat !== 0 && item.lng !== 0;
+                                const nextHasCoords = next != null && next.lat != null && next.lng != null && next.lat !== 0 && next.lng !== 0;
 
                                 // Post-arrival transit intelligence: detect arrival (train/flight) → hotel pairs
                                 const isArrival = item.itemType === "flight" ||
@@ -2819,7 +2834,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                   </div>
                                 </div>,
                                 // Transit row between consecutive timed+coordinated items
-                                transitData ? (
+                                transitData && prevHasCoords && nextHasCoords ? (
                                   <div key={`transit_${idx}`} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "2px 28px 6px", marginBottom: "2px" }}>
                                     <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(0,0,0,0.06)" }} />
                                     <span style={{ fontSize: "11px", color: "#888", whiteSpace: "nowrap" }}>
@@ -3981,8 +3996,8 @@ function RecommendedContent({
                           {[destinationCity, destinationCountry].filter(Boolean).join(", ")}
                         </p>
                       )}
-                      {item.rawDescription && (
-                        <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.5, marginBottom: "10px", flex: 1, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } as React.CSSProperties}>{item.rawDescription}</p>
+                      {item.rawDescription && cleanDisplayDescription(item.rawDescription).length >= 10 && (
+                        <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.5, marginBottom: "10px", flex: 1, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } as React.CSSProperties}>{cleanDisplayDescription(item.rawDescription)}</p>
                       )}
                       <button
                         type="button"

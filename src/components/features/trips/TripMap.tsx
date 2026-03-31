@@ -55,21 +55,86 @@ function createMarkerEl(m: MarkerDef): HTMLElement {
   return wrap;
 }
 
+// Known city centers [lat, lng] — used to filter out-of-region stray pins from fitBounds
+const CITY_CENTERS: Record<string, [number, number]> = {
+  "Tokyo": [35.6762, 139.6503],
+  "Kyoto": [35.0116, 135.7681],
+  "Osaka": [34.6937, 135.5023],
+  "Nara": [34.6851, 135.8048],
+  "Hiroshima": [34.3853, 132.4553],
+  "Sapporo": [43.0618, 141.3545],
+  "Fukuoka": [33.5904, 130.4017],
+  "Okinawa": [26.2124, 127.6809],
+  "Seoul": [37.5665, 126.9780],
+  "Busan": [35.1796, 129.0756],
+  "Bangkok": [13.7563, 100.5018],
+  "Chiang Mai": [18.7883, 98.9853],
+  "Singapore": [1.3521, 103.8198],
+  "Bali": [-8.3405, 115.0920],
+  "Jakarta": [-6.2088, 106.8456],
+  "Kuala Lumpur": [3.1390, 101.6869],
+  "Ho Chi Minh City": [10.8231, 106.6297],
+  "Hanoi": [21.0285, 105.8542],
+  "Hong Kong": [22.3193, 114.1694],
+  "Taipei": [25.0320, 121.5654],
+  "Shanghai": [31.2304, 121.4737],
+  "Beijing": [39.9042, 116.4074],
+  "Sydney": [-33.8688, 151.2093],
+  "Melbourne": [-37.8136, 144.9631],
+  "Auckland": [-36.8485, 174.7633],
+  "Dubai": [25.2048, 55.2708],
+  "Paris": [48.8566, 2.3522],
+  "London": [51.5074, -0.1278],
+  "Rome": [41.9028, 12.4964],
+  "Barcelona": [41.3851, 2.1734],
+  "Amsterdam": [52.3676, 4.9041],
+  "Berlin": [52.5200, 13.4050],
+  "Lisbon": [38.7169, -9.1399],
+  "Madrid": [40.4168, -3.7038],
+  "New York": [40.7128, -74.0060],
+  "Los Angeles": [34.0522, -118.2437],
+  "San Francisco": [37.7749, -122.4194],
+  "Chicago": [41.8781, -87.6298],
+  "Miami": [25.7617, -80.1918],
+  "Honolulu": [21.3069, -157.8583],
+  "Cancun": [21.1619, -86.8515],
+  "Mexico City": [19.4326, -99.1332],
+  "Buenos Aires": [-34.6037, -58.3816],
+  "Rio de Janeiro": [-22.9068, -43.1729],
+};
+
 function isValidCoord(lat: number | null | undefined, lng: number | null | undefined): boolean {
   return lat != null && lng != null && lat !== 0 && lng !== 0 &&
     lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
 }
 
-function flyToDay(map: any, mapboxgl: any, markers: MarkerDef[], center: [number, number]) {
-  const valid = markers.filter((m) => isValidCoord(m.lat, m.lng));
-  if (valid.length >= 2) {
+function isWithinTripRadius(lat: number, lng: number, anchorLat: number, anchorLng: number, radiusKm = 300): boolean {
+  const R = 6371;
+  const dLat = ((lat - anchorLat) * Math.PI) / 180;
+  const dLng = ((lng - anchorLng) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((anchorLat * Math.PI) / 180) *
+    Math.cos((lat * Math.PI) / 180) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c <= radiusKm;
+}
+
+// destCoords is [lng, lat] (Mapbox convention)
+function flyToDay(map: any, mapboxgl: any, markers: MarkerDef[], center: [number, number], anchorLat: number, anchorLng: number) {
+  // Apply both coord validity AND proximity filter for bounds — but never affect which pins are rendered
+  const inBounds = markers.filter(
+    (m) => isValidCoord(m.lat, m.lng) && isWithinTripRadius(m.lat, m.lng, anchorLat, anchorLng)
+  );
+  if (inBounds.length >= 2) {
     const bounds = new mapboxgl.LngLatBounds();
-    valid.forEach((m) => bounds.extend([m.lng, m.lat]));
+    inBounds.forEach((m) => bounds.extend([m.lng, m.lat]));
     map.fitBounds(bounds, { padding: 60, duration: 800 });
-  } else if (valid.length === 1) {
-    map.flyTo({ center: [valid[0].lng, valid[0].lat], zoom: 13, duration: 800 });
+  } else if (inBounds.length === 1) {
+    map.flyTo({ center: [inBounds[0].lng, inBounds[0].lat], zoom: 13, duration: 800 });
   } else {
-    map.flyTo({ center, zoom: 10, duration: 800 });
+    map.flyTo({ center: [anchorLng, anchorLat], zoom: 12, duration: 800 });
   }
 }
 
@@ -198,7 +263,8 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
       ...validBookings.map((p, i) => ({ num: offset + i + 1, label: p.title, lat: p.latitude, lng: p.longitude, color: "#C4664A" })),
     ];
     addMarkersInternal(allFiltered);
-    flyToDay(mapRef.current, mapboxRef.current, allFiltered, destCoords);
+    // destCoords is [lng, lat] — pass as anchorLat/anchorLng for proximity filter
+    flyToDay(mapRef.current, mapboxRef.current, allFiltered, destCoords, destCoords[1], destCoords[0]);
   }, [activeDay, allSavedItems, activities, importedBookingPins]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fly to a specific coordinate when flyTarget is set

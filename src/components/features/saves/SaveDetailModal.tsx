@@ -54,6 +54,19 @@ function getGradient(tags: string[]) {
   return "linear-gradient(135deg,#2d3436,#636e72)";
 }
 
+function cleanDisplayDescription(raw: string | null | undefined): string {
+  if (!raw) return "";
+  let s = raw;
+  s = s.replace(/^\d[\d,.KkMmBb]*\s*likes?,.*?:\s*/is, "");
+  s = s.replace(/^[\w.]+\s+on\s+\w+:\s*/i, "");
+  s = s.replace(/#\w+/g, "");
+  s = s.replace(/[\u{1F300}-\u{1FFFF}]/gu, "");
+  s = s.replace(/[\u{2600}-\u{27BF}]/gu, "");
+  s = s.replace(/[.,"'\s]+$/, "");
+  s = s.replace(/\s+/g, " ").trim();
+  return s.length > 200 ? s.substring(0, 200) + "..." : s;
+}
+
 function buildMatchReason(tags: string[], interestKeys: string[]): string {
   if (tags.some(t => ["Kids","Activity","Educational"].includes(t)) || interestKeys.some(k => ["theme_parks","zoos","educational","hands_on","playgrounds"].includes(k)))
     return "A great pick for the whole family — built for kids but enjoyable for adults too.";
@@ -348,7 +361,7 @@ export function SaveDetailModal({
 
             {/* Description */}
             {item.rawDescription && (() => {
-              const cleaned = cleanDesc(item.rawDescription);
+              const cleaned = cleanDisplayDescription(item.rawDescription);
               if (cleaned.length < 10) return null;
               return (
                 <p style={{ fontSize: "14px", color: "#444", lineHeight: 1.6, marginBottom: "16px" }}>
