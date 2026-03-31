@@ -55,7 +55,7 @@ function createMarkerEl(m: MarkerDef): HTMLElement {
   return wrap;
 }
 
-// Known city centers [lat, lng] — used to filter out-of-region stray pins from fitBounds
+// Known city centers [lat, lng] — used as bounds anchor, prevents (0,0) fallback
 const CITY_CENTERS: Record<string, [number, number]> = {
   "Tokyo": [35.6762, 139.6503],
   "Kyoto": [35.0116, 135.7681],
@@ -91,6 +91,9 @@ const CITY_CENTERS: Record<string, [number, number]> = {
   "Berlin": [52.5200, 13.4050],
   "Lisbon": [38.7169, -9.1399],
   "Madrid": [40.4168, -3.7038],
+  "Marrakesh": [31.6295, -7.9811],
+  "Montreal": [45.5017, -73.5673],
+  "Sri Lanka": [7.8731, 80.7718],
   "New York": [40.7128, -74.0060],
   "Los Angeles": [34.0522, -118.2437],
   "San Francisco": [37.7749, -122.4194],
@@ -103,9 +106,13 @@ const CITY_CENTERS: Record<string, [number, number]> = {
   "Rio de Janeiro": [-22.9068, -43.1729],
 };
 
-function isValidCoord(lat: number | null | undefined, lng: number | null | undefined): boolean {
-  return lat != null && lng != null && lat !== 0 && lng !== 0 &&
-    lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+// Rejects null, zero, non-number, and out-of-range coordinates
+function isValidCoord(lat: any, lng: any): boolean {
+  return lat != null && lng != null &&
+    typeof lat === "number" && typeof lng === "number" &&
+    lat !== 0 && lng !== 0 &&
+    lat >= -90 && lat <= 90 &&
+    lng >= -180 && lng <= 180;
 }
 
 function isWithinTripRadius(lat: number, lng: number, anchorLat: number, anchorLng: number, radiusKm = 300): boolean {
@@ -121,23 +128,6 @@ function isWithinTripRadius(lat: number, lng: number, anchorLat: number, anchorL
   return R * c <= radiusKm;
 }
 
-// destCoords is [lng, lat] (Mapbox convention)
-function flyToDay(map: any, mapboxgl: any, markers: MarkerDef[], center: [number, number], anchorLat: number, anchorLng: number) {
-  // Apply both coord validity AND proximity filter for bounds — but never affect which pins are rendered
-  const inBounds = markers.filter(
-    (m) => isValidCoord(m.lat, m.lng) && isWithinTripRadius(m.lat, m.lng, anchorLat, anchorLng)
-  );
-  if (inBounds.length >= 2) {
-    const bounds = new mapboxgl.LngLatBounds();
-    inBounds.forEach((m) => bounds.extend([m.lng, m.lat]));
-    map.fitBounds(bounds, { padding: 60, duration: 800 });
-  } else if (inBounds.length === 1) {
-    map.flyTo({ center: [inBounds[0].lng, inBounds[0].lat], zoom: 13, duration: 800 });
-  } else {
-    map.flyTo({ center: [anchorLng, anchorLat], zoom: 12, duration: 800 });
-  }
-}
-
 type MapSavedItem = { title: string; lat: number; lng: number; dayIndex?: number | null };
 type ImportedBookingPin = { id: string; title: string; type: string; dayIndex: number | null; latitude: number; longitude: number };
 
@@ -147,19 +137,21 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
   const mapboxRef = useRef<any>(null);
-  const initializedRef = useRef(false);
+  // mapReady as state (not ref) so map load triggers a re-render and re-runs the marker effect
+  const [mapReady, setMapReady] = useState(false);
   const [toast, setToast] = useState(false);
   const [fetchedItems, setFetchedItems] = useState<MapSavedItem[]>([]);
 
   const destCoords = getDestinationCoords(destinationCity, destinationCountry);
 
-  // Fuzzy-match destinationCity against CITY_CENTERS keys (handles "Seoul, South Korea" → "Seoul")
+  // Fuzzy-match destinationCity against CITY_CENTERS to get a reliable anchor.
+  // Falls back to CITY_CENTERS default (Seoul) rather than (0,0) from destCoords.
   const cityKey = Object.keys(CITY_CENTERS).find(k =>
     destinationCity?.toLowerCase().includes(k.toLowerCase())
   ) ?? "";
-  const fallbackCenter = CITY_CENTERS[cityKey] ?? ([destCoords[1], destCoords[0]] as [number, number]);
-  const anchorLat = fallbackCenter[0];
-  const anchorLng = fallbackCenter[1];
+  const cityCenterFallback = CITY_CENTERS[cityKey] ?? [37.5665, 126.9780]; // Seoul if all else fails
+  const anchorLat = cityCenterFallback[0];
+  const anchorLng = cityCenterFallback[1];
 
   // Fetch saves with coordinates for this trip
   useEffect(() => {
@@ -202,17 +194,17 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
       const map = new mapboxgl.Map({
         container: containerRef.current,
         style: "mapbox://styles/mapbox/outdoors-v12",
-        center: destCoords,
+        center: [anchorLng, anchorLat], // use computed anchor, not raw destCoords
         zoom: 12,
       });
       mapRef.current = map;
 
       map.on("load", () => {
         if (!destroyed) {
-          initializedRef.current = true;
           map.resize();
-          // Center on destination immediately; markers will be added by the effect below
-          map.flyTo({ center: destCoords, zoom: 12, duration: 0 });
+          map.flyTo({ center: [anchorLng, anchorLat], zoom: 12, duration: 0 });
+          // setMapReady triggers a re-render so the marker effect runs with up-to-date data
+          setMapReady(true);
         }
       });
     });
@@ -225,11 +217,11 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
         mapRef.current.remove();
         mapRef.current = null;
       }
-      initializedRef.current = false;
+      setMapReady(false);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Resize map when container dimensions change (panel height syncs via ResizeObserver)
+  // Resize map when container dimensions change
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -240,62 +232,76 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
     return () => observer.disconnect();
   }, []);
 
-  // Respond to day changes — show pins for items on that day only
+  // Respond to day changes — rebuild markers whenever day, data, or map readiness changes
   useEffect(() => {
-    if (!initializedRef.current || !mapRef.current) return;
-    let filteredSaved: typeof allSavedItems;
-    let filteredActivities: typeof activities;
-    let filteredBookings: typeof importedBookingPins;
+    if (!mapReady || !mapRef.current || !mapboxRef.current) return;
+    const map = mapRef.current;
+    const mapboxgl = mapboxRef.current;
+
+    // Build day-filtered source lists
+    let dayItems: MapSavedItem[];
+    let dayActivities: typeof activities;
+    let dayBookings: typeof importedBookingPins;
+
     if (activeDay !== null) {
-      // Strict match: only show items whose dayIndex equals the active day.
-      // Items with null/undefined dayIndex are excluded — never shown as a fallback.
-      filteredSaved = allSavedItems.filter(
+      dayItems = allSavedItems.filter(
         s => s.dayIndex != null && (s.dayIndex === activeDay || (s as any).day_index === activeDay)
       );
-      filteredActivities = activities.filter(a => a.dayIndex != null && a.dayIndex === activeDay);
-      filteredBookings = importedBookingPins.filter(
-        p => p.dayIndex != null && p.dayIndex === activeDay && p.latitude !== 0 && p.longitude !== 0
+      dayActivities = activities.filter(a => a.dayIndex != null && a.dayIndex === activeDay);
+      dayBookings = importedBookingPins.filter(
+        p => p.dayIndex != null && p.dayIndex === activeDay
       );
     } else {
-      filteredSaved = allSavedItems;
-      filteredActivities = activities;
-      filteredBookings = importedBookingPins.filter(p => p.latitude !== 0 && p.longitude !== 0);
+      dayItems = allSavedItems;
+      dayActivities = activities;
+      dayBookings = importedBookingPins;
     }
-    const validSaved = filteredSaved.filter(s => isValidCoord(s.lat, s.lng));
-    const validActivities = filteredActivities.filter(a => isValidCoord(a.lat, a.lng));
-    const validBookings = filteredBookings.filter(p => isValidCoord(p.latitude, p.longitude));
+
+    // ARRAY 1: pinsToRender — isValidCoord only. ALL of these get markers on the map.
+    const validSaved = dayItems.filter(s => isValidCoord(s.lat, s.lng));
+    const validActivities = dayActivities.filter(a => isValidCoord(a.lat, a.lng));
+    const validBookings = dayBookings.filter(p => isValidCoord(p.latitude, p.longitude));
     const offset = validSaved.length + validActivities.length;
-    const allFiltered = [
-      ...validSaved.map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" })),
-      ...validActivities.map((a, i) => ({ num: validSaved.length + i + 1, label: a.title, lat: a.lat, lng: a.lng, color: "#2E7D52" })),
-      ...validBookings.map((p, i) => ({ num: offset + i + 1, label: p.title, lat: p.latitude, lng: p.longitude, color: "#C4664A" })),
+    const pinsToRender: MarkerDef[] = [
+      ...validSaved.map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" as const })),
+      ...validActivities.map((a, i) => ({ num: validSaved.length + i + 1, label: a.title, lat: a.lat, lng: a.lng, color: "#2E7D52" as const })),
+      ...validBookings.map((p, i) => ({ num: offset + i + 1, label: p.title, lat: p.latitude, lng: p.longitude, color: "#C4664A" as const })),
     ];
-    addMarkersInternal(allFiltered);
-    flyToDay(mapRef.current, mapboxRef.current, allFiltered, destCoords, anchorLat, anchorLng);
-  }, [activeDay, allSavedItems, activities, importedBookingPins]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fly to a specific coordinate when flyTarget is set
-  useEffect(() => {
-    if (!flyTarget || !mapRef.current || !initializedRef.current) return;
-    mapRef.current.flyTo({ center: [flyTarget.lng, flyTarget.lat], zoom: 14, duration: 800 });
-    onFlyTargetConsumed?.();
-  }, [flyTarget]); // eslint-disable-line react-hooks/exhaustive-deps
+    // ARRAY 2: pinsForBounds — proximity-filtered. Used ONLY for fitBounds viewport calc.
+    // pinsToRender is NEVER filtered by proximity — all valid pins are always rendered.
+    const pinsForBounds = pinsToRender.filter(m =>
+      isWithinTripRadius(m.lat, m.lng, anchorLat, anchorLng)
+    );
 
-  function addMarkersInternal(markers: MarkerDef[]) {
-    const mapboxgl = mapboxRef.current;
-    const map = mapRef.current;
-    if (!mapboxgl || !map) return;
-
+    // Render all valid-coord pins
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
-
-    markers.forEach((m) => {
+    pinsToRender.forEach((m) => {
       const marker = new mapboxgl.Marker({ element: createMarkerEl(m), anchor: "top" })
         .setLngLat([m.lng, m.lat])
         .addTo(map);
       markersRef.current.push(marker);
     });
-  }
+
+    // Viewport: fit only proximity-filtered pins; fall back to anchor city center
+    if (pinsForBounds.length >= 2) {
+      const bounds = new mapboxgl.LngLatBounds();
+      pinsForBounds.forEach(m => bounds.extend([m.lng, m.lat]));
+      map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 800 });
+    } else if (pinsForBounds.length === 1) {
+      map.flyTo({ center: [pinsForBounds[0].lng, pinsForBounds[0].lat], zoom: 13, duration: 800 });
+    } else {
+      map.flyTo({ center: [anchorLng, anchorLat], zoom: 12, duration: 800 });
+    }
+  }, [activeDay, allSavedItems, activities, importedBookingPins, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fly to a specific coordinate when flyTarget is set
+  useEffect(() => {
+    if (!flyTarget || !mapRef.current || !mapReady) return;
+    mapRef.current.flyTo({ center: [flyTarget.lng, flyTarget.lat], zoom: 14, duration: 800 });
+    onFlyTargetConsumed?.();
+  }, [flyTarget]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function getActiveMarkers(): MarkerDef[] {
     const filteredSaved = activeDay !== null ? allSavedItems.filter(s => s.dayIndex === activeDay) : allSavedItems;

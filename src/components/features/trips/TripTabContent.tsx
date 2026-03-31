@@ -2868,7 +2868,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                   </div>
                                 </div>,
                                 // Transit row: both items need real coords AND must be within 80km
-                                prevHasCoords && nextHasCoords && distanceBetweenItems <= 80 && transitData ? (
+                                prevHasCoords && nextHasCoords && distanceBetweenItems <= 50 && transitData ? (
                                   <div key={`transit_${idx}`} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "2px 28px 6px", marginBottom: "2px" }}>
                                     <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(0,0,0,0.06)" }} />
                                     <span style={{ fontSize: "11px", color: "#888", whiteSpace: "nowrap" }}>
