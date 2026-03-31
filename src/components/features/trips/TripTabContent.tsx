@@ -859,6 +859,8 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
   );
 }
 
+const SAVED_FILTER_PILLS = ["All", "Culture", "Food", "Kids", "Lodging", "Outdoor", "Shopping", "Transportation", "Unorganized"];
+
 // ── Real saved items helpers ──────────────────────────────────────────────────
 
 type ApiSavedItem = {
@@ -936,6 +938,7 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
   const [rightSections, setRightSections] = useState<{ category: string; items: SavedDisplayItem[] }[]>([]);
   const [dropLinkOpen, setDropLinkOpen] = useState(false);
   const [allScheduled, setAllScheduled] = useState(false);
+  const [activeFilter, setActiveFilter] = useState("All");
 
   const fetchSaves = useCallback(() => {
     if (!tripIdProp) { setLoading(false); return; }
@@ -954,12 +957,12 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
         let scheduledCount = 0;
         for (const s of saves) {
           const display = apiToDisplayItem(s);
-          if (s.dayIndex != null) { preAssigned[display.title] = s.dayIndex; scheduledCount++; continue; }
+          if (s.dayIndex != null) { preAssigned[display.title] = s.dayIndex; scheduledCount++; }
           const cat = inferSavedCategory(s);
           if (!groups[cat]) groups[cat] = [];
           groups[cat].push(display);
         }
-        setAllScheduled(saves.length > 0 && scheduledCount === saves.length);
+        setAllScheduled(false);
         setAssignedDays(preAssigned);
         const left: { category: string; items: SavedDisplayItem[] }[] = [];
         const right: { category: string; items: SavedDisplayItem[] }[] = [];
@@ -1102,10 +1105,39 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
     );
   }
 
+  const filterSaveItem = (itm: SavedDisplayItem): boolean => {
+    if (activeFilter === "All") return true;
+    if (activeFilter === "Unorganized") return !itm.categoryTags || itm.categoryTags.length === 0;
+    return (itm.categoryTags ?? []).some(t => t.toLowerCase().includes(activeFilter.toLowerCase()));
+  };
+  const displayedLeft = leftSections.map(s => ({ ...s, items: s.items.filter(filterSaveItem) })).filter(s => s.items.length > 0);
+  const displayedRight = rightSections.map(s => ({ ...s, items: s.items.filter(filterSaveItem) })).filter(s => s.items.length > 0);
+
   return (
     <div>
-      {(() => {
-        const all = [...leftSections, ...rightSections];
+      {/* FILTER STRIP */}
+      <div style={{ display: "flex", overflowX: "auto", gap: "8px", marginBottom: "16px", paddingBottom: "4px", scrollbarWidth: "none" }}>
+        {SAVED_FILTER_PILLS.map((pill) => {
+          const isActive = activeFilter === pill;
+          return (
+            <button
+              key={pill}
+              onClick={() => setActiveFilter(pill)}
+              style={{ flexShrink: 0, padding: "7px 16px", borderRadius: "999px", fontSize: "13px", fontWeight: isActive ? 600 : 400, color: isActive ? "#fff" : "#717171", backgroundColor: isActive ? "#C4664A" : "#fff", border: isActive ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease", whiteSpace: "nowrap" }}
+            >
+              {pill}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* SAVES GRID — filtered */}
+      {displayedLeft.length === 0 && displayedRight.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "32px 24px", color: "#717171", fontSize: "14px" }}>
+          No saves match this filter.
+        </div>
+      ) : (() => {
+        const all = [...displayedLeft, ...displayedRight];
         const col1 = all.filter((_, i) => i % 2 === 0);
         const col2 = all.filter((_, i) => i % 2 !== 0);
         return (
@@ -2457,6 +2489,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 const hasCoords = item.startTime && isValidTransitCoord(item.lat, item.lng) && next?.startTime && isValidTransitCoord(next?.lat, next?.lng);
                                 const prevHasCoords = item.lat != null && item.lng != null && item.lat !== 0 && item.lng !== 0;
                                 const nextHasCoords = next != null && next.lat != null && next.lng != null && next.lat !== 0 && next.lng !== 0;
+                                const distanceBetweenItems = prevHasCoords && nextHasCoords
+                                  ? haversineKm(item.lat!, item.lng!, next!.lat!, next!.lng!)
+                                  : 999;
 
                                 // Post-arrival transit intelligence: detect arrival (train/flight) → hotel pairs
                                 const isArrival = item.itemType === "flight" ||
@@ -2569,7 +2604,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                         {depFormatted}{arrTime ? ` → ${arrTime}` : ""}
                                                       </p>
                                                     )}
-                                                    {cleanLoc && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }}>{cleanLoc}</p>}
+                                                    {cleanLoc && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }}>{cleanDisplayDescription(cleanLoc)}</p>}
                                                   </>
                                                 );
                                               })()}
@@ -2832,8 +2867,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                     >Move</button>
                                   </div>
                                 </div>,
-                                // Transit row: only show when BOTH adjacent items have real coords
-                                prevHasCoords && nextHasCoords && transitData ? (
+                                // Transit row: both items need real coords AND must be within 80km
+                                prevHasCoords && nextHasCoords && distanceBetweenItems <= 80 && transitData ? (
                                   <div key={`transit_${idx}`} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "2px 28px 6px", marginBottom: "2px" }}>
                                     <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(0,0,0,0.06)" }} />
                                     <span style={{ fontSize: "11px", color: "#888", whiteSpace: "nowrap" }}>
