@@ -2485,52 +2485,25 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                           <div>
                               {allDayItems.flatMap((item, idx) => {
                                 const next = allDayItems[idx + 1];
-                                const item1Name = item.recAddition?.title ?? item.activity?.title ?? item.flight?.airline ?? item.itemType;
-                                const item2Name = next ? (next.recAddition?.title ?? next.activity?.title ?? next.flight?.airline ?? next.itemType) : "";
-                                const isValidTransitCoord = (lat: number | null | undefined, lng: number | null | undefined) =>
-                                  lat != null && lng != null && lat !== 0 && lng !== 0 && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
 
-                                // Use arrival coords for TRAIN/FLIGHT preceding items:
-                                // TRAIN lat/lng = departure station; arrivalLat/Lng = destination station
-                                // FLIGHT lat/lng = arrival airport (already correct, but also stored as arrivalLat/Lng)
-                                const prevItItem = item.itineraryItem;
-                                const useArrival = (prevItItem?.type === "TRAIN" || prevItItem?.type === "FLIGHT") &&
-                                  isValidTransitCoord(prevItItem?.arrivalLat, prevItItem?.arrivalLng);
-                                const fromLat = useArrival ? prevItItem!.arrivalLat! : item.lat;
-                                const fromLng = useArrival ? prevItItem!.arrivalLng! : item.lng;
+                                // Transit: use arrival coords for TRAIN/FLIGHT preceding items.
+                                // No startTime requirement — any two consecutive items with valid coords within 50km show transit.
+                                const isVTC = (lat: number | null | undefined, lng: number | null | undefined) =>
+                                  lat != null && lng != null && typeof lat === "number" && typeof lng === "number" &&
+                                  lat !== 0 && lng !== 0 && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+                                const prevIt = item.itineraryItem;
+                                const useArrivalCoords = (prevIt?.type === "TRAIN" || prevIt?.type === "FLIGHT") &&
+                                  isVTC(prevIt?.arrivalLat, prevIt?.arrivalLng);
+                                const fromLat = useArrivalCoords ? prevIt!.arrivalLat! : (item.lat ?? null);
+                                const fromLng = useArrivalCoords ? prevIt!.arrivalLng! : (item.lng ?? null);
+                                const toLat = next?.lat ?? null;
+                                const toLng = next?.lng ?? null;
 
-                                const prevHasCoords = isValidTransitCoord(fromLat, fromLng);
-                                const nextHasCoords = next != null && isValidTransitCoord(next.lat, next.lng);
+                                const prevHasCoords = isVTC(fromLat, fromLng);
+                                const nextHasCoords = isVTC(toLat, toLng);
                                 const distanceBetweenItems = prevHasCoords && nextHasCoords
-                                  ? haversineKm(fromLat!, fromLng!, next!.lat!, next!.lng!)
+                                  ? haversineKm(fromLat!, fromLng!, toLat!, toLng!)
                                   : 999;
-
-                                const hasCoords = item.startTime && prevHasCoords && next?.startTime && nextHasCoords;
-
-                                // Post-arrival transit intelligence: detect arrival (train/flight) → hotel pairs
-                                const isArrival = item.itemType === "flight" ||
-                                  item.itineraryItem?.type === "TRAIN" ||
-                                  item.itineraryItem?.type === "FLIGHT" ||
-                                  (item.itemType === "saved" && (item.recAddition?.categoryTags ?? []).some(t => /train|rail|transit|bus/i.test(t)));
-                                const nextIsLodging = next && next.itemType === "saved" &&
-                                  (next.recAddition?.categoryTags ?? []).some(t => /lodg|hotel|hostel|resort|airbnb/i.test(t));
-
-                                let transitData: { mode: string; duration: string; directionsUrl: string } | null = null;
-                                if (hasCoords) {
-                                  transitData = computeTransit(fromLat!, fromLng!, next!.lat!, next!.lng!);
-                                } else if (isArrival && next && nextIsLodging) {
-                                  // No exact coords — build name-based directions URL
-                                  const fromLabel = item.itemType === "flight"
-                                    ? `${item.flight?.toAirport ?? ""} Airport ${item.flight?.toCity ?? ""}`.trim()
-                                    : (item.recAddition?.title ?? item1Name);
-                                  const toLabel = next.recAddition?.title ?? item2Name;
-                                  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
-                                  const isIOS = /iPhone|iPad|iPod/i.test(ua);
-                                  const mapsUrl = isIOS
-                                    ? `maps://maps.apple.com/?saddr=${encodeURIComponent(fromLabel)}&daddr=${encodeURIComponent(toLabel)}`
-                                    : `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(fromLabel)}&destination=${encodeURIComponent(toLabel)}`;
-                                  transitData = { mode: "Transit", duration: "see directions", directionsUrl: mapsUrl };
-                                }
 
                                 return [
                                 <div key={item.sortId} style={{ display: "flex", alignItems: "stretch", marginBottom: "8px" }}>
@@ -2884,18 +2857,22 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                     >Move</button>
                                   </div>
                                 </div>,
-                                // Transit row: both items need real coords AND must be within 80km
-                                prevHasCoords && nextHasCoords && distanceBetweenItems <= 50 && transitData ? (
-                                  <div key={`transit_${idx}`} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "2px 28px 6px", marginBottom: "2px" }}>
-                                    <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(0,0,0,0.06)" }} />
-                                    <span style={{ fontSize: "11px", color: "#888", whiteSpace: "nowrap" }}>
-                                      {transitData.mode} · {transitData.duration}
-                                    </span>
-                                    <a href={transitData.directionsUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: "11px", color: "#C4664A", fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}>
-                                      Directions →
-                                    </a>
-                                    <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(0,0,0,0.06)" }} />
-                                  </div>
+                                prevHasCoords && nextHasCoords && distanceBetweenItems <= 50 ? (
+                                  (() => {
+                                    const transit = computeTransit(fromLat!, fromLng!, toLat!, toLng!);
+                                    return (
+                                      <div key={`transit_${idx}`} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "2px 28px 6px", marginBottom: "2px" }}>
+                                        <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(0,0,0,0.06)" }} />
+                                        <span style={{ fontSize: "11px", color: "#888", whiteSpace: "nowrap" }}>
+                                          {transit.mode} · {transit.duration}
+                                        </span>
+                                        <a href={transit.directionsUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: "11px", color: "#C4664A", fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}>
+                                          Directions →
+                                        </a>
+                                        <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(0,0,0,0.06)" }} />
+                                      </div>
+                                    );
+                                  })()
                                 ) : null,
                                 ];
                               })}
