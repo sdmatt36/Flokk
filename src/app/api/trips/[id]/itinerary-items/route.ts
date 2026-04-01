@@ -49,6 +49,8 @@ export async function GET(
       dayIndex: true,
       latitude: true,
       longitude: true,
+      arrivalLat: true,
+      arrivalLng: true,
       sortOrder: true,
     },
   });

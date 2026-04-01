@@ -1388,6 +1388,8 @@ type ItineraryItemLocal = {
   dayIndex: number | null;
   latitude: number | null;
   longitude: number | null;
+  arrivalLat?: number | null;
+  arrivalLng?: number | null;
   sortOrder: number;
   bookingUrl?: string | null;
 };
@@ -2487,22 +2489,35 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 const item2Name = next ? (next.recAddition?.title ?? next.activity?.title ?? next.flight?.airline ?? next.itemType) : "";
                                 const isValidTransitCoord = (lat: number | null | undefined, lng: number | null | undefined) =>
                                   lat != null && lng != null && lat !== 0 && lng !== 0 && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
-                                const hasCoords = item.startTime && isValidTransitCoord(item.lat, item.lng) && next?.startTime && isValidTransitCoord(next?.lat, next?.lng);
-                                const prevHasCoords = item.lat != null && item.lng != null && item.lat !== 0 && item.lng !== 0;
-                                const nextHasCoords = next != null && next.lat != null && next.lng != null && next.lat !== 0 && next.lng !== 0;
+
+                                // Use arrival coords for TRAIN/FLIGHT preceding items:
+                                // TRAIN lat/lng = departure station; arrivalLat/Lng = destination station
+                                // FLIGHT lat/lng = arrival airport (already correct, but also stored as arrivalLat/Lng)
+                                const prevItItem = item.itineraryItem;
+                                const useArrival = (prevItItem?.type === "TRAIN" || prevItItem?.type === "FLIGHT") &&
+                                  isValidTransitCoord(prevItItem?.arrivalLat, prevItItem?.arrivalLng);
+                                const fromLat = useArrival ? prevItItem!.arrivalLat! : item.lat;
+                                const fromLng = useArrival ? prevItItem!.arrivalLng! : item.lng;
+
+                                const prevHasCoords = isValidTransitCoord(fromLat, fromLng);
+                                const nextHasCoords = next != null && isValidTransitCoord(next.lat, next.lng);
                                 const distanceBetweenItems = prevHasCoords && nextHasCoords
-                                  ? haversineKm(item.lat!, item.lng!, next!.lat!, next!.lng!)
+                                  ? haversineKm(fromLat!, fromLng!, next!.lat!, next!.lng!)
                                   : 999;
+
+                                const hasCoords = item.startTime && prevHasCoords && next?.startTime && nextHasCoords;
 
                                 // Post-arrival transit intelligence: detect arrival (train/flight) → hotel pairs
                                 const isArrival = item.itemType === "flight" ||
+                                  item.itineraryItem?.type === "TRAIN" ||
+                                  item.itineraryItem?.type === "FLIGHT" ||
                                   (item.itemType === "saved" && (item.recAddition?.categoryTags ?? []).some(t => /train|rail|transit|bus/i.test(t)));
                                 const nextIsLodging = next && next.itemType === "saved" &&
                                   (next.recAddition?.categoryTags ?? []).some(t => /lodg|hotel|hostel|resort|airbnb/i.test(t));
 
                                 let transitData: { mode: string; duration: string; directionsUrl: string } | null = null;
                                 if (hasCoords) {
-                                  transitData = computeTransit(item.lat!, item.lng!, next!.lat!, next!.lng!);
+                                  transitData = computeTransit(fromLat!, fromLng!, next!.lat!, next!.lng!);
                                 } else if (isArrival && next && nextIsLodging) {
                                   // No exact coords — build name-based directions URL
                                   const fromLabel = item.itemType === "flight"

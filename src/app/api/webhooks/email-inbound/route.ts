@@ -453,7 +453,7 @@ Field notes:
       const outboundArrival = resolved.toAirport ?? resolved.toCity ?? (extracted.toCity as string | null);
       if (outboundArrival) {
         const geo = await geocodePlace(`${outboundArrival} airport`);
-        if (geo) await db.itineraryItem.update({ where: { id: outboundItem.id }, data: { latitude: geo.lat, longitude: geo.lng } });
+        if (geo) await db.itineraryItem.update({ where: { id: outboundItem.id }, data: { latitude: geo.lat, longitude: geo.lng, arrivalLat: geo.lat, arrivalLng: geo.lng } });
       }
       console.log("[email-inbound] created outbound ItineraryItem:", outboundItem.id);
 
@@ -527,7 +527,7 @@ Field notes:
         const returnArrival = (extracted.returnToAirport as string | null) ?? (extracted.fromAirport as string | null) ?? (extracted.fromCity as string | null);
         if (returnArrival) {
           const geo = await geocodePlace(`${returnArrival} airport`);
-          if (geo) await db.itineraryItem.update({ where: { id: returnItem.id }, data: { latitude: geo.lat, longitude: geo.lng } });
+          if (geo) await db.itineraryItem.update({ where: { id: returnItem.id }, data: { latitude: geo.lat, longitude: geo.lng, arrivalLat: geo.lat, arrivalLng: geo.lng } });
         }
         console.log("[email-inbound] created return ItineraryItem:", returnItem.id);
 
@@ -745,13 +745,19 @@ Field notes:
         });
       }
 
-      // Geocode: trains → origin station; others → vendor name + city
+      // Geocode: trains → departure station; others → vendor name + city
       const geocodeQuery = itemTypeStr === "TRAIN"
         ? `${(extracted.fromCity as string | null) ?? (extracted.vendorName as string | null) ?? ""} train station`.trim()
         : `${itemTitle}${(extracted.city as string | null) ? " " + (extracted.city as string) : ""}`.trim();
       if (geocodeQuery) {
         const geo = await geocodePlace(geocodeQuery);
         if (geo) await db.itineraryItem.update({ where: { id: item.id }, data: { latitude: geo.lat, longitude: geo.lng } });
+      }
+      // TRAIN: also geocode arrival station for correct transit card "from" coords
+      if (itemTypeStr === "TRAIN" && (extracted.toCity as string | null)) {
+        const arrivalQuery = `${extracted.toCity as string} train station`;
+        const arrivalGeo = await geocodePlace(arrivalQuery);
+        if (arrivalGeo) await db.itineraryItem.update({ where: { id: item.id }, data: { arrivalLat: arrivalGeo.lat, arrivalLng: arrivalGeo.lng } });
       }
       console.log("[email-inbound] created ItineraryItem:", item.id, "type:", itemTypeStr, "dayIndex:", dayIndex);
       await incrementBudget(resolvedTripId, parsedCost);

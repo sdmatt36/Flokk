@@ -780,6 +780,8 @@ model ItineraryItem {
   dayIndex         Int?
   latitude         Float?
   longitude        Float?
+  arrivalLat       Float?
+  arrivalLng       Float?
   sourceType        String   @default("EMAIL_IMPORT")
   sortOrder         Int      @default(0)
   needsVerification Boolean  @default(false)
