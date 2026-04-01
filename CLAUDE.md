@@ -134,3 +134,33 @@ NEXT_PUBLIC_MAPBOX_TOKEN, RESEND_API_KEY, LOOPS_API_KEY,
 CLERK_WEBHOOK_SECRET, NEXT_PUBLIC_UNSPLASH_ACCESS_KEY,
 CRON_SECRET, DATABASE_URL,
 INNGEST_SIGNING_KEY (kept but unused — do not activate)
+
+## Prompt Writing Standard — EXACT CODE REQUIRED
+
+Every prompt must include exact code, not descriptions.
+No room for interpretation. No generic instructions.
+
+REQUIRED in every prompt:
+1. Exact function signatures with TypeScript types
+2. Exact JSX blocks including className strings
+3. Exact variable names matching what grep shows in the file
+4. Exact condition logic — not "check if valid" but the actual if statement
+5. Exact API call with method, headers, body shape
+6. Exact Prisma select fields if DB is touched
+7. Exact git commit message
+
+NEVER write:
+- "Add a check for valid coordinates" → write the exact if statement
+- "Update the transit card logic" → write the exact JSX replacement
+- "Make sure the type includes X" → write the exact type definition
+- "Apply the function at the render point" → show the exact line to replace
+
+If the existing code must be shown first (always), the prompt must say:
+"Show lines X-Y of [filename] before making any changes"
+or
+"Show the output of: grep -n [pattern] [file]"
+
+Claude Code must confirm the grep output matches expectations
+before writing a single line of new code.
+
+This standard applies to every prompt.
