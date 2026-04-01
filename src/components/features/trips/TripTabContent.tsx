@@ -1389,6 +1389,7 @@ type ItineraryItemLocal = {
   latitude: number | null;
   longitude: number | null;
   sortOrder: number;
+  bookingUrl?: string | null;
 };
 
 type UnifiedDayItem = {
@@ -3287,6 +3288,16 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       {costLabel && <><span style={lblStyle}>Total</span><span style={rowStyle}>{costLabel}</span></>}
                       {guestsLabel && <><span style={lblStyle}>Guests</span><span style={rowStyle}>{guestsLabel}</span></>}
                     </div>
+                    {sit.bookingUrl && (
+                      <a
+                        href={sit.bookingUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: "block", textAlign: "center", backgroundColor: "#1B3A5C", color: "#fff", fontWeight: 600, padding: "12px", borderRadius: "10px", fontSize: "14px", textDecoration: "none", marginTop: "8px" }}
+                      >
+                        View booking →
+                      </a>
+                    )}
                     {sit.address && (
                       <a
                         href={`https://maps.google.com/?q=${encodeURIComponent(sit.address)}`}
@@ -5051,6 +5062,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                       currency: (booking.currency as string | null) ?? null,
                       passengers: Array.isArray(booking.guestNames) ? (booking.guestNames as string[]) : [],
                       dayIndex: null, latitude: null, longitude: null, sortOrder: 0,
+                      bookingUrl: d.url ?? null,
                     };
                     setVaultActivityItem(synth);
                   }
@@ -5376,6 +5388,16 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                 {costLabel && <><span style={lblStyle}>Total</span><span style={rowStyle}>{costLabel}</span></>}
                 {guestsLabel && <><span style={lblStyle}>Guests</span><span style={rowStyle}>{guestsLabel}</span></>}
               </div>
+              {sit.bookingUrl && (
+                <a
+                  href={sit.bookingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: "block", textAlign: "center", backgroundColor: "#1B3A5C", color: "#fff", fontWeight: 600, padding: "12px", borderRadius: "10px", fontSize: "14px", textDecoration: "none", marginTop: "8px" }}
+                >
+                  View booking →
+                </a>
+              )}
               {sit.address && (
                 <a
                   href={`https://maps.google.com/?q=${encodeURIComponent(sit.address)}`}

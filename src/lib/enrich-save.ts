@@ -73,7 +73,7 @@ async function lookupGoogleMapsPlace(
       `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?` +
       `input=${encodeURIComponent(placeName)}&inputtype=textquery&` +
       `fields=name,geometry,photos,rating,types&` +
-      `key=${GOOGLE_MAPS_API_KEY}`;
+      `language=en&key=${GOOGLE_MAPS_API_KEY}`;
     const res = await fetch(url);
     const data = (await res.json()) as {
       status: string;
@@ -170,7 +170,7 @@ async function geocode(
 ): Promise<{ lat: number; lng: number } | null> {
   try {
     const query = [title, city, country].filter(Boolean).join(", ");
-    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${GOOGLE_MAPS_API_KEY}`;
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&language=en&key=${GOOGLE_MAPS_API_KEY}`;
     const res = await fetch(url);
     const data = (await res.json()) as {
       status: string;
@@ -191,7 +191,7 @@ async function getPlaceDetails(
   try {
     const locationBias =
       lat != null && lng != null ? `&location=${lat},${lng}&radius=5000` : "";
-    const url = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(title)}&inputtype=textquery&fields=website,photos,rating${locationBias}&key=${GOOGLE_MAPS_API_KEY}`;
+    const url = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(title)}&inputtype=textquery&fields=website,photos,rating${locationBias}&language=en&key=${GOOGLE_MAPS_API_KEY}`;
     const res = await fetch(url);
     const data = (await res.json()) as {
       status: string;

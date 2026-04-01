@@ -52,7 +52,7 @@ async function geocodePlace(query: string): Promise<{ lat: number; lng: number; 
   try {
     const key = process.env.GOOGLE_MAPS_API_KEY ?? process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY;
     if (!key) return null;
-    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${key}`;
+    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&language=en&key=${key}`;
     const res = await fetch(url);
     if (!res.ok) return null;
     const data = await res.json() as { results?: Array<{ geometry: { location: { lat: number; lng: number } }; place_id?: string }> };
@@ -299,7 +299,10 @@ Return this exact JSON structure:
   "contactEmail": "string or null",
   "guestNames": ["string"] or [],
   "confidence": "0.0 to 1.0"
-}`,
+}
+
+Field notes:
+- guestNames: Extract ALL passenger/guest/traveler names as an array. For activity/tour bookings (GetYourGuide, Viator, Klook), look under "Travelers", "Guests", "Participants" sections and include every name listed. For flights, include all passenger names on the booking, not just the primary contact. For hotels, include all guests listed. Return [] only if no names are found anywhere in the email.`,
       }],
     });
 
