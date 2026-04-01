@@ -128,6 +128,18 @@ function isWithinTripRadius(lat: number, lng: number, anchorLat: number, anchorL
   return R * c <= radiusKm;
 }
 
+function getDayAnchor(
+  dayItems: Array<{ lat?: number | null; lng?: number | null }>,
+  fallbackLat: number,
+  fallbackLng: number
+): [number, number] {
+  const valid = dayItems.filter(item => isValidCoord(item.lat, item.lng));
+  if (valid.length === 0) return [fallbackLat, fallbackLng];
+  const avgLat = valid.reduce((s, i) => s + i.lat!, 0) / valid.length;
+  const avgLng = valid.reduce((s, i) => s + i.lng!, 0) / valid.length;
+  return [avgLat, avgLng];
+}
+
 type MapSavedItem = { title: string; lat: number; lng: number; dayIndex?: number | null };
 type ImportedBookingPin = { id: string; title: string; type: string; dayIndex: number | null; latitude: number; longitude: number };
 
@@ -268,10 +280,14 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
       ...validBookings.map((p, i) => ({ num: offset + i + 1, label: p.title, lat: p.latitude, lng: p.longitude, color: "#C4664A" as const })),
     ];
 
+    // Day anchor: centroid of this day's valid-coord pins (100km radius).
+    // Falls back to trip-level anchor only when day has zero valid-coord items.
+    const [dayAnchorLat, dayAnchorLng] = getDayAnchor(pinsToRender, anchorLat, anchorLng);
+
     // ARRAY 2: pinsForBounds — proximity-filtered. Used ONLY for fitBounds viewport calc.
     // pinsToRender is NEVER filtered by proximity — all valid pins are always rendered.
     const pinsForBounds = pinsToRender.filter(m =>
-      isWithinTripRadius(m.lat, m.lng, anchorLat, anchorLng)
+      isWithinTripRadius(m.lat, m.lng, dayAnchorLat, dayAnchorLng, 100)
     );
 
     // Render all valid-coord pins
@@ -284,7 +300,7 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
       markersRef.current.push(marker);
     });
 
-    // Viewport: fit only proximity-filtered pins; fall back to anchor city center
+    // Viewport: fit only proximity-filtered pins; fall back to day anchor (or trip anchor if no day items)
     if (pinsForBounds.length >= 2) {
       const bounds = new mapboxgl.LngLatBounds();
       pinsForBounds.forEach(m => bounds.extend([m.lng, m.lat]));
@@ -292,7 +308,7 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
     } else if (pinsForBounds.length === 1) {
       map.flyTo({ center: [pinsForBounds[0].lng, pinsForBounds[0].lat], zoom: 13, duration: 800 });
     } else {
-      map.flyTo({ center: [anchorLng, anchorLat], zoom: 12, duration: 800 });
+      map.flyTo({ center: [dayAnchorLng, dayAnchorLat], zoom: 12, duration: 800 });
     }
   }, [activeDay, allSavedItems, activities, importedBookingPins, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
