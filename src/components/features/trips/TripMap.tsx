@@ -128,17 +128,6 @@ function isWithinTripRadius(lat: number, lng: number, anchorLat: number, anchorL
   return R * c <= radiusKm;
 }
 
-function getDayAnchor(
-  dayItems: Array<{ lat?: number | null; lng?: number | null }>,
-  fallbackLat: number,
-  fallbackLng: number
-): [number, number] {
-  // Use FIRST valid-coord item as anchor, not centroid.
-  // Centroid breaks multi-city days (Seoul+Busan = mountains between them).
-  const firstValid = dayItems.find(item => isValidCoord(item.lat, item.lng));
-  if (!firstValid) return [fallbackLat, fallbackLng];
-  return [firstValid.lat!, firstValid.lng!];
-}
 
 type MapSavedItem = { title: string; lat: number; lng: number; dayIndex?: number | null };
 type ImportedBookingPin = { id: string; title: string; type: string; dayIndex: number | null; latitude: number; longitude: number };
@@ -280,23 +269,7 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
       ...validBookings.map((p, i) => ({ num: offset + i + 1, label: p.title, lat: p.latitude, lng: p.longitude, color: "#C4664A" as const })),
     ];
 
-    // Day anchor: first valid-coord pin for this day (200km radius).
-    // First item used — not centroid — to avoid multi-city days (Seoul+Busan) landing in mountains.
-    // Falls back to trip-level anchor only when day has zero valid-coord items.
-    const [dayAnchorLat, dayAnchorLng] = getDayAnchor(pinsToRender, anchorLat, anchorLng);
-    console.log('[MAP] activeDay:', activeDay, '| dayAnchor:', dayAnchorLat, dayAnchorLng);
-
-    // ARRAY 2: pinsForBounds — proximity-filtered. Used ONLY for fitBounds viewport calc.
-    // pinsToRender is NEVER filtered by proximity — all valid pins are always rendered.
-    const pinsForBounds = pinsToRender.filter(m =>
-      isWithinTripRadius(m.lat, m.lng, dayAnchorLat, dayAnchorLng, 200)
-    );
-
-    console.log('[MAP] pinsToRender count:', pinsToRender.length);
-    console.log('[MAP] pinsToRender coords:', pinsToRender.map(p => ({ lat: p.lat, lng: p.lng, label: p.label })));
-    console.log('[MAP] pinsForBounds count:', pinsForBounds.length);
-
-    // Render all valid-coord pins
+    // Render all valid-coord pins — no proximity filter, no anchor, just isValidCoord
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
     pinsToRender.forEach((m) => {
@@ -306,16 +279,25 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
       markersRef.current.push(marker);
     });
 
-    // Viewport: fit only proximity-filtered pins; fall back to day anchor (or trip anchor if no day items)
-    console.log('[MAP] using fitBounds:', pinsForBounds.length >= 2, '| fallback flyTo center:', dayAnchorLng, dayAnchorLat);
-    if (pinsForBounds.length >= 2) {
-      const bounds = new mapboxgl.LngLatBounds();
-      pinsForBounds.forEach(m => bounds.extend([m.lng, m.lat]));
-      map.fitBounds(bounds, { padding: 60, maxZoom: 15, duration: 800 });
-    } else if (pinsForBounds.length === 1) {
-      map.flyTo({ center: [pinsForBounds[0].lng, pinsForBounds[0].lat], zoom: 13, duration: 800 });
+    // Viewport: fit all valid pins for this day, no proximity filtering
+    if (pinsToRender.length === 0) {
+      // No pins — fly to trip anchor (accommodation or city center)
+      map.flyTo({ center: [anchorLng, anchorLat], zoom: 12, duration: 800 });
+    } else if (pinsToRender.length === 1) {
+      map.flyTo({ center: [pinsToRender[0].lng, pinsToRender[0].lat], zoom: 14, duration: 800 });
     } else {
-      map.flyTo({ center: [dayAnchorLng, dayAnchorLat], zoom: 12, duration: 800 });
+      // 2+ pins — fitBounds; if span > 3° (e.g. Seoul+Busan), zoom to first item at city level
+      const lats = pinsToRender.map(p => p.lat);
+      const lngs = pinsToRender.map(p => p.lng);
+      const latSpan = Math.max(...lats) - Math.min(...lats);
+      const lngSpan = Math.max(...lngs) - Math.min(...lngs);
+      if (latSpan > 3 || lngSpan > 3) {
+        map.flyTo({ center: [pinsToRender[0].lng, pinsToRender[0].lat], zoom: 12, duration: 800 });
+      } else {
+        const bounds = new mapboxgl.LngLatBounds();
+        pinsToRender.forEach(m => bounds.extend([m.lng, m.lat]));
+        map.fitBounds(bounds, { padding: 80, maxZoom: 14, duration: 800 });
+      }
     }
   }, [activeDay, allSavedItems, activities, importedBookingPins, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
