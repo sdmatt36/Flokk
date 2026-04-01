@@ -2833,8 +2833,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
 
                                         // ── OTHER (ACTIVITY, RESTAURANT, CAR_RENTAL, etc.) ───────────────
                                         const typeLabel = it.type.charAt(0) + it.type.slice(1).toLowerCase().replace(/_/g, " ");
+                                        const isActivity = it.type === "ACTIVITY";
                                         return (
-                                          <div style={cardStyle}>
+                                          <div style={{ ...cardStyle, ...(isActivity ? { cursor: "pointer" } : {}) }} onClick={isActivity ? () => setSelectedItineraryItem(it) : undefined}>
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                               <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{it.title}</p>
                                               {it.notes && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "6px" }}>{it.notes}</p>}
@@ -3265,6 +3266,37 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       {sit.arrivalTime && <><span style={lblStyle}>Arrives</span><span style={rowStyle}>{sit.arrivalTime}</span></>}
                       {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
                     </div>
+                  </div>
+                );
+              })()}
+
+              {sit.type === "ACTIVITY" && (() => {
+                const costLabel = sit.totalCost != null ? `${sit.currency ?? ""} ${sit.totalCost.toLocaleString()}`.trim() : null;
+                const guestsLabel = sit.passengers.length > 0
+                  ? sit.passengers.length <= 2 ? sit.passengers.join(", ") : `${sit.passengers.length} guests`
+                  : null;
+                return (
+                  <div>
+                    <p style={titleStyle}>{sit.title}</p>
+                    <div style={gridStyle}>
+                      {sit.scheduledDate && <><span style={lblStyle}>Date</span><span style={rowStyle}>{fmtDateModal(sit.scheduledDate)}</span></>}
+                      {sit.departureTime && <><span style={lblStyle}>Time</span><span style={rowStyle}>{sit.departureTime}</span></>}
+                      {sit.address && <><span style={lblStyle}>Meeting point</span><span style={rowStyle}>{sit.address}</span></>}
+                      {sit.notes && <><span style={lblStyle}>Operator</span><span style={rowStyle}>{sit.notes}</span></>}
+                      {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
+                      {costLabel && <><span style={lblStyle}>Total</span><span style={rowStyle}>{costLabel}</span></>}
+                      {guestsLabel && <><span style={lblStyle}>Guests</span><span style={rowStyle}>{guestsLabel}</span></>}
+                    </div>
+                    {sit.address && (
+                      <a
+                        href={`https://maps.google.com/?q=${encodeURIComponent(sit.address)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: "block", textAlign: "center", backgroundColor: "#C4664A", color: "#fff", fontWeight: 600, padding: "12px", borderRadius: "10px", fontSize: "14px", textDecoration: "none", marginTop: "8px" }}
+                      >
+                        Open in Maps
+                      </a>
+                    )}
                   </div>
                 );
               })()}
@@ -4398,6 +4430,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [editingFlightVaultDocId, setEditingFlightVaultDocId] = useState<string | null>(null);
   const [editingVaultDoc, setEditingVaultDoc] = useState<{ id: string; label: string; content: Record<string, unknown> } | null>(null);
   const [vaultDocSaving, setVaultDocSaving] = useState(false);
+  const [vaultActivityItem, setVaultActivityItem] = useState<ItineraryItemLocal | null>(null);
   const [isAnonymous, setIsAnonymous] = useState<boolean>(initialIsAnonymous);
   const [anonymousSaved, setAnonymousSaved] = useState(false);
   const [showTripSettings, setShowTripSettings] = useState(false);
@@ -4974,6 +5007,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                       return dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
                     } catch { return String(d); }
                   }
+                  if (booking.activityName) rows.push({ label: "Activity", value: String(booking.activityName) });
                   if (booking.departureDate) rows.push({ label: "Departure", value: `${fmtVaultDate(booking.departureDate)}${booking.departureTime ? ` at ${booking.departureTime}` : ""}` });
                   if (booking.arrivalDate) rows.push({ label: "Arrival", value: `${fmtVaultDate(booking.arrivalDate)}${booking.arrivalTime ? ` at ${booking.arrivalTime}` : ""}` });
                   if (booking.checkIn) rows.push({ label: "Check-in", value: fmtVaultDate(booking.checkIn) });
@@ -4999,8 +5033,30 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                     }
                   }
 
+                  const isActivityVault = (booking.type as string) === "activity";
+                  function handleVaultActivityTap() {
+                    if (!isActivityVault) return;
+                    const synth: ItineraryItemLocal = {
+                      id: d.id,
+                      type: "ACTIVITY",
+                      title: (booking.activityName as string | null) || (booking.vendorName as string | null) || d.label,
+                      scheduledDate: (booking.departureDate as string | null) ?? null,
+                      departureTime: (booking.departureTime as string | null) ?? null,
+                      arrivalTime: null,
+                      fromAirport: null, toAirport: null, fromCity: null, toCity: null,
+                      confirmationCode: (booking.confirmationCode as string | null) ?? null,
+                      notes: (booking.vendorName as string | null) ?? null,
+                      address: (booking.address as string | null) ?? null,
+                      totalCost: typeof booking.totalCost === "number" ? booking.totalCost : null,
+                      currency: (booking.currency as string | null) ?? null,
+                      passengers: Array.isArray(booking.guestNames) ? (booking.guestNames as string[]) : [],
+                      dayIndex: null, latitude: null, longitude: null, sortOrder: 0,
+                    };
+                    setVaultActivityItem(synth);
+                  }
+
                   return (
-                    <div key={d.id} style={{ backgroundColor: "#fff", border: "1px solid rgba(196,102,74,0.2)", borderRadius: "14px", padding: "16px", position: "relative" }}>
+                    <div key={d.id} style={{ backgroundColor: "#fff", border: "1px solid rgba(196,102,74,0.2)", borderRadius: "14px", padding: "16px", position: "relative", ...(isActivityVault ? { cursor: "pointer" } : {}) }} onClick={isActivityVault ? handleVaultActivityTap : undefined}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
                         <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", color: "#C4664A", backgroundColor: "rgba(196,102,74,0.08)", borderRadius: "999px", padding: "2px 8px" }}>{typeLabel}</span>
                         <span style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a" }}>{d.label}</span>
@@ -5028,10 +5084,10 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                           Open in Maps →
                         </a>
                       )}
-                      <button onClick={handleVaultEdit} style={{ position: "absolute", top: "12px", right: "36px", background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px" }} title="Edit">
+                      <button onClick={e => { e.stopPropagation(); handleVaultEdit(); }} style={{ position: "absolute", top: "12px", right: "36px", background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px" }} title="Edit">
                         <Pencil size={14} />
                       </button>
-                      <button onClick={async () => { await fetch(`/api/trips/${tripId}/vault/documents/${d.id}`, { method: "DELETE" }); setDocuments(p => p.filter(x => x.id !== d.id)); }} style={{ position: "absolute", top: "12px", right: "12px", background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px" }} title="Delete">
+                      <button onClick={async (e) => { e.stopPropagation(); await fetch(`/api/trips/${tripId}/vault/documents/${d.id}`, { method: "DELETE" }); setDocuments(p => p.filter(x => x.id !== d.id)); }} style={{ position: "absolute", top: "12px", right: "12px", background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px" }} title="Delete">
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -5275,6 +5331,65 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           onRefreshItinerary={() => setItineraryVersion(v => v + 1)}
         />
       )}
+
+      {/* ── Vault Activity Detail Modal ── */}
+      {vaultActivityItem && (() => {
+        const sit = vaultActivityItem;
+        function fmtDateModal(d: string | null): string | null {
+          if (!d) return null;
+          try {
+            const dt = new Date(d + "T12:00:00");
+            return dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+          } catch { return d; }
+        }
+        const rowStyle: React.CSSProperties = { fontSize: "13px", color: "#1a1a1a", fontWeight: 500 };
+        const lblStyle: React.CSSProperties = { fontSize: "11px", color: "#999", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" };
+        const gridStyle: React.CSSProperties = { display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 16px", marginBottom: "16px" };
+        const titleStyle: React.CSSProperties = { fontSize: "22px", fontWeight: 800, color: "#1B3A5C", marginBottom: "14px", fontFamily: "'Playfair Display', Georgia, serif", lineHeight: 1.2 };
+        const costLabel = sit.totalCost != null ? `${sit.currency ?? ""} ${sit.totalCost.toLocaleString()}`.trim() : null;
+        const guestsLabel = sit.passengers.length > 0
+          ? sit.passengers.length <= 2 ? sit.passengers.join(", ") : `${sit.passengers.length} guests`
+          : null;
+        const isDesktop = window.innerWidth >= 768;
+        return (
+          <div
+            style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 500, display: "flex", alignItems: isDesktop ? "center" : "flex-end", justifyContent: "center", padding: isDesktop ? "16px" : "0" }}
+            onClick={() => setVaultActivityItem(null)}
+          >
+            <div
+              style={{ backgroundColor: "#fff", width: "100%", maxWidth: isDesktop ? "440px" : undefined, borderRadius: isDesktop ? "16px" : "20px 20px 0 0", padding: "24px", maxHeight: "85vh", overflowY: "auto" }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#999" }}>Activity</span>
+                <button onClick={() => setVaultActivityItem(null)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", color: "#AAAAAA" }}>
+                  <X size={20} />
+                </button>
+              </div>
+              <p style={titleStyle}>{sit.title}</p>
+              <div style={gridStyle}>
+                {sit.scheduledDate && <><span style={lblStyle}>Date</span><span style={rowStyle}>{fmtDateModal(sit.scheduledDate)}</span></>}
+                {sit.departureTime && <><span style={lblStyle}>Time</span><span style={rowStyle}>{sit.departureTime}</span></>}
+                {sit.address && <><span style={lblStyle}>Meeting point</span><span style={rowStyle}>{sit.address}</span></>}
+                {sit.notes && <><span style={lblStyle}>Operator</span><span style={rowStyle}>{sit.notes}</span></>}
+                {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
+                {costLabel && <><span style={lblStyle}>Total</span><span style={rowStyle}>{costLabel}</span></>}
+                {guestsLabel && <><span style={lblStyle}>Guests</span><span style={rowStyle}>{guestsLabel}</span></>}
+              </div>
+              {sit.address && (
+                <a
+                  href={`https://maps.google.com/?q=${encodeURIComponent(sit.address)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: "block", textAlign: "center", backgroundColor: "#C4664A", color: "#fff", fontWeight: 600, padding: "12px", borderRadius: "10px", fontSize: "14px", textDecoration: "none", marginTop: "8px" }}
+                >
+                  Open in Maps
+                </a>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Generic Vault Booking Edit Modal ── */}
       {editingVaultDoc && tripId && (() => {

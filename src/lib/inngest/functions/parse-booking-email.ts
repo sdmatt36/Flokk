@@ -149,6 +149,7 @@ Return this exact JSON structure:
 {
   "type": "hotel" | "flight" | "activity" | "restaurant" | "car_rental" | "train" | "unknown",
   "vendorName": "string or null",
+  "activityName": "string or null",
   "confirmationCode": "string or null",
   "checkIn": "YYYY-MM-DD or null",
   "checkOut": "YYYY-MM-DD or null",
@@ -177,7 +178,11 @@ Return this exact JSON structure:
   "contactEmail": "string or null",
   "guestNames": ["string"] or [],
   "confidence": "0.0 to 1.0"
-}`,
+}
+
+Field notes:
+- activityName: For activity/tour bookings, extract the specific tour or activity title (NOT the platform name). For GetYourGuide bookings: extract the exact tour title shown in the booking, e.g. "Gyeongbokgung Palace Guided Tour" or "Bukchon Hanok Village Walking Tour" — never return "GetYourGuide" as the activityName. For non-activity types, set to null.
+- vendorName: The operator/company name (e.g. "GetYourGuide", "Airbnb", "Korean Air"). For activities, this is the platform or operator, not the tour title.`,
         }],
       });
 
@@ -514,7 +519,7 @@ Return this exact JSON structure:
         const autoDescription = routeParts.length > 0 ? routeParts.join(" · ") : null;
 
         const itemStatus = (matchedTrip && dayIndex != null) ? "SCHEDULED" : (matchedTrip ? "TRIP_ASSIGNED" : "UNORGANIZED");
-        const trainTitle = (extracted.vendorName as string) ?? subject;
+        const trainTitle = (extracted.activityName as string | null) || (extracted.vendorName as string | null) || subject;
 
         const saved = await db.savedItem.create({
           data: {
@@ -538,7 +543,7 @@ Return this exact JSON structure:
           await db.tripKeyInfo.create({
             data: {
               tripId: matchedTrip.id,
-              label: `${(extracted.vendorName as string) ?? subject} confirmation`,
+              label: `${(extracted.activityName as string | null) || (extracted.vendorName as string | null) || subject} confirmation`,
               value: extracted.confirmationCode as string,
             },
           });
@@ -548,10 +553,10 @@ Return this exact JSON structure:
           await db.tripDocument.create({
             data: {
               tripId: matchedTrip.id,
-              label: (extracted.vendorName as string) ?? subject,
+              label: (extracted.activityName as string | null) || (extracted.vendorName as string | null) || subject,
               type: "booking",
               content: JSON.stringify({
-                type: extracted.type, vendorName: extracted.vendorName,
+                type: extracted.type, vendorName: extracted.vendorName, activityName: extracted.activityName,
                 fromCity: extracted.fromCity, toCity: extracted.toCity,
                 departureDate: extracted.departureDate, departureTime: extracted.departureTime,
                 arrivalDate: extracted.arrivalDate, arrivalTime: extracted.arrivalTime,
