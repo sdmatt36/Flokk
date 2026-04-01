@@ -450,9 +450,15 @@ Field notes:
         },
       });
       // Geocode arrival airport (where the family lands — critical map pin)
-      const outboundArrival = resolved.toAirport ?? resolved.toCity ?? (extracted.toCity as string | null);
-      if (outboundArrival) {
-        const geo = await geocodePlace(`${outboundArrival} airport`);
+      // Priority: IATA+city (e.g. "GMP airport Seoul") → city fallback (e.g. "Seoul international airport")
+      const outboundArrivalIATA = resolved.toAirport ?? null;
+      const outboundArrivalCity = resolved.toCity ?? (extracted.toCity as string | null) ?? null;
+      if (outboundArrivalIATA || outboundArrivalCity) {
+        const primaryQuery = outboundArrivalIATA && outboundArrivalCity
+          ? `${outboundArrivalIATA} airport ${outboundArrivalCity}`
+          : outboundArrivalIATA ? `${outboundArrivalIATA} airport` : `${outboundArrivalCity} international airport`;
+        let geo = await geocodePlace(primaryQuery);
+        if (!geo && outboundArrivalCity) geo = await geocodePlace(`${outboundArrivalCity} international airport`);
         if (geo) await db.itineraryItem.update({ where: { id: outboundItem.id }, data: { latitude: geo.lat, longitude: geo.lng, arrivalLat: geo.lat, arrivalLng: geo.lng } });
       }
       console.log("[email-inbound] created outbound ItineraryItem:", outboundItem.id);
@@ -524,9 +530,15 @@ Field notes:
           },
         });
         // Geocode return arrival airport
-        const returnArrival = (extracted.returnToAirport as string | null) ?? (extracted.fromAirport as string | null) ?? (extracted.fromCity as string | null);
-        if (returnArrival) {
-          const geo = await geocodePlace(`${returnArrival} airport`);
+        // Priority: IATA+city → city fallback
+        const returnArrivalIATA = (extracted.returnToAirport as string | null) ?? (extracted.fromAirport as string | null) ?? null;
+        const returnArrivalCity = (extracted.fromCity as string | null) ?? null;
+        if (returnArrivalIATA || returnArrivalCity) {
+          const primaryQuery = returnArrivalIATA && returnArrivalCity
+            ? `${returnArrivalIATA} airport ${returnArrivalCity}`
+            : returnArrivalIATA ? `${returnArrivalIATA} airport` : `${returnArrivalCity} international airport`;
+          let geo = await geocodePlace(primaryQuery);
+          if (!geo && returnArrivalCity) geo = await geocodePlace(`${returnArrivalCity} international airport`);
           if (geo) await db.itineraryItem.update({ where: { id: returnItem.id }, data: { latitude: geo.lat, longitude: geo.lng, arrivalLat: geo.lat, arrivalLng: geo.lng } });
         }
         console.log("[email-inbound] created return ItineraryItem:", returnItem.id);

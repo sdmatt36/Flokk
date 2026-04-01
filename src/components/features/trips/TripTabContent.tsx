@@ -2496,8 +2496,14 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                   isVTC(prevIt?.arrivalLat, prevIt?.arrivalLng);
                                 const fromLat = useArrivalCoords ? prevIt!.arrivalLat! : (item.lat ?? null);
                                 const fromLng = useArrivalCoords ? prevIt!.arrivalLng! : (item.lng ?? null);
-                                const toLat = next?.lat ?? null;
-                                const toLng = next?.lng ?? null;
+                                // For FLIGHT next items, use departure airport coords (not arrival)
+                                // so transit "Baymond → PUS" uses PUS coords, not NRT
+                                const nextItItem = next?.itineraryItem;
+                                const nextFlightItem = next?.flight;
+                                const nextFromAirport = (nextItItem?.type === "FLIGHT" ? nextItItem.fromAirport : nextFlightItem?.fromAirport)?.toUpperCase().trim() ?? "";
+                                const depCoords = nextFromAirport ? AIRPORT_COORDS[nextFromAirport] : null;
+                                const toLat = depCoords?.lat ?? (next?.lat ?? null);
+                                const toLng = depCoords?.lng ?? (next?.lng ?? null);
 
                                 const prevHasCoords = isVTC(fromLat, fromLng);
                                 const nextHasCoords = isVTC(toLat, toLng);

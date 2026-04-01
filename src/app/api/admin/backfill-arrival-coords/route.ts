@@ -25,43 +25,44 @@ export async function POST() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const items = await db.itineraryItem.findMany({
-    where: {
-      type: { in: ["TRAIN", "FLIGHT"] },
-      arrivalLat: null,
-    },
-    select: { id: true, type: true, toCity: true, toAirport: true, latitude: true, longitude: true },
+  // TRAIN: only backfill missing arrivalLat
+  const trainItems = await db.itineraryItem.findMany({
+    where: { type: "TRAIN", arrivalLat: null },
+    select: { id: true, toCity: true },
+  });
+
+  // FLIGHT: re-geocode ALL using improved IATA+city query (fixes ICN/GMP confusion)
+  const flightItems = await db.itineraryItem.findMany({
+    where: { type: "FLIGHT" },
+    select: { id: true, toCity: true, toAirport: true },
   });
 
   let updated = 0;
 
-  for (const item of items) {
-    if (item.type === "TRAIN") {
-      if (!item.toCity) continue;
-      const geo = await geocodePlace(`${item.toCity} train station`);
-      if (geo) {
-        await db.itineraryItem.update({ where: { id: item.id }, data: { arrivalLat: geo.lat, arrivalLng: geo.lng } });
-        updated++;
-      }
-    } else if (item.type === "FLIGHT") {
-      // For existing FLIGHT items, latitude/longitude is already the arrival airport.
-      // Copy to arrivalLat/arrivalLng for consistency with the new transit card logic.
-      if (item.latitude != null && item.longitude != null) {
-        await db.itineraryItem.update({ where: { id: item.id }, data: { arrivalLat: item.latitude, arrivalLng: item.longitude } });
-        updated++;
-      } else {
-        const dest = item.toAirport ?? item.toCity;
-        if (!dest) continue;
-        const suffix = item.toAirport ? "airport" : "airport";
-        const geo = await geocodePlace(`${dest} ${suffix}`);
-        if (geo) {
-          await db.itineraryItem.update({ where: { id: item.id }, data: { arrivalLat: geo.lat, arrivalLng: geo.lng } });
-          updated++;
-        }
-      }
+  for (const item of trainItems) {
+    if (!item.toCity) continue;
+    const geo = await geocodePlace(`${item.toCity} train station`);
+    if (geo) {
+      await db.itineraryItem.update({ where: { id: item.id }, data: { arrivalLat: geo.lat, arrivalLng: geo.lng } });
+      updated++;
     }
   }
 
-  console.log(`[backfill-arrival-coords] total: ${items.length}, updated: ${updated}`);
-  return NextResponse.json({ total: items.length, updated });
+  for (const item of flightItems) {
+    const arrQuery = item.toAirport && item.toCity
+      ? `${item.toAirport} airport ${item.toCity}`
+      : item.toAirport ? `${item.toAirport} airport`
+      : item.toCity ? `${item.toCity} international airport`
+      : null;
+    if (!arrQuery) continue;
+    let geo = await geocodePlace(arrQuery);
+    if (!geo && item.toCity) geo = await geocodePlace(`${item.toCity} international airport`);
+    if (geo) {
+      await db.itineraryItem.update({ where: { id: item.id }, data: { latitude: geo.lat, longitude: geo.lng, arrivalLat: geo.lat, arrivalLng: geo.lng } });
+      updated++;
+    }
+  }
+
+  console.log(`[backfill-arrival-coords] trains: ${trainItems.length}, flights: ${flightItems.length}, updated: ${updated}`);
+  return NextResponse.json({ trains: trainItems.length, flights: flightItems.length, updated });
 }
