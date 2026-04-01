@@ -284,12 +284,17 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
     // First item used — not centroid — to avoid multi-city days (Seoul+Busan) landing in mountains.
     // Falls back to trip-level anchor only when day has zero valid-coord items.
     const [dayAnchorLat, dayAnchorLng] = getDayAnchor(pinsToRender, anchorLat, anchorLng);
+    console.log('[MAP] activeDay:', activeDay, '| dayAnchor:', dayAnchorLat, dayAnchorLng);
 
     // ARRAY 2: pinsForBounds — proximity-filtered. Used ONLY for fitBounds viewport calc.
     // pinsToRender is NEVER filtered by proximity — all valid pins are always rendered.
     const pinsForBounds = pinsToRender.filter(m =>
       isWithinTripRadius(m.lat, m.lng, dayAnchorLat, dayAnchorLng, 200)
     );
+
+    console.log('[MAP] pinsToRender count:', pinsToRender.length);
+    console.log('[MAP] pinsToRender coords:', pinsToRender.map(p => ({ lat: p.lat, lng: p.lng, label: p.label })));
+    console.log('[MAP] pinsForBounds count:', pinsForBounds.length);
 
     // Render all valid-coord pins
     markersRef.current.forEach((m) => m.remove());
@@ -302,6 +307,7 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
     });
 
     // Viewport: fit only proximity-filtered pins; fall back to day anchor (or trip anchor if no day items)
+    console.log('[MAP] using fitBounds:', pinsForBounds.length >= 2, '| fallback flyTo center:', dayAnchorLng, dayAnchorLat);
     if (pinsForBounds.length >= 2) {
       const bounds = new mapboxgl.LngLatBounds();
       pinsForBounds.forEach(m => bounds.extend([m.lng, m.lat]));
