@@ -133,11 +133,11 @@ function getDayAnchor(
   fallbackLat: number,
   fallbackLng: number
 ): [number, number] {
-  const valid = dayItems.filter(item => isValidCoord(item.lat, item.lng));
-  if (valid.length === 0) return [fallbackLat, fallbackLng];
-  const avgLat = valid.reduce((s, i) => s + i.lat!, 0) / valid.length;
-  const avgLng = valid.reduce((s, i) => s + i.lng!, 0) / valid.length;
-  return [avgLat, avgLng];
+  // Use FIRST valid-coord item as anchor, not centroid.
+  // Centroid breaks multi-city days (Seoul+Busan = mountains between them).
+  const firstValid = dayItems.find(item => isValidCoord(item.lat, item.lng));
+  if (!firstValid) return [fallbackLat, fallbackLng];
+  return [firstValid.lat!, firstValid.lng!];
 }
 
 type MapSavedItem = { title: string; lat: number; lng: number; dayIndex?: number | null };
@@ -280,14 +280,15 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
       ...validBookings.map((p, i) => ({ num: offset + i + 1, label: p.title, lat: p.latitude, lng: p.longitude, color: "#C4664A" as const })),
     ];
 
-    // Day anchor: centroid of this day's valid-coord pins (100km radius).
+    // Day anchor: first valid-coord pin for this day (200km radius).
+    // First item used — not centroid — to avoid multi-city days (Seoul+Busan) landing in mountains.
     // Falls back to trip-level anchor only when day has zero valid-coord items.
     const [dayAnchorLat, dayAnchorLng] = getDayAnchor(pinsToRender, anchorLat, anchorLng);
 
     // ARRAY 2: pinsForBounds — proximity-filtered. Used ONLY for fitBounds viewport calc.
     // pinsToRender is NEVER filtered by proximity — all valid pins are always rendered.
     const pinsForBounds = pinsToRender.filter(m =>
-      isWithinTripRadius(m.lat, m.lng, dayAnchorLat, dayAnchorLng, 100)
+      isWithinTripRadius(m.lat, m.lng, dayAnchorLat, dayAnchorLng, 200)
     );
 
     // Render all valid-coord pins
