@@ -3661,27 +3661,51 @@ const TRIP_TYPE_PACKING: Record<string, { documents: PackingItemDef[]; kids: Pac
   },
 };
 
-function PackingContent({ tripId }: { tripId?: string }) {
-  const storageKey = `flokk_packing_${tripId ?? "default"}`;
-  const typeKey = `flokk_packing_type_${tripId ?? "default"}`;
+type AiPackingItem = { id: string; category: string; name: string; assignedTo: string; notes: string };
 
-  const [tripType, setTripType] = useState<string>(() => {
-    try { return localStorage.getItem(typeKey) ?? "beach"; } catch { return "beach"; }
+const AI_PACKING_CATEGORIES = ["Documents", "Clothing", "Toiletries", "Kids", "Tech", "Health", "Gear"];
+
+const CATEGORY_ICON: Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties }>> = {
+  Documents: FileText,
+  Clothing: Shirt,
+  Toiletries: Backpack,
+  Kids: Baby,
+  Tech: Backpack,
+  Health: Backpack,
+  Gear: Backpack,
+};
+
+function PackingContent({
+  tripId,
+  destinationCity,
+  destinationCountry,
+  tripStartDate,
+  tripEndDate,
+}: {
+  tripId?: string;
+  destinationCity?: string | null;
+  destinationCountry?: string | null;
+  tripStartDate?: string | null;
+  tripEndDate?: string | null;
+}) {
+  const aiKey = `flokk_packing_ai_${tripId ?? "default"}`;
+  const checkedKey = `flokk_packing_checked_${tripId ?? "default"}`;
+
+  const [aiItems, setAiItems] = useState<AiPackingItem[]>(() => {
+    try {
+      const raw = localStorage.getItem(aiKey);
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
   });
 
-  const packingItems = TRIP_TYPE_PACKING[tripType] ?? PACKING_ITEMS;
-
-  const allIds = [
-    ...packingItems.documents, ...packingItems.kids,
-    ...packingItems.clothing, ...(packingItems.gear ?? []),
-    ...TODDLER_ITEMS,
-  ].map(i => i.id);
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   const [checked, setChecked] = useState<Set<string>>(() => {
     try {
-      const raw = localStorage.getItem(storageKey);
-      return raw ? new Set(JSON.parse(raw)) : new Set(["passports", "travel-insurance"]);
-    } catch { return new Set(["passports", "travel-insurance"]); }
+      const raw = localStorage.getItem(checkedKey);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch { return new Set(); }
   });
 
   const toggle = (id: string) => {
@@ -3689,146 +3713,165 @@ function PackingContent({ tripId }: { tripId?: string }) {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      try { localStorage.setItem(storageKey, JSON.stringify([...next])); } catch {}
+      try { localStorage.setItem(checkedKey, JSON.stringify([...next])); } catch {}
       return next;
     });
   };
 
-  function handleTripTypeChange(type: string) {
-    setTripType(type);
-    try { localStorage.setItem(typeKey, type); } catch {}
+  const generate = async () => {
+    if (!tripId) return;
+    setGenerating(true);
+    setGenerateError(null);
+    try {
+      const res = await fetch(`/api/trips/${tripId}/packing/generate`, { method: "POST" });
+      if (!res.ok) throw new Error("Generation failed");
+      const data = await res.json();
+      const items: AiPackingItem[] = data.items ?? [];
+      setAiItems(items);
+      try { localStorage.setItem(aiKey, JSON.stringify(items)); } catch {}
+    } catch {
+      setGenerateError("Could not generate packing list. Try again.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // Auto-generate on first open if no items stored
+  const didAutoGenerate = useRef(false);
+  useEffect(() => {
+    if (!didAutoGenerate.current && aiItems.length === 0 && tripId) {
+      didAutoGenerate.current = true;
+      generate();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const total = aiItems.length;
+  const packed = aiItems.filter(i => checked.has(i.id)).length;
+  const progressPct = total > 0 ? Math.round((packed / total) * 100) : 0;
+
+  // Group items by category
+  const grouped = AI_PACKING_CATEGORIES.reduce<Record<string, AiPackingItem[]>>((acc, cat) => {
+    acc[cat] = aiItems.filter(i => i.category === cat);
+    return acc;
+  }, {});
+  const extraCategories = [...new Set(aiItems.map(i => i.category))].filter(c => !AI_PACKING_CATEGORIES.includes(c));
+
+  if (generating) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 0", gap: "14px" }}>
+        <Sparkles size={22} style={{ color: "#C4664A" }} />
+        <p style={{ fontSize: "15px", fontWeight: 600, color: "#1a1a1a" }}>Generating your packing list...</p>
+        <p style={{ fontSize: "13px", color: "#717171" }}>Tailored to {destinationCity ?? "your destination"}</p>
+      </div>
+    );
   }
 
-  const allItems = [
-    ...packingItems.documents, ...packingItems.kids,
-    ...packingItems.clothing, ...(packingItems.gear ?? []),
-    ...TODDLER_ITEMS,
-  ];
-  const total = allItems.length;
-  const packed = allItems.filter(i => checked.has(i.id)).length;
-  const progressPct = Math.round((packed / total) * 100);
+  if (generateError) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: "12px" }}>
+        <p style={{ fontSize: "13px", color: "#D97706" }}>{generateError}</p>
+        <button onClick={generate} style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", background: "none", border: "none", cursor: "pointer" }}>
+          Try again →
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
-      {/* Trip type selector */}
-      <div style={{ marginBottom: "20px" }}>
-        <p style={{ fontSize: "12px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "10px" }}>Trip type</p>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-          {TRIP_TYPE_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => handleTripTypeChange(opt.value)}
-              style={{
-                padding: "6px 14px", borderRadius: "999px", fontSize: "13px", fontWeight: 600,
-                border: "1.5px solid",
-                borderColor: tripType === opt.value ? "#C4664A" : "#E0E0E0",
-                backgroundColor: tripType === opt.value ? "#C4664A" : "#fff",
-                color: tripType === opt.value ? "#fff" : "#555",
-                cursor: "pointer",
-              }}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Summary row */}
-      <div style={{ marginBottom: "20px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
-          <p style={{ fontSize: "13px", color: "#717171" }}>{total} items · {packed} packed</p>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              <Weight size={13} style={{ color: "#717171" }} />
-              <span style={{ fontSize: "13px", color: "#717171" }}>~14kg</span>
-            </div>
-            <span style={{ fontSize: "12px", color: "#ccc" }}>·</span>
-            <button style={{ display: "flex", alignItems: "center", gap: "4px", background: "none", border: "none", padding: 0, cursor: "pointer" }}>
-              <Share2 size={13} style={{ color: "#C4664A" }} />
-              <span style={{ fontSize: "13px", color: "#C4664A" }}>Share list</span>
-            </button>
-          </div>
-        </div>
-        <div style={{ height: "4px", backgroundColor: "#EEEEEE", borderRadius: "2px" }}>
-          <div style={{ height: "100%", width: `${progressPct}%`, backgroundColor: "#C4664A", borderRadius: "2px", transition: "width 0.2s" }} />
-        </div>
-      </div>
-
-      {/* 2-col grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-        {/* Left: Documents + Kids */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-          <PackingSection Icon={FileText} photoUrl="https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=600&auto=format&fit=crop" label="Documents" count={packingItems.documents.length}>
-            {packingItems.documents.map((item) => (
-              <PackingItem key={item.id} {...item} checked={checked.has(item.id)} onToggle={toggle} />
-            ))}
-          </PackingSection>
-          <PackingSection Icon={Baby} photoUrl="https://images.unsplash.com/photo-1502781252888-9143ba7f074e?w=600&auto=format&fit=crop" label="Kids" count={packingItems.kids.length}>
-            {packingItems.kids.map((item) => (
-              <PackingItem key={item.id} {...item} checked={checked.has(item.id)} onToggle={toggle} />
-            ))}
-          </PackingSection>
-        </div>
-
-        {/* Right: Clothing + Gear + Toddler */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-          <PackingSection Icon={Shirt} gradient="linear-gradient(135deg, #8B6F5E 0%, #C4A882 50%, #D4956A 100%)" label="Clothing" count={packingItems.clothing.length}>
-            {packingItems.clothing.map((item) => (
-              <PackingItem key={item.id} {...item} checked={checked.has(item.id)} onToggle={toggle} />
-            ))}
-          </PackingSection>
-          {(packingItems.gear ?? []).length > 0 && (
-          <PackingSection Icon={Backpack} photoUrl="https://images.unsplash.com/photo-1452780212940-6f5c0d14d848?w=600&auto=format&fit=crop" label="Gear" count={(packingItems.gear ?? []).length}>
-            {(packingItems.gear ?? []).map((item) => (
-              <PackingItem key={item.id} {...item} checked={checked.has(item.id)} onToggle={toggle} />
-            ))}
-          </PackingSection>
+      {/* Header row */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+        <div>
+          <p style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "2px" }}>Packing list</p>
+          {(destinationCity || destinationCountry) && (
+            <p style={{ fontSize: "13px", color: "#717171" }}>
+              {[destinationCity, destinationCountry].filter(Boolean).join(", ")}
+              {tripStartDate && tripEndDate && (() => {
+                const nights = Math.round((new Date(tripEndDate).getTime() - new Date(tripStartDate).getTime()) / (1000 * 60 * 60 * 24));
+                return ` · ${nights} nights`;
+              })()}
+            </p>
           )}
-          <PackingSection
-            Icon={Baby}
-            photoUrl="https://images.unsplash.com/photo-1596464716127-f2a82984de30?w=600&auto=format&fit=crop"
-            label="Toddler & Young Kids"
-            count={TODDLER_ITEMS.length}
-            note="Auto-suggested · Ages 4 & 7"
-          >
-            {TODDLER_ITEMS.map((item) => (
-              <PackingItem key={item.id} {...item} checked={checked.has(item.id)} onToggle={toggle} />
-            ))}
-            {/* AI suggestion row within section */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", margin: "6px 0 4px", padding: "10px 14px", border: "1.5px dashed rgba(196,102,74,0.3)", borderRadius: "12px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <Sparkles size={13} style={{ color: "#C4664A", flexShrink: 0 }} />
-                <span style={{ fontSize: "12px", color: "#717171" }}>Reef-safe sunscreen recommended for Okinawa</span>
-              </div>
-              <button style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#C4664A", fontSize: "13px", fontWeight: 700, flexShrink: 0 }}>
-                + Add
-              </button>
-            </div>
-          </PackingSection>
         </div>
-
-      </div>
-
-      {/* AI suggestion */}
-      <div style={{ backgroundColor: "rgba(196,102,74,0.08)", borderLeft: "3px solid #C4664A", borderRadius: "12px", padding: "14px 16px", marginTop: "24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
-          <Sparkles size={14} style={{ color: "#C4664A", flexShrink: 0, marginTop: "2px" }} />
-          <p style={{ fontSize: "13px", color: "#1a1a1a", lineHeight: 1.4 }}>
-            Based on your itinerary we suggest adding snorkel gear and reef-safe sunscreen
-          </p>
-        </div>
-        <button style={{ backgroundColor: "transparent", border: "none", padding: 0, cursor: "pointer", color: "#C4664A", fontSize: "13px", fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap" }}>
-          Add to list →
+        <button
+          onClick={generate}
+          style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "13px", fontWeight: 600, color: "#C4664A", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}
+        >
+          <Sparkles size={13} style={{ color: "#C4664A" }} />
+          Regenerate list
         </button>
       </div>
 
-      {/* Add item */}
-      <button style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "16px", backgroundColor: "transparent", border: "none", padding: "4px 0", cursor: "pointer", color: "#C4664A" }}>
-        <Plus size={15} />
-        <span style={{ fontSize: "13px", fontWeight: 600 }}>Add an item</span>
-      </button>
+      {/* Progress */}
+      {total > 0 && (
+        <div style={{ marginBottom: "24px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
+            <p style={{ fontSize: "13px", color: "#717171" }}>{total} items · {packed} packed</p>
+            <p style={{ fontSize: "13px", color: "#717171" }}>{progressPct}%</p>
+          </div>
+          <div style={{ height: "4px", backgroundColor: "#EEEEEE", borderRadius: "2px" }}>
+            <div style={{ height: "100%", width: `${progressPct}%`, backgroundColor: "#C4664A", borderRadius: "2px", transition: "width 0.2s" }} />
+          </div>
+        </div>
+      )}
+
+      {/* Category sections */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+        {[...AI_PACKING_CATEGORIES, ...extraCategories].map((cat) => {
+          const items = cat in grouped ? grouped[cat] : aiItems.filter(i => i.category === cat);
+          if (!items || items.length === 0) return null;
+          const Icon = CATEGORY_ICON[cat] ?? Backpack;
+          return (
+            <div key={cat} style={{ backgroundColor: "#fff", border: "1px solid #F0F0F0", borderRadius: "14px", overflow: "hidden" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "14px 16px 10px" }}>
+                <Icon size={14} style={{ color: "#C4664A" }} />
+                <p style={{ fontSize: "12px", fontWeight: 700, color: "#1a1a1a", textTransform: "uppercase", letterSpacing: "0.08em" }}>{cat}</p>
+                <span style={{ fontSize: "12px", color: "#bbb", marginLeft: "auto" }}>{items.filter(i => checked.has(i.id)).length}/{items.length}</span>
+              </div>
+              <div style={{ padding: "0 8px 12px" }}>
+                {items.map((item) => {
+                  const done = checked.has(item.id);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => toggle(item.id)}
+                      style={{
+                        width: "100%", display: "flex", alignItems: "flex-start", gap: "10px",
+                        padding: "9px 8px", borderRadius: "8px", background: "none", border: "none",
+                        cursor: "pointer", textAlign: "left",
+                        opacity: done ? 0.45 : 1,
+                      }}
+                    >
+                      <div style={{
+                        width: "17px", height: "17px", borderRadius: "4px", flexShrink: 0, marginTop: "1px",
+                        border: done ? "none" : "1.5px solid #D0D0D0",
+                        backgroundColor: done ? "#C4664A" : "transparent",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                      }}>
+                        {done && (
+                          <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                            <path d="M1 4L3.5 6.5L9 1" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: "14px", color: "#1a1a1a", fontWeight: 500, textDecoration: done ? "line-through" : "none", lineHeight: 1.3 }}>{item.name}</p>
+                        {(item.notes || (item.assignedTo && item.assignedTo !== "all")) && (
+                          <p style={{ fontSize: "12px", color: "#888", marginTop: "1px" }}>
+                            {[item.assignedTo !== "all" ? item.assignedTo : null, item.notes || null].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -4959,7 +5002,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         </>
       )}
       {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} />}
-      {tab === "packing" && <PackingContent tripId={tripId} />}
+      {tab === "packing" && <PackingContent tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} tripStartDate={tripStartDate} tripEndDate={tripEndDate} />}
       {tab === "notes" && (
         <div style={{ maxWidth: "600px" }}>
           {/* Header */}
