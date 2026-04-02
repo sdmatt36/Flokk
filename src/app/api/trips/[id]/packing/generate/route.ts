@@ -13,10 +13,15 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await auth();
-    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const { id: tripId } = await params;
+    console.log("[packing/generate] START tripId:", tripId);
+
+    const { userId } = await auth();
+    if (!userId) {
+      console.log("[packing/generate] Unauthorized");
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    console.log("[packing/generate] Auth OK userId:", userId);
 
     const user = await db.user.findUnique({
       where: { clerkId: userId },
@@ -28,13 +33,17 @@ export async function POST(
     });
 
     if (!user?.familyProfile) {
+      console.log("[packing/generate] No family profile for userId:", userId);
       return NextResponse.json({ error: "No family profile" }, { status: 400 });
     }
+    console.log("[packing/generate] Profile OK, members:", user.familyProfile.members.length);
 
     const trip = await db.trip.findUnique({ where: { id: tripId } });
     if (!trip || trip.familyProfileId !== user.familyProfile.id) {
+      console.log("[packing/generate] Trip not found or unauthorized tripId:", tripId);
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
+    console.log("[packing/generate] Trip fetched:", trip.destinationCity, trip.destinationCountry);
 
     const members = user.familyProfile.members ?? [];
     const memberSummary = members.length > 0
@@ -71,7 +80,7 @@ Trip details:
 Return a JSON object with this exact structure — no prose, no markdown, just JSON:
 {
   "items": [
-    { "id": "unique-slug", "category": "Documents", "name": "Item name", "assignedTo": "person name or 'all'", "notes": "optional short note or empty string" }
+    { "id": "unique-slug", "category": "Documents", "name": "Item name", "assignedTo": "person name or 'Everyone'", "notes": "optional short note or empty string" }
   ]
 }
 
@@ -82,25 +91,28 @@ Rules:
 - Tailor items to the destination (climate, culture, activities)
 - Tailor items to the travelers (kids' ages, toddler gear if under 4, etc.)
 - Each item id must be a unique kebab-case slug
-- assignedTo: use a traveler's first name if the item is specific to one person, otherwise "all"
+- assignedTo: use a traveler's first name if the item is specific to one person, otherwise "Everyone"
 - notes: one short phrase when useful (e.g. "reef-safe recommended"), otherwise empty string
 - No duplicate items`;
 
+    console.log("[packing/generate] Calling Claude API, destination:", destination);
     const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 2048,
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1500,
       messages: [{ role: "user", content: prompt }],
     });
+    console.log("[packing/generate] Claude responded, content blocks:", message.content.length);
 
     const rawText = message.content
       .filter((b) => b.type === "text")
       .map((b) => (b as { type: "text"; text: string }).text)
       .join("");
+    console.log("[packing/generate] Raw text length:", rawText.length);
 
-    // Extract JSON from response (strip any accidental markdown fences)
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    const clean = rawText.replace(/```json|```/g, "").trim();
+    const jsonMatch = clean.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error("[packing/generate] no JSON found in Claude response:", rawText.slice(0, 200));
+      console.error("[packing/generate] No JSON found in response:", rawText.slice(0, 300));
       return NextResponse.json({ error: "Failed to parse AI response" }, { status: 500 });
     }
 
@@ -108,12 +120,14 @@ Rules:
     try {
       parsed = JSON.parse(jsonMatch[0]);
     } catch (parseErr) {
-      console.error("[packing/generate] JSON.parse failed:", parseErr);
+      console.error("[packing/generate] JSON.parse failed:", parseErr, "raw:", jsonMatch[0].slice(0, 200));
       return NextResponse.json({ error: "Invalid AI response JSON" }, { status: 500 });
     }
+    console.log("[packing/generate] Parsed items:", parsed.items?.length);
 
-    // Delete existing items and replace with generated ones
     await db.packingItem.deleteMany({ where: { tripId } });
+    console.log("[packing/generate] Deleted existing items");
+
     await db.packingItem.createMany({
       data: parsed.items.map((item, index) => ({
         tripId,
@@ -125,10 +139,11 @@ Rules:
         sortOrder: index,
       })),
     });
+    console.log("[packing/generate] Created", parsed.items.length, "items");
 
     return NextResponse.json({ generated: parsed.items.length });
   } catch (error) {
-    console.error("[packing/generate] error:", error);
+    console.error("[packing/generate] FAILED:", error);
     return NextResponse.json(
       { error: "Failed to generate packing list", details: String(error) },
       { status: 500 }
