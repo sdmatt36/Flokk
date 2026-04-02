@@ -1928,16 +1928,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         lng: it.longitude ?? null,
         itineraryItem: it,
       })),
-    // Sort: timed items first (by startTime), then untimed items (by sortOrder).
-    // Semantic weight is baked into sortOrder on first load; manual reorder swaps sortOrder values.
-    ].sort((a, b) => {
-      const aHasTime = a.startTime != null && a.startTime !== "";
-      const bHasTime = b.startTime != null && b.startTime !== "";
-      if (aHasTime && !bHasTime) return -1;
-      if (!aHasTime && bHasTime) return 1;
-      if (aHasTime && bHasTime) return a.startTime!.localeCompare(b.startTime!);
-      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
-    });
+    // Sort purely by sortOrder — semantic weight is baked into the initial sortOrder
+    // values on first load (see initialization effects below), so manual reordering
+    // always wins without the semantic weight overriding on every re-render.
+    ].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }
 
 
