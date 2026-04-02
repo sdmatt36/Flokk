@@ -3717,12 +3717,23 @@ function PackingContent({
     if (!tripId) return;
     setPackingGenerating(true);
     setGenerateError(null);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 55000);
     try {
-      const res = await fetch(`/api/trips/${tripId}/packing/generate`, { method: "POST" });
-      if (!res.ok) throw new Error("Generation failed");
+      const res = await fetch(`/api/trips/${tripId}/packing/generate`, {
+        method: "POST",
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? "Generation failed");
+      }
       await fetchItems();
-    } catch {
-      setGenerateError("Could not generate packing list. Try again.");
+    } catch (err) {
+      clearTimeout(timeoutId);
+      const isAbort = err instanceof Error && err.name === "AbortError";
+      setGenerateError(isAbort ? "Request timed out. Try again." : "Could not generate packing list. Try again.");
     } finally {
       setPackingGenerating(false);
     }
@@ -3786,7 +3797,7 @@ function PackingContent({
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 0", gap: "14px" }}>
         <Sparkles size={22} style={{ color: "#C4664A" }} />
-        <p style={{ fontSize: "15px", fontWeight: 600, color: "#1a1a1a" }}>Generating your packing list...</p>
+        <p style={{ fontSize: "15px", fontWeight: 600, color: "#1a1a1a" }}>Flokking your packing list...</p>
         <p style={{ fontSize: "13px", color: "#717171" }}>Tailored to {destinationCity ?? "your destination"}</p>
       </div>
     );
