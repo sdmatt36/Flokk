@@ -2630,7 +2630,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                         {depFormatted}{arrTime ? ` → ${arrTime}` : ""}{isDefaultTime ? " (approx)" : ""}
                                                       </p>
                                                     )}
-                                                    {cleanLoc && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }}>{cleanDisplayDescription(cleanLoc)}</p>}
+                                                    {cleanLoc && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }} suppressHydrationWarning={true}>{cleanDisplayDescription(cleanLoc)}</p>}
                                                   </>
                                                 );
                                               })()}
@@ -4103,7 +4103,7 @@ function RecommendedContent({
                         </p>
                       )}
                       {item.rawDescription && cleanDisplayDescription(item.rawDescription).length >= 10 && (
-                        <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.5, marginBottom: "10px", flex: 1, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } as React.CSSProperties}>{cleanDisplayDescription(item.rawDescription)}</p>
+                        <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.5, marginBottom: "10px", flex: 1, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } as React.CSSProperties} suppressHydrationWarning={true}>{cleanDisplayDescription(item.rawDescription)}</p>
                       )}
                       <button
                         type="button"

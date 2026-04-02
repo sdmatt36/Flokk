@@ -363,7 +363,7 @@ export function SaveDetailModal({
               const cleaned = cleanDisplayDescription(item.rawDescription);
               if (cleaned.length < 10) return null;
               return (
-                <p style={{ fontSize: "14px", color: "#444", lineHeight: 1.6, marginBottom: "16px" }}>
+                <p style={{ fontSize: "14px", color: "#444", lineHeight: 1.6, marginBottom: "16px" }} suppressHydrationWarning={true}>
                   {cleaned}
                 </p>
               );
