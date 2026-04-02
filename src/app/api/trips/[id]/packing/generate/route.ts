@@ -69,7 +69,7 @@ export async function POST(
 
     const tripType = trip.tripType ?? "leisure";
 
-    const prompt = `You are a travel packing assistant. Generate a practical, personalized packing list for this trip.
+    const prompt = `Generate a packing list for this trip as a JSON object.
 
 Trip details:
 - Destination: ${destination}
@@ -77,28 +77,25 @@ Trip details:
 - Trip type: ${tripType}
 - Travelers: ${memberSummary}
 
-Return a JSON object with this exact structure — no prose, no markdown, just JSON:
-{
-  "items": [
-    { "id": "unique-slug", "category": "Documents", "name": "Item name", "assignedTo": "person name or 'Everyone'", "notes": "optional short note or empty string" }
-  ]
-}
+Return exactly this structure:
+{"items":[{"id":"kebab-slug","category":"Documents","name":"Item name","assignedTo":"Everyone","notes":""}]}
 
-Categories to use (use these exact strings): Documents, Clothing, Toiletries, Kids, Tech, Health, Gear
+Categories (use exactly): Documents, Clothing, Toiletries, Kids, Tech, Health, Gear
 
 Rules:
-- 40–60 items total
-- Tailor items to the destination (climate, culture, activities)
-- Tailor items to the travelers (kids' ages, toddler gear if under 4, etc.)
-- Each item id must be a unique kebab-case slug
-- assignedTo: use a traveler's first name if the item is specific to one person, otherwise "Everyone"
-- notes: one short phrase when useful (e.g. "reef-safe recommended"), otherwise empty string
+- Exactly 25 items total
+- Tailor to destination climate, culture, and trip type
+- Tailor to travelers (ages, kids' needs)
+- Item name: max 40 characters
+- assignedTo: traveler first name if person-specific, otherwise "Everyone"
+- notes: null unless essential (e.g. "reef-safe recommended")
 - No duplicate items`;
 
     console.log("[packing/generate] Calling Claude API, destination:", destination);
     const message = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1500,
+      max_tokens: 4000,
+      system: "You are a travel packing list generator. You respond ONLY with valid JSON. No markdown, no backticks, no explanation. Just the raw JSON object.",
       messages: [{ role: "user", content: prompt }],
     });
     console.log("[packing/generate] Claude responded, content blocks:", message.content.length);
@@ -109,7 +106,7 @@ Rules:
       .join("");
     console.log("[packing/generate] Raw text length:", rawText.length);
 
-    const clean = rawText.replace(/```json|```/g, "").trim();
+    const clean = rawText.trim();
     const jsonMatch = clean.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       console.error("[packing/generate] No JSON found in response:", rawText.slice(0, 300));
@@ -120,8 +117,21 @@ Rules:
     try {
       parsed = JSON.parse(jsonMatch[0]);
     } catch (parseErr) {
-      console.error("[packing/generate] JSON.parse failed:", parseErr, "raw:", jsonMatch[0].slice(0, 200));
-      return NextResponse.json({ error: "Invalid AI response JSON" }, { status: 500 });
+      console.error("[packing/generate] JSON.parse failed, attempting repair:", parseErr);
+      const lastCompleteItem = jsonMatch[0].lastIndexOf("},");
+      if (lastCompleteItem > 0) {
+        const repaired = jsonMatch[0].substring(0, lastCompleteItem + 1) + "]}";
+        try {
+          parsed = JSON.parse(repaired);
+          console.log("[packing/generate] JSON repaired, items:", parsed.items?.length);
+        } catch (repairErr) {
+          console.error("[packing/generate] JSON repair failed:", repairErr);
+          return NextResponse.json({ error: "Invalid AI response JSON" }, { status: 500 });
+        }
+      } else {
+        console.error("[packing/generate] No repairable JSON found, raw:", jsonMatch[0].slice(0, 200));
+        return NextResponse.json({ error: "Invalid AI response JSON" }, { status: 500 });
+      }
     }
     console.log("[packing/generate] Parsed items:", parsed.items?.length);
 
