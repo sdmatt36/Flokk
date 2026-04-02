@@ -552,6 +552,29 @@ function formatTime(t: string | null | undefined): string | null {
   return `${hour}:${String(m).padStart(2, "0")} ${ampm}`;
 }
 
+// Returns a display time for an item. If the item has a real startTime, returns it.
+// For untimed saves/activities, infers a sensible default based on when other items are scheduled:
+// all before noon → place after at 2 PM; all after noon → place before at 9 AM; mixed → 12 PM.
+// Returns null for non-save/activity types (flights, trains, lodging) so they never show approx times.
+function getDisplayTime(
+  startTime: string | null | undefined,
+  itemType: string,
+  allDayItems: { startTime?: string | null }[]
+): string | null {
+  if (startTime) return startTime;
+  if (itemType !== "saved" && itemType !== "activity") return null;
+
+  const timedItems = allDayItems.filter(i => i.startTime != null && i.startTime !== "");
+  if (timedItems.length === 0) return "10:00";
+
+  const allBeforeNoon = timedItems.every(i => parseInt(i.startTime!.split(":")[0], 10) < 12);
+  const allAfterNoon = timedItems.every(i => parseInt(i.startTime!.split(":")[0], 10) >= 12);
+
+  if (allBeforeNoon) return "14:00";
+  if (allAfterNoon) return "09:00";
+  return "12:00";
+}
+
 function generateTripDays(
   startDate: string | null,
   endDate: string | null
@@ -1905,10 +1928,16 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         lng: it.longitude ?? null,
         itineraryItem: it,
       })),
-    // Sort purely by sortOrder — semantic weight is baked into the initial sortOrder
-    // values on first load (see initialization effects below), so manual reordering
-    // always wins without the semantic weight overriding on every re-render.
-    ].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    // Sort: timed items first (by startTime), then untimed items (by sortOrder).
+    // Semantic weight is baked into sortOrder on first load; manual reorder swaps sortOrder values.
+    ].sort((a, b) => {
+      const aHasTime = a.startTime != null && a.startTime !== "";
+      const bHasTime = b.startTime != null && b.startTime !== "";
+      if (aHasTime && !bHasTime) return -1;
+      if (!aHasTime && bHasTime) return 1;
+      if (aHasTime && bHasTime) return a.startTime!.localeCompare(b.startTime!);
+      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    });
   }
 
 
@@ -2591,12 +2620,14 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                 const arrMatch = loc.match(/arrives\s+(\d{1,2}:\d{2})/i);
                                                 const arrTime = arrMatch ? formatTime(arrMatch[1]) : null;
                                                 const cleanLoc = loc.replace(/\s*·\s*departs\s+\d{1,2}:\d{2}/i, "").replace(/\s*·\s*arrives\s+\d{1,2}:\d{2}/i, "").trim();
-                                                const depFormatted = a.startTime ? formatTime(a.startTime) : null;
+                                                const rawDisplayTime = getDisplayTime(a.startTime, "saved", allDayItems);
+                                                const depFormatted = rawDisplayTime ? formatTime(rawDisplayTime) : null;
+                                                const isDefaultTime = !a.startTime && depFormatted != null;
                                                 return (
                                                   <>
                                                     {depFormatted && (
-                                                      <p style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, lineHeight: 1.4 }}>
-                                                        {depFormatted}{arrTime ? ` → ${arrTime}` : ""}
+                                                      <p style={{ fontSize: "12px", color: isDefaultTime ? "#AAAAAA" : "#C4664A", fontWeight: 600, lineHeight: 1.4 }}>
+                                                        {depFormatted}{arrTime ? ` → ${arrTime}` : ""}{isDefaultTime ? " (approx)" : ""}
                                                       </p>
                                                     )}
                                                     {cleanLoc && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }}>{cleanDisplayDescription(cleanLoc)}</p>}
