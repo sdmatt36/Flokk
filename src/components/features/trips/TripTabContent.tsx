@@ -1415,6 +1415,7 @@ type ItineraryItemLocal = {
   arrivalLng?: number | null;
   sortOrder: number;
   bookingUrl?: string | null;
+  needsVerification?: boolean | null;
 };
 
 type UnifiedDayItem = {
@@ -1778,6 +1779,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [localActivities, setLocalActivities] = useState<Activity[]>([]);
   const [localFlights, setLocalFlights] = useState<Flight[]>([]);
   const [localItineraryItems, setLocalItineraryItems] = useState<ItineraryItemLocal[]>([]);
+  const [verificationModalOpen, setVerificationModalOpen] = useState(false);
+  const [verificationIndex, setVerificationIndex] = useState(0);
   const [expandedSlotKey, setExpandedSlotKey] = useState<string | null>(null);
   const [selectedItineraryItem, setSelectedItineraryItem] = useState<ItineraryItemLocal | null>(null);
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
@@ -2439,7 +2442,23 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                 </div>
               );
             }
+            const itemsNeedingVerification = localItineraryItems.filter(i => i.needsVerification === true);
             return (
+              <>
+                {itemsNeedingVerification.length > 0 && (
+                  <div style={{ marginBottom: "12px", padding: "14px 16px", backgroundColor: "#FFFBEB", border: "1px solid #D97706", borderRadius: "12px" }}>
+                    <p style={{ fontSize: "13px", fontWeight: 600, color: "#92400E", lineHeight: 1.4 }}>
+                      We want to make sure we Flokked this correctly —{" "}
+                      {itemsNeedingVerification.length} booking{itemsNeedingVerification.length > 1 ? "s need" : " needs"} a quick check.
+                    </p>
+                    <button
+                      onClick={() => { setVerificationIndex(0); setVerificationModalOpen(true); }}
+                      style={{ marginTop: "8px", fontSize: "13px", fontWeight: 600, color: "#C4664A", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+                    >
+                      Review now →
+                    </button>
+                  </div>
+                )}
               <div style={{ borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", overflow: "hidden", backgroundColor: "#fff" }}>
                 {tripDays.map(({ dayIndex, label, date, shortDate }, i) => {
                   const isOpen = openDay === i;
@@ -2990,6 +3009,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                   );
                 })}
               </div>
+              </>
             );
           })()}
         </div>{/* end left panel */}
@@ -3334,6 +3354,68 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                   </div>
                 );
               })()}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Verification Modal ── */}
+      {verificationModalOpen && (() => {
+        const itemsNeedingVerification = localItineraryItems.filter(i => i.needsVerification === true);
+        const item = itemsNeedingVerification[verificationIndex];
+        if (!item) return null;
+        const isLast = verificationIndex === itemsNeedingVerification.length - 1;
+        const lblStyle: React.CSSProperties = { fontSize: "11px", color: "#999", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" };
+        const valStyle: React.CSSProperties = { fontSize: "13px", color: "#1B3A5C", fontWeight: 500, textAlign: "right" };
+        return (
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.5)", padding: "16px" }}
+            onClick={() => setVerificationModalOpen(false)}
+          >
+            <div
+              style={{ backgroundColor: "#fff", borderRadius: "16px", padding: "24px", width: "100%", maxWidth: "440px", maxHeight: "85vh", overflowY: "auto" }}
+              onClick={e => e.stopPropagation()}
+            >
+              <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#D97706", marginBottom: "4px" }}>
+                {verificationIndex + 1} of {itemsNeedingVerification.length}
+              </p>
+              <p style={{ fontSize: "20px", fontWeight: 700, color: "#1B3A5C", marginBottom: "18px", fontFamily: "'Playfair Display', Georgia, serif", lineHeight: 1.2 }}>
+                Did we get this right?
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 16px", marginBottom: "20px" }}>
+                <span style={lblStyle}>Type</span><span style={valStyle}>{item.type.charAt(0) + item.type.slice(1).toLowerCase()}</span>
+                <span style={lblStyle}>Title</span><span style={valStyle}>{item.title}</span>
+                {item.departureTime && <><span style={lblStyle}>Time</span><span style={valStyle}>{item.departureTime}</span></>}
+                {item.address && <><span style={lblStyle}>Location</span><span style={valStyle}>{item.address}</span></>}
+                {item.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...valStyle, fontWeight: 700 }}>{item.confirmationCode}</span></>}
+              </div>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  onClick={async () => {
+                    await fetch(`/api/trips/${tripId}/itinerary/${item.id}/verify`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ verified: true }),
+                    });
+                    setLocalItineraryItems(prev => prev.map(it => it.id === item.id ? { ...it, needsVerification: false } : it));
+                    if (isLast) {
+                      setVerificationModalOpen(false);
+                      setVerificationIndex(0);
+                    } else {
+                      setVerificationIndex(v => v + 1);
+                    }
+                  }}
+                  style={{ flex: 1, padding: "12px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  Looks right
+                </button>
+                <button
+                  onClick={() => setVerificationModalOpen(false)}
+                  style={{ flex: 1, padding: "12px", backgroundColor: "#fff", color: "#1B3A5C", border: "1px solid rgba(0,0,0,0.12)", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  Fix it
+                </button>
+              </div>
             </div>
           </div>
         );
@@ -5405,7 +5487,6 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         />
       )}
 
-      {/* ── Vault Activity Detail Modal ── */}
       {vaultActivityItem && (() => {
         const sit = vaultActivityItem;
         function fmtDateModal(d: string | null): string | null {

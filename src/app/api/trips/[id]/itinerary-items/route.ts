@@ -52,6 +52,7 @@ export async function GET(
       arrivalLat: true,
       arrivalLng: true,
       sortOrder: true,
+      needsVerification: true,
     },
   });
 
