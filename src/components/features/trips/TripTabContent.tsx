@@ -5069,7 +5069,15 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                     <div key={d.id} style={{ backgroundColor: "#fff", border: "1px solid rgba(196,102,74,0.2)", borderRadius: "14px", padding: "16px", position: "relative", ...(isActivityVault ? { cursor: "pointer" } : {}) }} onClick={isActivityVault ? handleVaultActivityTap : undefined}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
                         <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", color: "#C4664A", backgroundColor: "rgba(196,102,74,0.08)", borderRadius: "999px", padding: "2px 8px" }}>{typeLabel}</span>
-                        <span style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a" }}>{d.label}</span>
+                        <span style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a" }}>
+                          {(booking.type as string) === "flight"
+                            ? (booking.fromAirport && booking.toAirport)
+                              ? `${booking.fromAirport} → ${booking.toAirport}`
+                              : (booking.fromCity && booking.toCity)
+                              ? `${booking.fromCity} → ${booking.toCity}`
+                              : "Flight details"
+                            : d.label}
+                        </span>
                       </div>
                       {rows.length > 0 && (
                         <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 16px" }}>
