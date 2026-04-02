@@ -25,9 +25,9 @@ export async function POST() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // TRAIN: only backfill missing arrivalLat
+  // TRAIN: re-geocode ALL (fixes items with wrong arrivalLat already populated)
   const trainItems = await db.itineraryItem.findMany({
-    where: { type: "TRAIN", arrivalLat: null },
+    where: { type: "TRAIN" },
     select: { id: true, toCity: true },
   });
 
@@ -63,6 +63,7 @@ export async function POST() {
     }
   }
 
-  console.log(`[backfill-arrival-coords] trains: ${trainItems.length}, flights: ${flightItems.length}, updated: ${updated}`);
-  return NextResponse.json({ trains: trainItems.length, flights: flightItems.length, updated });
+  const total = trainItems.length + flightItems.length;
+  console.log(`[backfill-arrival-coords] trains: ${trainItems.length}, flights: ${flightItems.length}, total: ${total}, updated: ${updated}`);
+  return NextResponse.json({ trains: trainItems.length, flights: flightItems.length, total, updated });
 }
