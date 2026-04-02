@@ -293,10 +293,13 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
       const lngSpan = Math.max(...lngs) - Math.min(...lngs);
       if (latSpan > 3 || lngSpan > 3) {
         map.flyTo({ center: [pinsToRender[0].lng, pinsToRender[0].lat], zoom: 12, duration: 800 });
+      } else if (latSpan < 0.001 && lngSpan < 0.001) {
+        // Pins are at essentially the same location — fitBounds would produce zero-area canvas error
+        map.flyTo({ center: [pinsToRender[0].lng, pinsToRender[0].lat], zoom: 14, duration: 800 });
       } else {
         const bounds = new mapboxgl.LngLatBounds();
         pinsToRender.forEach(m => bounds.extend([m.lng, m.lat]));
-        map.fitBounds(bounds, { padding: 80, maxZoom: 14, duration: 800 });
+        map.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 500 });
       }
     }
   }, [activeDay, allSavedItems, activities, importedBookingPins, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
