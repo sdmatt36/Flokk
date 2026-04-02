@@ -108,5 +108,19 @@ Rules:
     return NextResponse.json({ error: "Invalid AI response JSON" }, { status: 500 });
   }
 
-  return NextResponse.json({ items: parsed.items });
+  // Delete existing items and replace with generated ones
+  await db.packingItem.deleteMany({ where: { tripId } });
+  await db.packingItem.createMany({
+    data: parsed.items.map((item, index) => ({
+      tripId,
+      category: item.category,
+      name: item.name,
+      assignedTo: item.assignedTo === "all" ? "Everyone" : (item.assignedTo ?? "Everyone"),
+      notes: item.notes || null,
+      packed: false,
+      sortOrder: index,
+    })),
+  });
+
+  return NextResponse.json({ generated: parsed.items.length });
 }

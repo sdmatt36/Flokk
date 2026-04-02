@@ -3661,9 +3661,17 @@ const TRIP_TYPE_PACKING: Record<string, { documents: PackingItemDef[]; kids: Pac
   },
 };
 
-type AiPackingItem = { id: string; category: string; name: string; assignedTo: string; notes: string };
+type DbPackingItem = {
+  id: string;
+  category: string;
+  name: string;
+  assignedTo: string;
+  notes: string | null;
+  packed: boolean;
+  sortOrder: number;
+};
 
-const AI_PACKING_CATEGORIES = ["Documents", "Clothing", "Toiletries", "Kids", "Tech", "Health", "Gear"];
+const PACKING_CATEGORIES = ["Documents", "Clothing", "Toiletries", "Kids", "Tech", "Health", "Gear"];
 
 const CATEGORY_ICON: Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties }>> = {
   Documents: FileText,
@@ -3688,76 +3696,93 @@ function PackingContent({
   tripStartDate?: string | null;
   tripEndDate?: string | null;
 }) {
-  const aiKey = `flokk_packing_ai_${tripId ?? "default"}`;
-  const checkedKey = `flokk_packing_checked_${tripId ?? "default"}`;
-
-  const [aiItems, setAiItems] = useState<AiPackingItem[]>(() => {
-    try {
-      const raw = localStorage.getItem(aiKey);
-      return raw ? JSON.parse(raw) : [];
-    } catch { return []; }
-  });
-
-  const [generating, setGenerating] = useState(false);
+  const [packingItems, setPackingItems] = useState<DbPackingItem[]>([]);
+  const [packingLoading, setPackingLoading] = useState(true);
+  const [packingGenerating, setPackingGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
 
-  const [checked, setChecked] = useState<Set<string>>(() => {
+  const fetchItems = useCallback(async () => {
+    if (!tripId) return;
     try {
-      const raw = localStorage.getItem(checkedKey);
-      return raw ? new Set(JSON.parse(raw)) : new Set();
-    } catch { return new Set(); }
-  });
-
-  const toggle = (id: string) => {
-    setChecked((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      try { localStorage.setItem(checkedKey, JSON.stringify([...next])); } catch {}
-      return next;
-    });
-  };
+      const res = await fetch(`/api/trips/${tripId}/packing`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setPackingItems(data.items ?? []);
+    } finally {
+      setPackingLoading(false);
+    }
+  }, [tripId]);
 
   const generate = async () => {
     if (!tripId) return;
-    setGenerating(true);
+    setPackingGenerating(true);
     setGenerateError(null);
     try {
       const res = await fetch(`/api/trips/${tripId}/packing/generate`, { method: "POST" });
       if (!res.ok) throw new Error("Generation failed");
-      const data = await res.json();
-      const items: AiPackingItem[] = data.items ?? [];
-      setAiItems(items);
-      try { localStorage.setItem(aiKey, JSON.stringify(items)); } catch {}
+      await fetchItems();
     } catch {
       setGenerateError("Could not generate packing list. Try again.");
     } finally {
-      setGenerating(false);
+      setPackingGenerating(false);
     }
   };
 
-  // Auto-generate on first open if no items stored
+  // Load from DB on mount; auto-generate if empty
   const didAutoGenerate = useRef(false);
   useEffect(() => {
-    if (!didAutoGenerate.current && aiItems.length === 0 && tripId) {
-      didAutoGenerate.current = true;
-      generate();
-    }
+    if (!tripId) return;
+    (async () => {
+      setPackingLoading(true);
+      try {
+        const res = await fetch(`/api/trips/${tripId}/packing`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const items: DbPackingItem[] = data.items ?? [];
+        setPackingItems(items);
+        if (items.length === 0 && !didAutoGenerate.current) {
+          didAutoGenerate.current = true;
+          setPackingLoading(false);
+          await generate();
+          return;
+        }
+      } finally {
+        setPackingLoading(false);
+      }
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [tripId]);
 
-  const total = aiItems.length;
-  const packed = aiItems.filter(i => checked.has(i.id)).length;
-  const progressPct = total > 0 ? Math.round((packed / total) * 100) : 0;
+  const handleToggle = async (item: DbPackingItem) => {
+    const newPacked = !item.packed;
+    // Optimistic update
+    setPackingItems(prev => prev.map(i => i.id === item.id ? { ...i, packed: newPacked } : i));
+    await fetch(`/api/trips/${tripId}/packing/${item.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ packed: newPacked }),
+    });
+  };
 
-  // Group items by category
-  const grouped = AI_PACKING_CATEGORIES.reduce<Record<string, AiPackingItem[]>>((acc, cat) => {
-    acc[cat] = aiItems.filter(i => i.category === cat);
-    return acc;
-  }, {});
-  const extraCategories = [...new Set(aiItems.map(i => i.category))].filter(c => !AI_PACKING_CATEGORIES.includes(c));
+  const total = packingItems.length;
+  const packedCount = packingItems.filter(i => i.packed).length;
+  const progressPct = total > 0 ? Math.round((packedCount / total) * 100) : 0;
 
-  if (generating) {
+  // Group by category
+  const allCategories = [
+    ...PACKING_CATEGORIES,
+    ...[...new Set(packingItems.map(i => i.category))].filter(c => !PACKING_CATEGORIES.includes(c)),
+  ];
+
+  if (packingLoading) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 0", gap: "14px" }}>
+        <p style={{ fontSize: "14px", color: "#717171" }}>Loading...</p>
+      </div>
+    );
+  }
+
+  if (packingGenerating) {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 0", gap: "14px" }}>
         <Sparkles size={22} style={{ color: "#C4664A" }} />
@@ -3807,7 +3832,7 @@ function PackingContent({
       {total > 0 && (
         <div style={{ marginBottom: "24px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "6px" }}>
-            <p style={{ fontSize: "13px", color: "#717171" }}>{total} items · {packed} packed</p>
+            <p style={{ fontSize: "13px", color: "#717171" }}>{total} items · {packedCount} packed</p>
             <p style={{ fontSize: "13px", color: "#717171" }}>{progressPct}%</p>
           </div>
           <div style={{ height: "4px", backgroundColor: "#EEEEEE", borderRadius: "2px" }}>
@@ -3818,55 +3843,52 @@ function PackingContent({
 
       {/* Category sections */}
       <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-        {[...AI_PACKING_CATEGORIES, ...extraCategories].map((cat) => {
-          const items = cat in grouped ? grouped[cat] : aiItems.filter(i => i.category === cat);
-          if (!items || items.length === 0) return null;
+        {allCategories.map((cat) => {
+          const items = packingItems.filter(i => i.category === cat);
+          if (items.length === 0) return null;
           const Icon = CATEGORY_ICON[cat] ?? Backpack;
           return (
             <div key={cat} style={{ backgroundColor: "#fff", border: "1px solid #F0F0F0", borderRadius: "14px", overflow: "hidden" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "14px 16px 10px" }}>
                 <Icon size={14} style={{ color: "#C4664A" }} />
                 <p style={{ fontSize: "12px", fontWeight: 700, color: "#1a1a1a", textTransform: "uppercase", letterSpacing: "0.08em" }}>{cat}</p>
-                <span style={{ fontSize: "12px", color: "#bbb", marginLeft: "auto" }}>{items.filter(i => checked.has(i.id)).length}/{items.length}</span>
+                <span style={{ fontSize: "12px", color: "#bbb", marginLeft: "auto" }}>{items.filter(i => i.packed).length}/{items.length}</span>
               </div>
               <div style={{ padding: "0 8px 12px" }}>
-                {items.map((item) => {
-                  const done = checked.has(item.id);
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => toggle(item.id)}
-                      style={{
-                        width: "100%", display: "flex", alignItems: "flex-start", gap: "10px",
-                        padding: "9px 8px", borderRadius: "8px", background: "none", border: "none",
-                        cursor: "pointer", textAlign: "left",
-                        opacity: done ? 0.45 : 1,
-                      }}
-                    >
-                      <div style={{
-                        width: "17px", height: "17px", borderRadius: "4px", flexShrink: 0, marginTop: "1px",
-                        border: done ? "none" : "1.5px solid #D0D0D0",
-                        backgroundColor: done ? "#C4664A" : "transparent",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                      }}>
-                        {done && (
-                          <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                            <path d="M1 4L3.5 6.5L9 1" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        )}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: "14px", color: "#1a1a1a", fontWeight: 500, textDecoration: done ? "line-through" : "none", lineHeight: 1.3 }}>{item.name}</p>
-                        {(item.notes || (item.assignedTo && item.assignedTo !== "all")) && (
-                          <p style={{ fontSize: "12px", color: "#888", marginTop: "1px" }}>
-                            {[item.assignedTo !== "all" ? item.assignedTo : null, item.notes || null].filter(Boolean).join(" · ")}
-                          </p>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
+                {items.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleToggle(item)}
+                    style={{
+                      width: "100%", display: "flex", alignItems: "flex-start", gap: "10px",
+                      padding: "9px 8px", borderRadius: "8px", background: "none", border: "none",
+                      cursor: "pointer", textAlign: "left",
+                      opacity: item.packed ? 0.45 : 1,
+                    }}
+                  >
+                    <div style={{
+                      width: "17px", height: "17px", borderRadius: "4px", flexShrink: 0, marginTop: "1px",
+                      border: item.packed ? "none" : "1.5px solid #D0D0D0",
+                      backgroundColor: item.packed ? "#C4664A" : "transparent",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      {item.packed && (
+                        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                          <path d="M1 4L3.5 6.5L9 1" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: "14px", color: "#1a1a1a", fontWeight: 500, textDecoration: item.packed ? "line-through" : "none", lineHeight: 1.3 }}>{item.name}</p>
+                      {(item.notes || (item.assignedTo && item.assignedTo !== "Everyone")) && (
+                        <p style={{ fontSize: "12px", color: "#888", marginTop: "1px" }}>
+                          {[item.assignedTo !== "Everyone" ? item.assignedTo : null, item.notes || null].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  </button>
+                ))}
               </div>
             </div>
           );

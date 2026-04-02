@@ -1,0 +1,62 @@
+import { auth } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+
+export const dynamic = "force-dynamic";
+
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string; itemId: string }> }
+) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id: tripId, itemId } = await params;
+
+  const user = await db.user.findUnique({
+    where: { clerkId: userId },
+    include: { familyProfile: true },
+  });
+  if (!user?.familyProfile) return NextResponse.json({ error: "No profile" }, { status: 400 });
+
+  const trip = await db.trip.findUnique({ where: { id: tripId } });
+  if (!trip || trip.familyProfileId !== user.familyProfile.id) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const body = await req.json();
+  const data: Record<string, unknown> = {};
+  if (body.packed !== undefined) data.packed = body.packed;
+  if (body.name !== undefined) data.name = body.name;
+  if (body.category !== undefined) data.category = body.category;
+  if (body.notes !== undefined) data.notes = body.notes;
+
+  const item = await db.packingItem.update({ where: { id: itemId }, data });
+
+  return NextResponse.json({ item });
+}
+
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string; itemId: string }> }
+) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id: tripId, itemId } = await params;
+
+  const user = await db.user.findUnique({
+    where: { clerkId: userId },
+    include: { familyProfile: true },
+  });
+  if (!user?.familyProfile) return NextResponse.json({ error: "No profile" }, { status: 400 });
+
+  const trip = await db.trip.findUnique({ where: { id: tripId } });
+  if (!trip || trip.familyProfileId !== user.familyProfile.id) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  await db.packingItem.delete({ where: { id: itemId } });
+
+  return NextResponse.json({ success: true });
+}
