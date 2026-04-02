@@ -4550,6 +4550,9 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [isAnonymous, setIsAnonymous] = useState<boolean>(initialIsAnonymous);
   const [anonymousSaved, setAnonymousSaved] = useState(false);
   const [showTripSettings, setShowTripSettings] = useState(false);
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [dateSaving, setDateSaving] = useState(false);
 
   const fetchFlights = useCallback(() => {
     if (!tripId) return;
@@ -4804,7 +4807,11 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               />
             )}
             <button
-              onClick={() => setShowTripSettings(true)}
+              onClick={() => {
+                setEditStartDate(tripStartDate ? new Date(tripStartDate + (tripStartDate.includes('T') ? '' : 'T12:00:00')).toISOString().split('T')[0] : '');
+                setEditEndDate(tripEndDate ? new Date(tripEndDate + (tripEndDate.includes('T') ? '' : 'T12:00:00')).toISOString().split('T')[0] : '');
+                setShowTripSettings(true);
+              }}
               style={{
                 display: "flex", alignItems: "center", justifyContent: "center",
                 width: "30px", height: "30px",
@@ -5679,6 +5686,51 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               <p style={{ fontSize: "17px", fontWeight: 800, color: "#1a1a1a" }}>Trip Settings</p>
               <button onClick={() => setShowTripSettings(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#717171", padding: "4px" }}>
                 <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "20px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.07em" }}>Start Date</label>
+                <input
+                  type="date"
+                  value={editStartDate}
+                  onChange={e => setEditStartDate(e.target.value)}
+                  style={{ width: "100%", border: "1.5px solid #E5E5E5", borderRadius: "10px", padding: "10px 12px", fontSize: "14px", color: "#1B3A5C", outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.07em" }}>End Date</label>
+                <input
+                  type="date"
+                  value={editEndDate}
+                  onChange={e => setEditEndDate(e.target.value)}
+                  style={{ width: "100%", border: "1.5px solid #E5E5E5", borderRadius: "10px", padding: "10px 12px", fontSize: "14px", color: "#1B3A5C", outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+              <button
+                onClick={async () => {
+                  if (!tripId) return;
+                  setDateSaving(true);
+                  try {
+                    await fetch(`/api/trips/${tripId}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        startDate: editStartDate ? new Date(editStartDate + 'T12:00:00').toISOString() : undefined,
+                        endDate: editEndDate ? new Date(editEndDate + 'T12:00:00').toISOString() : undefined,
+                      }),
+                    });
+                    setShowTripSettings(false);
+                    window.location.reload();
+                  } finally {
+                    setDateSaving(false);
+                  }
+                }}
+                disabled={dateSaving}
+                style={{ width: "100%", padding: "13px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: 700, cursor: dateSaving ? "default" : "pointer", fontFamily: "inherit", opacity: dateSaving ? 0.7 : 1 }}
+              >
+                {dateSaving ? "Saving…" : "Save dates"}
               </button>
             </div>
 
