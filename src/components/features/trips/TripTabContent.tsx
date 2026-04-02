@@ -2425,7 +2425,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                 importedBookingPins={[...localItineraryItems]
                   .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
                   .filter(it => it.latitude != null && it.longitude != null && it.latitude !== 0 && it.longitude !== 0)
-                  .map(it => ({ id: it.id, title: it.title, type: it.type, dayIndex: it.dayIndex ?? null, latitude: it.latitude!, longitude: it.longitude! }))}
+                  .map(it => ({ id: it.id, title: it.title, type: it.type, dayIndex: it.dayIndex ?? null, latitude: it.latitude!, longitude: it.longitude!, arrivalLat: it.arrivalLat ?? null, arrivalLng: it.arrivalLng ?? null }))}
               />
             </div>
             <p style={{ fontSize: "11px", color: "#AAAAAA", marginTop: "6px", textAlign: "center" }}>
@@ -5096,8 +5096,36 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                     setVaultActivityItem(synth);
                   }
 
+                  const isTrainVault = (booking.type as string) === "train";
+                  function handleVaultTrainTap() {
+                    if (!isTrainVault) return;
+                    const fromCity = (booking.fromCity as string | null) ?? null;
+                    const toCity = (booking.toCity as string | null) ?? null;
+                    const synth: ItineraryItemLocal = {
+                      id: d.id,
+                      type: "TRAIN",
+                      title: fromCity && toCity ? `${fromCity} → ${toCity}` : d.label,
+                      scheduledDate: (booking.departureDate as string | null) ?? null,
+                      departureTime: (booking.departureTime as string | null) ?? null,
+                      arrivalTime: (booking.arrivalTime as string | null) ?? null,
+                      fromAirport: null, toAirport: null,
+                      fromCity,
+                      toCity,
+                      confirmationCode: (booking.confirmationCode as string | null) ?? null,
+                      notes: (booking.vendorName as string | null) ?? null,
+                      address: null,
+                      totalCost: typeof booking.totalCost === "number" ? booking.totalCost : null,
+                      currency: (booking.currency as string | null) ?? null,
+                      passengers: Array.isArray(booking.guestNames) ? (booking.guestNames as string[]) : [],
+                      dayIndex: null, latitude: null, longitude: null, sortOrder: 0,
+                      bookingUrl: d.url ?? null,
+                    };
+                    setVaultActivityItem(synth);
+                  }
+
+                  const isTappableVault = isActivityVault || isTrainVault;
                   return (
-                    <div key={d.id} style={{ backgroundColor: "#fff", border: "1px solid rgba(196,102,74,0.2)", borderRadius: "14px", padding: "16px", position: "relative", ...(isActivityVault ? { cursor: "pointer" } : {}) }} onClick={isActivityVault ? handleVaultActivityTap : undefined}>
+                    <div key={d.id} style={{ backgroundColor: "#fff", border: "1px solid rgba(196,102,74,0.2)", borderRadius: "14px", padding: "16px", position: "relative", ...(isTappableVault ? { cursor: "pointer" } : {}) }} onClick={isActivityVault ? handleVaultActivityTap : isTrainVault ? handleVaultTrainTap : undefined}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
                         <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", color: "#C4664A", backgroundColor: "rgba(196,102,74,0.08)", borderRadius: "999px", padding: "2px 8px" }}>{typeLabel}</span>
                         <span style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a" }}>
@@ -5107,6 +5135,8 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                               : (booking.fromCity && booking.toCity)
                               ? `${booking.fromCity} → ${booking.toCity}`
                               : "Flight details"
+                            : (booking.type as string) === "train" && booking.fromCity && booking.toCity
+                            ? `${booking.fromCity} → ${booking.toCity}`
                             : d.label}
                         </span>
                       </div>
@@ -5410,20 +5440,41 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               onClick={e => e.stopPropagation()}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-                <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#999" }}>Activity</span>
+                <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#999" }}>
+                  {sit.type === "TRAIN" ? "Train" : "Activity"}
+                </span>
                 <button onClick={() => setVaultActivityItem(null)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", color: "#AAAAAA" }}>
                   <X size={20} />
                 </button>
               </div>
               <p style={titleStyle}>{sit.title}</p>
               <div style={gridStyle}>
-                {sit.scheduledDate && <><span style={lblStyle}>Date</span><span style={rowStyle}>{fmtDateModal(sit.scheduledDate)}</span></>}
-                {sit.departureTime && <><span style={lblStyle}>Time</span><span style={rowStyle}>{sit.departureTime}</span></>}
-                {sit.address && <><span style={lblStyle}>Meeting point</span><span style={rowStyle}>{sit.address}</span></>}
-                {sit.notes && <><span style={lblStyle}>Operator</span><span style={rowStyle}>{sit.notes}</span></>}
-                {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
-                {costLabel && <><span style={lblStyle}>Total</span><span style={rowStyle}>{costLabel}</span></>}
-                {guestsLabel && <><span style={lblStyle}>Guests</span><span style={rowStyle}>{guestsLabel}</span></>}
+                {sit.type === "TRAIN" ? (
+                  <>
+                    {sit.notes && <><span style={lblStyle}>Operator</span><span style={rowStyle}>{sit.notes}</span></>}
+                    {(sit.scheduledDate || sit.departureTime) && (
+                      <><span style={lblStyle}>Departure</span>
+                      <span style={rowStyle}>{[fmtDateModal(sit.scheduledDate), sit.departureTime ? `at ${sit.departureTime}` : null].filter(Boolean).join(" ")}</span></>
+                    )}
+                    {sit.arrivalTime && (
+                      <><span style={lblStyle}>Arrival</span>
+                      <span style={rowStyle}>{[fmtDateModal(sit.scheduledDate), `at ${sit.arrivalTime}`].filter(Boolean).join(" ")}</span></>
+                    )}
+                    {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
+                    {costLabel && <><span style={lblStyle}>Total</span><span style={rowStyle}>{costLabel}</span></>}
+                    {guestsLabel && <><span style={lblStyle}>Passengers</span><span style={rowStyle}>{guestsLabel}</span></>}
+                  </>
+                ) : (
+                  <>
+                    {sit.scheduledDate && <><span style={lblStyle}>Date</span><span style={rowStyle}>{fmtDateModal(sit.scheduledDate)}</span></>}
+                    {sit.departureTime && <><span style={lblStyle}>Time</span><span style={rowStyle}>{sit.departureTime}</span></>}
+                    {sit.address && <><span style={lblStyle}>Meeting point</span><span style={rowStyle}>{sit.address}</span></>}
+                    {sit.notes && <><span style={lblStyle}>Operator</span><span style={rowStyle}>{sit.notes}</span></>}
+                    {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
+                    {costLabel && <><span style={lblStyle}>Total</span><span style={rowStyle}>{costLabel}</span></>}
+                    {guestsLabel && <><span style={lblStyle}>Guests</span><span style={rowStyle}>{guestsLabel}</span></>}
+                  </>
+                )}
               </div>
               {sit.bookingUrl && (
                 <a
@@ -5443,6 +5494,16 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                   style={{ display: "block", textAlign: "center", backgroundColor: "#C4664A", color: "#fff", fontWeight: 600, padding: "12px", borderRadius: "10px", fontSize: "14px", textDecoration: "none", marginTop: "8px" }}
                 >
                   Open in Maps
+                </a>
+              )}
+              {sit.type === "TRAIN" && sit.fromCity && (
+                <a
+                  href={`https://maps.google.com/?q=${encodeURIComponent(sit.fromCity + " train station")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: "block", textAlign: "center", backgroundColor: "#C4664A", color: "#fff", fontWeight: 600, padding: "12px", borderRadius: "10px", fontSize: "14px", textDecoration: "none", marginTop: "8px" }}
+                >
+                  Open Departure Station in Maps
                 </a>
               )}
             </div>

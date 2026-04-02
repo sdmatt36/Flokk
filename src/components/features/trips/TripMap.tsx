@@ -130,7 +130,7 @@ function isWithinTripRadius(lat: number, lng: number, anchorLat: number, anchorL
 
 
 type MapSavedItem = { title: string; lat: number; lng: number; dayIndex?: number | null };
-type ImportedBookingPin = { id: string; title: string; type: string; dayIndex: number | null; latitude: number; longitude: number };
+type ImportedBookingPin = { id: string; title: string; type: string; dayIndex: number | null; latitude: number; longitude: number; arrivalLat?: number | null; arrivalLng?: number | null };
 
 export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, destinationCity, destinationCountry, savedItems = [], activities = [], importedBookingPins = [] }: { activeDay: number | null; flyTarget?: { lat: number; lng: number } | null; onFlyTargetConsumed?: () => void; tripId?: string; destinationCity?: string | null; destinationCountry?: string | null; savedItems?: MapSavedItem[]; activities?: MapSavedItem[]; importedBookingPins?: ImportedBookingPin[] }) {
   const router = useRouter();
@@ -269,36 +269,49 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
       ...validBookings.map((p, i) => ({ num: offset + i + 1, label: p.title, lat: p.latitude, lng: p.longitude, color: "#C4664A" as const })),
     ];
 
+    // Arrival pins for FLIGHT and TRAIN items — green to distinguish from departure (terracotta)
+    const arrivalPins: MarkerDef[] = validBookings
+      .filter(p => (p.type === "FLIGHT" || p.type === "TRAIN") && isValidCoord(p.arrivalLat, p.arrivalLng))
+      .map((p, i) => ({
+        num: pinsToRender.length + i + 1,
+        label: p.type === "FLIGHT" ? `Arrives: ${p.title}` : `Arrives: ${p.title}`,
+        lat: p.arrivalLat!,
+        lng: p.arrivalLng!,
+        color: "#2D6A4F" as const,
+      }));
+
+    const allPins = [...pinsToRender, ...arrivalPins];
+
     // Render all valid-coord pins — no proximity filter, no anchor, just isValidCoord
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
-    pinsToRender.forEach((m) => {
+    allPins.forEach((m) => {
       const marker = new mapboxgl.Marker({ element: createMarkerEl(m), anchor: "top" })
         .setLngLat([m.lng, m.lat])
         .addTo(map);
       markersRef.current.push(marker);
     });
 
-    // Viewport: fit all valid pins for this day, no proximity filtering
-    if (pinsToRender.length === 0) {
+    // Viewport: fit all pins (including arrival) for this day, no proximity filtering
+    if (allPins.length === 0) {
       // No pins — fly to trip anchor (accommodation or city center)
       map.flyTo({ center: [anchorLng, anchorLat], zoom: 12, duration: 800 });
-    } else if (pinsToRender.length === 1) {
-      map.flyTo({ center: [pinsToRender[0].lng, pinsToRender[0].lat], zoom: 14, duration: 800 });
+    } else if (allPins.length === 1) {
+      map.flyTo({ center: [allPins[0].lng, allPins[0].lat], zoom: 14, duration: 800 });
     } else {
       // 2+ pins — fitBounds; if span > 3° (e.g. Seoul+Busan), zoom to first item at city level
-      const lats = pinsToRender.map(p => p.lat);
-      const lngs = pinsToRender.map(p => p.lng);
+      const lats = allPins.map(p => p.lat);
+      const lngs = allPins.map(p => p.lng);
       const latSpan = Math.max(...lats) - Math.min(...lats);
       const lngSpan = Math.max(...lngs) - Math.min(...lngs);
       if (latSpan > 3 || lngSpan > 3) {
-        map.flyTo({ center: [pinsToRender[0].lng, pinsToRender[0].lat], zoom: 12, duration: 800 });
+        map.flyTo({ center: [allPins[0].lng, allPins[0].lat], zoom: 12, duration: 800 });
       } else if (latSpan < 0.001 && lngSpan < 0.001) {
         // Pins are at essentially the same location — fitBounds would produce zero-area canvas error
-        map.flyTo({ center: [pinsToRender[0].lng, pinsToRender[0].lat], zoom: 14, duration: 800 });
+        map.flyTo({ center: [allPins[0].lng, allPins[0].lat], zoom: 14, duration: 800 });
       } else {
         const bounds = new mapboxgl.LngLatBounds();
-        pinsToRender.forEach(m => bounds.extend([m.lng, m.lat]));
+        allPins.forEach(m => bounds.extend([m.lng, m.lat]));
         map.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 500 });
       }
     }
