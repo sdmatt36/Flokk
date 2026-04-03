@@ -275,19 +275,17 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
     const sortedBookings = [...validBookings].sort(
       (a, b) => (BOOKING_SORT[a.type] ?? 3) - (BOOKING_SORT[b.type] ?? 3)
     );
-    const actOffset = sortedBookings.length;
-    const savedOffset = actOffset + validActivities.length;
-    const pinsToRender: MarkerDef[] = [
-      ...sortedBookings.map((p, i) => ({
-        num: i + 1,
+    const pinsToRender: MarkerDef[] = ([
+      ...sortedBookings.map((p) => ({
+        num: 0,
         label: p.title,
         lat: p.type === "FLIGHT" ? p.arrivalLat! : p.latitude,
         lng: p.type === "FLIGHT" ? p.arrivalLng! : p.longitude,
         color: "#C4664A" as const,
       })),
-      ...validActivities.map((a, i) => ({ num: actOffset + i + 1, label: a.title, lat: a.lat, lng: a.lng, color: "#C4664A" as const })),
-      ...validSaved.map((s, i) => ({ num: savedOffset + i + 1, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" as const })),
-    ];
+      ...validActivities.map((a) => ({ num: 0, label: a.title, lat: a.lat, lng: a.lng, color: "#C4664A" as const })),
+      ...validSaved.map((s) => ({ num: 0, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" as const })),
+    ] as MarkerDef[]).map((pin, index) => ({ ...pin, num: index + 1 }));
 
     // Render all valid-coord pins — no proximity filter, no anchor, just isValidCoord
     markersRef.current.forEach((m) => m.remove());
@@ -344,19 +342,17 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
     const sortedBookings = [...rawBookings].sort(
       (a, b) => (BOOKING_SORT[a.type] ?? 3) - (BOOKING_SORT[b.type] ?? 3)
     );
-    const actOffset = sortedBookings.length;
-    const savedOffset = actOffset + filteredActs.length;
-    return [
-      ...sortedBookings.map((p, i) => ({
-        num: i + 1,
+    return ([
+      ...sortedBookings.map((p) => ({
+        num: 0,
         label: p.title,
         lat: p.type === "FLIGHT" ? p.arrivalLat! : p.latitude,
         lng: p.type === "FLIGHT" ? p.arrivalLng! : p.longitude,
         color: "#C4664A",
       })),
-      ...filteredActs.map((a, i) => ({ num: actOffset + i + 1, label: a.title, lat: a.lat, lng: a.lng, color: "#C4664A" })),
-      ...filteredSaved.map((s, i) => ({ num: savedOffset + i + 1, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" })),
-    ];
+      ...filteredActs.map((a) => ({ num: 0, label: a.title, lat: a.lat, lng: a.lng, color: "#C4664A" })),
+      ...filteredSaved.map((s) => ({ num: 0, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" })),
+    ] as MarkerDef[]).map((pin, index) => ({ ...pin, num: index + 1 }));
   }
 
   function handleOpenAppleMaps() {

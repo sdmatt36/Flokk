@@ -2886,7 +2886,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                         const typeLabel = it.type.charAt(0) + it.type.slice(1).toLowerCase().replace(/_/g, " ");
                                         const isActivity = it.type === "ACTIVITY";
                                         return (
-                                          <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => { setSelectedItineraryItem(it); if (it.type === "ACTIVITY") setEditActivityTitle(it.title ?? ""); }}>
+                                          <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => { if (it.type === "ACTIVITY") setEditActivityTitle(it.title ?? ""); setSelectedItineraryItem(it); }}>
                                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
                                               <div style={{ flex: 1, minWidth: 0 }}>
                                                 <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{it.title}</p>
@@ -2899,7 +2899,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                   <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                                 </div>
                                               </div>
-                                              {pencilBtn(() => { setSelectedItineraryItem(it); if (it.type === "ACTIVITY") setEditActivityTitle(it.title ?? ""); })}
+                                              {pencilBtn(() => { if (it.type === "ACTIVITY") setEditActivityTitle(it.title ?? ""); setSelectedItineraryItem(it); })}
                                             </div>
                                           </div>
                                         );
@@ -3341,7 +3341,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       type="text"
                       value={editActivityTitle}
                       onChange={e => setEditActivityTitle(e.target.value)}
-                      style={{ ...titleStyle, display: "block", width: "100%", border: "none", borderBottom: "1.5px solid #E5E5E5", paddingBottom: "8px", outline: "none", background: "transparent", fontFamily: "'Playfair Display', Georgia, serif", boxSizing: "border-box" }}
+                      style={{ ...titleStyle, display: "block", width: "100%", border: "none", borderBottom: "2px solid #C4664A", paddingBottom: "8px", outline: "none", background: "transparent", fontFamily: "'Playfair Display', Georgia, serif", boxSizing: "border-box", cursor: "text" }}
                       placeholder="Activity name..."
                     />
                     <div style={gridStyle}>
@@ -5163,20 +5163,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       )}
 
       {tab === "saved" && (
-        <>
-          {flights.length > 0 && (
-            <div style={{ marginBottom: "20px" }}>
-              <div style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "10px", paddingBottom: "8px", borderBottom: "1px solid #EEEEEE", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span>Flights</span>
-                <span style={{ fontSize: "11px", color: "#bbb", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>{flights.length}</span>
-              </div>
-              {flights.map(f => (
-                <FlightCard key={f.id} flight={f} onDelete={() => handleDeleteFlight(f.id)} onMarkBooked={() => handleMarkBooked(f.id)} onEdit={() => setEditingFlight(f)} />
-              ))}
-            </div>
-          )}
-          <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} />
-        </>
+        <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} />
       )}
       {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} />}
       {tab === "packing" && <PackingContent tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} tripStartDate={tripStartDate} tripEndDate={tripEndDate} />}
