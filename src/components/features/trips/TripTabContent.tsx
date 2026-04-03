@@ -3853,18 +3853,16 @@ function PackingContent({
       )}
 
       {/* Category sections — 2-col grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {allCategories.map((cat) => {
           const items = packingItems.filter(i => i.category === cat);
           if (items.length === 0) return null;
-          const Icon = CATEGORY_ICON[cat] ?? Backpack;
           return (
             <div key={cat} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
               <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
-                <p className="text-xs font-semibold text-[#1B3A5C] uppercase tracking-wider flex items-center gap-2">
-                  <Icon size={13} style={{ color: "#C4664A" }} />
+                <span className="text-xs font-semibold text-[#1B3A5C] uppercase tracking-wider">
                   {cat}
-                </p>
+                </span>
                 <span className="text-xs text-gray-400">{items.filter(i => i.packed).length}/{items.length}</span>
               </div>
               <div>
@@ -3873,7 +3871,7 @@ function PackingContent({
                     key={item.id}
                     type="button"
                     onClick={() => handleToggle(item)}
-                    className="flex items-start gap-3 w-full px-4 py-3 border-b border-gray-50 last:border-0 text-left cursor-pointer bg-transparent hover:bg-gray-50 transition-colors"
+                    className="flex items-start gap-3 w-full px-4 py-2 border-b border-gray-50 last:border-0 text-left cursor-pointer bg-transparent hover:bg-gray-50 transition-colors"
                     style={{ border: "none", borderBottom: "1px solid #F9F9F9" }}
                   >
                     <div style={{
