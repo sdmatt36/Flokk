@@ -3852,48 +3852,46 @@ function PackingContent({
         </div>
       )}
 
-      {/* Category sections */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      {/* Category sections — 2-col grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {allCategories.map((cat) => {
           const items = packingItems.filter(i => i.category === cat);
           if (items.length === 0) return null;
           const Icon = CATEGORY_ICON[cat] ?? Backpack;
           return (
-            <div key={cat} style={{ backgroundColor: "#fff", border: "1px solid #F0F0F0", borderRadius: "14px", overflow: "hidden" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "14px 16px 10px" }}>
-                <Icon size={14} style={{ color: "#C4664A" }} />
-                <p style={{ fontSize: "12px", fontWeight: 700, color: "#1a1a1a", textTransform: "uppercase", letterSpacing: "0.08em" }}>{cat}</p>
-                <span style={{ fontSize: "12px", color: "#bbb", marginLeft: "auto" }}>{items.filter(i => i.packed).length}/{items.length}</span>
+            <div key={cat} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
+                <p className="text-xs font-semibold text-[#1B3A5C] uppercase tracking-wider flex items-center gap-2">
+                  <Icon size={13} style={{ color: "#C4664A" }} />
+                  {cat}
+                </p>
+                <span className="text-xs text-gray-400">{items.filter(i => i.packed).length}/{items.length}</span>
               </div>
-              <div style={{ padding: "0 8px 12px" }}>
+              <div>
                 {items.map((item) => (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => handleToggle(item)}
-                    style={{
-                      width: "100%", display: "flex", alignItems: "flex-start", gap: "10px",
-                      padding: "9px 8px", borderRadius: "8px", background: "none", border: "none",
-                      cursor: "pointer", textAlign: "left",
-                      opacity: item.packed ? 0.45 : 1,
-                    }}
+                    className="flex items-start gap-3 w-full px-4 py-3 border-b border-gray-50 last:border-0 text-left cursor-pointer bg-transparent hover:bg-gray-50 transition-colors"
+                    style={{ border: "none", borderBottom: "1px solid #F9F9F9" }}
                   >
                     <div style={{
-                      width: "17px", height: "17px", borderRadius: "4px", flexShrink: 0, marginTop: "1px",
+                      width: "16px", height: "16px", borderRadius: "4px", flexShrink: 0, marginTop: "2px",
                       border: item.packed ? "none" : "1.5px solid #D0D0D0",
                       backgroundColor: item.packed ? "#C4664A" : "transparent",
                       display: "flex", alignItems: "center", justifyContent: "center",
                     }}>
                       {item.packed && (
-                        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                        <svg width="9" height="7" viewBox="0 0 10 8" fill="none">
                           <path d="M1 4L3.5 6.5L9 1" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                       )}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: "14px", color: "#1a1a1a", fontWeight: 500, textDecoration: item.packed ? "line-through" : "none", lineHeight: 1.3 }}>{item.name}</p>
+                      <p className={item.packed ? "text-sm text-gray-400 line-through" : "text-sm text-[#1B3A5C]"}>{item.name}</p>
                       {(item.notes || (item.assignedTo && item.assignedTo !== "Everyone")) && (
-                        <p style={{ fontSize: "12px", color: "#888", marginTop: "1px" }}>
+                        <p className="text-xs text-gray-400 mt-0.5">
                           {[item.assignedTo !== "Everyone" ? item.assignedTo : null, item.notes || null].filter(Boolean).join(" · ")}
                         </p>
                       )}
