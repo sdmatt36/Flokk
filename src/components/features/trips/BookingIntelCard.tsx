@@ -17,6 +17,32 @@ const STATUS_DOT: Record<IntelItem["status"], string> = {
   missing: "#E53935",
 };
 
+function getBookingUrl(
+  category: IntelItem["category"],
+  destinationCity: string,
+  destinationCountry: string,
+  startDate: string | null | undefined,
+  endDate: string | null | undefined
+): string {
+  const city = encodeURIComponent(destinationCity);
+  const checkIn = startDate ? new Date(startDate).toISOString().split("T")[0] : "";
+  const checkOut = endDate ? new Date(endDate).toISOString().split("T")[0] : "";
+
+  switch (category) {
+    case "hotel":
+      return `https://www.booking.com/searchresults.html?aid=2311236&ss=${city}&checkin=${checkIn}&checkout=${checkOut}&group_adults=2`;
+    case "flights":
+      return `https://www.google.com/travel/flights?q=flights+to+${city}`;
+    case "activities":
+      return `https://www.getyourguide.com/s/?q=${city}&partner_id=9ZETRF4`;
+    case "documents":
+    case "logistics":
+      return `https://www.insuremytrip.com/`;
+    default:
+      return `https://www.getyourguide.com/s/?q=${city}&partner_id=9ZETRF4`;
+  }
+}
+
 function computeDaysAway(startDate: string | null | undefined): number | null {
   if (!startDate) return null;
   const ms = new Date(startDate).getTime() - Date.now();
@@ -46,9 +72,10 @@ function SkeletonRow() {
   );
 }
 
-export function BookingIntelCard({ tripId, destinationCity, startDate, endDate, onAddFlight }: {
+export function BookingIntelCard({ tripId, destinationCity, destinationCountry, startDate, endDate, onAddFlight }: {
   tripId: string;
   destinationCity?: string | null;
+  destinationCountry?: string | null;
   startDate?: string | null;
   endDate?: string | null;
   onAddFlight?: () => void;
@@ -242,9 +269,14 @@ export function BookingIntelCard({ tripId, destinationCity, startDate, endDate, 
                       </a>
                     )}
                     {item.status === "missing" && !item.bookingUrl && item.category !== "flights" && (
-                      <span style={{ fontSize: "12px", fontWeight: 700, color: "#C4664A" }}>
+                      <a
+                        href={getBookingUrl(item.category, destinationCity ?? "", destinationCountry ?? "", startDate, endDate)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: "12px", fontWeight: 700, color: "#C4664A", textDecoration: "none" }}
+                      >
                         Book →
-                      </span>
+                      </a>
                     )}
                     {item.status === "missing" && item.category === "flights" && (
                       <div style={{ marginTop: "4px" }}>

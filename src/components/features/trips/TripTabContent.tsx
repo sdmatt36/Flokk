@@ -2394,6 +2394,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         <BookingIntelCard
           tripId={tripId}
           destinationCity={destinationCity}
+          destinationCountry={destinationCountry}
           startDate={tripStartDate}
           endDate={tripEndDate}
           onAddFlight={onAddFlight}
