@@ -258,7 +258,7 @@ export async function GET(
       reason: "Covers delays, cancellations, medical expenses, and lost baggage.",
       status: "missing",
       urgency: docUrgency(daysAway),
-      bookingUrl: null,
+      bookingUrl: "https://www.insuremytrip.com/",
     });
   }
 
@@ -275,7 +275,7 @@ export async function GET(
         reason: `Confirm whether a visa or pre-arrival registration is required for ${destinationCountry ?? "your destination"}.`,
         status: "missing",
         urgency: docUrgency(daysAway),
-        bookingUrl: "https://www.iatatravelcentre.com/",
+        bookingUrl: null, // BookingIntelCard.getVisaUrl() provides country-specific URL
       });
     }
   }

@@ -265,15 +265,21 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
     const validActivities = dayActivities.filter(a => isValidCoord(a.lat, a.lng));
     const validBookings = dayBookings.filter(p => isValidCoord(p.latitude, p.longitude));
     const offset = validSaved.length + validActivities.length;
+    // For FLIGHT items, use arrivalLat/arrivalLng as the numbered pin (where the plane lands).
+    // Never render the departure airport as a pin — it's irrelevant on the destination day.
     const pinsToRender: MarkerDef[] = [
       ...validSaved.map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" as const })),
       ...validActivities.map((a, i) => ({ num: validSaved.length + i + 1, label: a.title, lat: a.lat, lng: a.lng, color: "#2E7D52" as const })),
-      ...validBookings.map((p, i) => ({ num: offset + i + 1, label: p.title, lat: p.latitude, lng: p.longitude, color: "#C4664A" as const })),
+      ...validBookings.map((p, i) => {
+        const useArrival = p.type === "FLIGHT" && isValidCoord(p.arrivalLat, p.arrivalLng);
+        return { num: offset + i + 1, label: p.title, lat: useArrival ? p.arrivalLat! : p.latitude, lng: useArrival ? p.arrivalLng! : p.longitude, color: "#C4664A" as const };
+      }),
     ];
 
-    // Arrival pins for FLIGHT and TRAIN items — green to distinguish from departure (terracotta)
+    // Arrival pins for TRAIN items only — small unnumbered green dot at destination.
+    // FLIGHT items already show at arrival coords in pinsToRender, no duplicate needed.
     const arrivalPins: MarkerDef[] = validBookings
-      .filter(p => (p.type === "FLIGHT" || p.type === "TRAIN") && isValidCoord(p.arrivalLat, p.arrivalLng))
+      .filter(p => p.type === "TRAIN" && isValidCoord(p.arrivalLat, p.arrivalLng))
       .map((p) => ({
         num: null,
         label: `Arrives: ${p.title}`,

@@ -17,6 +17,23 @@ const STATUS_DOT: Record<IntelItem["status"], string> = {
   missing: "#E53935",
 };
 
+function getVisaUrl(country: string | null | undefined): string {
+  if (!country) return "https://www.iatatravelcentre.com/";
+  const c = country.toLowerCase();
+  if (c.includes("ireland")) return "https://www.irishimmigration.ie/coming-to-visit-ireland/";
+  if (c.includes("korea") || c.includes("한국")) return "https://www.visa.go.kr/openPage.do?MENU_ID=10101";
+  if (c.includes("japan") || c.includes("日本")) return "https://www.mofa.go.jp/j_info/visit/visa/index.html";
+  if (c.includes("united kingdom") || c.includes("scotland") || c.includes("england") || c.includes("wales")) return "https://www.gov.uk/standard-visitor-visa";
+  if (c.includes("australia")) return "https://immi.homeaffairs.gov.au/visas/getting-a-visa/visa-finder";
+  if (c.includes("thailand")) return "https://www.thaievisa.go.th/";
+  if (c.includes("sri lanka")) return "https://eta.gov.lk/slvisa/";
+  if (c.includes("france")) return "https://france-visas.gouv.fr/";
+  if (c.includes("spain")) return "https://www.exteriores.gob.es/en/ServiciosAlCiudadano/Paginas/Visas.aspx";
+  if (c.includes("italy")) return "https://vistoperitalia.esteri.it/home/en";
+  if (c.includes("united states") || c.includes("usa")) return "https://travel.state.gov/content/travel/en/us-visas.html";
+  return "https://www.iatatravelcentre.com/";
+}
+
 function getBookingUrl(
   category: IntelItem["category"],
   destinationCity: string,
@@ -38,7 +55,7 @@ function getBookingUrl(
     case "logistics":
       return `https://www.getyourguide.com/s/?q=${city}+transport+pass&partner_id=9ZETRF4`;
     case "documents":
-      return `https://www.insuremytrip.com/`;
+      return getVisaUrl(destinationCountry);
     default:
       return `https://www.getyourguide.com/s/?q=${city}&partner_id=9ZETRF4`;
   }

@@ -229,6 +229,8 @@ export async function GET(request: Request) {
           ? { categoryTags: { has: category } }
           : {}),
         ...(tripId ? { tripId } : {}),
+        // Exclude flight-tagged saves — flights live in the Itinerary tab (ItineraryItem), not Saved tab
+        NOT: { categoryTags: { hasSome: ["flight", "airfare", "airline", "airflight", "flights"] } },
       },
       orderBy: { savedAt: "desc" },
       include: { trip: { select: { id: true, title: true } } },

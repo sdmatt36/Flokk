@@ -906,7 +906,7 @@ type ApiSavedItem = {
 function inferSavedCategory(item: ApiSavedItem): string {
   const haystack = [...item.categoryTags, item.rawTitle ?? "", item.sourceUrl ?? ""].join(" ").toLowerCase();
   if (/lodg|hotel|resort|hostel|airbnb\.com|booking\.com|vrbo|accommodation/.test(haystack)) return "LODGING";
-  if (/flight|airline|airfare|transport/.test(haystack)) return "AIRFARE";
+  if (/flight|airline|airfare|transport|koreanair|asiana|united\.com|delta\.com|aa\.com|jal\.|ana\.|singaporeair|cathaypacific|qatarairways|emirates\.com|etihad|lufthansa|airfrance|britishairways|ba\.com|southwest|ryanair|easyjet|google\.com\/travel\/flights/.test(haystack)) return "AIRFARE";
   if (/restaurant|food|dining|eat|cafe|market|bar|kitchen|street food/.test(haystack)) return "RESTAURANTS";
   return "ACTIVITIES";
 }
@@ -1784,6 +1784,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [verificationIndex, setVerificationIndex] = useState(0);
   const [expandedSlotKey, setExpandedSlotKey] = useState<string | null>(null);
   const [selectedItineraryItem, setSelectedItineraryItem] = useState<ItineraryItemLocal | null>(null);
+  const [editActivityTitle, setEditActivityTitle] = useState("");
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
   const [detailRemover, setDetailRemover] = useState<(() => void) | null>(null);
   const [editingFlight, setEditingFlight] = useState<Flight | null>(null);
@@ -1816,6 +1817,11 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   // Sync local copies from props (new items added, etc.)
   useEffect(() => { setLocalActivities(activities); }, [activities]);
   useEffect(() => { setLocalFlights(flights); }, [flights]);
+  useEffect(() => {
+    if (selectedItineraryItem?.type === "ACTIVITY") {
+      setEditActivityTitle(selectedItineraryItem.title ?? "");
+    }
+  }, [selectedItineraryItem]);
 
   // ── Semantic sort weight ──────────────────────────────────────────────────
   // Used ONLY for initial sortOrder assignment on first load.
@@ -3336,7 +3342,13 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                   : null;
                 return (
                   <div>
-                    <p style={titleStyle}>{sit.title}</p>
+                    <input
+                      type="text"
+                      value={editActivityTitle}
+                      onChange={e => setEditActivityTitle(e.target.value)}
+                      style={{ ...titleStyle, display: "block", width: "100%", border: "none", borderBottom: "1.5px solid #E5E5E5", paddingBottom: "8px", outline: "none", background: "transparent", fontFamily: "'Playfair Display', Georgia, serif", boxSizing: "border-box" }}
+                      placeholder="Activity name..."
+                    />
                     <div style={gridStyle}>
                       {sit.scheduledDate && <><span style={lblStyle}>Date</span><span style={rowStyle}>{fmtDateModal(sit.scheduledDate)}</span></>}
                       {sit.departureTime && <><span style={lblStyle}>Time</span><span style={rowStyle}>{sit.departureTime}</span></>}
@@ -3366,6 +3378,22 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                         Open in Maps
                       </a>
                     )}
+                    <button
+                      onClick={async () => {
+                        const newTitle = editActivityTitle.trim();
+                        if (!newTitle || newTitle === sit.title) { setSelectedItineraryItem(null); return; }
+                        await fetch(`/api/trips/${tripId}/itinerary/${sit.id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ title: newTitle }),
+                        });
+                        setLocalItineraryItems(prev => prev.map(item => item.id === sit.id ? { ...item, title: newTitle } : item));
+                        setSelectedItineraryItem(null);
+                      }}
+                      style={{ display: "block", width: "100%", marginTop: "12px", padding: "12px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      Save changes
+                    </button>
                   </div>
                 );
               })()}

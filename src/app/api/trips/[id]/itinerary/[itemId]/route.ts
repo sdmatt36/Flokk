@@ -27,13 +27,14 @@ export async function PATCH(
   }
 
   const body = await req.json() as Record<string, unknown>;
-  const { dayIndex, sortOrder } = body;
+  const { dayIndex, sortOrder, title } = body;
 
   const updated = await db.itineraryItem.update({
     where: { id: itemId },
     data: {
       ...(dayIndex !== undefined ? { dayIndex: dayIndex as number } : {}),
       ...(sortOrder !== undefined ? { sortOrder: sortOrder as number } : {}),
+      ...(title !== undefined ? { title: title as string } : {}),
     },
   });
 
