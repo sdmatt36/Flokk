@@ -34,6 +34,35 @@ export async function createLoopsContact(
   }
 }
 
+export async function sendTripCompletedEvent(
+  email: string,
+  properties: {
+    tripDestination: string;
+    tripTitle: string;
+  }
+): Promise<void> {
+  const key = process.env.LOOPS_API_KEY;
+  try {
+    const res = await fetch("https://app.loops.so/api/v1/events/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        email,
+        eventName: "trip_completed",
+        tripDestination: properties.tripDestination,
+        tripTitle: properties.tripTitle,
+      }),
+    });
+    const data = await res.json();
+    console.log(`[loops] trip_completed sent to ${email} — status: ${res.status} body:`, JSON.stringify(data));
+  } catch (err) {
+    console.error("[loops] trip_completed failed:", err);
+  }
+}
+
 export async function sendTransactional(
   email: string,
   transactionalId: string,
