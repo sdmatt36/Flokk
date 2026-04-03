@@ -190,3 +190,33 @@ Do not proceed. Report what you found and ask for direction.
 A fix that cannot be verified by grep output is not a fix.
 It is a guess. Guesses are not acceptable.
 
+
+## Every Fix Must Be Universal
+
+Before writing any fix, answer these three questions:
+1. What is the root cause in the shared component or API route?
+2. Will this fix apply automatically to ALL users, ALL trips, ALL days?
+3. Does existing data need a backfill to match the new behavior?
+
+If the answer to question 2 is "no" or "maybe" — stop.
+Do not ship the fix. Redesign it until it is universal.
+
+Never fix a symptom on one trip when the root cause lives 
+in a shared component that affects all trips.
+
+Never hardcode trip IDs, user IDs, day numbers, or 
+destination names in application logic.
+
+Never ship a fix without asking: "What happens to existing 
+data?" If existing records don't match the new behavior, 
+write a backfill.
+
+Examples of wrong thinking:
+- "This fixes Day 1 on the Seoul trip" — WRONG
+- "This works for the Greene family profile" — WRONG
+- "We can clean up the other trips later" — WRONG
+
+Examples of right thinking:
+- "This fixes TripMap.tsx so all trips on all days work correctly"
+- "This fixes /api/saves/route.ts so all users see correct data"
+- "The backfill updates all existing records to match"
