@@ -35,8 +35,9 @@ function getBookingUrl(
       return `https://www.google.com/travel/flights?q=flights+to+${city}`;
     case "activities":
       return `https://www.getyourguide.com/s/?q=${city}&partner_id=9ZETRF4`;
-    case "documents":
     case "logistics":
+      return `https://www.getyourguide.com/s/?q=${city}+transport+pass&partner_id=9ZETRF4`;
+    case "documents":
       return `https://www.insuremytrip.com/`;
     default:
       return `https://www.getyourguide.com/s/?q=${city}&partner_id=9ZETRF4`;

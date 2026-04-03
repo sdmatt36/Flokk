@@ -979,9 +979,10 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
         const preAssigned: Record<string, number> = {};
         let scheduledCount = 0;
         for (const s of saves) {
+          const cat = inferSavedCategory(s);
+          if (cat === "AIRFARE") continue; // flights are managed in the Itinerary tab
           const display = apiToDisplayItem(s);
           if (s.dayIndex != null) { preAssigned[display.title] = s.dayIndex; scheduledCount++; }
-          const cat = inferSavedCategory(s);
           if (!groups[cat]) groups[cat] = [];
           groups[cat].push(display);
         }
@@ -2844,10 +2845,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                     <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                                   </div>
                                                 </div>
-                                                {/* Edit pencil — vault doc edit is managed from the Vault tab */}
-                                                <button onClick={e => e.stopPropagation()} style={{ background: "none", border: "none", cursor: "default", color: "#DDDDDD", padding: "2px", flexShrink: 0 }} title="Edit from Vault tab">
-                                                  <Pencil size={14} />
-                                                </button>
+                                                {pencilBtn(() => setSelectedItineraryItem(it))}
                                               </div>
                                             </div>
                                           );
@@ -2877,9 +2875,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                     <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                                   </div>
                                                 </div>
-                                                <button onClick={e => e.stopPropagation()} style={{ background: "none", border: "none", cursor: "default", color: "#DDDDDD", padding: "2px", flexShrink: 0 }} title="Edit from Vault tab">
-                                                  <Pencil size={14} />
-                                                </button>
+                                                {pencilBtn(() => setSelectedItineraryItem(it))}
                                               </div>
                                             </div>
                                           );
@@ -2889,17 +2885,20 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                         const typeLabel = it.type.charAt(0) + it.type.slice(1).toLowerCase().replace(/_/g, " ");
                                         const isActivity = it.type === "ACTIVITY";
                                         return (
-                                          <div style={{ ...cardStyle, ...(isActivity ? { cursor: "pointer" } : {}) }} onClick={isActivity ? () => setSelectedItineraryItem(it) : undefined}>
-                                            <div style={{ flex: 1, minWidth: 0 }}>
-                                              <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{it.title}</p>
-                                              {it.notes && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "6px" }}>{it.notes}</p>}
-                                              <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-                                                {bookedBadge}
-                                                <span style={{ fontSize: "11px", color: "#999" }}>{typeLabel}</span>
-                                                {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {it.confirmationCode}</span>}
-                                                {it.totalCost != null && <span style={{ fontSize: "11px", color: "#999" }}>{it.currency ?? ""} {it.totalCost.toLocaleString()}</span>}
-                                                <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
+                                          <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => setSelectedItineraryItem(it)}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                                              <div style={{ flex: 1, minWidth: 0 }}>
+                                                <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{it.title}</p>
+                                                {it.notes && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "6px" }}>{it.notes}</p>}
+                                                <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                                                  {bookedBadge}
+                                                  {!isActivity && <span style={{ fontSize: "11px", color: "#999" }}>{typeLabel}</span>}
+                                                  {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {it.confirmationCode}</span>}
+                                                  {it.totalCost != null && <span style={{ fontSize: "11px", color: "#999" }}>{it.currency ?? ""} {it.totalCost.toLocaleString()}</span>}
+                                                  <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
+                                                </div>
                                               </div>
+                                              {pencilBtn(() => setSelectedItineraryItem(it))}
                                             </div>
                                           </div>
                                         );

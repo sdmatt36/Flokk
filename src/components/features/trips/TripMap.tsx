@@ -6,7 +6,7 @@ import { Share2, Map as MapIcon, ChevronLeft } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { getDestinationCoords } from "@/lib/destination-coords";
 
-type MarkerDef = { num: number; label: string; lng: number; lat: number; color?: string };
+type MarkerDef = { num: number | null; label: string; lng: number; lat: number; color?: string };
 
 function buildAppleMapsUrl(markers: MarkerDef[], center: [number, number]): string {
   if (markers.length === 0) return `https://maps.apple.com/?q=${center[1]},${center[0]}`;
@@ -35,13 +35,15 @@ function createMarkerEl(m: MarkerDef): HTMLElement {
   const wrap = document.createElement("div");
   wrap.style.cssText = "display:flex;flex-direction:column;align-items:center;cursor:default;";
 
+  const isArrival = m.num == null;
+  const pinSize = isArrival ? "22px" : "32px";
   const pin = document.createElement("div");
   pin.style.cssText =
-    `width:32px;height:32px;border-radius:50%;background:${color};border:2px solid ${color};` +
+    `width:${pinSize};height:${pinSize};border-radius:50%;background:${color};border:2px solid ${color};` +
     "display:flex;align-items:center;justify-content:center;" +
     "font-weight:700;font-size:13px;color:#fff;" +
     "box-shadow:0 2px 8px rgba(0,0,0,0.2);font-family:-apple-system,BlinkMacSystemFont,sans-serif;";
-  pin.textContent = String(m.num);
+  pin.textContent = m.num != null ? String(m.num) : "";
 
   const lbl = document.createElement("div");
   lbl.style.cssText =
@@ -272,9 +274,9 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
     // Arrival pins for FLIGHT and TRAIN items — green to distinguish from departure (terracotta)
     const arrivalPins: MarkerDef[] = validBookings
       .filter(p => (p.type === "FLIGHT" || p.type === "TRAIN") && isValidCoord(p.arrivalLat, p.arrivalLng))
-      .map((p, i) => ({
-        num: pinsToRender.length + i + 1,
-        label: p.type === "FLIGHT" ? `Arrives: ${p.title}` : `Arrives: ${p.title}`,
+      .map((p) => ({
+        num: null,
+        label: `Arrives: ${p.title}`,
         lat: p.arrivalLat!,
         lng: p.arrivalLng!,
         color: "#2D6A4F" as const,
