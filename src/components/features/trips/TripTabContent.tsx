@@ -1817,11 +1817,6 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   // Sync local copies from props (new items added, etc.)
   useEffect(() => { setLocalActivities(activities); }, [activities]);
   useEffect(() => { setLocalFlights(flights); }, [flights]);
-  useEffect(() => {
-    if (selectedItineraryItem?.type === "ACTIVITY") {
-      setEditActivityTitle(selectedItineraryItem.title ?? "");
-    }
-  }, [selectedItineraryItem]);
 
   // ── Semantic sort weight ──────────────────────────────────────────────────
   // Used ONLY for initial sortOrder assignment on first load.
@@ -2891,7 +2886,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                         const typeLabel = it.type.charAt(0) + it.type.slice(1).toLowerCase().replace(/_/g, " ");
                                         const isActivity = it.type === "ACTIVITY";
                                         return (
-                                          <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => setSelectedItineraryItem(it)}>
+                                          <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => { setSelectedItineraryItem(it); if (it.type === "ACTIVITY") setEditActivityTitle(it.title ?? ""); }}>
                                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
                                               <div style={{ flex: 1, minWidth: 0 }}>
                                                 <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{it.title}</p>
@@ -2904,7 +2899,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                   <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                                 </div>
                                               </div>
-                                              {pencilBtn(() => setSelectedItineraryItem(it))}
+                                              {pencilBtn(() => { setSelectedItineraryItem(it); if (it.type === "ACTIVITY") setEditActivityTitle(it.title ?? ""); })}
                                             </div>
                                           </div>
                                         );
@@ -5758,7 +5753,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               <div style={gridStyle}>
                 {sit.type === "TRAIN" ? (
                   <>
-                    {sit.notes && <><span style={lblStyle}>Operator</span><span style={rowStyle}>{sit.notes}</span></>}
+                    {sit.notes && !/^\d{1,2}:\d{2}$/.test(sit.notes) && !/^departs/i.test(sit.notes) && !/^\d{1,2}:\d{2}\s*·/.test(sit.notes) && <><span style={lblStyle}>Operator</span><span style={rowStyle}>{sit.notes}</span></>}
                     {(sit.scheduledDate || sit.departureTime) && (
                       <><span style={lblStyle}>Departure</span>
                       <span style={rowStyle}>{[fmtDateModal(sit.scheduledDate), sit.departureTime ? `at ${sit.departureTime}` : null].filter(Boolean).join(" ")}</span></>
@@ -5776,7 +5771,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                     {sit.scheduledDate && <><span style={lblStyle}>Date</span><span style={rowStyle}>{fmtDateModal(sit.scheduledDate)}</span></>}
                     {sit.departureTime && <><span style={lblStyle}>Time</span><span style={rowStyle}>{sit.departureTime}</span></>}
                     {sit.address && <><span style={lblStyle}>Meeting point</span><span style={rowStyle}>{sit.address}</span></>}
-                    {sit.notes && <><span style={lblStyle}>Operator</span><span style={rowStyle}>{sit.notes}</span></>}
+                    {sit.notes && !/^\d{1,2}:\d{2}$/.test(sit.notes) && !/^departs/i.test(sit.notes) && !/^\d{1,2}:\d{2}\s*·/.test(sit.notes) && <><span style={lblStyle}>Operator</span><span style={rowStyle}>{sit.notes}</span></>}
                     {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
                     {costLabel && <><span style={lblStyle}>Total</span><span style={rowStyle}>{costLabel}</span></>}
                     {guestsLabel && <><span style={lblStyle}>Guests</span><span style={rowStyle}>{guestsLabel}</span></>}
