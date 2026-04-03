@@ -164,3 +164,29 @@ Claude Code must confirm the grep output matches expectations
 before writing a single line of new code.
 
 This standard applies to every prompt.
+
+## Never Guess — Diagnose First, Always
+
+This rule applies to every single prompt without exception.
+
+NEVER write a fix based on assumed code structure.
+NEVER write a fix based on what a previous prompt claimed to change.
+NEVER assume a previous fix landed correctly.
+ALWAYS grep the actual current code before writing any fix.
+ALWAYS show the exact lines being changed before changing them.
+ALWAYS verify the fix landed by grepping again after the commit.
+
+The pattern for every fix is:
+1. grep to find exact file and line
+2. Show the exact current code (not what you think it says)
+3. Show the exact replacement code
+4. Apply the change
+5. grep again to confirm the new code is in place
+6. Commit and push
+
+If the grep output does not match what you expect, STOP.
+Do not proceed. Report what you found and ask for direction.
+
+A fix that cannot be verified by grep output is not a fix.
+It is a guess. Guesses are not acceptable.
+
