@@ -3353,7 +3353,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       {sit.scheduledDate && <><span style={lblStyle}>Date</span><span style={rowStyle}>{fmtDateModal(sit.scheduledDate)}</span></>}
                       {sit.departureTime && <><span style={lblStyle}>Time</span><span style={rowStyle}>{sit.departureTime}</span></>}
                       {sit.address && <><span style={lblStyle}>Meeting point</span><span style={rowStyle}>{sit.address}</span></>}
-                      {sit.notes && <><span style={lblStyle}>Operator</span><span style={rowStyle}>{sit.notes}</span></>}
+                      {sit.notes && !/^\d{1,2}:\d{2}$/.test(sit.notes) && !/^departs/i.test(sit.notes) && !/^\d{1,2}:\d{2}\s*·/.test(sit.notes) && <><span style={lblStyle}>Operator</span><span style={rowStyle}>{sit.notes}</span></>}
                       {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
                       {costLabel && <><span style={lblStyle}>Total</span><span style={rowStyle}>{costLabel}</span></>}
                       {guestsLabel && <><span style={lblStyle}>Guests</span><span style={rowStyle}>{guestsLabel}</span></>}

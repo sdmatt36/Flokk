@@ -263,17 +263,25 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
     // ARRAY 1: pinsToRender — isValidCoord only. ALL of these get markers on the map.
     const validSaved = dayItems.filter(s => isValidCoord(s.lat, s.lng));
     const validActivities = dayActivities.filter(a => isValidCoord(a.lat, a.lng));
-    const validBookings = dayBookings.filter(p => isValidCoord(p.latitude, p.longitude));
+    // FLIGHT items: only include if arrivalLat/arrivalLng are valid — departure airport is irrelevant on destination day.
+    // All other types: include if departure/location coords are valid.
+    const validBookings = dayBookings.filter(p =>
+      p.type === "FLIGHT"
+        ? isValidCoord(p.arrivalLat, p.arrivalLng)
+        : isValidCoord(p.latitude, p.longitude)
+    );
     const offset = validSaved.length + validActivities.length;
-    // For FLIGHT items, use arrivalLat/arrivalLng as the numbered pin (where the plane lands).
-    // Never render the departure airport as a pin — it's irrelevant on the destination day.
+    // Pin counter starts at 1. Each booking uses its arrival coords (FLIGHT) or location coords (all others).
     const pinsToRender: MarkerDef[] = [
       ...validSaved.map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" as const })),
       ...validActivities.map((a, i) => ({ num: validSaved.length + i + 1, label: a.title, lat: a.lat, lng: a.lng, color: "#2E7D52" as const })),
-      ...validBookings.map((p, i) => {
-        const useArrival = p.type === "FLIGHT" && isValidCoord(p.arrivalLat, p.arrivalLng);
-        return { num: offset + i + 1, label: p.title, lat: useArrival ? p.arrivalLat! : p.latitude, lng: useArrival ? p.arrivalLng! : p.longitude, color: "#C4664A" as const };
-      }),
+      ...validBookings.map((p, i) => ({
+        num: offset + i + 1,
+        label: p.title,
+        lat: p.type === "FLIGHT" ? p.arrivalLat! : p.latitude,
+        lng: p.type === "FLIGHT" ? p.arrivalLng! : p.longitude,
+        color: "#C4664A" as const,
+      })),
     ];
 
     // Arrival pins for TRAIN items only — small unnumbered green dot at destination.

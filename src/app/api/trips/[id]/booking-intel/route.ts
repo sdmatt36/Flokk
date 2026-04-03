@@ -47,12 +47,12 @@ function getLogisticsItems(city: string | null, country: string | null): Logisti
 
   if (c.includes("seoul") || c.includes("busan") || c.includes("incheon") || co.includes("korea")) {
     return [
-      { title: "T-money Card", reason: "Tap-to-pay on the metro, buses, and taxis — buy at Incheon Airport arrivals.", bookingUrl: "https://www.t-money.co.kr/ncs/pct/eng/index.jsp" },
+      { title: "T-money Card", reason: "Tap-to-pay on the metro, buses, and taxis — buy at Incheon Airport arrivals.", bookingUrl: "https://www.t-money.co.kr/ncs/pct/tmnyIntro/ReadTmnyIntroEng.do" },
     ];
   }
   if (c.includes("tokyo") || c.includes("osaka") || c.includes("kyoto") || c.includes("nara") || c.includes("hiroshima") || co.includes("japan")) {
     return [
-      { title: "IC Card (Suica / ICOCA)", reason: "Cashless travel on trains, buses, and convenience stores — load at any station on arrival.", bookingUrl: "https://www.jreast.co.jp/e/pass/suica.html" },
+      { title: "IC Card (Suica / ICOCA)", reason: "Cashless travel on trains, buses, and convenience stores — load at any station on arrival.", bookingUrl: "https://www.pasmo.co.jp/en/" },
     ];
   }
   if (c.includes("bali") || co.includes("indonesia")) {

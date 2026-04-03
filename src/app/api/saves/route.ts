@@ -229,8 +229,18 @@ export async function GET(request: Request) {
           ? { categoryTags: { has: category } }
           : {}),
         ...(tripId ? { tripId } : {}),
-        // Exclude flight-tagged saves — flights live in the Itinerary tab (ItineraryItem), not Saved tab
-        NOT: { categoryTags: { hasSome: ["flight", "airfare", "airline", "airflight", "flights"] } },
+        // Exclude flight-tagged saves — flights live in ItineraryItem, not SavedItem
+        NOT: [
+          // 1. Explicit flight tags (case-sensitive match)
+          { categoryTags: { hasSome: ["flight", "airfare", "airline", "airflight", "flights", "Flight", "Airline", "Airfare"] } },
+          // 2. Items with no coordinates whose rawTitle contains flight keywords
+          //    (coordinate check avoids excluding places with "flight" in their name)
+          { AND: [{ lat: null }, { rawTitle: { contains: "flight", mode: "insensitive" } }] },
+          { AND: [{ lat: null }, { rawTitle: { contains: "airline", mode: "insensitive" } }] },
+          { AND: [{ lat: null }, { rawTitle: { contains: "airfare", mode: "insensitive" } }] },
+          // 3. Source URL matches Google Flights
+          { sourceUrl: { contains: "/travel/flights", mode: "insensitive" } },
+        ],
       },
       orderBy: { savedAt: "desc" },
       include: { trip: { select: { id: true, title: true } } },
