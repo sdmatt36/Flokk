@@ -26,7 +26,20 @@ export async function DELETE(
 ) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { documentId } = await params;
+  const { id: tripId, documentId } = await params;
+
+  // If this is a booking document, also delete the linked ItineraryItem(s) by confirmationCode
+  const doc = await db.tripDocument.findUnique({ where: { id: documentId } });
+  if (doc?.type === "booking" && doc.content) {
+    try {
+      const parsed = JSON.parse(doc.content) as Record<string, unknown>;
+      const confCode = parsed.confirmationCode as string | null | undefined;
+      if (confCode) {
+        await db.itineraryItem.deleteMany({ where: { tripId, confirmationCode: confCode } });
+      }
+    } catch { /* ignore malformed content */ }
+  }
+
   await db.tripDocument.delete({ where: { id: documentId } });
   return NextResponse.json({ success: true });
 }

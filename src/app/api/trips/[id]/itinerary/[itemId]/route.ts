@@ -60,6 +60,22 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  // Fetch item to check cost before deleting (for budget decrement)
+  const item = await db.itineraryItem.findUnique({
+    where: { id: itemId },
+    select: { totalCost: true, type: true, title: true },
+  });
+
   await db.itineraryItem.delete({ where: { id: itemId } });
+
+  // Decrement budgetSpent — skip LODGING check-out to avoid double-counting (cost stored on check-in too)
+  const isLodgingCheckout = item?.type === "LODGING" && /^check-out:/i.test(item.title ?? "");
+  if (item?.totalCost && item.totalCost > 0 && !isLodgingCheckout) {
+    await db.trip.update({
+      where: { id: tripId },
+      data: { budgetSpent: { decrement: item.totalCost } },
+    });
+  }
+
   return NextResponse.json({ success: true });
 }

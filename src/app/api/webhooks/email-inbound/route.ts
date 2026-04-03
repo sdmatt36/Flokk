@@ -429,26 +429,18 @@ Field notes:
         ? `${outboundFrom} → ${outboundTo}`
         : outboundFrom ? `${outboundFrom} → (destination)` : outboundTo ? `(origin) → ${outboundTo}` : (extracted.flightNumber as string) ?? "Flight";
 
-      // Outbound ItineraryItem
-      const outboundItem = await db.itineraryItem.create({
-        data: {
-          tripId: resolvedTripId,
-          type: "FLIGHT",
-          title: outboundTitle,
-          scheduledDate: (extracted.departureDate as string | null) ?? null,
-          departureTime: resolved.departureTime,
-          arrivalTime: resolved.arrivalTime,
-          fromAirport: resolved.fromAirport,
-          toAirport: resolved.toAirport,
-          fromCity: resolved.fromCity,
-          toCity: resolved.toCity,
-          confirmationCode: outboundConf,
-          totalCost: parsedCost,
-          currency: detectedCurrency,
-          passengers,
-          dayIndex: outboundDayIndex,
-        },
-      });
+      // Outbound ItineraryItem — upsert by tripId + confirmationCode + scheduledDate to prevent re-forward duplicates
+      const existingOutbound = outboundConf ? await db.itineraryItem.findFirst({
+        where: { tripId: resolvedTripId, confirmationCode: outboundConf, type: "FLIGHT", scheduledDate: (extracted.departureDate as string | null) ?? null },
+      }) : null;
+      const outboundItem = existingOutbound
+        ? await db.itineraryItem.update({
+            where: { id: existingOutbound.id },
+            data: { title: outboundTitle, departureTime: resolved.departureTime, arrivalTime: resolved.arrivalTime, fromAirport: resolved.fromAirport, toAirport: resolved.toAirport, fromCity: resolved.fromCity, toCity: resolved.toCity, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex: outboundDayIndex },
+          })
+        : await db.itineraryItem.create({
+            data: { tripId: resolvedTripId, type: "FLIGHT", title: outboundTitle, scheduledDate: (extracted.departureDate as string | null) ?? null, departureTime: resolved.departureTime, arrivalTime: resolved.arrivalTime, fromAirport: resolved.fromAirport, toAirport: resolved.toAirport, fromCity: resolved.fromCity, toCity: resolved.toCity, confirmationCode: outboundConf, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex: outboundDayIndex },
+          });
       // Geocode arrival airport (where the family lands — critical map pin)
       // Priority: IATA+city (e.g. "GMP airport Seoul") → city fallback (e.g. "Seoul international airport")
       const outboundArrivalIATA = resolved.toAirport ?? null;
@@ -512,7 +504,13 @@ Field notes:
         const returnDayIndex = await getDayIndex(resolvedTripId, extracted.returnDepartureDate as string);
         const returnTitle = `${extracted.toAirport ?? extracted.toCity ?? "?"} → ${extracted.fromAirport ?? extracted.fromCity ?? "?"}`;
 
-        const returnItem = await db.itineraryItem.create({
+        const returnConfCode = (extracted.confirmationCode as string | null) ?? null;
+        const existingReturn = returnConfCode ? await db.itineraryItem.findFirst({
+          where: { tripId: resolvedTripId, confirmationCode: returnConfCode, type: "FLIGHT", scheduledDate: extracted.returnDepartureDate as string },
+        }) : null;
+        const returnItem = existingReturn
+          ? await db.itineraryItem.update({ where: { id: existingReturn.id }, data: { title: returnTitle, departureTime: (extracted.returnDepartureTime as string | null) ?? null, arrivalTime: (extracted.returnArrivalTime as string | null) ?? null, dayIndex: returnDayIndex } })
+          : await db.itineraryItem.create({
           data: {
             tripId: resolvedTripId,
             type: "FLIGHT",
@@ -524,7 +522,7 @@ Field notes:
             toAirport: (extracted.returnToAirport as string | null) ?? (extracted.fromAirport as string | null) ?? null,
             fromCity: (extracted.toCity as string | null) ?? null,
             toCity: (extracted.fromCity as string | null) ?? null,
-            confirmationCode: (extracted.confirmationCode as string | null) ?? null,
+            confirmationCode: returnConfCode,
             passengers,
             dayIndex: returnDayIndex,
           },
@@ -603,22 +601,16 @@ Field notes:
 
       const checkInDayIndex = checkInDate ? await getDayIndex(resolvedTripId, checkInDate) : null;
 
-      // FIX 1: Check-in ItineraryItem (replaces SavedItem)
-      const checkInItem = await db.itineraryItem.create({
-        data: {
-          tripId: resolvedTripId,
-          type: "LODGING",
-          title: `Check-in: ${hotelName}`,
-          scheduledDate: checkInDate,
-          confirmationCode: (extracted.confirmationCode as string | null) ?? null,
-          address: (extracted.address as string | null) ?? null,
-          totalCost: parsedCost,
-          currency: detectedCurrency,
-          notes: null,
-          passengers,
-          dayIndex: checkInDayIndex,
-        },
-      });
+      // FIX 1: Check-in ItineraryItem — upsert by confirmationCode + title prefix
+      const hotelConf = (extracted.confirmationCode as string | null) ?? null;
+      const existingCheckIn = hotelConf ? await db.itineraryItem.findFirst({
+        where: { tripId: resolvedTripId, confirmationCode: hotelConf, type: "LODGING", title: { startsWith: "Check-in:" } },
+      }) : null;
+      const checkInItem = existingCheckIn
+        ? await db.itineraryItem.update({ where: { id: existingCheckIn.id }, data: { title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex: checkInDayIndex } })
+        : await db.itineraryItem.create({
+            data: { tripId: resolvedTripId, type: "LODGING", title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, confirmationCode: hotelConf, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, notes: null, passengers, dayIndex: checkInDayIndex },
+          });
       // Geocode hotel by name + city
       const hotelCity = (extracted.city as string | null) ?? (extracted.toCity as string | null) ?? "";
       const hotelGeo = await geocodePlace(`${hotelName}${hotelCity ? " " + hotelCity : ""}`);
@@ -627,18 +619,22 @@ Field notes:
       }
       console.log("[email-inbound] created hotel check-in ItineraryItem:", checkInItem.id, "dayIndex:", checkInDayIndex);
 
-      // FIX 1: Check-out ItineraryItem
+      // FIX 1: Check-out ItineraryItem — upsert by confirmationCode + title prefix
       if (checkOutDate) {
         const checkOutDayIndex = await getDayIndex(resolvedTripId, checkOutDate);
-        const extractedCheckOutTime = null; // hotel emails rarely specify time; default applied below
-        const checkOutItem = await db.itineraryItem.create({
+        const existingCheckOut = hotelConf ? await db.itineraryItem.findFirst({
+          where: { tripId: resolvedTripId, confirmationCode: hotelConf, type: "LODGING", title: { startsWith: "Check-out:" } },
+        }) : null;
+        const checkOutItem = existingCheckOut
+          ? await db.itineraryItem.update({ where: { id: existingCheckOut.id }, data: { title: `Check-out: ${hotelName}`, scheduledDate: checkOutDate, departureTime: "11:00", address: (extracted.address as string | null) ?? null, passengers, dayIndex: checkOutDayIndex } })
+          : await db.itineraryItem.create({
           data: {
             tripId: resolvedTripId,
             type: "LODGING",
             title: `Check-out: ${hotelName}`,
             scheduledDate: checkOutDate,
-            departureTime: extractedCheckOutTime ?? "11:00",
-            confirmationCode: (extracted.confirmationCode as string | null) ?? null,
+            departureTime: "11:00",
+            confirmationCode: hotelConf,
             address: (extracted.address as string | null) ?? null,
             totalCost: parsedCost,
             currency: detectedCurrency,
@@ -708,25 +704,19 @@ Field notes:
       const itemTitle = (extracted.vendorName as string | null) ?? subject;
       const itemTypeStr = (extracted.type as string | null) ?? "OTHER";
 
-      const item = await db.itineraryItem.create({
-        data: {
-          tripId: resolvedTripId,
-          type: itemTypeStr.toUpperCase(),
-          title: itemTitle,
-          scheduledDate: confirmedDate,
-          departureTime: (extracted.departureTime as string | null) ?? null,
-          arrivalTime: (extracted.arrivalTime as string | null) ?? null,
-          fromCity: (extracted.fromCity as string | null) ?? null,
-          toCity: (extracted.toCity as string | null) ?? null,
-          confirmationCode: (extracted.confirmationCode as string | null) ?? null,
-          notes: autoNotes,
-          address: (extracted.address as string | null) ?? null,
-          totalCost: parsedCost,
-          currency: detectedCurrency,
-          passengers,
-          dayIndex,
-        },
-      });
+      const catchAllConf = (extracted.confirmationCode as string | null) ?? null;
+      const catchAllType = itemTypeStr.toUpperCase();
+      const existingCatchAll = catchAllConf ? await db.itineraryItem.findFirst({
+        where: { tripId: resolvedTripId, confirmationCode: catchAllConf, type: catchAllType },
+      }) : null;
+      const item = existingCatchAll
+        ? await db.itineraryItem.update({
+            where: { id: existingCatchAll.id },
+            data: { title: itemTitle, scheduledDate: confirmedDate, departureTime: (extracted.departureTime as string | null) ?? null, arrivalTime: (extracted.arrivalTime as string | null) ?? null, fromCity: (extracted.fromCity as string | null) ?? null, toCity: (extracted.toCity as string | null) ?? null, notes: autoNotes, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex },
+          })
+        : await db.itineraryItem.create({
+            data: { tripId: resolvedTripId, type: catchAllType, title: itemTitle, scheduledDate: confirmedDate, departureTime: (extracted.departureTime as string | null) ?? null, arrivalTime: (extracted.arrivalTime as string | null) ?? null, fromCity: (extracted.fromCity as string | null) ?? null, toCity: (extracted.toCity as string | null) ?? null, confirmationCode: catchAllConf, notes: autoNotes, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex },
+          });
 
       if (matchedTrip && extracted.confirmationCode) {
         await db.tripKeyInfo.create({
