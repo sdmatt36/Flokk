@@ -3700,6 +3700,9 @@ function PackingContent({
   const [packingLoading, setPackingLoading] = useState(true);
   const [packingGenerating, setPackingGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [addingToCategory, setAddingToCategory] = useState<string | null>(null);
+  const [newItemName, setNewItemName] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const fetchItems = useCallback(async () => {
     if (!tripId) return;
@@ -3766,13 +3769,42 @@ function PackingContent({
 
   const handleToggle = async (item: DbPackingItem) => {
     const newPacked = !item.packed;
-    // Optimistic update
     setPackingItems(prev => prev.map(i => i.id === item.id ? { ...i, packed: newPacked } : i));
     await fetch(`/api/trips/${tripId}/packing/${item.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ packed: newPacked }),
     });
+  };
+
+  const handleAddItem = async (category: string) => {
+    if (!newItemName.trim()) return;
+    const tempId = `temp-${Date.now()}`;
+    const newItem: DbPackingItem = {
+      id: tempId,
+      category,
+      name: newItemName.trim(),
+      assignedTo: "Everyone",
+      notes: null,
+      packed: false,
+      sortOrder: packingItems.filter(i => i.category === category).length,
+    };
+    setPackingItems(prev => [...prev, newItem]);
+    setNewItemName("");
+    setAddingToCategory(null);
+    const res = await fetch(`/api/trips/${tripId}/packing`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        category: newItem.category,
+        name: newItem.name,
+        assignedTo: newItem.assignedTo,
+        notes: newItem.notes,
+        sortOrder: newItem.sortOrder,
+      }),
+    });
+    const data = await res.json();
+    setPackingItems(prev => prev.map(i => i.id === tempId ? data.item : i));
   };
 
   const total = packingItems.length;
@@ -3830,14 +3862,66 @@ function PackingContent({
             </p>
           )}
         </div>
-        <button
-          onClick={generate}
-          style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "13px", fontWeight: 600, color: "#C4664A", background: "none", border: "none", cursor: "pointer", flexShrink: 0 }}
-        >
-          <Sparkles size={13} style={{ color: "#C4664A" }} />
-          Regenerate list
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px", flexShrink: 0 }}>
+          <button
+            onClick={() => { setAddingToCategory(null); setNewItemName(""); setShowAddModal(true); }}
+            style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C", background: "none", border: "none", cursor: "pointer" }}
+          >
+            + Add to list
+          </button>
+          <button
+            onClick={generate}
+            style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "13px", fontWeight: 600, color: "#C4664A", background: "none", border: "none", cursor: "pointer" }}
+          >
+            <Sparkles size={13} style={{ color: "#C4664A" }} />
+            Regenerate
+          </button>
+        </div>
       </div>
+
+      {/* Add item modal */}
+      {showAddModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.5)" }}>
+          <div style={{ backgroundColor: "#fff", borderRadius: "16px", padding: "24px", margin: "0 16px", width: "100%", maxWidth: "360px" }}>
+            <p style={{ fontSize: "17px", fontWeight: 700, color: "#1B3A5C", fontFamily: "Playfair Display, serif", marginBottom: "16px" }}>Add to packing list</p>
+            <input
+              autoFocus
+              type="text"
+              value={newItemName}
+              onChange={(e) => setNewItemName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { handleAddItem(addingToCategory ?? "Other"); setShowAddModal(false); }
+                if (e.key === "Escape") { setShowAddModal(false); setNewItemName(""); setAddingToCategory(null); }
+              }}
+              placeholder="Item name..."
+              style={{ width: "100%", border: "1px solid #E0E0E0", borderRadius: "12px", padding: "12px 16px", fontSize: "14px", color: "#1B3A5C", outline: "none", marginBottom: "12px", boxSizing: "border-box" }}
+            />
+            <select
+              value={addingToCategory ?? "Other"}
+              onChange={(e) => setAddingToCategory(e.target.value)}
+              style={{ width: "100%", border: "1px solid #E0E0E0", borderRadius: "12px", padding: "12px 16px", fontSize: "14px", color: "#1B3A5C", outline: "none", marginBottom: "16px", backgroundColor: "#fff", boxSizing: "border-box" }}
+            >
+              {["Documents", "Clothing", "Toiletries", "Kids", "Tech", "Health", "Gear", "Other"].map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button
+                onClick={() => { handleAddItem(addingToCategory ?? "Other"); setShowAddModal(false); }}
+                style={{ flex: 1, padding: "12px", backgroundColor: "#1B3A5C", color: "#fff", borderRadius: "12px", fontSize: "14px", fontWeight: 600, border: "none", cursor: "pointer" }}
+              >
+                Add to list
+              </button>
+              <button
+                onClick={() => { setShowAddModal(false); setNewItemName(""); setAddingToCategory(null); }}
+                style={{ flex: 1, padding: "12px", border: "1px solid #E0E0E0", color: "#1B3A5C", borderRadius: "12px", fontSize: "14px", fontWeight: 600, backgroundColor: "#fff", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Progress */}
       {total > 0 && (
@@ -3897,6 +3981,32 @@ function PackingContent({
                   </button>
                 ))}
               </div>
+              {/* Inline add item */}
+              {addingToCategory === cat ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px", borderTop: "1px solid #F5F5F5" }}>
+                  <input
+                    autoFocus
+                    type="text"
+                    value={newItemName}
+                    onChange={(e) => setNewItemName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleAddItem(cat);
+                      if (e.key === "Escape") { setAddingToCategory(null); setNewItemName(""); }
+                    }}
+                    placeholder="Item name..."
+                    style={{ flex: 1, fontSize: "14px", color: "#1B3A5C", border: "none", outline: "none", backgroundColor: "transparent" }}
+                  />
+                  <button onClick={() => handleAddItem(cat)} style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", background: "none", border: "none", cursor: "pointer" }}>Add</button>
+                  <button onClick={() => { setAddingToCategory(null); setNewItemName(""); }} style={{ fontSize: "13px", color: "#aaa", background: "none", border: "none", cursor: "pointer" }}>Cancel</button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setAddingToCategory(cat)}
+                  style={{ width: "100%", textAlign: "left", padding: "8px 16px", fontSize: "13px", color: "#bbb", background: "none", border: "none", borderTop: "1px solid #F5F5F5", cursor: "pointer" }}
+                >
+                  + Add item
+                </button>
+              )}
             </div>
           );
         })}
