@@ -35,8 +35,7 @@ function createMarkerEl(m: MarkerDef): HTMLElement {
   const wrap = document.createElement("div");
   wrap.style.cssText = "display:flex;flex-direction:column;align-items:center;cursor:default;";
 
-  const isArrival = m.num == null;
-  const pinSize = isArrival ? "22px" : "32px";
+  const pinSize = "32px";
   const pin = document.createElement("div");
   pin.style.cssText =
     `width:${pinSize};height:${pinSize};border-radius:50%;background:${color};border:2px solid ${color};` +
@@ -263,45 +262,37 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
     // ARRAY 1: pinsToRender — isValidCoord only. ALL of these get markers on the map.
     const validSaved = dayItems.filter(s => isValidCoord(s.lat, s.lng));
     const validActivities = dayActivities.filter(a => isValidCoord(a.lat, a.lng));
-    // FLIGHT items: only include if arrivalLat/arrivalLng are valid — departure airport is irrelevant on destination day.
+    // FLIGHT items: only include if arrivalLat/arrivalLng are valid.
     // All other types: include if departure/location coords are valid.
     const validBookings = dayBookings.filter(p =>
       p.type === "FLIGHT"
         ? isValidCoord(p.arrivalLat, p.arrivalLng)
         : isValidCoord(p.latitude, p.longitude)
     );
-    const offset = validSaved.length + validActivities.length;
-    // Pin counter starts at 1. Each booking uses its arrival coords (FLIGHT) or location coords (all others).
+    // Pin order: bookings first (FLIGHT → LODGING → TRAIN → other), then activities, then saves.
+    // This ensures flight/hotel pins are always numbered 1, 2, ... regardless of saved items on the day.
+    const BOOKING_SORT: Record<string, number> = { FLIGHT: 0, LODGING: 1, TRAIN: 2 };
+    const sortedBookings = [...validBookings].sort(
+      (a, b) => (BOOKING_SORT[a.type] ?? 3) - (BOOKING_SORT[b.type] ?? 3)
+    );
+    const actOffset = sortedBookings.length;
+    const savedOffset = actOffset + validActivities.length;
     const pinsToRender: MarkerDef[] = [
-      ...validSaved.map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" as const })),
-      ...validActivities.map((a, i) => ({ num: validSaved.length + i + 1, label: a.title, lat: a.lat, lng: a.lng, color: "#2E7D52" as const })),
-      ...validBookings.map((p, i) => ({
-        num: offset + i + 1,
+      ...sortedBookings.map((p, i) => ({
+        num: i + 1,
         label: p.title,
         lat: p.type === "FLIGHT" ? p.arrivalLat! : p.latitude,
         lng: p.type === "FLIGHT" ? p.arrivalLng! : p.longitude,
         color: "#C4664A" as const,
       })),
+      ...validActivities.map((a, i) => ({ num: actOffset + i + 1, label: a.title, lat: a.lat, lng: a.lng, color: "#C4664A" as const })),
+      ...validSaved.map((s, i) => ({ num: savedOffset + i + 1, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" as const })),
     ];
-
-    // Arrival pins for TRAIN items only — small unnumbered green dot at destination.
-    // FLIGHT items already show at arrival coords in pinsToRender, no duplicate needed.
-    const arrivalPins: MarkerDef[] = validBookings
-      .filter(p => p.type === "TRAIN" && isValidCoord(p.arrivalLat, p.arrivalLng))
-      .map((p) => ({
-        num: null,
-        label: `Arrives: ${p.title}`,
-        lat: p.arrivalLat!,
-        lng: p.arrivalLng!,
-        color: "#2D6A4F" as const,
-      }));
-
-    const allPins = [...pinsToRender, ...arrivalPins];
 
     // Render all valid-coord pins — no proximity filter, no anchor, just isValidCoord
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
-    allPins.forEach((m) => {
+    pinsToRender.forEach((m) => {
       const marker = new mapboxgl.Marker({ element: createMarkerEl(m), anchor: "top" })
         .setLngLat([m.lng, m.lat])
         .addTo(map);
@@ -309,25 +300,25 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
     });
 
     // Viewport: fit all pins (including arrival) for this day, no proximity filtering
-    if (allPins.length === 0) {
+    if (pinsToRender.length === 0) {
       // No pins — fly to trip anchor (accommodation or city center)
       map.flyTo({ center: [anchorLng, anchorLat], zoom: 12, duration: 800 });
-    } else if (allPins.length === 1) {
-      map.flyTo({ center: [allPins[0].lng, allPins[0].lat], zoom: 14, duration: 800 });
+    } else if (pinsToRender.length === 1) {
+      map.flyTo({ center: [pinsToRender[0].lng, pinsToRender[0].lat], zoom: 14, duration: 800 });
     } else {
       // 2+ pins — fitBounds; if span > 3° (e.g. Seoul+Busan), zoom to first item at city level
-      const lats = allPins.map(p => p.lat);
-      const lngs = allPins.map(p => p.lng);
+      const lats = pinsToRender.map(p => p.lat);
+      const lngs = pinsToRender.map(p => p.lng);
       const latSpan = Math.max(...lats) - Math.min(...lats);
       const lngSpan = Math.max(...lngs) - Math.min(...lngs);
       if (latSpan > 3 || lngSpan > 3) {
-        map.flyTo({ center: [allPins[0].lng, allPins[0].lat], zoom: 12, duration: 800 });
+        map.flyTo({ center: [pinsToRender[0].lng, pinsToRender[0].lat], zoom: 12, duration: 800 });
       } else if (latSpan < 0.001 && lngSpan < 0.001) {
         // Pins are at essentially the same location — fitBounds would produce zero-area canvas error
-        map.flyTo({ center: [allPins[0].lng, allPins[0].lat], zoom: 14, duration: 800 });
+        map.flyTo({ center: [pinsToRender[0].lng, pinsToRender[0].lat], zoom: 14, duration: 800 });
       } else {
         const bounds = new mapboxgl.LngLatBounds();
-        allPins.forEach(m => bounds.extend([m.lng, m.lat]));
+        pinsToRender.forEach(m => bounds.extend([m.lng, m.lat]));
         map.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 500 });
       }
     }
@@ -343,15 +334,28 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
   function getActiveMarkers(): MarkerDef[] {
     const filteredSaved = activeDay !== null ? allSavedItems.filter(s => s.dayIndex === activeDay) : allSavedItems;
     const filteredActs = activeDay !== null ? activities.filter(a => a.dayIndex === activeDay) : activities;
-    const filteredBookings = (activeDay !== null
+    const rawBookings = (activeDay !== null
       ? importedBookingPins.filter(p => p.dayIndex === activeDay)
       : importedBookingPins
-    ).filter(p => p.latitude !== 0 && p.longitude !== 0);
-    const offset = filteredSaved.length + filteredActs.length;
+    ).filter(p =>
+      p.type === "FLIGHT" ? isValidCoord(p.arrivalLat, p.arrivalLng) : p.latitude !== 0 && p.longitude !== 0
+    );
+    const BOOKING_SORT: Record<string, number> = { FLIGHT: 0, LODGING: 1, TRAIN: 2 };
+    const sortedBookings = [...rawBookings].sort(
+      (a, b) => (BOOKING_SORT[a.type] ?? 3) - (BOOKING_SORT[b.type] ?? 3)
+    );
+    const actOffset = sortedBookings.length;
+    const savedOffset = actOffset + filteredActs.length;
     return [
-      ...filteredSaved.map((s, i) => ({ num: i + 1, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" })),
-      ...filteredActs.map((a, i) => ({ num: filteredSaved.length + i + 1, label: a.title, lat: a.lat, lng: a.lng, color: "#2E7D52" })),
-      ...filteredBookings.map((p, i) => ({ num: offset + i + 1, label: p.title, lat: p.latitude, lng: p.longitude, color: "#C4664A" })),
+      ...sortedBookings.map((p, i) => ({
+        num: i + 1,
+        label: p.title,
+        lat: p.type === "FLIGHT" ? p.arrivalLat! : p.latitude,
+        lng: p.type === "FLIGHT" ? p.arrivalLng! : p.longitude,
+        color: "#C4664A",
+      })),
+      ...filteredActs.map((a, i) => ({ num: actOffset + i + 1, label: a.title, lat: a.lat, lng: a.lng, color: "#C4664A" })),
+      ...filteredSaved.map((s, i) => ({ num: savedOffset + i + 1, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" })),
     ];
   }
 
