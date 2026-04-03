@@ -2157,6 +2157,16 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     }
   }
 
+  const handleDeleteBookingItem = async (itemId: string) => {
+    setLocalItineraryItems(prev => prev.filter(it => it.id !== itemId));
+    const res = await fetch(`/api/trips/${tripId}/itinerary/${itemId}`, { method: "DELETE" });
+    if (!res.ok) {
+      console.error("[delete booking item] failed, reloading");
+      window.location.reload();
+    }
+  };
+
+
   function toggleSlot(key: string) {
     setExpandedSlotKey(prev => prev === key ? null : key);
   }
@@ -2800,6 +2810,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                     {bookedBadge}
                                                     {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {it.confirmationCode}</span>}
                                                     {paxLabel && <span style={{ fontSize: "11px", color: "#999" }}>{paxLabel}</span>}
+                                                    <button onClick={e => { e.stopPropagation(); if (confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                                   </div>
                                                 </div>
                                                 {matchFlight && pencilBtn(() => setEditingFlight(matchFlight))}
@@ -2829,6 +2840,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                     {bookedBadge}
                                                     {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {it.confirmationCode}</span>}
                                                     {costLabel && <span style={{ fontSize: "11px", color: "#999" }}>{costLabel}</span>}
+                                                    <button onClick={e => { e.stopPropagation(); if (confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                                   </div>
                                                 </div>
                                                 {/* Edit pencil — vault doc edit is managed from the Vault tab */}
@@ -2861,6 +2873,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                   <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
                                                     {bookedBadge}
                                                     {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {it.confirmationCode}</span>}
+                                                    <button onClick={e => { e.stopPropagation(); if (confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                                   </div>
                                                 </div>
                                                 <button onClick={e => e.stopPropagation()} style={{ background: "none", border: "none", cursor: "default", color: "#DDDDDD", padding: "2px", flexShrink: 0 }} title="Edit from Vault tab">
@@ -2884,6 +2897,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                 <span style={{ fontSize: "11px", color: "#999" }}>{typeLabel}</span>
                                                 {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {it.confirmationCode}</span>}
                                                 {it.totalCost != null && <span style={{ fontSize: "11px", color: "#999" }}>{it.currency ?? ""} {it.totalCost.toLocaleString()}</span>}
+                                                <button onClick={e => { e.stopPropagation(); if (confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                               </div>
                                             </div>
                                           </div>

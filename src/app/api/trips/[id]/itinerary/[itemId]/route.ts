@@ -39,3 +39,27 @@ export async function PATCH(
 
   return NextResponse.json({ item: updated });
 }
+
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ id: string; itemId: string }> }
+) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id: tripId, itemId } = await params;
+
+  const user = await db.user.findUnique({
+    where: { clerkId: userId },
+    include: { familyProfile: true },
+  });
+  if (!user?.familyProfile) return NextResponse.json({ error: "No profile" }, { status: 400 });
+
+  const trip = await db.trip.findUnique({ where: { id: tripId } });
+  if (!trip || trip.familyProfileId !== user.familyProfile.id) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  await db.itineraryItem.delete({ where: { id: itemId } });
+  return NextResponse.json({ success: true });
+}
