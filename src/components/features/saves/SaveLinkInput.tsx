@@ -124,6 +124,8 @@ export function SaveLinkInput() {
                 el.scrollIntoView({ behavior: "smooth", block: "center" });
                 (el as HTMLElement).style.outline = "2px solid #C4664A";
                 setTimeout(() => { (el as HTMLElement).style.outline = ""; }, 2000);
+              } else {
+                console.warn("[SaveLinkInput] scroll target not found: save-" + duplicateId);
               }
               setDuplicateId(null);
             }}

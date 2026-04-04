@@ -332,8 +332,10 @@ export function DropLinkModal({
                           el.scrollIntoView({ behavior: "smooth", block: "center" });
                           (el as HTMLElement).style.outline = "2px solid #C4664A";
                           setTimeout(() => { (el as HTMLElement).style.outline = ""; }, 2000);
+                        } else {
+                          console.warn("[DropLinkModal] scroll target not found: save-" + existingId);
                         }
-                      }, 250);
+                      }, 600);
                     });
                     setDuplicateResult(null);
                   }}
