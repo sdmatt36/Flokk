@@ -5431,6 +5431,26 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                             : d.label}
                         </span>
                       </div>
+                      {isActivityVault && (
+                        <input
+                          type="text"
+                          defaultValue={(booking.activityName as string | null) || d.label}
+                          onClick={e => e.stopPropagation()}
+                          onBlur={async (e) => {
+                            const newTitle = e.target.value.trim();
+                            if (!newTitle || newTitle === ((booking.activityName as string | null) || d.label)) return;
+                            const updatedContent = JSON.stringify({ ...(booking as Record<string, unknown>), activityName: newTitle });
+                            await fetch(`/api/trips/${tripId}/vault/documents/${d.id}`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ label: newTitle, content: updatedContent }),
+                            });
+                            setDocuments(prev => prev.map(doc => doc.id === d.id ? { ...doc, label: newTitle, content: updatedContent } : doc));
+                          }}
+                          style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", border: "none", borderBottom: "2px solid #C4664A", background: "transparent", width: "100%", outline: "none", cursor: "text", paddingBottom: "4px", marginBottom: "8px", boxSizing: "border-box" as const }}
+                          placeholder="Activity name..."
+                        />
+                      )}
                       {rows.length > 0 && (
                         <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 16px" }}>
                           {rows.map(r => (
