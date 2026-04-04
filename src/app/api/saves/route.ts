@@ -4,6 +4,16 @@ function sanitizeThumbnailUrl(url: string | null | undefined): string | null {
   return url;
 }
 
+function normalizeUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    ["utm_source", "utm_medium", "utm_campaign", "utm_content", "igshid", "fbclid", "ref"].forEach(p => u.searchParams.delete(p));
+    return u.toString().replace(/\/$/, "");
+  } catch {
+    return url.trim().replace(/\/$/, "");
+  }
+}
+
 // Extraction pipeline entry point.
 // Full architecture documented in src/lib/og-extract.ts.
 // Current state: Layer 1 (metadata) only.
@@ -91,21 +101,40 @@ export async function POST(request: Request) {
       mediaThumbnailUrl = sanitizeImageUrl(meta.image);
     }
 
-    // Duplicate detection — skip if title couldn't be resolved
+    // URL-based duplicate detection — checks normalized base URL first
+    const baseUrl = normalizeUrl(url).split("?")[0];
+    const existingByUrl = await db.savedItem.findFirst({
+      where: {
+        familyProfileId: user.familyProfile.id,
+        sourceUrl: { contains: baseUrl, mode: "insensitive" },
+      },
+      select: { id: true, rawTitle: true, destinationCity: true },
+    });
+    if (existingByUrl) {
+      return NextResponse.json({
+        duplicate: true,
+        existingId: existingByUrl.id,
+        existingTitle: existingByUrl.rawTitle,
+        existingCity: existingByUrl.destinationCity,
+      }, { status: 200 });
+    }
+
+    // Title-based duplicate detection — fallback for same-name saves without URL
     if (rawTitle) {
-      const existing = await db.savedItem.findFirst({
+      const existingByTitle = await db.savedItem.findFirst({
         where: {
           familyProfileId: user.familyProfile.id,
           rawTitle: { equals: rawTitle, mode: "insensitive" },
         },
+        select: { id: true, rawTitle: true, destinationCity: true },
       });
-      if (existing) {
+      if (existingByTitle) {
         return NextResponse.json({
-          success: false,
           duplicate: true,
-          existingId: existing.id,
-          message: "Already saved",
-        });
+          existingId: existingByTitle.id,
+          existingTitle: existingByTitle.rawTitle,
+          existingCity: existingByTitle.destinationCity,
+        }, { status: 200 });
       }
     }
 

@@ -65,6 +65,7 @@ export function DropLinkModal({
   const [pulseId, setPulseId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [duplicateResult, setDuplicateResult] = useState<{ existingId: string; existingTitle: string | null; existingCity: string | null } | null>(null);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [checkinDate, setCheckinDate] = useState<string>("");
@@ -181,9 +182,16 @@ export function DropLinkModal({
         }),
       });
 
+      const data = await res.json().catch(() => ({}));
+
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        console.error("Save failed:", res.status, body);
+        console.error("Save failed:", res.status, data);
+        setSaving(false);
+        return;
+      }
+
+      if (data.duplicate) {
+        setDuplicateResult({ existingId: data.existingId, existingTitle: data.existingTitle ?? null, existingCity: data.existingCity ?? null });
         setSaving(false);
         return;
       }
@@ -287,6 +295,7 @@ export function DropLinkModal({
               onChange={(e) => {
                 setUrl(e.target.value);
                 setUrlError("");
+                setDuplicateResult(null);
                 if (!e.target.value.trim()) {
                   setExtracted(null);
                   setIsExtracting(false);
@@ -308,6 +317,31 @@ export function DropLinkModal({
             />
             {urlError && (
               <p style={{ fontSize: "13px", color: "#e53e3e" }}>{urlError}</p>
+            )}
+            {duplicateResult && (
+              <p style={{ fontSize: "13px", color: "#92400e", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: "6px", padding: "10px 14px", marginTop: "8px" }}>
+                You already saved{duplicateResult.existingCity ? ` this in ${duplicateResult.existingCity}` : " this"}.{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const existingId = duplicateResult.existingId;
+                    animateClose(() => {
+                      setTimeout(() => {
+                        const el = document.getElementById(`save-${existingId}`);
+                        if (el) {
+                          el.scrollIntoView({ behavior: "smooth", block: "center" });
+                          (el as HTMLElement).style.outline = "2px solid #C4664A";
+                          setTimeout(() => { (el as HTMLElement).style.outline = ""; }, 2000);
+                        }
+                      }, 250);
+                    });
+                    setDuplicateResult(null);
+                  }}
+                  style={{ fontWeight: 700, textDecoration: "underline", background: "none", border: "none", cursor: "pointer", color: "#92400e", padding: 0, fontFamily: "inherit", fontSize: "inherit" }}
+                >
+                  View it
+                </button>
+              </p>
             )}
           </div>
 

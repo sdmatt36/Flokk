@@ -124,7 +124,7 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
   };
 
   return (
-    <div onClick={() => onCardClick(save.id)} style={{ cursor: "pointer" }}>
+    <div id={`save-${save.id}`} onClick={() => onCardClick(save.id)} style={{ cursor: "pointer" }}>
     <div
       className="group"
       style={{

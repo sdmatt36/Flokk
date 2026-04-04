@@ -10,6 +10,8 @@ export function SaveLinkInput() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [duplicateId, setDuplicateId] = useState<string | null>(null);
+  const [duplicateCity, setDuplicateCity] = useState<string | null>(null);
 
   const handleSave = async () => {
     const trimmed = url.trim();
@@ -18,6 +20,8 @@ export function SaveLinkInput() {
     setSaving(true);
     setError(null);
     setSuccess(false);
+    setDuplicateId(null);
+    setDuplicateCity(null);
 
     try {
       const res = await fetch("/api/saves", {
@@ -30,6 +34,12 @@ export function SaveLinkInput() {
 
       if (!res.ok) {
         setError(data.error ?? "Something went wrong");
+        return;
+      }
+
+      if (data.duplicate) {
+        setDuplicateId(data.existingId ?? null);
+        setDuplicateCity(data.existingCity ?? null);
         return;
       }
 
@@ -59,7 +69,7 @@ export function SaveLinkInput() {
           <input
             type="url"
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            onChange={(e) => { setUrl(e.target.value); setDuplicateId(null); setDuplicateCity(null); }}
             onKeyDown={handleKeyDown}
             placeholder="Paste a link from Instagram, TikTok, Maps..."
             disabled={saving}
@@ -102,6 +112,26 @@ export function SaveLinkInput() {
       {error && <p style={{ fontSize: "13px", color: "#C4664A" }}>{error}</p>}
       {success && (
         <p style={{ fontSize: "13px", color: "#6B8F71", fontWeight: 500 }}>Saved successfully.</p>
+      )}
+      {duplicateId && (
+        <p style={{ fontSize: "13px", color: "#92400e", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: "6px", padding: "10px 14px" }}>
+          You already saved{duplicateCity ? ` this in ${duplicateCity}` : " this"}.{" "}
+          <button
+            type="button"
+            onClick={() => {
+              const el = document.getElementById(`save-${duplicateId}`);
+              if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                (el as HTMLElement).style.outline = "2px solid #C4664A";
+                setTimeout(() => { (el as HTMLElement).style.outline = ""; }, 2000);
+              }
+              setDuplicateId(null);
+            }}
+            style={{ fontWeight: 700, textDecoration: "underline", background: "none", border: "none", cursor: "pointer", color: "#92400e", padding: 0, fontFamily: "inherit", fontSize: "inherit" }}
+          >
+            View it
+          </button>
+        </p>
       )}
 
       <p style={{ fontSize: "12px", color: "#717171" }}>
