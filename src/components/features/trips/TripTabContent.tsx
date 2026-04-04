@@ -5858,7 +5858,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
             { key: "contactEmail", label: "Email" },
           );
         }
-        const isActivityType = String(doc.content.type ?? "") === "activity";
+        const isActivityType = String(doc.content.type ?? "").toLowerCase() === "activity";
         const labelStyle = { fontSize: "11px", fontWeight: 700 as const, color: "#717171", textTransform: "uppercase" as const, letterSpacing: "0.07em", marginBottom: "5px", display: "block" };
         const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", backgroundColor: "#fff", outline: "none", boxSizing: "border-box" as const };
         return createPortal(
