@@ -4792,7 +4792,7 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onC
       fetch(`/api/trips/${tripId}/itinerary-items`).then(r => r.ok ? r.json() : []),
       fetch(`/api/trips/${tripId}/ratings`).then(r => r.ok ? r.json() : { ratings: [] }),
     ]).then(([itinData, ratingData]) => {
-      const itinItems: { id: string; title?: string | null; type?: string }[] = Array.isArray(itinData) ? itinData : [];
+      const itinItems: { id: string; title?: string | null; type?: string }[] = Array.isArray(itinData) ? itinData : (itinData.items ?? []);
       const savedRatingIds = new Set<string>((ratingData.ratings ?? []).map((r: { itineraryItemId?: string }) => r.itineraryItemId).filter(Boolean));
       const filtered = itinItems
         .filter(it => it.type === "LODGING" || it.type === "ACTIVITY")
@@ -4977,6 +4977,14 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [tab, setTab] = useState<Tab>(initialTab);
   const [postTripCaptureStarted, setPostTripCaptureStarted] = useState(initialPostTripCaptureStarted);
   const [postTripCaptureComplete, setPostTripCaptureComplete] = useState(initialPostTripCaptureComplete);
+  const [showPostTripModal, setShowPostTripModal] = useState(false);
+  useEffect(() => {
+    if (tripStatus === "COMPLETED" && !initialPostTripCaptureStarted) {
+      const t = setTimeout(() => setShowPostTripModal(true), 1000);
+      return () => clearTimeout(t);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [itineraryVersion, setItineraryVersion] = useState(0);
   const [dropLinkOpen, setDropLinkOpen] = useState(false);
@@ -5414,24 +5422,6 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
 
       {tab === "saved" && (
         <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} />
-      )}
-      {tab === "itinerary" && tripStatus === "COMPLETED" && !postTripCaptureStarted && (
-        <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: "8px", padding: "14px 16px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <p style={{ fontSize: "14px", color: "#92400e", margin: 0 }}>
-            How was {destinationCity ?? "the trip"}? Share what you experienced — it helps other families plan.
-          </p>
-          <button
-            onClick={async () => {
-              if (!tripId) return;
-              await fetch(`/api/trips/${tripId}/post-trip-status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postTripCaptureStarted: true }) });
-              setPostTripCaptureStarted(true);
-              setTab("howwasit");
-            }}
-            style={{ marginLeft: "16px", whiteSpace: "nowrap", fontSize: "13px", fontWeight: 700, color: "#C4664A", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
-          >
-            Start
-          </button>
-        </div>
       )}
       {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} />}
       {tab === "packing" && <PackingContent tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} tripStartDate={tripStartDate} tripEndDate={tripEndDate} />}
@@ -6101,6 +6091,47 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           </div>
         );
       })()}
+
+      {/* ── Post-trip capture modal ── */}
+      {showPostTripModal && createPortal(
+        <div
+          onClick={() => setShowPostTripModal(false)}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: "#fff", borderRadius: "16px", boxShadow: "0 20px 60px rgba(0,0,0,0.2)", width: "100%", maxWidth: "440px", padding: "32px" }}
+          >
+            <p style={{ fontSize: "22px", fontWeight: 700, color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "12px", lineHeight: 1.3 }}>
+              Welcome back{destinationCity ? ` from ${destinationCity}` : ""}
+            </p>
+            <p style={{ fontSize: "14px", color: "#717171", marginBottom: "28px", lineHeight: 1.6 }}>
+              How did it go? Rate what you experienced — it takes 2 minutes and helps other families plan.
+            </p>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button
+                onClick={async () => {
+                  if (!tripId) return;
+                  await fetch(`/api/trips/${tripId}/post-trip-status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postTripCaptureStarted: true }) });
+                  setPostTripCaptureStarted(true);
+                  setShowPostTripModal(false);
+                  setTab("howwasit");
+                }}
+                style={{ flex: 1, padding: "13px", backgroundColor: "#C4664A", color: "#fff", border: "none", borderRadius: "10px", fontSize: "14px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Share how it went
+              </button>
+              <button
+                onClick={() => setShowPostTripModal(false)}
+                style={{ padding: "13px 20px", backgroundColor: "transparent", color: "#717171", border: "none", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Maybe later
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* ── Generic Vault Booking Edit Modal ── */}
       {editingVaultDoc && tripId && (() => {
