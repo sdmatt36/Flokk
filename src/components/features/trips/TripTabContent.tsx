@@ -3341,6 +3341,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       type="text"
                       value={editActivityTitle}
                       onChange={e => setEditActivityTitle(e.target.value)}
+                      onClick={e => e.stopPropagation()}
                       style={{ ...titleStyle, display: "block", width: "100%", border: "none", borderBottom: "2px solid #C4664A", paddingBottom: "8px", outline: "none", background: "transparent", fontFamily: "'Playfair Display', Georgia, serif", boxSizing: "border-box", cursor: "text" }}
                       placeholder="Activity name..."
                     />
