@@ -4767,6 +4767,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [editingFlightVaultDocId, setEditingFlightVaultDocId] = useState<string | null>(null);
   const [editingVaultDoc, setEditingVaultDoc] = useState<{ id: string; label: string; content: Record<string, unknown> } | null>(null);
   const [vaultDocSaving, setVaultDocSaving] = useState(false);
+  const [editActivityName, setEditActivityName] = useState<string | null>(null);
   const [vaultActivityItem, setVaultActivityItem] = useState<ItineraryItemLocal | null>(null);
   const [isAnonymous, setIsAnonymous] = useState<boolean>(initialIsAnonymous);
   const [anonymousSaved, setAnonymousSaved] = useState(false);
@@ -5361,6 +5362,11 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                       // Generic vault doc edit
                       const parsed = (() => { try { return JSON.parse(d.content ?? "{}"); } catch { return {}; } })();
                       setEditingVaultDoc({ id: d.id, label: d.label, content: parsed as Record<string, unknown> });
+                      if ((booking.type as string) === "activity") {
+                        setEditActivityName((booking.activityName as string | null) || d.label || "");
+                      } else {
+                        setEditActivityName(null);
+                      }
                     }
                   }
 
@@ -5852,6 +5858,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
             { key: "contactEmail", label: "Email" },
           );
         }
+        const isActivityType = String(doc.content.type ?? "") === "activity";
         const labelStyle = { fontSize: "11px", fontWeight: 700 as const, color: "#717171", textTransform: "uppercase" as const, letterSpacing: "0.07em", marginBottom: "5px", display: "block" };
         const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", backgroundColor: "#fff", outline: "none", boxSizing: "border-box" as const };
         return createPortal(
@@ -5861,6 +5868,18 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                 <p style={{ fontSize: "17px", fontWeight: 800, color: "#1a1a1a" }}>Edit Booking</p>
                 <button onClick={() => setEditingVaultDoc(null)} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#999", padding: "4px", lineHeight: 1 }}>×</button>
               </div>
+              {isActivityType && (
+                <div style={{ marginBottom: "14px" }}>
+                  <label style={labelStyle}>Activity Name</label>
+                  <input
+                    type="text"
+                    value={editActivityName ?? ""}
+                    onChange={e => setEditActivityName(e.target.value)}
+                    style={inputStyle}
+                    placeholder="Activity name"
+                  />
+                </div>
+              )}
               {fields.map(f => (
                 <div key={f.key} style={{ marginBottom: "14px" }}>
                   <label style={labelStyle}>{f.label}</label>
@@ -5878,13 +5897,35 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                 onClick={async () => {
                   setVaultDocSaving(true);
                   try {
-                    const updatedContent = JSON.stringify(doc.content);
+                    const contentWithActivity = isActivityType && editActivityName
+                      ? { ...doc.content, activityName: editActivityName }
+                      : doc.content;
+                    const updatedContent = JSON.stringify(contentWithActivity);
+                    const patchBody: Record<string, unknown> = { content: updatedContent };
+                    if (isActivityType && editActivityName) patchBody.label = editActivityName;
                     await fetch(`/api/trips/${tripId}/vault/documents/${doc.id}`, {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ content: updatedContent }),
+                      body: JSON.stringify(patchBody),
                     });
-                    setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, content: updatedContent } : d));
+                    // Update vault documents state
+                    const newLabel = (isActivityType && editActivityName) ? editActivityName : doc.label;
+                    setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, label: newLabel, content: updatedContent } : d));
+                    // If activity type, also update the linked itinerary item title
+                    if (isActivityType && editActivityName && tripId) {
+                      const confCode = doc.content.confirmationCode as string | null;
+                      const linkedItem = localItineraryItems.find(it =>
+                        confCode ? it.confirmationCode === confCode : false
+                      );
+                      if (linkedItem) {
+                        await fetch(`/api/trips/${tripId}/itinerary/${linkedItem.id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ title: editActivityName }),
+                        });
+                        setLocalItineraryItems(prev => prev.map(it => it.id === linkedItem.id ? { ...it, title: editActivityName } : it));
+                      }
+                    }
                     setEditingVaultDoc(null);
                   } finally {
                     setVaultDocSaving(false);
