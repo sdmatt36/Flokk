@@ -85,7 +85,7 @@ import { getTripCoverImage, getItemImage } from "@/lib/destination-images";
 import { BookingIntelCard } from "@/components/features/trips/BookingIntelCard";
 import { ShareTripButton } from "@/components/features/trips/ShareTripButton";
 
-type Tab = "saved" | "itinerary" | "recommended" | "packing" | "notes" | "vault";
+type Tab = "saved" | "itinerary" | "recommended" | "packing" | "notes" | "vault" | "howwasit";
 
 type Flight = {
   id: string;
@@ -4743,6 +4743,227 @@ function ActivityCard({ activity, onDelete, onEdit, onMarkBooked, onAddToItinera
   );
 }
 
+// ── How Was It? post-trip capture ─────────────────────────────────────────────
+
+function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <div style={{ display: "flex", gap: "4px", marginBottom: "8px" }}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <span
+          key={star}
+          onClick={() => onChange(star)}
+          style={{ fontSize: "24px", cursor: "pointer", color: star <= value ? "#C4664A" : "#e5e7eb", lineHeight: 1 }}
+        >
+          ★
+        </span>
+      ))}
+    </div>
+  );
+}
+
+type HowWasItItem = {
+  id: string;
+  title: string;
+  type: string;
+  rating: number;
+  notes: string;
+  wouldReturn: boolean | null;
+  alreadySaved: boolean;
+};
+
+function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onComplete }: {
+  tripId: string;
+  destinationCity?: string | null;
+  postTripCaptureComplete: boolean;
+  onComplete: () => void;
+}) {
+  const [items, setItems] = useState<HowWasItItem[]>([]);
+  const [done, setDone] = useState(postTripCaptureComplete);
+  const [submitting, setSubmitting] = useState(false);
+  const [spurName, setSpurName] = useState("");
+  const [spurType, setSpurType] = useState("Activity");
+  const [spurTip, setSpurTip] = useState("");
+  const [spurSaving, setSpurSaving] = useState(false);
+  const [spurSaved, setSpurSaved] = useState(false);
+
+  useEffect(() => {
+    // Fetch ItineraryItems (LODGING + ACTIVITY only) and already-saved ratings
+    Promise.all([
+      fetch(`/api/trips/${tripId}/itinerary-items`).then(r => r.ok ? r.json() : []),
+      fetch(`/api/trips/${tripId}/ratings`).then(r => r.ok ? r.json() : { ratings: [] }),
+    ]).then(([itinData, ratingData]) => {
+      const itinItems: { id: string; title?: string | null; type?: string }[] = Array.isArray(itinData) ? itinData : [];
+      const savedRatingIds = new Set<string>((ratingData.ratings ?? []).map((r: { itineraryItemId?: string }) => r.itineraryItemId).filter(Boolean));
+      const filtered = itinItems
+        .filter(it => it.type === "LODGING" || it.type === "ACTIVITY")
+        .map(it => ({
+          id: it.id,
+          title: it.title ?? "Untitled",
+          type: it.type ?? "",
+          rating: 0,
+          notes: "",
+          wouldReturn: null,
+          alreadySaved: savedRatingIds.has(it.id),
+        }));
+      setItems(filtered);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tripId]);
+
+  async function handleSubmitAll() {
+    setSubmitting(true);
+    const toSubmit = items.filter(it => it.rating > 0 && !it.alreadySaved);
+    await Promise.all(toSubmit.map(it =>
+      fetch(`/api/trips/${tripId}/ratings`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itineraryItemId: it.id,
+          placeName: it.title,
+          placeType: it.type.toLowerCase(),
+          rating: it.rating,
+          notes: it.notes || undefined,
+          wouldReturn: it.wouldReturn ?? undefined,
+        }),
+      })
+    ));
+    await fetch(`/api/trips/${tripId}/post-trip-status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postTripCaptureComplete: true }),
+    });
+    setDone(true);
+    onComplete();
+    setSubmitting(false);
+  }
+
+  async function handleAddSpur() {
+    if (!spurName.trim()) return;
+    setSpurSaving(true);
+    await fetch("/api/saves", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: `https://example.com/spur?name=${encodeURIComponent(spurName)}`, tripId, title: spurName.trim(), tags: [spurType.toLowerCase()] }),
+    });
+    setSpurName("");
+    setSpurType("Activity");
+    setSpurTip("");
+    setSpurSaved(true);
+    setSpurSaving(false);
+    setTimeout(() => setSpurSaved(false), 3000);
+  }
+
+  if (done) {
+    return (
+      <div style={{ maxWidth: "560px", padding: "32px 0", textAlign: "center" }}>
+        <p style={{ fontSize: "20px", fontWeight: 700, color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "8px" }}>Your ratings are in.</p>
+        <p style={{ fontSize: "14px", color: "#717171" }}>Thank you — other families will thank you too.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ maxWidth: "560px" }}>
+
+      {/* Section 1 — Rate bookings */}
+      <p style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>
+        How did it go{destinationCity ? ` in ${destinationCity}` : ""}?
+      </p>
+      <p style={{ fontSize: "13px", color: "#717171", marginBottom: "20px" }}>Rate what you experienced — it helps other families plan.</p>
+
+      {items.length === 0 && (
+        <p style={{ fontSize: "13px", color: "#bbb", marginBottom: "24px" }}>No rated activities or hotels found for this trip.</p>
+      )}
+
+      {items.map(item => (
+        <div key={item.id} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "16px", marginBottom: "12px" }}>
+          <p style={{ fontSize: "13px", fontWeight: 700, color: "#999", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "4px" }}>
+            {item.type === "LODGING" ? "Hotel" : "Activity"}
+          </p>
+          <p style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "12px" }}>
+            {item.title}
+          </p>
+          {item.alreadySaved ? (
+            <p style={{ fontSize: "12px", color: "#6B8F71", fontWeight: 600 }}>Rated</p>
+          ) : (
+            <>
+              <StarRating value={item.rating} onChange={v => setItems(prev => prev.map(i => i.id === item.id ? { ...i, rating: v } : i))} />
+              <textarea
+                value={item.notes}
+                onChange={e => setItems(prev => prev.map(i => i.id === item.id ? { ...i, notes: e.target.value } : i))}
+                placeholder="Anything families should know?"
+                style={{ width: "100%", fontSize: "13px", color: "#374151", border: "none", borderBottom: "1px solid #e5e7eb", background: "transparent", resize: "none", outline: "none", padding: "8px 0", marginTop: "8px", fontFamily: "inherit", boxSizing: "border-box" }}
+                rows={2}
+              />
+              <div style={{ marginTop: "10px", display: "flex", gap: "8px" }}>
+                {([true, false] as const).map(val => {
+                  const selected = item.wouldReturn === val;
+                  return (
+                    <button
+                      key={String(val)}
+                      onClick={() => setItems(prev => prev.map(i => i.id === item.id ? { ...i, wouldReturn: selected ? null : val } : i))}
+                      style={{ fontSize: "13px", fontWeight: 600, padding: "4px 12px", borderRadius: "4px", border: "1px solid", cursor: "pointer", fontFamily: "inherit", backgroundColor: selected ? (val ? "#C4664A" : "#1B3A5C") : "#fff", color: selected ? "#fff" : "#374151", borderColor: selected ? (val ? "#C4664A" : "#1B3A5C") : "#e5e7eb" }}
+                    >
+                      {val ? "Yes" : "No"}
+                    </button>
+                  );
+                })}
+                <span style={{ fontSize: "12px", color: "#bbb", alignSelf: "center", marginLeft: "4px" }}>Would you go back?</span>
+              </div>
+            </>
+          )}
+        </div>
+      ))}
+
+      {/* Section 2 — Spur-of-moment */}
+      <p style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", marginTop: "8px", marginBottom: "12px" }}>Anything not in your itinerary?</p>
+      <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "16px", marginBottom: "24px" }}>
+        <input
+          type="text"
+          value={spurName}
+          onChange={e => setSpurName(e.target.value)}
+          placeholder="Restaurant, spot, experience..."
+          style={{ width: "100%", padding: "10px 12px", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "14px", color: "#1a1a1a", outline: "none", boxSizing: "border-box", marginBottom: "8px", fontFamily: "inherit" }}
+        />
+        <select
+          value={spurType}
+          onChange={e => setSpurType(e.target.value)}
+          style={{ width: "100%", padding: "10px 12px", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "14px", color: "#1a1a1a", outline: "none", boxSizing: "border-box", marginBottom: "8px", fontFamily: "inherit", backgroundColor: "#fff" }}
+        >
+          {["Restaurant", "Hotel", "Activity", "Attraction", "Other"].map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+        <input
+          type="text"
+          value={spurTip}
+          onChange={e => setSpurTip(e.target.value)}
+          placeholder="Quick tip for other families... (optional)"
+          style={{ width: "100%", padding: "10px 12px", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "14px", color: "#1a1a1a", outline: "none", boxSizing: "border-box", marginBottom: "12px", fontFamily: "inherit" }}
+        />
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <button
+            onClick={handleAddSpur}
+            disabled={spurSaving || !spurName.trim()}
+            style={{ padding: "10px 20px", backgroundColor: spurName.trim() ? "#C4664A" : "#e5e7eb", color: spurName.trim() ? "#fff" : "#aaa", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, cursor: spurName.trim() ? "pointer" : "default", fontFamily: "inherit" }}
+          >
+            {spurSaving ? "Adding..." : "Add it"}
+          </button>
+          {spurSaved && <span style={{ fontSize: "13px", color: "#6B8F71", fontWeight: 600 }}>Added!</span>}
+        </div>
+      </div>
+
+      {/* Section 3 — All done */}
+      <button
+        onClick={handleSubmitAll}
+        disabled={submitting}
+        style={{ width: "100%", padding: "14px", backgroundColor: submitting ? "#999" : "#1B3A5C", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: 700, cursor: submitting ? "default" : "pointer", fontFamily: "inherit" }}
+      >
+        {submitting ? "Saving..." : "All done — share my ratings"}
+      </button>
+
+    </div>
+  );
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 type SavedRec = {
@@ -4752,8 +4973,10 @@ type SavedRec = {
   tags: string;
 };
 
-export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true, shareToken }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean; shareToken?: string }) {
+export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true, shareToken, tripStatus, initialPostTripCaptureStarted = false, initialPostTripCaptureComplete = false }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean; shareToken?: string; tripStatus?: string; initialPostTripCaptureStarted?: boolean; initialPostTripCaptureComplete?: boolean }) {
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [postTripCaptureStarted, setPostTripCaptureStarted] = useState(initialPostTripCaptureStarted);
+  const [postTripCaptureComplete, setPostTripCaptureComplete] = useState(initialPostTripCaptureComplete);
   const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number } | null>(null);
   const [itineraryVersion, setItineraryVersion] = useState(0);
   const [dropLinkOpen, setDropLinkOpen] = useState(false);
@@ -5007,6 +5230,29 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               </button>
             );
           })}
+          {tripStatus === "COMPLETED" && (
+            <button
+              onClick={() => setTab("howwasit")}
+              style={{
+                flexShrink: 0,
+                paddingTop: "10px",
+                paddingBottom: "12px",
+                paddingLeft: "16px",
+                paddingRight: "16px",
+                fontSize: "14px",
+                fontWeight: tab === "howwasit" ? 700 : 500,
+                color: tab === "howwasit" ? "#C4664A" : "#717171",
+                backgroundColor: "transparent",
+                border: "none",
+                borderBottom: tab === "howwasit" ? "2.5px solid #C4664A" : "2.5px solid transparent",
+                marginBottom: "-1px",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              How was it?{!postTripCaptureComplete && <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#D97706", display: "inline-block", marginLeft: "6px", verticalAlign: "middle" }} />}
+            </button>
+          )}
         </div>
         {tripId && (
           <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "12px", flexShrink: 0 }}>
@@ -5168,6 +5414,24 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
 
       {tab === "saved" && (
         <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} />
+      )}
+      {tab === "itinerary" && tripStatus === "COMPLETED" && !postTripCaptureStarted && (
+        <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: "8px", padding: "14px 16px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <p style={{ fontSize: "14px", color: "#92400e", margin: 0 }}>
+            How was {destinationCity ?? "the trip"}? Share what you experienced — it helps other families plan.
+          </p>
+          <button
+            onClick={async () => {
+              if (!tripId) return;
+              await fetch(`/api/trips/${tripId}/post-trip-status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postTripCaptureStarted: true }) });
+              setPostTripCaptureStarted(true);
+              setTab("howwasit");
+            }}
+            style={{ marginLeft: "16px", whiteSpace: "nowrap", fontSize: "13px", fontWeight: 700, color: "#C4664A", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+          >
+            Start
+          </button>
+        </div>
       )}
       {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} />}
       {tab === "packing" && <PackingContent tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} tripStartDate={tripStartDate} tripEndDate={tripEndDate} />}
@@ -5715,6 +5979,15 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           </div>
 
         </div>
+      )}
+
+      {tab === "howwasit" && tripId && (
+        <HowWasItContent
+          tripId={tripId}
+          destinationCity={destinationCity}
+          postTripCaptureComplete={postTripCaptureComplete}
+          onComplete={() => setPostTripCaptureComplete(true)}
+        />
       )}
 
       {tab === "recommended" && (

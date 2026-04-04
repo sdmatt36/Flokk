@@ -70,6 +70,7 @@ model FamilyProfile {
   tier             CommunityTier       @default(EXPLORER)
   senderEmails     String[]            @default([])
   senderEmailVerifications SenderEmailVerification[]
+  placeRatings     PlaceRating[]
 }
 
 model SenderEmailVerification {
@@ -238,8 +239,11 @@ model Trip {
   budgetTotal           Float?
   budgetSpent           Float?
   budgetCurrency        String?           @default("USD")
-  isAnonymous           Boolean           @default(true)
-  shareToken            String?           @unique
+  isAnonymous               Boolean           @default(true)
+  shareToken                String?           @unique
+  postTripCaptureStarted    Boolean           @default(false)
+  postTripCaptureComplete   Boolean           @default(false)
+  placeRatings              PlaceRating[]
 }
 
 enum TripStatus {
@@ -801,4 +805,23 @@ model PackingItem {
   sortOrder  Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model PlaceRating {
+  id              String        @id @default(cuid())
+  familyProfileId String
+  tripId          String
+  itineraryItemId String?
+  placeName       String
+  placeType       String
+  destinationCity String?
+  lat             Float?
+  lng             Float?
+  rating          Int
+  notes           String?
+  wouldReturn     Boolean?
+  kidsRating      Int?
+  createdAt       DateTime      @default(now())
+  familyProfile   FamilyProfile @relation(fields: [familyProfileId], references: [id])
+  trip            Trip          @relation(fields: [tripId], references: [id])
 }
