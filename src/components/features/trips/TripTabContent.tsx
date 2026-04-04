@@ -5911,20 +5911,27 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                     // Update vault documents state
                     const newLabel = (isActivityType && editActivityName) ? editActivityName : doc.label;
                     setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, label: newLabel, content: updatedContent } : d));
-                    // If activity type, also update the linked itinerary item title
+                    // If activity type, also update the linked itinerary item title via API
+                    // localItineraryItems is in ItineraryContent scope — use confirmationCode to find and PATCH
                     if (isActivityType && editActivityName && tripId) {
                       const confCode = doc.content.confirmationCode as string | null;
-                      const linkedItem = localItineraryItems.find(it =>
-                        confCode ? it.confirmationCode === confCode : false
-                      );
-                      if (linkedItem) {
-                        await fetch(`/api/trips/${tripId}/itinerary/${linkedItem.id}`, {
-                          method: "PATCH",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ title: editActivityName }),
-                        });
-                        setLocalItineraryItems(prev => prev.map(it => it.id === linkedItem.id ? { ...it, title: editActivityName } : it));
+                      if (confCode) {
+                        // Fetch itinerary items to find the linked item by confirmationCode
+                        const itinRes = await fetch(`/api/trips/${tripId}/itinerary`);
+                        if (itinRes.ok) {
+                          const itinData = (await itinRes.json()) as { id: string; confirmationCode?: string | null }[];
+                          const linkedItem = itinData.find(it => it.confirmationCode === confCode);
+                          if (linkedItem) {
+                            await fetch(`/api/trips/${tripId}/itinerary/${linkedItem.id}`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ title: editActivityName }),
+                            });
+                          }
+                        }
                       }
+                      // Force ItineraryContent to refetch by bumping itineraryVersion
+                      setItineraryVersion(v => v + 1);
                     }
                     setEditingVaultDoc(null);
                   } finally {
