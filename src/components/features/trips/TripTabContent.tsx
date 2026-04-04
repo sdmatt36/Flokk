@@ -3337,14 +3337,16 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                   : null;
                 return (
                   <div>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#999999", textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: "6px" }}>Activity name</span>
                     <input
                       type="text"
                       value={editActivityTitle}
                       onChange={e => setEditActivityTitle(e.target.value)}
                       onClick={e => e.stopPropagation()}
-                      style={{ ...titleStyle, display: "block", width: "100%", border: "none", borderBottom: "2px solid #C4664A", paddingBottom: "8px", outline: "none", background: "transparent", fontFamily: "'Playfair Display', Georgia, serif", boxSizing: "border-box", cursor: "text" }}
+                      style={{ ...titleStyle, display: "block", width: "100%", border: "none", borderBottom: "2px solid #C4664A", padding: "8px 10px", paddingBottom: "8px", outline: "none", background: "#F9F9F9", fontFamily: "'Playfair Display', Georgia, serif", boxSizing: "border-box", cursor: "text" }}
                       placeholder="Activity name..."
                     />
+                    <span style={{ fontSize: "11px", color: "#BBBBBB", display: "block", marginTop: "4px", marginBottom: "16px" }}>Tap above to edit</span>
                     <div style={gridStyle}>
                       {sit.scheduledDate && <><span style={lblStyle}>Date</span><span style={rowStyle}>{fmtDateModal(sit.scheduledDate)}</span></>}
                       {sit.departureTime && <><span style={lblStyle}>Time</span><span style={rowStyle}>{sit.departureTime}</span></>}
