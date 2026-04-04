@@ -5457,7 +5457,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                       <button onClick={e => { e.stopPropagation(); handleVaultEdit(); }} style={{ position: "absolute", top: "12px", right: "36px", background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px" }} title="Edit">
                         <Pencil size={14} />
                       </button>
-                      <button onClick={async (e) => { e.stopPropagation(); await fetch(`/api/trips/${tripId}/vault/documents/${d.id}`, { method: "DELETE" }); setDocuments(p => p.filter(x => x.id !== d.id)); }} style={{ position: "absolute", top: "12px", right: "12px", background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px" }} title="Delete">
+                      <button onClick={async (e) => { e.stopPropagation(); if (!window.confirm("Remove this booking? This cannot be undone.")) return; const res = await fetch(`/api/trips/${tripId}/vault/documents/${d.id}`, { method: "DELETE" }); if (res.ok) { setDocuments(p => p.filter(x => x.id !== d.id)); setItineraryVersion(v => v + 1); } }} style={{ position: "absolute", top: "12px", right: "12px", background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px" }} title="Delete">
                         <Trash2 size={14} />
                       </button>
                     </div>
