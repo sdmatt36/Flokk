@@ -9,6 +9,25 @@ import { getVenueImage } from "@/lib/destination-images";
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
 
+async function fetchWithScrapingBee(url: string): Promise<string | null> {
+  const apiKey = process.env.SCRAPINGBEE_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const sbUrl = `https://app.scrapingbee.com/api/v1/?api_key=${apiKey}&url=${encodeURIComponent(url)}&render_js=false&premium_proxy=false`;
+    const res = await fetch(sbUrl, { signal: AbortSignal.timeout(15000) });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  }
+}
+
+function extractOgImageFromHtml(html: string): string | null {
+  const match = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+    || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+  return match?.[1] ?? null;
+}
+
 const PLACE_TYPE_MAP: Record<string, string> = {
   restaurant: "food",
   cafe: "food",
@@ -252,6 +271,7 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
       sourceUrl: true,
       sourceType: true,
       lat: true,
+      mediaThumbnailUrl: true,
     },
   });
 
@@ -325,6 +345,23 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
       place = { photoUrl: curatedPhoto };
     } else {
       place = await getPlaceDetails(workingTitle, coords?.lat ?? null, coords?.lng ?? null);
+    }
+  }
+
+  // Step 3b: ScrapingBee fallback for Airbnb and Instagram when no photo found
+  // Note: Instagram og:image URLs (cdninstagram.com) are blocked by sanitizeThumbnailUrl()
+  // at display time — ScrapingBee is most useful for Airbnb where the CDN is not blocked.
+  if (!place.photoUrl && !item.mediaThumbnailUrl &&
+      (item.sourceUrl?.includes("airbnb.com") || item.sourceUrl?.includes("instagram.com")) &&
+      process.env.SCRAPINGBEE_API_KEY) {
+    console.log("[enrich-save] Trying ScrapingBee for:", item.sourceUrl);
+    const html = await fetchWithScrapingBee(item.sourceUrl!);
+    if (html) {
+      const sbImage = extractOgImageFromHtml(html);
+      if (sbImage) {
+        place.photoUrl = sbImage;
+        console.log("[enrich-save] ScrapingBee image extracted successfully");
+      }
     }
   }
 

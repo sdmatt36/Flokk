@@ -210,6 +210,26 @@ export async function POST(req: NextRequest) {
 
     console.log("[email-inbound] from:", from, "| to:", to, "| subject:", subject);
 
+    // ── GYG pre-extraction — pull activity name from subject before Claude runs ─
+    const isGetYourGuide = from.toLowerCase().includes("getyourguide.com") || subject.toLowerCase().includes("getyourguide");
+    let gygActivityHint: string | null = null;
+    if (isGetYourGuide) {
+      const patterns = [
+        /booking for\s+(?:[^:]+:\s+)?(.+?)(?:\s+is confirmed|\s*[-|]|\s*\(ref|$)/i,
+        /booking confirmation:\s+(.+?)(?:\s*\(ref|$)/i,
+        /getyourguide booking:\s+(.+?)(?:\s*\(ref|$)/i,
+        /confirmed:\s+(.+?)(?:\s*\(ref|$)/i,
+      ];
+      for (const p of patterns) {
+        const m = subject.match(p);
+        if (m?.[1]?.trim() && !m[1].toLowerCase().includes("getyourguide")) {
+          gygActivityHint = m[1].trim();
+          console.log("[email-inbound] GYG activity name extracted from subject:", gygActivityHint);
+          break;
+        }
+      }
+    }
+
     if (!from || !subject) {
       console.warn("[email-inbound] missing from or subject — dropping");
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -262,7 +282,7 @@ export async function POST(req: NextRequest) {
       max_tokens: 1000,
       messages: [{
         role: "user",
-        content: `Extract booking information from this confirmation email. Return ONLY valid JSON with no markdown.
+        content: `${isGetYourGuide && gygActivityHint ? `CRITICAL: This is a GetYourGuide booking. The activity name is "${gygActivityHint}". Use this exact string as the activityName field. Do NOT use "GetYourGuide" as the activityName or title. Put "GetYourGuide" in the vendorName field only.\n\n` : ""}Extract booking information from this confirmation email. Return ONLY valid JSON with no markdown.
 
 Email subject: ${subject}
 Email content: ${emailContent}
@@ -271,6 +291,7 @@ Return this exact JSON structure:
 {
   "type": "hotel" | "flight" | "activity" | "restaurant" | "car_rental" | "train" | "unknown",
   "vendorName": "string or null",
+  "activityName": "string or null — for activity/tour bookings only: the specific tour or experience name, never the platform name (GetYourGuide, Viator, Klook)",
   "confirmationCode": "string or null",
   "checkIn": "YYYY-MM-DD or null",
   "checkOut": "YYYY-MM-DD or null",
@@ -701,7 +722,7 @@ Field notes:
       if (extracted.arrivalTime) routeParts.push(`arrives ${extracted.arrivalTime as string}`);
       const autoNotes = routeParts.length > 0 ? routeParts.join(" · ") : null;
 
-      const itemTitle = (extracted.vendorName as string | null) ?? subject;
+      const itemTitle = (extracted.activityName as string | null) ?? gygActivityHint ?? (extracted.vendorName as string | null) ?? subject;
       const itemTypeStr = (extracted.type as string | null) ?? "OTHER";
 
       const catchAllConf = (extracted.confirmationCode as string | null) ?? null;
@@ -735,6 +756,7 @@ Field notes:
             type: "booking",
             content: JSON.stringify({
               type: extracted.type, vendorName: extracted.vendorName,
+              activityName: extracted.activityName ?? null,
               fromCity: extracted.fromCity, toCity: extracted.toCity,
               departureDate: extracted.departureDate, departureTime: extracted.departureTime,
               arrivalDate: extracted.arrivalDate, arrivalTime: extracted.arrivalTime,
