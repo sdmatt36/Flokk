@@ -4892,7 +4892,7 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onC
     return (
       <div style={{ maxWidth: "560px", padding: "32px 0", textAlign: "center" }}>
         <p style={{ fontSize: "20px", fontWeight: 700, color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "8px" }}>Your ratings are in.</p>
-        <p style={{ fontSize: "14px", color: "#717171" }}>Other families planning {destinationCity ? `${destinationCity} ` : ""}will thank you.</p>
+        <p style={{ fontSize: "14px", color: "#717171" }}>Other Flokkers planning {destinationCity ? `${destinationCity} ` : ""}will thank you.</p>
       </div>
     );
   }
@@ -4904,7 +4904,7 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onC
       <p style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>
         How did it go{destinationCity ? ` in ${destinationCity}` : ""}?
       </p>
-      <p style={{ fontSize: "13px", color: "#717171", marginBottom: "20px" }}>Rate what you experienced — it helps other families plan.</p>
+      <p style={{ fontSize: "13px", color: "#717171", marginBottom: "20px" }}>Rate what you experienced — it helps other Flokkers plan.</p>
 
       {items.length === 0 && (
         <p style={{ fontSize: "13px", color: "#bbb", marginBottom: "24px" }}>No activities or hotels found for this trip.</p>
@@ -4935,7 +4935,7 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onC
                 <textarea
                   value={item.notes}
                   onChange={e => setItems(prev => prev.map(i => i.id === item.id ? { ...i, notes: e.target.value } : i))}
-                  placeholder="Anything families should know?"
+                  placeholder="Anything Flokkers should know?"
                   style={{ width: "100%", fontSize: "13px", color: "#374151", border: "none", borderBottom: "1px solid #e5e7eb", background: "transparent", resize: "none", outline: "none", padding: "8px 0", marginTop: "8px", fontFamily: "inherit", boxSizing: "border-box" }}
                   rows={2}
                 />
@@ -4981,7 +4981,7 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onC
           type="text"
           value={spurTip}
           onChange={e => setSpurTip(e.target.value)}
-          placeholder="Quick tip for other families... (optional)"
+          placeholder="Quick tip for other Flokkers... (optional)"
           style={{ width: "100%", padding: "10px 12px", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "14px", color: "#1a1a1a", outline: "none", boxSizing: "border-box", marginBottom: "12px", fontFamily: "inherit" }}
         />
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -5283,7 +5283,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               </button>
             );
           })}
-          {tripStatus === "COMPLETED" && (
+          {tripStatus === "COMPLETED" && !postTripCaptureComplete && (
             <button
               onClick={() => setTab("howwasit")}
               style={{
