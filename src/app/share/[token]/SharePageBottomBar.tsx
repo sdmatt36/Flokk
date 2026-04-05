@@ -2,22 +2,28 @@
 
 import { useState } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 
 export function SharePageBottomBar({
   tripId,
-  tripTitle,
+  isOwner,
 }: {
   tripId: string;
-  tripTitle: string;
+  isOwner: boolean;
 }) {
   const { isSignedIn, isLoaded } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [cloning, setCloning] = useState(false);
   const [cloned, setCloned] = useState(false);
+  const [error, setError] = useState(false);
+
+  // Redirect back to this share page after login/signup
+  const redirectUrl = encodeURIComponent(pathname ?? "");
 
   async function handleAddToTrips() {
     setCloning(true);
+    setError(false);
     try {
       const res = await fetch(`/api/trips/${tripId}/clone`, { method: "POST" });
       if (!res.ok) throw new Error("Failed");
@@ -27,11 +33,16 @@ export function SharePageBottomBar({
         router.push(`/trips/${data.tripId}`);
       }, 800);
     } catch {
+      setError(true);
       setCloning(false);
     }
   }
 
+  // Not loaded yet — render nothing to avoid layout flash
   if (!isLoaded) return null;
+
+  // Owner sees nothing — they already have this trip
+  if (isOwner) return null;
 
   return (
     <div
@@ -52,6 +63,7 @@ export function SharePageBottomBar({
       }}
     >
       {isSignedIn ? (
+        /* Logged-in non-owner: clone button */
         <>
           <button
             onClick={handleAddToTrips}
@@ -73,20 +85,23 @@ export function SharePageBottomBar({
           >
             {cloned ? "Added to your trips!" : cloning ? "Adding..." : "Add to my trips"}
           </button>
-          <p style={{ fontSize: "12px", color: "#AAAAAA" }}>
-            Saves a copy to your Flokk account
-          </p>
+          {error ? (
+            <p style={{ fontSize: "12px", color: "#C4664A" }}>Something went wrong. Please try again.</p>
+          ) : (
+            <p style={{ fontSize: "12px", color: "#AAAAAA" }}>Saves a copy to your Flokk account</p>
+          )}
         </>
       ) : (
+        /* Non-user: sign-up CTA with redirect back to this page */
         <>
           <p style={{ fontSize: "15px", fontWeight: 800, color: "#1a1a1a", textAlign: "center", marginBottom: "2px" }}>
-            Plan your own family trip with Flokk
+            Plan your own family trip with Flokk — free to join
           </p>
           <p style={{ fontSize: "12px", color: "#717171", textAlign: "center" }}>
             Save places from anywhere. Build your itinerary. Travel smarter.
           </p>
           <a
-            href="/sign-up"
+            href={`/sign-up?redirect_url=${redirectUrl}`}
             style={{
               width: "100%",
               maxWidth: "400px",
@@ -96,7 +111,6 @@ export function SharePageBottomBar({
               color: "#fff",
               fontWeight: 700,
               fontSize: "15px",
-              border: "none",
               textAlign: "center",
               textDecoration: "none",
               display: "block",
@@ -106,7 +120,10 @@ export function SharePageBottomBar({
           </a>
           <p style={{ fontSize: "12px", color: "#AAAAAA" }}>
             Already have an account?{" "}
-            <a href="/sign-in" style={{ color: "#C4664A", textDecoration: "none", fontWeight: 600 }}>
+            <a
+              href={`/sign-in?redirect_url=${redirectUrl}`}
+              style={{ color: "#C4664A", textDecoration: "none", fontWeight: 600 }}
+            >
               Sign in
             </a>
           </p>

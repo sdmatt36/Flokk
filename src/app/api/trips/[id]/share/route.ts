@@ -46,7 +46,7 @@ function buildShareEmailHtml({
     .filter(Boolean)
     .join(" · ");
 
-  const greeting = isAcquisition ? "Hi," : `Hi ${recipientName},`;
+  const greeting = isAcquisition ? "Hi there," : `Hi ${recipientName},`;
   const intro = isAcquisition
     ? `<strong>${sharerName}</strong> planned a family trip to <strong>${dest}</strong> and thought you'd want to see it.`
     : `<strong>${sharerName}</strong> thought you'd want to see their <strong>${tripTitle}</strong> itinerary.`;
@@ -176,7 +176,7 @@ export async function POST(
     await resend.emails.send({
       from: `${sharerName} via Flokk <hello@flokktravel.com>`,
       to: recipientEmail,
-      subject: `${sharerName} wants you to see their ${trip.destinationCity ?? "trip"} trip`,
+      subject: `${sharerName} shared their ${trip.destinationCity ?? "trip"} trip with you`,
       html: buildShareEmailHtml({
         recipientName: "",
         sharerName,

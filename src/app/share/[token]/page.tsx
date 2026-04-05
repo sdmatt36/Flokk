@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { SharePageBottomBar } from "./SharePageBottomBar";
@@ -36,6 +37,19 @@ function tripDays(start: Date | null, end: Date | null): number | null {
   return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 }
 
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const EXCLUDE_SAVE_TAGS = /flight|airfare|airline|lodging|accommodation|hotel|transportation/i;
+
 const TYPE_LABEL: Record<string, string> = {
   FLIGHT: "FLT",
   TRAIN: "RAIL",
@@ -50,6 +64,10 @@ const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
   ACTIVITY: { bg: "#F5F5F5", color: "#888" },
 };
 
+function starString(rating: number): string {
+  return "★".repeat(Math.max(0, Math.min(5, rating))) + "☆".repeat(Math.max(0, 5 - rating));
+}
+
 export default async function SharePage({
   params,
 }: {
@@ -63,6 +81,16 @@ export default async function SharePage({
       savedItems: { orderBy: [{ dayIndex: "asc" }, { savedAt: "asc" }] },
       itineraryItems: { orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }] },
       familyProfile: { select: { familyName: true, homeCity: true } },
+      placeRatings: {
+        select: {
+          itineraryItemId: true,
+          placeName: true,
+          rating: true,
+          notes: true,
+          wouldReturn: true,
+          placeType: true,
+        },
+      },
     },
   });
 
@@ -71,18 +99,31 @@ export default async function SharePage({
   // Increment viewCount (fire-and-forget)
   db.trip.update({ where: { id: trip.id }, data: { viewCount: { increment: 1 } } }).catch(() => {});
 
+  // Ownership check — server-side, so the bottom bar knows whether to suppress
+  const { userId } = await auth();
+  let isOwner = false;
+  if (userId) {
+    const viewer = await db.user.findUnique({
+      where: { clerkId: userId },
+      select: { familyProfile: { select: { id: true } } },
+    });
+    isOwner = viewer?.familyProfile?.id === trip.familyProfileId;
+  }
+
   const heroImg = getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl);
   const dateRange = formatDateRange(trip.startDate, trip.endDate);
   const days = tripDays(trip.startDate, trip.endDate);
   const curatorName = trip.isAnonymous
-    ? "Flokk Family — Anonymous"
+    ? "A Flokk family"
     : trip.familyProfile?.familyName
     ? trip.familyProfile.homeCity
       ? `${trip.familyProfile.familyName} Family, ${trip.familyProfile.homeCity}`
       : `${trip.familyProfile.familyName} Family`
-    : "Flokk Family — Anonymous";
+    : "A Flokk family";
 
-  // Build day label from tripStart
+  const destination = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ");
+
+  // Build day label
   const tripStart = trip.startDate;
   function dayLabel(idx: number): string {
     if (tripStart) {
@@ -93,45 +134,51 @@ export default async function SharePage({
     return `Day ${idx}`;
   }
 
-  // Group itinerary items by dayIndex (skip day 0 — unscheduled)
+  // ── SECTION 2: Group itinerary items by day ───────────────────────────────
+  // Deduplicate LODGING: keep only check-in entries, strip prefix for display
   const itineraryByDay: Record<number, typeof trip.itineraryItems> = {};
   for (const item of trip.itineraryItems) {
-    if ((item.dayIndex ?? 0) > 0) {
-      const di = item.dayIndex!;
-      if (!itineraryByDay[di]) itineraryByDay[di] = [];
-      itineraryByDay[di].push(item);
-    }
+    const di = item.dayIndex ?? 0;
+    if (di <= 0) continue;
+    // Skip check-out entries — hotel shows once on arrival day
+    if (item.type === "LODGING" && /check-out/i.test(item.title)) continue;
+    if (!itineraryByDay[di]) itineraryByDay[di] = [];
+    itineraryByDay[di].push(item);
   }
+  const allDayIndices = Object.keys(itineraryByDay).map(Number).sort((a, b) => a - b);
 
-  // Group saved places by dayIndex (skip day 0 — unscheduled)
-  const savedByDay: Record<number, typeof trip.savedItems> = {};
-  for (const item of trip.savedItems) {
-    if ((item.dayIndex ?? 0) > 0) {
-      const di = item.dayIndex!;
-      if (!savedByDay[di]) savedByDay[di] = [];
-      savedByDay[di].push(item);
-    }
-  }
-
-  // All days with any content
-  const allDayIndices = [
-    ...new Set([
-      ...Object.keys(itineraryByDay).map(Number),
-      ...Object.keys(savedByDay).map(Number),
-    ]),
-  ].sort((a, b) => a - b);
-
-  // Unscheduled saved places with photos (dayIndex null/0)
-  const unsortedPhotos = trip.savedItems.filter(
-    (s) => (s.dayIndex ?? 0) === 0 && (s.placePhotoUrl || s.mediaThumbnailUrl)
+  // Ratings keyed by itineraryItemId for inline display on ACTIVITY cards
+  const ratingsByItemId = new Map(
+    trip.placeRatings
+      .filter((r) => r.itineraryItemId)
+      .map((r) => [r.itineraryItemId!, r])
   );
 
-  const destination = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ");
+  // ── SECTION 3: Nearby saved places (proximity-filtered photo grid) ────────
+  const validItinCoords = trip.itineraryItems.filter(
+    (it) =>
+      it.latitude != null && it.longitude != null &&
+      it.latitude !== 0 && it.longitude !== 0
+  );
+
+  const nearbySaves = trip.savedItems.filter((save) => {
+    if (!save.lat || !save.lng || !save.rawTitle) return false;
+    if ((save.dayIndex ?? 0) <= 0) return false;
+    if (!(save.placePhotoUrl || save.mediaThumbnailUrl)) return false;
+    const tags = save.categoryTags.join(" ");
+    if (EXCLUDE_SAVE_TAGS.test(tags)) return false;
+    // Must be within 3km of at least one itinerary item on the same day
+    const sameDay = validItinCoords.filter((it) => it.dayIndex === save.dayIndex);
+    return sameDay.some((it) => haversineKm(save.lat!, save.lng!, it.latitude!, it.longitude!) <= 3);
+  });
+
+  // ── SECTION 4: Ratings list ───────────────────────────────────────────────
+  const ratingsForDisplay = trip.placeRatings;
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#FFFFFF", paddingBottom: "120px" }}>
 
-      {/* Hero */}
+      {/* ── SECTION 1 — Hero header ── */}
       <div
         style={{
           height: "280px",
@@ -205,7 +252,7 @@ export default async function SharePage({
 
       <div style={{ maxWidth: "640px", margin: "0 auto", padding: "0 16px" }}>
 
-        {/* Day-by-day itinerary */}
+        {/* ── SECTION 2 — Day-by-day itinerary ── */}
         {allDayIndices.length > 0 && (
           <section style={{ marginTop: "28px" }}>
             <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "16px" }}>
@@ -213,18 +260,38 @@ export default async function SharePage({
             </h2>
             <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
               {allDayIndices.map((di) => {
-                const itinItems = itineraryByDay[di] ?? [];
-                const savedItems = savedByDay[di] ?? [];
+                const items = itineraryByDay[di] ?? [];
                 return (
                   <div key={di}>
                     <p style={{ fontSize: "12px", fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
                       {dayLabel(di)}
                     </p>
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-
-                      {/* Booked/imported itinerary items (FLIGHT, LODGING, TRAIN, ACTIVITY) */}
-                      {itinItems.map((item) => {
+                      {items.map((item) => {
                         const tc = TYPE_COLORS[item.type] ?? TYPE_COLORS.ACTIVITY;
+                        const rating = ratingsByItemId.get(item.id);
+
+                        // Cleaned title: strip "Check-in: " prefix for LODGING
+                        const displayTitle = item.type === "LODGING"
+                          ? item.title.replace(/^check-in:\s*/i, "")
+                          : item.title;
+
+                        // Route string for FLIGHT and TRAIN
+                        const route =
+                          item.type === "FLIGHT" || item.type === "TRAIN"
+                            ? item.fromAirport && item.toAirport
+                              ? `${item.fromAirport} → ${item.toAirport}`
+                              : item.fromCity && item.toCity
+                              ? `${item.fromCity} → ${item.toCity}`
+                              : null
+                            : null;
+
+                        // Times string
+                        const times =
+                          item.departureTime && item.arrivalTime
+                            ? `${item.departureTime} – ${item.arrivalTime}`
+                            : item.departureTime || item.arrivalTime || null;
+
                         return (
                           <div
                             key={item.id}
@@ -237,10 +304,11 @@ export default async function SharePage({
                               padding: "10px 12px",
                             }}
                           >
+                            {/* Type badge */}
                             <div
                               style={{
                                 flexShrink: 0,
-                                marginTop: "2px",
+                                marginTop: "3px",
                                 backgroundColor: tc.bg,
                                 borderRadius: "4px",
                                 padding: "2px 5px",
@@ -250,75 +318,66 @@ export default async function SharePage({
                                 {TYPE_LABEL[item.type] ?? "ACT"}
                               </span>
                             </div>
+
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontSize: "14px", fontWeight: 600, color: "#1a1a1a", marginBottom: "2px" }}>
-                                {item.title}
-                              </p>
-                              {(item.departureTime || item.arrivalTime || item.fromCity || item.toCity || item.fromAirport || item.toAirport) && (
-                                <p style={{ fontSize: "12px", color: "#888" }}>
-                                  {[
-                                    item.fromAirport && item.toAirport
-                                      ? `${item.fromAirport} → ${item.toAirport}`
-                                      : item.fromCity && item.toCity
-                                      ? `${item.fromCity} → ${item.toCity}`
-                                      : null,
-                                    item.departureTime && item.arrivalTime
-                                      ? `${item.departureTime} – ${item.arrivalTime}`
-                                      : item.departureTime
-                                      ? item.departureTime
-                                      : null,
-                                  ]
-                                    .filter(Boolean)
-                                    .join(" · ")}
-                                </p>
-                              )}
-                              {item.address && (
-                                <p style={{ fontSize: "12px", color: "#AAAAAA", marginTop: "2px" }}>{item.address}</p>
+                              {/* Primary display */}
+                              {item.type === "FLIGHT" || item.type === "TRAIN" ? (
+                                <>
+                                  {route && (
+                                    <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "2px" }}>
+                                      {route}
+                                    </p>
+                                  )}
+                                  <p style={{ fontSize: "13px", fontWeight: 500, color: route ? "#555" : "#1a1a1a", marginBottom: "2px" }}>
+                                    {displayTitle}
+                                  </p>
+                                  {times && (
+                                    <p style={{ fontSize: "12px", color: "#888" }}>{times}</p>
+                                  )}
+                                </>
+                              ) : item.type === "LODGING" ? (
+                                <>
+                                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "2px" }}>
+                                    {displayTitle}
+                                  </p>
+                                  {item.address && (
+                                    <p style={{ fontSize: "12px", color: "#888" }}>{item.address}</p>
+                                  )}
+                                </>
+                              ) : (
+                                /* ACTIVITY and OTHER */
+                                <>
+                                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "2px" }}>
+                                    {displayTitle}
+                                  </p>
+                                  {times && (
+                                    <p style={{ fontSize: "12px", color: "#888" }}>{times}</p>
+                                  )}
+                                  {item.address && (
+                                    <p style={{ fontSize: "12px", color: "#AAAAAA", marginTop: "2px" }}>{item.address}</p>
+                                  )}
+                                  {/* Inline rating from How was it? */}
+                                  {rating && (
+                                    <div style={{ marginTop: "6px", paddingTop: "6px", borderTop: "1px solid #EEEEEE" }}>
+                                      <p style={{ fontSize: "13px", color: "#C4664A", letterSpacing: "0.05em" }}>
+                                        {starString(rating.rating)}
+                                      </p>
+                                      {rating.notes && (
+                                        <p style={{ fontSize: "12px", color: "#555", marginTop: "2px" }}>{rating.notes}</p>
+                                      )}
+                                      {rating.wouldReturn && (
+                                        <p style={{ fontSize: "11px", color: "#6B8F71", fontWeight: 600, marginTop: "2px" }}>
+                                          Would visit again
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
+                                </>
                               )}
                             </div>
                           </div>
                         );
                       })}
-
-                      {/* Saved places for this day */}
-                      {savedItems.map((item) => (
-                        <div
-                          key={item.id}
-                          style={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            gap: "10px",
-                            backgroundColor: "#F9F9F9",
-                            borderRadius: "10px",
-                            padding: "10px 12px",
-                          }}
-                        >
-                          {(item.placePhotoUrl || item.mediaThumbnailUrl) && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={(item.placePhotoUrl ?? item.mediaThumbnailUrl)!}
-                              alt={item.rawTitle ?? ""}
-                              style={{ width: "48px", height: "48px", borderRadius: "8px", objectFit: "cover", flexShrink: 0 }}
-                            />
-                          )}
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: "14px", fontWeight: 600, color: "#1a1a1a", marginBottom: "2px" }}>
-                              {item.rawTitle ?? "Saved place"}
-                            </p>
-                            {item.rawDescription && (
-                              <p style={{ fontSize: "12px", color: "#888", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
-                                {item.rawDescription}
-                              </p>
-                            )}
-                            {item.categoryTags && item.categoryTags.length > 0 && (
-                              <p style={{ fontSize: "11px", color: "#AAAAAA", marginTop: "2px" }}>
-                                {item.categoryTags.slice(0, 3).join(" · ")}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-
                     </div>
                   </div>
                 );
@@ -327,12 +386,15 @@ export default async function SharePage({
           </section>
         )}
 
-        {/* Unsorted saved places with photos */}
-        {unsortedPhotos.length > 0 && (
-          <section style={{ marginTop: "28px" }}>
-            <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "16px" }}>
-              Places saved
+        {/* ── SECTION 3 — Nearby saved places (photo grid, 3+ only) ── */}
+        {nearbySaves.length >= 3 && (
+          <section style={{ marginTop: "32px" }}>
+            <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>
+              Nearby places
             </h2>
+            <p style={{ fontSize: "13px", color: "#888", marginBottom: "14px" }}>
+              Places this family saved near their itinerary stops.
+            </p>
             <div
               style={{
                 display: "grid",
@@ -340,7 +402,7 @@ export default async function SharePage({
                 gap: "10px",
               }}
             >
-              {unsortedPhotos.slice(0, 8).map((place) => {
+              {nearbySaves.slice(0, 12).map((place) => {
                 const img = place.placePhotoUrl ?? place.mediaThumbnailUrl;
                 return (
                   <div
@@ -368,20 +430,23 @@ export default async function SharePage({
                         background: "linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.65) 100%)",
                       }}
                     />
-                    <p
+                    <div
                       style={{
                         position: "absolute",
                         bottom: "8px",
                         left: "8px",
                         right: "8px",
-                        fontSize: "12px",
-                        fontWeight: 700,
-                        color: "#fff",
-                        lineHeight: 1.2,
                       }}
                     >
-                      {place.rawTitle}
-                    </p>
+                      <p style={{ fontSize: "12px", fontWeight: 700, color: "#fff", lineHeight: 1.2, marginBottom: "2px" }}>
+                        {place.rawTitle}
+                      </p>
+                      {place.categoryTags.length > 0 && (
+                        <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.75)" }}>
+                          {place.categoryTags[0]}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -389,8 +454,47 @@ export default async function SharePage({
           </section>
         )}
 
-        {/* Empty state */}
-        {allDayIndices.length === 0 && unsortedPhotos.length === 0 && (
+        {/* ── SECTION 4 — Ratings and tips (only if How was it? was completed) ── */}
+        {ratingsForDisplay.length > 0 && (
+          <section style={{ marginTop: "32px" }}>
+            <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>
+              What the family thought
+            </h2>
+            <p style={{ fontSize: "13px", color: "#888", marginBottom: "14px" }}>
+              Honest reviews from the people who were there.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {ratingsForDisplay.map((r) => (
+                <div
+                  key={`${r.itineraryItemId ?? r.placeName}`}
+                  style={{
+                    backgroundColor: "#F9F9F9",
+                    borderRadius: "10px",
+                    padding: "12px 14px",
+                  }}
+                >
+                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "4px" }}>
+                    {r.placeName}
+                  </p>
+                  <p style={{ fontSize: "14px", color: "#C4664A", letterSpacing: "0.05em", marginBottom: r.notes || r.wouldReturn ? "6px" : "0" }}>
+                    {starString(r.rating)}
+                  </p>
+                  {r.notes && (
+                    <p style={{ fontSize: "13px", color: "#555", lineHeight: 1.5 }}>{r.notes}</p>
+                  )}
+                  {r.wouldReturn && (
+                    <p style={{ fontSize: "11px", color: "#6B8F71", fontWeight: 600, marginTop: "4px" }}>
+                      Would visit again
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Empty state — no itinerary and no nearby saves */}
+        {allDayIndices.length === 0 && nearbySaves.length === 0 && (
           <div style={{ textAlign: "center", padding: "48px 16px", color: "#AAAAAA" }}>
             <p style={{ fontSize: "15px" }}>This trip is being planned — check back soon.</p>
           </div>
@@ -398,8 +502,8 @@ export default async function SharePage({
 
       </div>
 
-      {/* Bottom bar — auth-aware CTA */}
-      <SharePageBottomBar tripId={trip.id} tripTitle={trip.title} />
+      {/* ── SECTION 5 — Bottom bar (auth-aware CTA) ── */}
+      <SharePageBottomBar tripId={trip.id} isOwner={isOwner} />
     </div>
   );
 }
