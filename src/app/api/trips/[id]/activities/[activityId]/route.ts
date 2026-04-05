@@ -2,21 +2,6 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 
-async function geocodeVenue(venueName: string, tripId: string): Promise<{ lat: number; lng: number } | null> {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_PLACES_API_KEY;
-  if (!apiKey) return null;
-  try {
-    const trip = await db.trip.findUnique({ where: { id: tripId }, select: { destinationCity: true, destinationCountry: true } });
-    const query = encodeURIComponent([venueName, trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", "));
-    const res = await fetch(
-      `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${query}&inputtype=textquery&fields=geometry&key=${apiKey}`
-    );
-    const data = await res.json();
-    const loc = data.candidates?.[0]?.geometry?.location;
-    if (loc) return { lat: loc.lat, lng: loc.lng };
-  } catch { /* geocoding optional */ }
-  return null;
-}
 
 export async function PATCH(
   request: Request,
@@ -41,18 +26,60 @@ export async function PATCH(
     }
   }
 
-  // Geocode if venueName is being set and current lat is null
-  if (body.venueName && body.lat == null) {
+  const {
+    title,
+    date,
+    time,
+    endTime,
+    venueName,
+    address,
+    website,
+    price,
+    currency,
+    notes,
+    status,
+    confirmationCode,
+  } = body;
+
+  // Geocode if venueName or address is being set and current coords are null
+  let lat: number | undefined = undefined;
+  let lng: number | undefined = undefined;
+  if (venueName || address) {
     const existing = await db.manualActivity.findUnique({ where: { id: activityId }, select: { lat: true } });
     if (existing?.lat == null) {
-      const coords = await geocodeVenue(body.venueName, tripId);
-      if (coords) { body.lat = coords.lat; body.lng = coords.lng; }
+      const apiKey = process.env.GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_PLACES_API_KEY;
+      if (apiKey) {
+        try {
+          const query = encodeURIComponent([venueName, address].filter(Boolean).join(" "));
+          const geoRes = await fetch(
+            `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${query}&inputtype=textquery&fields=geometry&key=${apiKey}`
+          );
+          const geoData = await geoRes.json();
+          const loc = geoData.candidates?.[0]?.geometry?.location;
+          if (loc) { lat = loc.lat; lng = loc.lng; }
+        } catch { /* geocoding optional */ }
+      }
     }
   }
 
   const updated = await db.manualActivity.update({
     where: { id: activityId },
-    data: body,
+    data: {
+      ...(title !== undefined && { title }),
+      ...(date !== undefined && { date }),
+      ...(body.dayIndex !== undefined && { dayIndex: body.dayIndex }),
+      time: time ?? null,
+      endTime: endTime ?? null,
+      ...(venueName !== undefined && { venueName: venueName ?? null }),
+      ...(address !== undefined && { address: address ?? null }),
+      ...(lat !== undefined && { lat, lng }),
+      ...(website !== undefined && { website: website ?? null }),
+      ...(price !== undefined && { price: price ? parseFloat(price) : null }),
+      ...(currency !== undefined && { currency }),
+      ...(notes !== undefined && { notes: notes ?? null }),
+      ...(status !== undefined && { status }),
+      ...(confirmationCode !== undefined && { confirmationCode: confirmationCode ?? null }),
+    },
   });
 
   return NextResponse.json(updated);
