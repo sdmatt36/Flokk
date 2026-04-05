@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
@@ -19,6 +19,7 @@ export type ExistingActivity = {
   notes?: string | null;
   status: string;
   confirmationCode?: string | null;
+  address?: string | null;
 };
 
 type PlacesSuggestion = {
@@ -81,9 +82,20 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
   const [notes, setNotes] = useState(existingActivity?.notes ?? "");
   const [status, setStatus] = useState<ActivityStatus>((existingActivity?.status as ActivityStatus) ?? "interested");
   const [confirmationCode, setConfirmationCode] = useState(existingActivity?.confirmationCode ?? "");
+  const [address, setAddress] = useState(existingActivity?.address ?? "");
+  const [currency, setCurrency] = useState(existingActivity?.currency ?? "USD");
   const [showMore, setShowMore] = useState(
     !!(existingActivity?.endTime || existingActivity?.price != null || existingActivity?.confirmationCode || existingActivity?.notes)
   );
+
+  // Pre-select the trip's budget currency (e.g. KRW for Seoul trips)
+  useEffect(() => {
+    if (existingActivity?.currency) return;
+    fetch(`/api/trips/${tripId}/budget`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { budgetCurrency?: string } | null) => { if (d?.budgetCurrency) setCurrency(d.budgetCurrency); })
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [suggestion, setSuggestion] = useState<PlacesSuggestion | null>(null);
@@ -106,8 +118,10 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
         time: time || null,
         endTime: endTime || null,
         venueName: venueName.trim() || null,
+        address: address.trim() || null,
         website: website.trim() || null,
         price: price || null,
+        currency: currency || "USD",
         notes: notes.trim() || null,
         status,
         confirmationCode: confirmationCode.trim() || null,
@@ -260,6 +274,7 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
                       type="button"
                       onClick={() => {
                         if (suggestion.name && !venueName) setVenueName(suggestion.name);
+                        if (suggestion.address && !address) setAddress(suggestion.address);
                         if (suggestion.website && !website) setWebsite(suggestion.website);
                         setSuggestion(null);
                       }}
@@ -314,6 +329,18 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
             />
           </div>
 
+          {/* Address */}
+          <div>
+            <label style={labelStyle}>Address (optional)</label>
+            <input
+              type="text"
+              value={address}
+              onChange={e => setAddress(e.target.value)}
+              placeholder="e.g. 123 Bukchon-ro, Jongno-gu, Seoul"
+              style={inputStyle}
+            />
+          </div>
+
           {/* Website */}
           <div>
             <label style={labelStyle}>Website / ticket link (optional)</label>
@@ -337,19 +364,30 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
 
           {showMore && (
             <>
-              {/* Price + End time */}
+              {/* Cost + End time */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                 <div>
-                  <label style={labelStyle}>Price (optional)</label>
-                  <input
-                    type="number"
-                    value={price}
-                    onChange={e => setPrice(e.target.value)}
-                    placeholder="0.00"
-                    min="0"
-                    step="0.01"
-                    style={inputStyle}
-                  />
+                  <label style={labelStyle}>Cost (optional)</label>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <select
+                      value={currency}
+                      onChange={e => setCurrency(e.target.value)}
+                      style={{ ...inputStyle, width: "74px", flexShrink: 0, padding: "11px 6px", cursor: "pointer" }}
+                    >
+                      {["USD","KRW","JPY","EUR","GBP","AUD","SGD","HKD","THB","VND","CNY","CAD"].map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      value={price}
+                      onChange={e => setPrice(e.target.value)}
+                      placeholder="e.g. 25000 or 45.00"
+                      min="0"
+                      step="0.01"
+                      style={{ ...inputStyle, flex: 1 }}
+                    />
+                  </div>
                 </div>
                 <div>
                   <label style={labelStyle}>End time</label>

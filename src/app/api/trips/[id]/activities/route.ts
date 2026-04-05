@@ -100,5 +100,16 @@ export async function POST(
     },
   });
 
+  // Increment budgetSpent if a cost was provided (fire-and-forget, same pattern as email webhook)
+  if (price) {
+    const cost = parseFloat(price);
+    if (!isNaN(cost) && cost > 0) {
+      db.trip.update({
+        where: { id: tripId },
+        data: { budgetSpent: { increment: cost } },
+      }).catch(() => {});
+    }
+  }
+
   return NextResponse.json(activity, { status: 201 });
 }
