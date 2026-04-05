@@ -117,6 +117,7 @@ type Activity = {
   time?: string | null;
   endTime?: string | null;
   venueName?: string | null;
+  address?: string | null;
   website?: string | null;
   price?: number | null;
   currency?: string | null;

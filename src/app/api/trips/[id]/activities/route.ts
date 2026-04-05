@@ -100,14 +100,18 @@ export async function POST(
     },
   });
 
-  // Increment budgetSpent if a cost was provided (fire-and-forget, same pattern as email webhook)
+  // Increment budgetSpent only if activity currency matches trip's budgetCurrency
   if (price) {
     const cost = parseFloat(price);
     if (!isNaN(cost) && cost > 0) {
-      db.trip.update({
-        where: { id: tripId },
-        data: { budgetSpent: { increment: cost } },
-      }).catch(() => {});
+      const tripForBudget = await db.trip.findUnique({ where: { id: tripId }, select: { budgetCurrency: true } });
+      const activityCurrency = currency ?? "USD";
+      if (tripForBudget?.budgetCurrency && tripForBudget.budgetCurrency === activityCurrency) {
+        db.trip.update({
+          where: { id: tripId },
+          data: { budgetSpent: { increment: cost } },
+        }).catch(() => {});
+      }
     }
   }
 
