@@ -79,8 +79,11 @@ export function SharePageBottomBar({
         </>
       ) : (
         <>
-          <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", textAlign: "center" }}>
-            Plan your own trip like this one
+          <p style={{ fontSize: "15px", fontWeight: 800, color: "#1a1a1a", textAlign: "center", marginBottom: "2px" }}>
+            Plan your own family trip with Flokk
+          </p>
+          <p style={{ fontSize: "12px", color: "#717171", textAlign: "center" }}>
+            Save places from anywhere. Build your itinerary. Travel smarter.
           </p>
           <a
             href="/sign-up"

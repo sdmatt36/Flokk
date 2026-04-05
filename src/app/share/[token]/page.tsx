@@ -1,10 +1,26 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getTripCoverImage } from "@/lib/destination-images";
-import { MapPin, Calendar, Plane, Train, BedDouble, Zap } from "lucide-react";
 import { SharePageBottomBar } from "./SharePageBottomBar";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}) {
+  const { token } = await params;
+  const trip = await db.trip.findUnique({
+    where: { shareToken: token },
+    select: { title: true, destinationCity: true, destinationCountry: true },
+  });
+  if (!trip) return { title: "Trip — Flokk" };
+  const dest = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ");
+  return {
+    title: `${trip.title}${dest ? ` · ${dest}` : ""} — shared on Flokk`,
+  };
+}
 
 function formatDateRange(start: Date | null, end: Date | null) {
   if (!start) return null;
@@ -20,11 +36,18 @@ function tripDays(start: Date | null, end: Date | null): number | null {
   return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 }
 
-const TYPE_ICON: Record<string, React.ReactNode> = {
-  FLIGHT: <Plane size={13} />,
-  TRAIN: <Train size={13} />,
-  LODGING: <BedDouble size={13} />,
-  ACTIVITY: <Zap size={13} />,
+const TYPE_LABEL: Record<string, string> = {
+  FLIGHT: "FLT",
+  TRAIN: "RAIL",
+  LODGING: "STAY",
+  ACTIVITY: "ACT",
+};
+
+const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
+  FLIGHT: { bg: "#EEF4FF", color: "#3B82F6" },
+  TRAIN: { bg: "#F0FFF4", color: "#6B8F71" },
+  LODGING: { bg: "#FFF4EE", color: "#C4664A" },
+  ACTIVITY: { bg: "#F5F5F5", color: "#888" },
 };
 
 export default async function SharePage({
@@ -59,14 +82,13 @@ export default async function SharePage({
       : `${trip.familyProfile.familyName} Family`
     : "Flokk Family — Anonymous";
 
-  // Build day labels
+  // Build day label from tripStart
   const tripStart = trip.startDate;
   function dayLabel(idx: number): string {
     if (tripStart) {
       const d = new Date(tripStart);
       d.setDate(d.getDate() + (idx - 1));
-      const label = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-      return `Day ${idx} · ${label}`;
+      return `Day ${idx} · ${d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`;
     }
     return `Day ${idx}`;
   }
@@ -81,19 +103,34 @@ export default async function SharePage({
     }
   }
 
-  // Saved places with photos
-  const savedPlaces = trip.savedItems.filter(
-    (s) => s.placePhotoUrl || s.mediaThumbnailUrl
-  );
+  // Group saved places by dayIndex (skip day 0 — unscheduled)
+  const savedByDay: Record<number, typeof trip.savedItems> = {};
+  for (const item of trip.savedItems) {
+    if ((item.dayIndex ?? 0) > 0) {
+      const di = item.dayIndex!;
+      if (!savedByDay[di]) savedByDay[di] = [];
+      savedByDay[di].push(item);
+    }
+  }
 
+  // All days with any content
   const allDayIndices = [
     ...new Set([
       ...Object.keys(itineraryByDay).map(Number),
+      ...Object.keys(savedByDay).map(Number),
     ]),
   ].sort((a, b) => a - b);
 
+  // Unscheduled saved places with photos (dayIndex null/0)
+  const unsortedPhotos = trip.savedItems.filter(
+    (s) => (s.dayIndex ?? 0) === 0 && (s.placePhotoUrl || s.mediaThumbnailUrl)
+  );
+
+  const destination = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ");
+
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#FFFFFF", paddingBottom: "100px" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "#FFFFFF", paddingBottom: "120px" }}>
+
       {/* Hero */}
       <div
         style={{
@@ -151,31 +188,16 @@ export default async function SharePage({
               fontWeight: 900,
               color: "#fff",
               lineHeight: 1.1,
-              marginBottom: "6px",
+              marginBottom: "8px",
               textShadow: "0 2px 12px rgba(0,0,0,0.4)",
             }}
           >
             {trip.title}
           </h1>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-            {(trip.destinationCity || trip.destinationCountry) && (
-              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <MapPin size={13} style={{ color: "rgba(255,255,255,0.8)" }} />
-                <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.9)", fontWeight: 500 }}>
-                  {[trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ")}
-                </span>
-              </div>
-            )}
-            {dateRange && (
-              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                <Calendar size={13} style={{ color: "rgba(255,255,255,0.8)" }} />
-                <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.9)", fontWeight: 500 }}>
-                  {dateRange}
-                </span>
-              </div>
-            )}
-          </div>
-          <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.65)", marginTop: "6px" }}>
+          <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.9)", fontWeight: 500, marginBottom: "4px" }}>
+            {[destination, dateRange].filter(Boolean).join(" · ")}
+          </p>
+          <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.65)" }}>
             Shared by {curatorName} · {days ?? "—"} days
           </p>
         </div>
@@ -183,22 +205,83 @@ export default async function SharePage({
 
       <div style={{ maxWidth: "640px", margin: "0 auto", padding: "0 16px" }}>
 
-        {/* Itinerary */}
+        {/* Day-by-day itinerary */}
         {allDayIndices.length > 0 && (
           <section style={{ marginTop: "28px" }}>
             <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "16px" }}>
               Itinerary
             </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
               {allDayIndices.map((di) => {
-                const items = itineraryByDay[di] ?? [];
+                const itinItems = itineraryByDay[di] ?? [];
+                const savedItems = savedByDay[di] ?? [];
                 return (
                   <div key={di}>
                     <p style={{ fontSize: "12px", fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
                       {dayLabel(di)}
                     </p>
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      {items.map((item) => (
+
+                      {/* Booked/imported itinerary items (FLIGHT, LODGING, TRAIN, ACTIVITY) */}
+                      {itinItems.map((item) => {
+                        const tc = TYPE_COLORS[item.type] ?? TYPE_COLORS.ACTIVITY;
+                        return (
+                          <div
+                            key={item.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "flex-start",
+                              gap: "10px",
+                              backgroundColor: "#F9F9F9",
+                              borderRadius: "10px",
+                              padding: "10px 12px",
+                            }}
+                          >
+                            <div
+                              style={{
+                                flexShrink: 0,
+                                marginTop: "2px",
+                                backgroundColor: tc.bg,
+                                borderRadius: "4px",
+                                padding: "2px 5px",
+                              }}
+                            >
+                              <span style={{ fontSize: "9px", fontWeight: 800, color: tc.color, letterSpacing: "0.05em" }}>
+                                {TYPE_LABEL[item.type] ?? "ACT"}
+                              </span>
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ fontSize: "14px", fontWeight: 600, color: "#1a1a1a", marginBottom: "2px" }}>
+                                {item.title}
+                              </p>
+                              {(item.departureTime || item.arrivalTime || item.fromCity || item.toCity || item.fromAirport || item.toAirport) && (
+                                <p style={{ fontSize: "12px", color: "#888" }}>
+                                  {[
+                                    item.fromAirport && item.toAirport
+                                      ? `${item.fromAirport} → ${item.toAirport}`
+                                      : item.fromCity && item.toCity
+                                      ? `${item.fromCity} → ${item.toCity}`
+                                      : null,
+                                    item.departureTime && item.arrivalTime
+                                      ? `${item.departureTime} – ${item.arrivalTime}`
+                                      : item.departureTime
+                                      ? item.departureTime
+                                      : null,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </p>
+                              )}
+                              {item.address && (
+                                <p style={{ fontSize: "12px", color: "#AAAAAA", marginTop: "2px" }}>{item.address}</p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Saved places for this day */}
+                      {savedItems.map((item) => (
                         <div
                           key={item.id}
                           style={{
@@ -210,49 +293,32 @@ export default async function SharePage({
                             padding: "10px 12px",
                           }}
                         >
-                          <div
-                            style={{
-                              width: "28px",
-                              height: "28px",
-                              borderRadius: "8px",
-                              backgroundColor: item.type === "FLIGHT" ? "#EEF4FF" : item.type === "LODGING" ? "#FFF4EE" : item.type === "TRAIN" ? "#F0FFF4" : "#F5F5F5",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              flexShrink: 0,
-                              color: item.type === "FLIGHT" ? "#3B82F6" : item.type === "LODGING" ? "#C4664A" : item.type === "TRAIN" ? "#6B8F71" : "#888",
-                            }}
-                          >
-                            {TYPE_ICON[item.type] ?? <Zap size={13} />}
-                          </div>
+                          {(item.placePhotoUrl || item.mediaThumbnailUrl) && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={(item.placePhotoUrl ?? item.mediaThumbnailUrl)!}
+                              alt={item.rawTitle ?? ""}
+                              style={{ width: "48px", height: "48px", borderRadius: "8px", objectFit: "cover", flexShrink: 0 }}
+                            />
+                          )}
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <p style={{ fontSize: "14px", fontWeight: 600, color: "#1a1a1a", marginBottom: "2px" }}>
-                              {item.title}
+                              {item.rawTitle ?? "Saved place"}
                             </p>
-                            {(item.departureTime || item.arrivalTime || item.fromCity || item.toCity || item.fromAirport || item.toAirport) && (
-                              <p style={{ fontSize: "12px", color: "#888" }}>
-                                {[
-                                  item.fromAirport && item.toAirport
-                                    ? `${item.fromAirport} → ${item.toAirport}`
-                                    : item.fromCity && item.toCity
-                                    ? `${item.fromCity} → ${item.toCity}`
-                                    : null,
-                                  item.departureTime && item.arrivalTime
-                                    ? `${item.departureTime} – ${item.arrivalTime}`
-                                    : item.departureTime
-                                    ? item.departureTime
-                                    : null,
-                                ]
-                                  .filter(Boolean)
-                                  .join(" · ")}
+                            {item.rawDescription && (
+                              <p style={{ fontSize: "12px", color: "#888", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                                {item.rawDescription}
                               </p>
                             )}
-                            {item.address && (
-                              <p style={{ fontSize: "12px", color: "#AAAAAA", marginTop: "2px" }}>{item.address}</p>
+                            {item.categoryTags && item.categoryTags.length > 0 && (
+                              <p style={{ fontSize: "11px", color: "#AAAAAA", marginTop: "2px" }}>
+                                {item.categoryTags.slice(0, 3).join(" · ")}
+                              </p>
                             )}
                           </div>
                         </div>
                       ))}
+
                     </div>
                   </div>
                 );
@@ -261,8 +327,8 @@ export default async function SharePage({
           </section>
         )}
 
-        {/* Saved places */}
-        {savedPlaces.length > 0 && (
+        {/* Unsorted saved places with photos */}
+        {unsortedPhotos.length > 0 && (
           <section style={{ marginTop: "28px" }}>
             <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "16px" }}>
               Places saved
@@ -274,7 +340,7 @@ export default async function SharePage({
                 gap: "10px",
               }}
             >
-              {savedPlaces.slice(0, 8).map((place) => {
+              {unsortedPhotos.slice(0, 8).map((place) => {
                 const img = place.placePhotoUrl ?? place.mediaThumbnailUrl;
                 return (
                   <div
@@ -324,14 +390,15 @@ export default async function SharePage({
         )}
 
         {/* Empty state */}
-        {allDayIndices.length === 0 && savedPlaces.length === 0 && (
+        {allDayIndices.length === 0 && unsortedPhotos.length === 0 && (
           <div style={{ textAlign: "center", padding: "48px 16px", color: "#AAAAAA" }}>
             <p style={{ fontSize: "15px" }}>This trip is being planned — check back soon.</p>
           </div>
         )}
+
       </div>
 
-      {/* Bottom bar */}
+      {/* Bottom bar — auth-aware CTA */}
       <SharePageBottomBar tripId={trip.id} tripTitle={trip.title} />
     </div>
   );
