@@ -1814,17 +1814,35 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   // Pre-compute trip days at component level so the portal dropdown can reference them
   const tripDaysAll = generateTripDays(tripStartDate ?? null, tripEndDate ?? null);
 
+  // Pending auto-sort day: set by onSaved when a timed activity is added.
+  // Consumed after the next localActivities update so the new item is included.
+  const pendingAutoSortDayRef = useRef<number | null>(null);
+
   // Sync local copies from props (new items added, etc.)
   useEffect(() => { setLocalActivities(activities); }, [activities]);
   useEffect(() => { setLocalFlights(flights); }, [flights]);
 
-  // ── Semantic sort weight ──────────────────────────────────────────────────
-  // Used ONLY for initial sortOrder assignment on first load.
-  // After that, items are sorted purely by their persisted sortOrder value.
+  // ── Time-aware sort key ───────────────────────────────────────────────────
+  // Returns minutes-since-midnight for the item's effective time.
+  // Structural anchors (arrival flights, check-in, check-out, departure flights)
+  // use fixed virtual times so they remain stable at the boundaries of each day.
+  // Activities and saves with an actual startTime sort by clock time.
+  // Untimed activities default to 720 (noon) as a stable midday position.
   //
-  //  10 — FLIGHT arrival   20 — LODGING check-in   50 — activities / saved
-  //  70 — TRAIN            80 — LODGING check-out  90 — FLIGHT departure
-  function getItemSortWeight(item: UnifiedDayItem): number {
+  //  FLIGHT arrival  →  arrivalTime or 0  (always first)
+  //  LODGING check-in → 900  (15:00 default)
+  //  timed activity   →  actual HH:MM in minutes
+  //  untimed activity → 720  (noon)
+  //  TRAIN            →  departureTime or 660  (11:00 default)
+  //  LODGING check-out → 720  (12:00 default)
+  //  FLIGHT departure → departureTime + 1440  (always last, beyond 24h)
+  function toSortKey(item: UnifiedDayItem): number {
+    function timeToMin(t: string | null | undefined): number | null {
+      if (!t) return null;
+      const [h, m] = t.split(":").map(Number);
+      if (isNaN(h) || isNaN(m)) return null;
+      return h * 60 + m;
+    }
     const dest = (destinationCity ?? "").toLowerCase().trim();
     function matchesDest(city: string | null | undefined): boolean {
       if (!dest || !city) return false;
@@ -1833,18 +1851,26 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     }
     if (item.itemType === "itinerary" && item.itineraryItem) {
       const it = item.itineraryItem;
-      if (it.type === "FLIGHT") return (matchesDest(it.toCity) || matchesDest(it.toAirport)) ? 10 : 90;
-      if (it.type === "LODGING") return it.title.toLowerCase().includes("check-out") ? 80 : 20;
-      if (it.type === "TRAIN") return 70;
-      return 50;
+      if (it.type === "FLIGHT") {
+        const isArrival = matchesDest(it.toCity) || matchesDest(it.toAirport);
+        if (isArrival) return timeToMin(it.arrivalTime) ?? 0;
+        return 1440 + (timeToMin(it.departureTime) ?? 0);
+      }
+      if (it.type === "LODGING") {
+        if (it.title.toLowerCase().includes("check-out")) return timeToMin(it.departureTime) ?? 720;
+        return timeToMin(it.departureTime) ?? 900;
+      }
+      if (it.type === "TRAIN") return timeToMin(it.departureTime) ?? 660;
+      return timeToMin(it.departureTime ?? it.arrivalTime) ?? 720;
     }
     if (item.itemType === "flight" && item.flight) {
       const f = item.flight;
-      if (f.type === "outbound") return 10;
-      if (f.type === "return") return 90;
-      return matchesDest(f.toCity) || matchesDest(f.toAirport) ? 10 : 90;
+      const isArrival = f.type === "outbound" || matchesDest(f.toCity) || matchesDest(f.toAirport);
+      if (isArrival) return timeToMin(f.arrivalTime) ?? 0;
+      return 1440 + (timeToMin(f.departureTime) ?? 0);
     }
-    return 50;
+    // Activity or save: use actual startTime if present, else noon
+    return timeToMin(item.startTime) ?? 720;
   }
 
   /** Build the sorted UnifiedDayItem list for any given dayIndex (extracted from render) */
@@ -2217,8 +2243,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch email-imported ItineraryItems (LODGING, TRAIN, FLIGHT, etc.)
-  // On first load (all sortOrders = 0), assign semantic-weight-based initial
-  // sortOrders so the default day order is sensible, then persist to DB.
+  // On first load (all sortOrders = 0), assign time-aware initial sortOrders
+  // so the default day order is sensible, then persist to DB.
   // After that, sortOrder is the single source of truth — handleReorder just
   // swaps sortOrder values and re-renders in the new order.
   useEffect(() => {
@@ -2229,7 +2255,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         if (!Array.isArray(items) || items.length === 0) return;
         const allZero = items.every(it => (it.sortOrder ?? 0) === 0);
         if (allZero) {
-          // Group by dayIndex, sort each day semantically, assign sortOrder = weight * 10
+          // Group by dayIndex, sort each day by time-aware key, assign sortOrder
           const byDay = new Map<number, ItineraryItemLocal[]>();
           for (const it of items) {
             const d = it.dayIndex ?? 0;
@@ -2238,10 +2264,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           }
           const initialized = [...items];
           for (const dayItems of byDay.values()) {
-            // Compute semantic weight using a temporary UnifiedDayItem wrapper
+            // Compute time-aware sort key using a temporary UnifiedDayItem wrapper
             const withWeight = dayItems.map(it => ({
               it,
-              w: getItemSortWeight({ sortId: `itinerary_${it.id}`, itemType: "itinerary" as const, sortOrder: 0, rawId: it.id, itineraryItem: it }),
+              w: toSortKey({ sortId: `itinerary_${it.id}`, itemType: "itinerary" as const, sortOrder: 0, rawId: it.id, itineraryItem: it }),
             }));
             withWeight.sort((a, b) => a.w - b.w);
             withWeight.forEach(({ it }, i) => {
@@ -2276,6 +2302,32 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       }).catch(e => console.error("[initSortOrder activity]", e));
     });
   }, [localActivities.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-sort a day after a timed activity is added (PART B).
+  // pendingAutoSortDayRef is set by the onSaved callback in AddActivityModal.
+  // This effect fires after localActivities updates with the new item.
+  useEffect(() => {
+    const dayToSort = pendingAutoSortDayRef.current;
+    if (dayToSort === null || !tripId) return;
+    pendingAutoSortDayRef.current = null;
+    const items = buildDayItems(dayToSort);
+    const sorted = [...items].sort((a, b) => toSortKey(a) - toSortKey(b));
+    sorted.forEach((item, idx) => {
+      if (item.itemType === "saved" && item.rawId) {
+        setRecAdditions(prev => prev.map(r => r.savedItemId === item.rawId ? { ...r, sortOrder: idx } : r));
+        fetch(`/api/saves/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx }) }).catch(console.error);
+      } else if (item.itemType === "activity" && item.rawId) {
+        setLocalActivities(prev => prev.map(a => a.id === item.rawId ? { ...a, sortOrder: idx } : a));
+        fetch(`/api/trips/${tripId}/activities/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx }) }).catch(console.error);
+      } else if (item.itemType === "flight" && item.rawId) {
+        setLocalFlights(prev => prev.map(f => f.id === item.rawId ? { ...f, sortOrder: idx } : f));
+        fetch(`/api/trips/${tripId}/flights/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx }) }).catch(console.error);
+      } else if (item.itemType === "itinerary" && item.rawId) {
+        setLocalItineraryItems(prev => prev.map(it => it.id === item.rawId ? { ...it, sortOrder: idx } : it));
+        fetch(`/api/trips/${tripId}/itinerary/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx }) }).catch(console.error);
+      }
+    });
+  }, [localActivities]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Initialize sortOrder for flights if all are 0 (seeded trips)
   useEffect(() => {
@@ -2952,7 +3004,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                               <button
                                 onClick={() => {
                                   const items = buildDayItems(dayIndex);
-                                  const withWeight = items.map(item => ({ item, w: getItemSortWeight(item) }));
+                                  const withWeight = items.map(item => ({ item, w: toSortKey(item) }));
                                   withWeight.sort((a, b) => a.w - b.w);
                                   withWeight.forEach(({ item }, idx) => {
                                     if (item.itemType === "saved" && item.rawId) {
@@ -3139,9 +3191,14 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           destinationCity={destinationCity}
           destinationCountry={destinationCountry}
           onClose={() => { setShowAddActivityModal(false); setAddActivityDefaultDate(undefined); }}
-          onSaved={() => {
+          onSaved={(saved) => {
             setShowAddActivityModal(false);
             setAddActivityDefaultDate(undefined);
+            // If the new activity has a startTime, queue an auto-sort for its day
+            const act = saved as unknown as { time?: string | null; dayIndex?: number | null };
+            if (act?.time && act?.dayIndex != null) {
+              pendingAutoSortDayRef.current = act.dayIndex;
+            }
             onActivityAdded?.();
           }}
         />
