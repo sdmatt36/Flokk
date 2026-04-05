@@ -4804,7 +4804,7 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onC
       fetch(`/api/saves?tripId=${tripId}`).then(r => r.ok ? r.json() : { saves: [] }),
       fetch(`/api/trips/${tripId}/ratings`).then(r => r.ok ? r.json() : { ratings: [] }),
     ]).then(([itinData, savesData, ratingData]) => {
-      const itinItems: { id: string; title?: string | null; type?: string }[] = Array.isArray(itinData) ? itinData : (itinData.items ?? []);
+      const itinItems: { id: string; title?: string | null; type?: string }[] = Array.isArray(itinData) ? itinData : ((itinData as { items?: unknown[] }).items ?? []);
       const savedRatingIds = new Set<string>((ratingData.ratings ?? []).map((r: { itineraryItemId?: string }) => r.itineraryItemId).filter(Boolean));
 
       // LODGING: exclude check-out items; strip "Check-in: " prefix from title
