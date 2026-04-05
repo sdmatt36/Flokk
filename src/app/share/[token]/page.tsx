@@ -134,18 +134,56 @@ export default async function SharePage({
     return `Day ${idx}`;
   }
 
-  // ── SECTION 2: Group itinerary items by day ───────────────────────────────
-  // Deduplicate LODGING: keep only check-in entries, strip prefix for display
-  const itineraryByDay: Record<number, typeof trip.itineraryItems> = {};
+  // ── SECTION 2: Merge itinerary items and saved activities per day ─────────
+  // Itinerary items = email-imported bookings (FLIGHT, LODGING, TRAIN, ACTIVITY)
+  // Saved items = manually saved places with a dayIndex assigned
+  // Both are merged and sorted by clock time (untimed items last)
+  type DayItem =
+    | { kind: "itinerary"; data: typeof trip.itineraryItems[0]; sortKey: number }
+    | { kind: "save"; data: typeof trip.savedItems[0]; sortKey: number };
+
+  function timeToMin(t: string | null | undefined): number {
+    if (!t) return 9999;
+    const [h, m] = t.split(":").map(Number);
+    if (isNaN(h) || isNaN(m)) return 9999;
+    return h * 60 + m;
+  }
+
+  const dayItemsByDay: Record<number, DayItem[]> = {};
+
   for (const item of trip.itineraryItems) {
     const di = item.dayIndex ?? 0;
     if (di <= 0) continue;
-    // Skip check-out entries — hotel shows once on arrival day
+    // Skip LODGING check-out entries — hotel shows once on arrival day
     if (item.type === "LODGING" && /check-out/i.test(item.title)) continue;
-    if (!itineraryByDay[di]) itineraryByDay[di] = [];
-    itineraryByDay[di].push(item);
+    if (!dayItemsByDay[di]) dayItemsByDay[di] = [];
+    dayItemsByDay[di].push({
+      kind: "itinerary",
+      data: item,
+      sortKey: timeToMin(item.departureTime ?? item.arrivalTime),
+    });
   }
-  const allDayIndices = Object.keys(itineraryByDay).map(Number).sort((a, b) => a - b);
+
+  for (const save of trip.savedItems) {
+    const di = save.dayIndex ?? 0;
+    if (di <= 0) continue;
+    if (!save.rawTitle) continue;
+    const saveTags = save.categoryTags.join(" ");
+    if (EXCLUDE_SAVE_TAGS.test(saveTags)) continue;
+    if (!dayItemsByDay[di]) dayItemsByDay[di] = [];
+    dayItemsByDay[di].push({
+      kind: "save",
+      data: save,
+      sortKey: timeToMin(save.startTime),
+    });
+  }
+
+  // Sort each day by clock time — timed items first, untimed last
+  for (const di of Object.keys(dayItemsByDay).map(Number)) {
+    dayItemsByDay[di].sort((a, b) => a.sortKey - b.sortKey);
+  }
+
+  const allDayIndices = Object.keys(dayItemsByDay).map(Number).sort((a, b) => a - b);
 
   // Ratings keyed by itineraryItemId for inline display on ACTIVITY cards
   const ratingsByItemId = new Map(
@@ -260,23 +298,55 @@ export default async function SharePage({
             </h2>
             <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
               {allDayIndices.map((di) => {
-                const items = itineraryByDay[di] ?? [];
+                const dayItems = dayItemsByDay[di] ?? [];
                 return (
                   <div key={di}>
                     <p style={{ fontSize: "12px", fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
                       {dayLabel(di)}
                     </p>
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      {items.map((item) => {
+                      {dayItems.map((entry) => {
+                        if (entry.kind === "save") {
+                          const s = entry.data;
+                          const firstTag = s.categoryTags[0];
+                          return (
+                            <div
+                              key={`save_${s.id}`}
+                              style={{
+                                backgroundColor: "#F9F9F9",
+                                borderRadius: "10px",
+                                padding: "10px 12px",
+                              }}
+                            >
+                              <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: s.startTime || s.rawDescription || firstTag ? "4px" : "0" }}>
+                                {s.rawTitle}
+                              </p>
+                              {s.startTime && (
+                                <p style={{ fontSize: "12px", color: "#888", marginBottom: "2px" }}>{s.startTime}</p>
+                              )}
+                              {s.rawDescription && (
+                                <p style={{ fontSize: "12px", color: "#888", lineHeight: 1.5 }}>
+                                  {s.rawDescription.length > 120 ? `${s.rawDescription.slice(0, 120)}…` : s.rawDescription}
+                                </p>
+                              )}
+                              {firstTag && (
+                                <span style={{ display: "inline-block", marginTop: "5px", fontSize: "9px", fontWeight: 800, color: "#888", backgroundColor: "#EEEEEE", borderRadius: "4px", padding: "2px 5px", letterSpacing: "0.06em" }}>
+                                  {firstTag.toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        }
+
+                        // Itinerary item (FLIGHT, LODGING, TRAIN, ACTIVITY)
+                        const item = entry.data;
                         const tc = TYPE_COLORS[item.type] ?? TYPE_COLORS.ACTIVITY;
                         const rating = ratingsByItemId.get(item.id);
 
-                        // Cleaned title: strip "Check-in: " prefix for LODGING
                         const displayTitle = item.type === "LODGING"
                           ? item.title.replace(/^check-in:\s*/i, "")
                           : item.title;
 
-                        // Route string for FLIGHT and TRAIN
                         const route =
                           item.type === "FLIGHT" || item.type === "TRAIN"
                             ? item.fromAirport && item.toAirport
@@ -286,7 +356,6 @@ export default async function SharePage({
                               : null
                             : null;
 
-                        // Times string
                         const times =
                           item.departureTime && item.arrivalTime
                             ? `${item.departureTime} – ${item.arrivalTime}`
@@ -294,7 +363,7 @@ export default async function SharePage({
 
                         return (
                           <div
-                            key={item.id}
+                            key={`itin_${item.id}`}
                             style={{
                               display: "flex",
                               alignItems: "flex-start",
@@ -320,7 +389,6 @@ export default async function SharePage({
                             </div>
 
                             <div style={{ flex: 1, minWidth: 0 }}>
-                              {/* Primary display */}
                               {item.type === "FLIGHT" || item.type === "TRAIN" ? (
                                 <>
                                   {route && (
@@ -356,7 +424,6 @@ export default async function SharePage({
                                   {item.address && (
                                     <p style={{ fontSize: "12px", color: "#AAAAAA", marginTop: "2px" }}>{item.address}</p>
                                   )}
-                                  {/* Inline rating from How was it? */}
                                   {rating && (
                                     <div style={{ marginTop: "6px", paddingTop: "6px", borderTop: "1px solid #EEEEEE" }}>
                                       <p style={{ fontSize: "13px", color: "#C4664A", letterSpacing: "0.05em" }}>
@@ -474,7 +541,7 @@ export default async function SharePage({
                   }}
                 >
                   <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "4px" }}>
-                    {r.placeName}
+                    {r.placeName.replace(/^check-in:\s*/i, "").replace(/^check-out:\s*/i, "")}
                   </p>
                   <p style={{ fontSize: "14px", color: "#C4664A", letterSpacing: "0.05em", marginBottom: r.notes || r.wouldReturn ? "6px" : "0" }}>
                     {starString(r.rating)}
@@ -492,6 +559,19 @@ export default async function SharePage({
             </div>
           </section>
         )}
+
+        {/* ── Questions for the Flokker (messaging scaffolding) ── */}
+        <div style={{ marginTop: "48px", paddingTop: "32px", borderTop: "1px solid #e5e7eb" }}>
+          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#1B3A5C", marginBottom: "8px" }}>
+            Questions for the Flokker
+          </h2>
+          <p style={{ fontSize: "14px", color: "#6b7280", marginBottom: "24px" }}>
+            Ask {curatorName} anything about this trip.
+          </p>
+          <p style={{ fontSize: "14px", color: "#9ca3af", fontStyle: "italic" }}>
+            Messaging coming soon — join Flokk to be notified when it launches.
+          </p>
+        </div>
 
         {/* Empty state — no itinerary and no nearby saves */}
         {allDayIndices.length === 0 && nearbySaves.length === 0 && (
