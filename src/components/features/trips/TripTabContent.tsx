@@ -4765,17 +4765,29 @@ type HowWasItItem = {
   id: string;
   title: string;
   type: string;
+  itemKind: "itinerary" | "save";
   rating: number;
   notes: string;
   wouldReturn: boolean | null;
   alreadySaved: boolean;
 };
 
-function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onComplete }: {
+const STAR_LABELS: Record<number, string> = {
+  1: "1 — Poor",
+  2: "2 — Below average",
+  3: "3 — Good",
+  4: "4 — Very good",
+  5: "5 — Excellent",
+};
+
+const EXCLUDE_SAVE_TAGS = /flight|airfare|airline|lodging|accommodation|hotel|transportation/i;
+
+function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onComplete, onNavigateToItinerary }: {
   tripId: string;
   destinationCity?: string | null;
   postTripCaptureComplete: boolean;
   onComplete: () => void;
+  onNavigateToItinerary: () => void;
 }) {
   const [items, setItems] = useState<HowWasItItem[]>([]);
   const [done, setDone] = useState(postTripCaptureComplete);
@@ -4787,25 +4799,47 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onC
   const [spurSaved, setSpurSaved] = useState(false);
 
   useEffect(() => {
-    // Fetch ItineraryItems (LODGING + ACTIVITY only) and already-saved ratings
     Promise.all([
-      fetch(`/api/trips/${tripId}/itinerary-items`).then(r => r.ok ? r.json() : []),
+      fetch(`/api/trips/${tripId}/itinerary-items`).then(r => r.ok ? r.json() : {}),
+      fetch(`/api/saves?tripId=${tripId}`).then(r => r.ok ? r.json() : { saves: [] }),
       fetch(`/api/trips/${tripId}/ratings`).then(r => r.ok ? r.json() : { ratings: [] }),
-    ]).then(([itinData, ratingData]) => {
+    ]).then(([itinData, savesData, ratingData]) => {
       const itinItems: { id: string; title?: string | null; type?: string }[] = Array.isArray(itinData) ? itinData : (itinData.items ?? []);
       const savedRatingIds = new Set<string>((ratingData.ratings ?? []).map((r: { itineraryItemId?: string }) => r.itineraryItemId).filter(Boolean));
-      const filtered = itinItems
-        .filter(it => it.type === "LODGING" || it.type === "ACTIVITY")
+
+      // LODGING: exclude check-out items; strip "Check-in: " prefix from title
+      // ACTIVITY: include all
+      const itinRated: HowWasItItem[] = itinItems
+        .filter(it =>
+          (it.type === "ACTIVITY") ||
+          (it.type === "LODGING" && !it.title?.toLowerCase().startsWith("check-out"))
+        )
         .map(it => ({
           id: it.id,
-          title: it.title ?? "Untitled",
+          title: (it.title?.replace(/^check-in:\s*/i, "") ?? it.title ?? "Untitled").trim(),
           type: it.type ?? "",
+          itemKind: "itinerary" as const,
           rating: 0,
           notes: "",
           wouldReturn: null,
           alreadySaved: savedRatingIds.has(it.id),
         }));
-      setItems(filtered);
+
+      // SavedItems assigned to trip — exclude flight/lodging/transportation tags
+      const saveItems: HowWasItItem[] = ((savesData.saves ?? []) as { id: string; rawTitle?: string | null; categoryTags?: string[] }[])
+        .filter(s => !s.categoryTags?.some(t => EXCLUDE_SAVE_TAGS.test(t)))
+        .map(s => ({
+          id: s.id,
+          title: s.rawTitle ?? "Untitled",
+          type: "save",
+          itemKind: "save" as const,
+          rating: 0,
+          notes: "",
+          wouldReturn: null,
+          alreadySaved: false,
+        }));
+
+      setItems([...itinRated, ...saveItems]);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripId]);
@@ -4818,7 +4852,7 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onC
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          itineraryItemId: it.id,
+          ...(it.itemKind === "itinerary" ? { itineraryItemId: it.id } : {}),
           placeName: it.title,
           placeType: it.type.toLowerCase(),
           rating: it.rating,
@@ -4835,6 +4869,7 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onC
     setDone(true);
     onComplete();
     setSubmitting(false);
+    setTimeout(() => onNavigateToItinerary(), 2000);
   }
 
   async function handleAddSpur() {
@@ -4857,7 +4892,7 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onC
     return (
       <div style={{ maxWidth: "560px", padding: "32px 0", textAlign: "center" }}>
         <p style={{ fontSize: "20px", fontWeight: 700, color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "8px" }}>Your ratings are in.</p>
-        <p style={{ fontSize: "14px", color: "#717171" }}>Thank you — other families will thank you too.</p>
+        <p style={{ fontSize: "14px", color: "#717171" }}>Other families planning {destinationCity ? `${destinationCity} ` : ""}will thank you.</p>
       </div>
     );
   }
@@ -4872,48 +4907,58 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onC
       <p style={{ fontSize: "13px", color: "#717171", marginBottom: "20px" }}>Rate what you experienced — it helps other families plan.</p>
 
       {items.length === 0 && (
-        <p style={{ fontSize: "13px", color: "#bbb", marginBottom: "24px" }}>No rated activities or hotels found for this trip.</p>
+        <p style={{ fontSize: "13px", color: "#bbb", marginBottom: "24px" }}>No activities or hotels found for this trip.</p>
       )}
 
-      {items.map(item => (
-        <div key={item.id} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "16px", marginBottom: "12px" }}>
-          <p style={{ fontSize: "13px", fontWeight: 700, color: "#999", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "4px" }}>
-            {item.type === "LODGING" ? "Hotel" : "Activity"}
-          </p>
-          <p style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "12px" }}>
-            {item.title}
-          </p>
-          {item.alreadySaved ? (
-            <p style={{ fontSize: "12px", color: "#6B8F71", fontWeight: 600 }}>Rated</p>
-          ) : (
-            <>
-              <StarRating value={item.rating} onChange={v => setItems(prev => prev.map(i => i.id === item.id ? { ...i, rating: v } : i))} />
-              <textarea
-                value={item.notes}
-                onChange={e => setItems(prev => prev.map(i => i.id === item.id ? { ...i, notes: e.target.value } : i))}
-                placeholder="Anything families should know?"
-                style={{ width: "100%", fontSize: "13px", color: "#374151", border: "none", borderBottom: "1px solid #e5e7eb", background: "transparent", resize: "none", outline: "none", padding: "8px 0", marginTop: "8px", fontFamily: "inherit", boxSizing: "border-box" }}
-                rows={2}
-              />
-              <div style={{ marginTop: "10px", display: "flex", gap: "8px" }}>
-                {([true, false] as const).map(val => {
-                  const selected = item.wouldReturn === val;
-                  return (
-                    <button
-                      key={String(val)}
-                      onClick={() => setItems(prev => prev.map(i => i.id === item.id ? { ...i, wouldReturn: selected ? null : val } : i))}
-                      style={{ fontSize: "13px", fontWeight: 600, padding: "4px 12px", borderRadius: "4px", border: "1px solid", cursor: "pointer", fontFamily: "inherit", backgroundColor: selected ? (val ? "#C4664A" : "#1B3A5C") : "#fff", color: selected ? "#fff" : "#374151", borderColor: selected ? (val ? "#C4664A" : "#1B3A5C") : "#e5e7eb" }}
-                    >
-                      {val ? "Yes" : "No"}
-                    </button>
-                  );
-                })}
-                <span style={{ fontSize: "12px", color: "#bbb", alignSelf: "center", marginLeft: "4px" }}>Would you go back?</span>
-              </div>
-            </>
-          )}
-        </div>
-      ))}
+      {items.map(item => {
+        const badgeLabel = item.type === "LODGING"
+          ? "Rate your stay at"
+          : item.itemKind === "save"
+            ? "Rate your visit to"
+            : "Rate your experience at";
+        return (
+          <div key={item.id} style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", padding: "16px", marginBottom: "12px" }}>
+            <p style={{ fontSize: "11px", fontWeight: 700, color: "#999", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "4px" }}>
+              {badgeLabel}
+            </p>
+            <p style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "8px" }}>
+              {item.title}
+            </p>
+            {item.alreadySaved ? (
+              <p style={{ fontSize: "12px", color: "#6B8F71", fontWeight: 600 }}>Rated</p>
+            ) : (
+              <>
+                <p style={{ fontSize: "13px", color: item.rating > 0 ? "#C4664A" : "#9ca3af", marginBottom: "8px", fontWeight: item.rating > 0 ? 600 : 400 }}>
+                  {item.rating > 0 ? STAR_LABELS[item.rating] : "Tap to rate"}
+                </p>
+                <StarRating value={item.rating} onChange={v => setItems(prev => prev.map(i => i.id === item.id ? { ...i, rating: v } : i))} />
+                <textarea
+                  value={item.notes}
+                  onChange={e => setItems(prev => prev.map(i => i.id === item.id ? { ...i, notes: e.target.value } : i))}
+                  placeholder="Anything families should know?"
+                  style={{ width: "100%", fontSize: "13px", color: "#374151", border: "none", borderBottom: "1px solid #e5e7eb", background: "transparent", resize: "none", outline: "none", padding: "8px 0", marginTop: "8px", fontFamily: "inherit", boxSizing: "border-box" }}
+                  rows={2}
+                />
+                <div style={{ marginTop: "10px", display: "flex", gap: "8px" }}>
+                  {([true, false] as const).map(val => {
+                    const selected = item.wouldReturn === val;
+                    return (
+                      <button
+                        key={String(val)}
+                        onClick={() => setItems(prev => prev.map(i => i.id === item.id ? { ...i, wouldReturn: selected ? null : val } : i))}
+                        style={{ fontSize: "13px", fontWeight: 600, padding: "4px 12px", borderRadius: "4px", border: "1px solid", cursor: "pointer", fontFamily: "inherit", backgroundColor: selected ? (val ? "#C4664A" : "#1B3A5C") : "#fff", color: selected ? "#fff" : "#374151", borderColor: selected ? (val ? "#C4664A" : "#1B3A5C") : "#e5e7eb" }}
+                      >
+                        {val ? "Yes" : "No"}
+                      </button>
+                    );
+                  })}
+                  <span style={{ fontSize: "12px", color: "#bbb", alignSelf: "center", marginLeft: "4px" }}>Would you go back?</span>
+                </div>
+              </>
+            )}
+          </div>
+        );
+      })}
 
       {/* Section 2 — Spur-of-moment */}
       <p style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", marginTop: "8px", marginBottom: "12px" }}>Anything not in your itinerary?</p>
@@ -5977,6 +6022,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           destinationCity={destinationCity}
           postTripCaptureComplete={postTripCaptureComplete}
           onComplete={() => setPostTripCaptureComplete(true)}
+          onNavigateToItinerary={() => setTab("itinerary")}
         />
       )}
 
