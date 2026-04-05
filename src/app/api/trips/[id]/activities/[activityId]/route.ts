@@ -13,17 +13,16 @@ export async function PATCH(
   const { id: tripId, activityId } = await params;
   const body = await request.json();
 
+  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, destinationCity: true, destinationCountry: true } });
+
   // Recalculate dayIndex if date is being updated
-  if (body.date) {
-    const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true } });
-    if (trip?.startDate) {
-      const rawStart = new Date(trip.startDate);
-      const shiftedStart = new Date(rawStart.getTime() + 12 * 60 * 60 * 1000);
-      const start = new Date(shiftedStart.getUTCFullYear(), shiftedStart.getUTCMonth(), shiftedStart.getUTCDate());
-      const [dy, dm, dd] = body.date.split("-").map(Number);
-      const dep = new Date(dy, dm - 1, dd);
-      body.dayIndex = Math.round((dep.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    }
+  if (body.date && trip?.startDate) {
+    const rawStart = new Date(trip.startDate);
+    const shiftedStart = new Date(rawStart.getTime() + 12 * 60 * 60 * 1000);
+    const start = new Date(shiftedStart.getUTCFullYear(), shiftedStart.getUTCMonth(), shiftedStart.getUTCDate());
+    const [dy, dm, dd] = body.date.split("-").map(Number);
+    const dep = new Date(dy, dm - 1, dd);
+    body.dayIndex = Math.round((dep.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   }
 
   const {
@@ -50,7 +49,8 @@ export async function PATCH(
       const apiKey = process.env.GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_PLACES_API_KEY;
       if (apiKey) {
         try {
-          const query = encodeURIComponent([venueName, address].filter(Boolean).join(" "));
+          const locationContext = [trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", ");
+          const query = encodeURIComponent([venueName, address, locationContext].filter(Boolean).join(" "));
           const geoRes = await fetch(
             `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${query}&inputtype=textquery&fields=geometry&key=${apiKey}`
           );
@@ -88,10 +88,13 @@ export async function PATCH(
     if (!isNaN(cost) && cost > 0) {
       const tripForBudget = await db.trip.findUnique({ where: { id: tripId }, select: { budgetCurrency: true } });
       const activityCurrency = currency ?? "USD";
-      if (tripForBudget?.budgetCurrency && tripForBudget.budgetCurrency === activityCurrency) {
+      if (tripForBudget && (!tripForBudget.budgetCurrency || tripForBudget.budgetCurrency === activityCurrency)) {
         db.trip.update({
           where: { id: tripId },
-          data: { budgetSpent: { increment: cost } },
+          data: {
+            budgetSpent: { increment: cost },
+            budgetCurrency: tripForBudget.budgetCurrency ?? activityCurrency,
+          },
         }).catch(() => {});
       }
     }

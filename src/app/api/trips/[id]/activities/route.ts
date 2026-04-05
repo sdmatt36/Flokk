@@ -50,7 +50,7 @@ export async function POST(
 
   // Calculate dayIndex (0-indexed, timezone-safe) from trip startDate
   let dayIndex: number | null = null;
-  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true } });
+  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, destinationCity: true, destinationCountry: true } });
   if (trip?.startDate) {
     const rawStart = new Date(trip.startDate);
     const shiftedStart = new Date(rawStart.getTime() + 12 * 60 * 60 * 1000);
@@ -66,7 +66,8 @@ export async function POST(
   let lng: number | null = null;
   if (venueName || address) {
     try {
-      const query = encodeURIComponent([venueName, address].filter(Boolean).join(" "));
+      const locationContext = [trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", ");
+      const query = encodeURIComponent([venueName, address, locationContext].filter(Boolean).join(" "));
       const apiKey = process.env.GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_PLACES_API_KEY;
       if (apiKey) {
         const geoRes = await fetch(
@@ -106,10 +107,13 @@ export async function POST(
     if (!isNaN(cost) && cost > 0) {
       const tripForBudget = await db.trip.findUnique({ where: { id: tripId }, select: { budgetCurrency: true } });
       const activityCurrency = currency ?? "USD";
-      if (tripForBudget?.budgetCurrency && tripForBudget.budgetCurrency === activityCurrency) {
+      if (tripForBudget && (!tripForBudget.budgetCurrency || tripForBudget.budgetCurrency === activityCurrency)) {
         db.trip.update({
           where: { id: tripId },
-          data: { budgetSpent: { increment: cost } },
+          data: {
+            budgetSpent: { increment: cost },
+            budgetCurrency: tripForBudget.budgetCurrency ?? activityCurrency,
+          },
         }).catch(() => {});
       }
     }
