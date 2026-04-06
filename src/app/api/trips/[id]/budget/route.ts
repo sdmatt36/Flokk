@@ -44,16 +44,17 @@ export async function PATCH(
 
   const { id: tripId } = await params;
 
-  const body = await req.json() as { budgetTotal?: number | null; budgetCurrency?: string };
-  const { budgetTotal, budgetCurrency } = body;
+  const body = await req.json() as { budgetTotal?: number | null; budgetCurrency?: string; budgetRange?: string };
+  const { budgetTotal, budgetCurrency, budgetRange } = body;
 
-  console.log("[BUDGET PATCH] tripId:", tripId, "budgetTotal:", budgetTotal, "budgetCurrency:", budgetCurrency);
+  console.log("[BUDGET PATCH] tripId:", tripId, "budgetTotal:", budgetTotal, "budgetCurrency:", budgetCurrency, "budgetRange:", budgetRange);
 
   const updated = await db.trip.update({
     where: { id: tripId },
     data: {
       ...(budgetTotal !== undefined && { budgetTotal: Number(budgetTotal) }),
       ...(budgetCurrency !== undefined && { budgetCurrency }),
+      ...(budgetRange !== undefined && { budgetRange: budgetRange as import("@prisma/client").BudgetRange }),
     },
   });
 
