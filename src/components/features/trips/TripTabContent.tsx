@@ -1548,6 +1548,11 @@ function BudgetBar({ tripId, budgetTotal, budgetSpent, budgetCurrency, loaded, o
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ budgetTotal: total, budgetCurrency: inputCurrency }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("[BUDGET SAVE] PATCH failed", res.status, err);
+        return;
+      }
       const d = await res.json();
       onBudgetSaved(d.budgetTotal ?? total, d.budgetCurrency ?? inputCurrency);
       setShowForm(false);

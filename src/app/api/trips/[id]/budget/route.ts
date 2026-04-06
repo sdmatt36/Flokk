@@ -44,23 +44,20 @@ export async function PATCH(
 
   const { id: tripId } = await params;
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: true },
-  });
-  if (!user?.familyProfile) return NextResponse.json({ error: "No family profile" }, { status: 400 });
-
-  const trip = await db.trip.findUnique({ where: { id: tripId } });
-  if (!trip || trip.familyProfileId !== user.familyProfile.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
   const body = await req.json() as { budgetTotal?: number | null; budgetCurrency?: string };
-  const data: { budgetTotal?: number | null; budgetCurrency?: string } = {};
-  if ("budgetTotal" in body) data.budgetTotal = body.budgetTotal;
-  if ("budgetCurrency" in body) data.budgetCurrency = body.budgetCurrency;
+  const { budgetTotal, budgetCurrency } = body;
 
-  const updated = await db.trip.update({ where: { id: tripId }, data });
+  console.log("[BUDGET PATCH] tripId:", tripId, "budgetTotal:", budgetTotal, "budgetCurrency:", budgetCurrency);
+
+  const updated = await db.trip.update({
+    where: { id: tripId },
+    data: {
+      ...(budgetTotal !== undefined && { budgetTotal: Number(budgetTotal) }),
+      ...(budgetCurrency !== undefined && { budgetCurrency }),
+    },
+  });
+
+  console.log("[BUDGET PATCH] result:", updated.budgetTotal, updated.budgetCurrency);
 
   return NextResponse.json({
     budgetTotal: updated.budgetTotal,
