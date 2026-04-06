@@ -285,9 +285,15 @@ async function getGooglePlacesPhoto(
       return null;
     }
 
-    const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photoRef}&key=${GOOGLE_MAPS_API_KEY}`;
-    console.log(`[PLACES PHOTO] ✓ Found photo for "${name}"`);
-    return photoUrl;
+    const redirectUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photoRef}&key=${GOOGLE_MAPS_API_KEY}`;
+    const photoRes = await fetch(redirectUrl, { redirect: 'follow' });
+    const finalUrl = photoRes.url;
+    if (!finalUrl || finalUrl === redirectUrl) {
+      console.log(`[PLACES PHOTO] Redirect did not resolve for "${name}"`);
+      return null;
+    }
+    console.log(`[PLACES PHOTO] ✓ Resolved for "${name}" → ${finalUrl.slice(0, 80)}`);
+    return finalUrl;
   } catch (e) {
     console.log(`[PLACES PHOTO] Error for "${name}":`, e);
     return null;

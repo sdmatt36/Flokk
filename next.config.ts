@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "upload.wikimedia.org" },
       { protocol: "https", hostname: "picsum.photos" },
       { protocol: "https", hostname: "maps.googleapis.com" },
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
+      { protocol: "https", hostname: "lh1.googleusercontent.com" },
+      { protocol: "https", hostname: "lh2.googleusercontent.com" },
+      { protocol: "https", hostname: "lh4.googleusercontent.com" },
     ],
   },
 };
