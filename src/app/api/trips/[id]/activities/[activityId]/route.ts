@@ -2,6 +2,26 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 
+async function getCityForDay(tripId: string, dayDate: string): Promise<string> {
+  const lodging = await db.itineraryItem.findFirst({
+    where: {
+      tripId,
+      type: "LODGING",
+      toCity: { not: null },
+      scheduledDate: { lte: dayDate },
+    },
+    orderBy: { scheduledDate: "desc" },
+    select: { toCity: true },
+  });
+  if (lodging?.toCity) return lodging.toCity;
+
+  const trip = await db.trip.findUnique({
+    where: { id: tripId },
+    select: { destinationCity: true, destinationCountry: true },
+  });
+  return [trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", ");
+}
+
 
 export async function PATCH(
   request: Request,
@@ -44,20 +64,21 @@ export async function PATCH(
   let lat: number | undefined = undefined;
   let lng: number | undefined = undefined;
   if (venueName || address) {
-    const existing = await db.manualActivity.findUnique({ where: { id: activityId }, select: { lat: true } });
+    const existing = await db.manualActivity.findUnique({ where: { id: activityId }, select: { lat: true, date: true } });
     if (existing?.lat == null) {
       const apiKey = process.env.GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_PLACES_API_KEY;
       if (apiKey) {
         try {
-          const locationContext = [trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", ");
-          const geocodeQuery = [venueName, address, locationContext].filter(Boolean).join(", ");
+          const activityDate = body.date ?? existing?.date ?? "";
+          const activityCity = activityDate ? await getCityForDay(tripId, activityDate) : [trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", ");
+          const geocodeQuery = [venueName, address, activityCity].filter(Boolean).join(", ");
           const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(geocodeQuery)}&key=${apiKey}`;
           const geoRes = await fetch(geocodeUrl);
           const geoData = await geoRes.json();
           const location = geoData.results?.[0]?.geometry?.location;
           lat = location?.lat ?? undefined;
           lng = location?.lng ?? undefined;
-          console.log(`[GEOCODE] query="${geocodeQuery}" result=${lat},${lng}`);
+          console.log(`[GEOCODE] city for day=${activityDate}: "${activityCity}" | query="${geocodeQuery}" result=${lat},${lng}`);
         } catch { /* geocoding optional */ }
       }
     }

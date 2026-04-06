@@ -2,6 +2,28 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 
+// Returns the city the traveler is in on a given date by looking at the most recent
+// LODGING check-in on or before that day. Falls back to trip destinationCity.
+async function getCityForDay(tripId: string, dayDate: string): Promise<string> {
+  const lodging = await db.itineraryItem.findFirst({
+    where: {
+      tripId,
+      type: "LODGING",
+      toCity: { not: null },
+      scheduledDate: { lte: dayDate },
+    },
+    orderBy: { scheduledDate: "desc" },
+    select: { toCity: true },
+  });
+  if (lodging?.toCity) return lodging.toCity;
+
+  const trip = await db.trip.findUnique({
+    where: { id: tripId },
+    select: { destinationCity: true, destinationCountry: true },
+  });
+  return [trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", ");
+}
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -61,13 +83,13 @@ export async function POST(
     dayIndex = diff;
   }
 
-  // Geocode venue if name/address provided — uses Geocoding API for higher accuracy
+  // Geocode venue using day-aware city context (lodging city for that day, not trip primary city)
   let lat: number | null = null;
   let lng: number | null = null;
   if (venueName || address) {
     try {
-      const locationContext = [trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", ");
-      const geocodeQuery = [venueName, address, locationContext].filter(Boolean).join(", ");
+      const activityCity = await getCityForDay(tripId, date);
+      const geocodeQuery = [title, venueName, address, activityCity].filter(Boolean).join(", ");
       const apiKey = process.env.GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_PLACES_API_KEY;
       if (apiKey) {
         const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(geocodeQuery)}&key=${apiKey}`;
@@ -76,7 +98,7 @@ export async function POST(
         const location = geoData.results?.[0]?.geometry?.location;
         lat = location?.lat ?? null;
         lng = location?.lng ?? null;
-        console.log(`[GEOCODE] query="${geocodeQuery}" result=${lat},${lng}`);
+        console.log(`[GEOCODE] city for day=${date}: "${activityCity}" | query="${geocodeQuery}" result=${lat},${lng}`);
       }
     } catch { /* geocoding optional */ }
   }
