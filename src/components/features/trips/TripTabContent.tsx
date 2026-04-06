@@ -1524,28 +1524,18 @@ function BudgetPromptBanner({ tripId }: { tripId?: string }) {
 
 // ── Budget bar (FIX 5) ────────────────────────────────────────────────────────
 
-function BudgetBar({ tripId }: { tripId?: string }) {
-  const [budgetTotal, setBudgetTotal] = useState<number | null>(null);
-  const [budgetSpent, setBudgetSpent] = useState<number>(0);
-  const [budgetCurrency, setBudgetCurrency] = useState<string>("USD");
-  const [loaded, setLoaded] = useState(false);
+function BudgetBar({ tripId, budgetTotal, budgetSpent, budgetCurrency, loaded, onBudgetSaved }: {
+  tripId?: string;
+  budgetTotal: number | null;
+  budgetSpent: number;
+  budgetCurrency: string;
+  loaded: boolean;
+  onBudgetSaved: (total: number, currency: string) => void;
+}) {
   const [showForm, setShowForm] = useState(false);
   const [inputTotal, setInputTotal] = useState("");
   const [inputCurrency, setInputCurrency] = useState("USD");
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (!tripId) return;
-    fetch(`/api/trips/${tripId}/budget`)
-      .then((r) => r.json())
-      .then((d) => {
-        setBudgetTotal(d.budgetTotal ?? null);
-        setBudgetSpent(d.budgetSpent ?? 0);
-        setBudgetCurrency(d.budgetCurrency ?? "USD");
-        setLoaded(true);
-      })
-      .catch(() => setLoaded(true));
-  }, [tripId]);
 
   async function handleSave() {
     if (!tripId) return;
@@ -1559,8 +1549,7 @@ function BudgetBar({ tripId }: { tripId?: string }) {
         body: JSON.stringify({ budgetTotal: total, budgetCurrency: inputCurrency }),
       });
       const d = await res.json();
-      setBudgetTotal(d.budgetTotal ?? null);
-      setBudgetCurrency(d.budgetCurrency ?? "USD");
+      onBudgetSaved(d.budgetTotal ?? total, d.budgetCurrency ?? inputCurrency);
       setShowForm(false);
     } finally {
       setSaving(false);
@@ -1752,7 +1741,7 @@ function ActivityDetailModal({ activity, onClose, onEdit, onRemove, onMarkBooked
   );
 }
 
-function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight }: {
+function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight, budgetTotal, budgetSpent, budgetCurrency, budgetLoaded, onBudgetSaved }: {
   flyTarget: { lat: number; lng: number } | null;
   onFlyTargetConsumed: () => void;
   tripId?: string;
@@ -1769,6 +1758,11 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   onMarkActivityBooked?: (id: string) => void;
   onRemoveFlightFromDay?: (id: string) => void;
   onAddFlight?: () => void;
+  budgetTotal: number | null;
+  budgetSpent: number;
+  budgetCurrency: string;
+  budgetLoaded: boolean;
+  onBudgetSaved: (total: number, currency: string) => void;
 }) {
   const isDesktop = useIsDesktop();
   const [openDay, setOpenDay] = useState(0); // -1 = all collapsed
@@ -2468,7 +2462,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       )}
 
       {/* Budget bar — shown when budgetSpent > 0 or budgetTotal is set */}
-      <BudgetBar tripId={tripId} />
+      <BudgetBar tripId={tripId} budgetTotal={budgetTotal} budgetSpent={budgetSpent} budgetCurrency={budgetCurrency} loaded={budgetLoaded} onBudgetSaved={onBudgetSaved} />
 
       {/* Split content area */}
       <div style={{ display: "flex", flexDirection: isDesktop ? "row" : "column", gap: "24px", alignItems: "flex-start" }}>
@@ -5112,6 +5106,25 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [editEndDate, setEditEndDate] = useState('');
   const [dateSaving, setDateSaving] = useState(false);
 
+  // Budget state — lives at top level so it survives tab switches
+  const [budgetTotal, setBudgetTotal] = useState<number | null>(null);
+  const [budgetSpent, setBudgetSpent] = useState<number>(0);
+  const [budgetCurrency, setBudgetCurrency] = useState<string>("USD");
+  const [budgetLoaded, setBudgetLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!tripId) return;
+    fetch(`/api/trips/${tripId}/budget`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.budgetTotal !== null && data.budgetTotal !== undefined) setBudgetTotal(data.budgetTotal);
+        if (data.budgetCurrency) setBudgetCurrency(data.budgetCurrency);
+        setBudgetSpent(data.budgetSpent ?? 0);
+        setBudgetLoaded(true);
+      })
+      .catch(err => { console.error('Budget fetch failed:', err); setBudgetLoaded(true); });
+  }, [tripId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const fetchFlights = useCallback(() => {
     if (!tripId) return;
     fetch(`/api/trips/${tripId}/flights`)
@@ -5526,7 +5539,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       {tab === "saved" && (
         <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} />
       )}
-      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} />}
+      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} budgetTotal={budgetTotal} budgetSpent={budgetSpent} budgetCurrency={budgetCurrency} budgetLoaded={budgetLoaded} onBudgetSaved={(total, currency) => { setBudgetTotal(total); setBudgetCurrency(currency); }} />}
       {tab === "packing" && <PackingContent tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} tripStartDate={tripStartDate} tripEndDate={tripEndDate} />}
       {tab === "notes" && (
         <div style={{ maxWidth: "600px" }}>
