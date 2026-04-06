@@ -300,6 +300,21 @@ async function getGooglePlacesPhoto(
   }
 }
 
+const SPORTS_REGEX = /\b(giants|twins|lakers|dodgers|yankees|cubs|sox|fc |united|athletic|baseball|football|basketball|soccer|nba|mlb|nfl|kbo)\b/i;
+
+async function getStadiumPhoto(teamName: string, city: string): Promise<string | null> {
+  const queries = [
+    `${teamName} stadium ${city}`,
+    `${teamName} ballpark ${city}`,
+    `${teamName} arena ${city}`,
+  ];
+  for (const q of queries) {
+    const photo = await getGooglePlacesPhoto(q, "");
+    if (photo) return photo;
+  }
+  return null;
+}
+
 export async function enrichSavedItem(savedItemId: string): Promise<void> {
   const item = await db.savedItem.findUnique({
     where: { id: savedItemId },
@@ -397,7 +412,16 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
     }
   }
 
-  // Step 3b: ScrapingBee fallback for Airbnb and Instagram when no photo found
+  // Step 3b: Sports stadium photo if Places returned nothing
+  if (!place.photoUrl && item.destinationCity && SPORTS_REGEX.test(workingTitle)) {
+    const stadiumPhoto = await getStadiumPhoto(workingTitle, item.destinationCity);
+    if (stadiumPhoto) {
+      place.photoUrl = stadiumPhoto;
+      console.log(`[SPORTS PHOTO] ✓ Stadium photo for "${workingTitle}"`);
+    }
+  }
+
+  // Step 3c: ScrapingBee fallback for Airbnb and Instagram when no photo found
   // Note: Instagram og:image URLs (cdninstagram.com) are blocked by sanitizeThumbnailUrl()
   // at display time — ScrapingBee is most useful for Airbnb where the CDN is not blocked.
   if (!place.photoUrl && !item.mediaThumbnailUrl &&
