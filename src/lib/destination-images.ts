@@ -313,11 +313,11 @@ export function getItemImage(
   city?: string | null,
   country?: string | null,
 ): string {
-  const venue = title ? getVenueImage(title) : null;
-  if (venue) return venue;
-
   const place = placePhotoUrl?.trim();
   if (place) return place.replace("http://", "https://");
+
+  const venue = title ? getVenueImage(title) : null;
+  if (venue) return venue;
 
   const thumb = mediaThumbnailUrl?.trim();
   if (thumb) return thumb.replace("http://", "https://");
