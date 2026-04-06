@@ -18,6 +18,10 @@ type Trip = {
   dayItemCounts: Record<number, number>;
   wellPlannedDays: number;
   startedDays: number;
+  hasFlights: boolean;
+  hasLodging: boolean;
+  itineraryActivityCount: number;
+  packingCount: number;
 };
 
 
@@ -52,6 +56,23 @@ function formatDateRange(start: string | null, end: string | null) {
   if (!end) return startStr;
   const endStr = new Date(end).toLocaleDateString("en-US", { ...opts, year: "numeric" });
   return `${startStr} – ${endStr}`;
+}
+
+function calculateReadiness(trip: Trip): { score: number; firstMissing: string | null } {
+  let score = 0;
+  const missing: string[] = [];
+
+  if (trip.hasFlights) score += 25; else missing.push("flights");
+  if (trip.hasLodging) score += 25; else missing.push("accommodation");
+
+  const activityCount = trip.itineraryActivityCount + trip.savedCount;
+  if (activityCount >= 3) score += 20; else missing.push("activities");
+
+  if (trip.packingCount > 0) score += 15; else missing.push("packing list");
+
+  missing.push("travel insurance"); // Always nudge — InsureMyTrip affiliate
+
+  return { score, firstMissing: missing[0] ?? null };
 }
 
 function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => void }) {
@@ -206,14 +227,45 @@ function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => vo
                 </div>
               )}
             </div>
-            <div style={{ textAlign: "right", flexShrink: 0 }}>
-              <p style={{ fontSize: "20px", fontWeight: 800, color: "#C4664A", lineHeight: 1 }}>
-                {trip.savedCount}
-              </p>
-              <p style={{ fontSize: "11px", color: "#717171", marginTop: "2px" }}>
-                {trip.savedCount === 1 ? "place" : "places"}
-              </p>
-            </div>
+            {trip.status !== "COMPLETED" ? (() => {
+              const { score, firstMissing } = calculateReadiness(trip);
+              const radius = 20;
+              const circumference = 2 * Math.PI * radius;
+              const strokeDashoffset = circumference - (score / 100) * circumference;
+              return (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, minWidth: "60px" }}>
+                  <p style={{ fontSize: "10px", fontWeight: 700, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "3px" }}>Ready</p>
+                  <div style={{ position: "relative", width: "56px", height: "56px" }}>
+                    <svg width="56" height="56" style={{ transform: "rotate(-90deg)" }} aria-hidden="true">
+                      <circle cx="28" cy="28" r={radius} fill="none" stroke="#f3f4f6" strokeWidth="4" />
+                      <circle
+                        cx="28" cy="28" r={radius} fill="none"
+                        stroke="#C4664A" strokeWidth="4"
+                        strokeDasharray={circumference}
+                        strokeDashoffset={strokeDashoffset}
+                        strokeLinecap="round"
+                        style={{ transition: "stroke-dashoffset 0.6s ease" }}
+                      />
+                    </svg>
+                    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <span style={{ fontSize: "13px", fontWeight: 700, color: "#1B3A5C" }}>{score}%</span>
+                    </div>
+                  </div>
+                  {firstMissing && (
+                    <p style={{ fontSize: "10px", color: "#9ca3af", marginTop: "3px", textAlign: "center", maxWidth: "64px", lineHeight: 1.3 }}>Add {firstMissing}</p>
+                  )}
+                </div>
+              );
+            })() : (
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <p style={{ fontSize: "20px", fontWeight: 800, color: "#C4664A", lineHeight: 1 }}>
+                  {trip.savedCount}
+                </p>
+                <p style={{ fontSize: "11px", color: "#717171", marginTop: "2px" }}>
+                  {trip.savedCount === 1 ? "place" : "places"}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Completion bar — segmented per day */}

@@ -22,9 +22,10 @@ export default async function TripsPage({
           trips: {
             orderBy: { startDate: "asc" },
             include: {
-              _count: { select: { savedItems: true } },
+              _count: { select: { savedItems: true, packingItems: true } },
               savedItems: { select: { dayIndex: true }, where: { dayIndex: { not: null } } },
               manualActivities: { select: { dayIndex: true, status: true }, where: { dayIndex: { not: null } } },
+              itineraryItems: { select: { type: true } },
             },
           },
         },
@@ -63,6 +64,10 @@ export default async function TripsPage({
       dayItemCounts,
       wellPlannedDays,
       startedDays,
+      hasFlights: t.itineraryItems.some(i => i.type === "FLIGHT"),
+      hasLodging: t.itineraryItems.some(i => i.type === "LODGING"),
+      itineraryActivityCount: t.itineraryItems.filter(i => i.type === "ACTIVITY").length,
+      packingCount: t._count.packingItems,
     };
   });
 
