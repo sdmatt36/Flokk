@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "plus.unsplash.com" },
       { protocol: "https", hostname: "upload.wikimedia.org" },
       { protocol: "https", hostname: "picsum.photos" },
+      { protocol: "https", hostname: "maps.googleapis.com" },
     ],
   },
 };

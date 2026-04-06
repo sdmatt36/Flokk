@@ -259,6 +259,41 @@ Only return content when you are confident it describes a real, specific place. 
   }
 }
 
+async function getGooglePlacesPhoto(
+  name: string,
+  city: string,
+  lat?: number | null,
+  lng?: number | null
+): Promise<string | null> {
+  try {
+    const query = encodeURIComponent(`${name} ${city}`);
+    const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&key=${GOOGLE_MAPS_API_KEY}`;
+    const searchRes = await fetch(searchUrl);
+    const searchData = await searchRes.json() as { results?: { place_id: string }[] };
+    const placeId = searchData.results?.[0]?.place_id;
+    if (!placeId) {
+      console.log(`[PLACES PHOTO] No place found for "${name} ${city}"`);
+      return null;
+    }
+
+    const detailUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=photos&key=${GOOGLE_MAPS_API_KEY}`;
+    const detailRes = await fetch(detailUrl);
+    const detailData = await detailRes.json() as { result?: { photos?: { photo_reference: string }[] } };
+    const photoRef = detailData.result?.photos?.[0]?.photo_reference;
+    if (!photoRef) {
+      console.log(`[PLACES PHOTO] No photo for place_id=${placeId}`);
+      return null;
+    }
+
+    const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photoRef}&key=${GOOGLE_MAPS_API_KEY}`;
+    console.log(`[PLACES PHOTO] ✓ Found photo for "${name}"`);
+    return photoUrl;
+  } catch (e) {
+    console.log(`[PLACES PHOTO] Error for "${name}":`, e);
+    return null;
+  }
+}
+
 export async function enrichSavedItem(savedItemId: string): Promise<void> {
   const item = await db.savedItem.findUnique({
     where: { id: savedItemId },
@@ -339,12 +374,20 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
       coords = await geocode(workingTitle, item.destinationCity, item.destinationCountry);
     }
 
-    // Step 3: Places — website, photo, rating (skip if venue map has a curated photo)
+    // Step 3: Places — website, photo, rating
+    // Try Google Places textsearch→details (two-step, more reliable photo results) first,
+    // then fall back to findplacefromtext (one-step) for website/rating.
     const curatedPhoto = getVenueImage(workingTitle);
     if (curatedPhoto) {
       place = { photoUrl: curatedPhoto };
     } else {
+      // Primary: textsearch + place/details for photo
+      const placesPhoto = item.destinationCity
+        ? await getGooglePlacesPhoto(workingTitle, item.destinationCity, coords?.lat, coords?.lng)
+        : null;
+      // Fallback: findplacefromtext for website, rating, and photo if textsearch found nothing
       place = await getPlaceDetails(workingTitle, coords?.lat ?? null, coords?.lng ?? null);
+      if (placesPhoto) place.photoUrl = placesPhoto;
     }
   }
 
