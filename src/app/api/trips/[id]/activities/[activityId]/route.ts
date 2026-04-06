@@ -50,13 +50,14 @@ export async function PATCH(
       if (apiKey) {
         try {
           const locationContext = [trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", ");
-          const query = encodeURIComponent([venueName, address, locationContext].filter(Boolean).join(" "));
-          const geoRes = await fetch(
-            `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${query}&inputtype=textquery&fields=geometry&key=${apiKey}`
-          );
+          const geocodeQuery = [venueName, address, locationContext].filter(Boolean).join(", ");
+          const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(geocodeQuery)}&key=${apiKey}`;
+          const geoRes = await fetch(geocodeUrl);
           const geoData = await geoRes.json();
-          const loc = geoData.candidates?.[0]?.geometry?.location;
-          if (loc) { lat = loc.lat; lng = loc.lng; }
+          const location = geoData.results?.[0]?.geometry?.location;
+          lat = location?.lat ?? undefined;
+          lng = location?.lng ?? undefined;
+          console.log(`[GEOCODE] query="${geocodeQuery}" result=${lat},${lng}`);
         } catch { /* geocoding optional */ }
       }
     }

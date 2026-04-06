@@ -61,21 +61,22 @@ export async function POST(
     dayIndex = diff;
   }
 
-  // Geocode venue if name/address provided
+  // Geocode venue if name/address provided — uses Geocoding API for higher accuracy
   let lat: number | null = null;
   let lng: number | null = null;
   if (venueName || address) {
     try {
       const locationContext = [trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", ");
-      const query = encodeURIComponent([venueName, address, locationContext].filter(Boolean).join(" "));
+      const geocodeQuery = [venueName, address, locationContext].filter(Boolean).join(", ");
       const apiKey = process.env.GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_PLACES_API_KEY;
       if (apiKey) {
-        const geoRes = await fetch(
-          `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${query}&inputtype=textquery&fields=geometry&key=${apiKey}`
-        );
+        const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(geocodeQuery)}&key=${apiKey}`;
+        const geoRes = await fetch(geocodeUrl);
         const geoData = await geoRes.json();
-        const loc = geoData.candidates?.[0]?.geometry?.location;
-        if (loc) { lat = loc.lat; lng = loc.lng; }
+        const location = geoData.results?.[0]?.geometry?.location;
+        lat = location?.lat ?? null;
+        lng = location?.lng ?? null;
+        console.log(`[GEOCODE] query="${geocodeQuery}" result=${lat},${lng}`);
       }
     } catch { /* geocoding optional */ }
   }
