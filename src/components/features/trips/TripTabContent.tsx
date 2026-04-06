@@ -1453,7 +1453,7 @@ function BudgetPromptBanner({ tripId }: { tripId?: string }) {
     if (!selected || !tripId) return;
     setSaving(true);
     try {
-      await fetch(`/api/trips/${tripId}`, {
+      await fetch(`/api/trips/${tripId}/budget`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ budgetRange: selected }),
