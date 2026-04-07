@@ -257,6 +257,7 @@ export default function DiscoverPage() {
       ]);
       setSearchResults(tripsData.trips ?? []);
       setActivityResults(activitiesData.activities ?? []);
+      console.log('[Discover] activityResults:', activitiesData.activities?.length, activitiesData.activities?.[0]);
     } catch {
       setSearchResults([]);
       setActivityResults([]);
