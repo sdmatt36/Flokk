@@ -4822,7 +4822,7 @@ type HowWasItItem = {
   id: string;
   title: string;
   type: string;
-  itemKind: "itinerary" | "save";
+  itemKind: "itinerary" | "save" | "manual";
   rating: number;
   notes: string;
   wouldReturn: boolean | null;
@@ -4860,9 +4860,12 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onC
       fetch(`/api/trips/${tripId}/itinerary-items`).then(r => r.ok ? r.json() : {}),
       fetch(`/api/saves?tripId=${tripId}`).then(r => r.ok ? r.json() : { saves: [] }),
       fetch(`/api/trips/${tripId}/ratings`).then(r => r.ok ? r.json() : { ratings: [] }),
-    ]).then(([itinData, savesData, ratingData]) => {
+      fetch(`/api/trips/${tripId}/activities`).then(r => r.ok ? r.json() : []),
+    ]).then(([itinData, savesData, ratingData, manualData]) => {
       const itinItems: { id: string; title?: string | null; type?: string }[] = Array.isArray(itinData) ? itinData : ((itinData as { items?: unknown[] }).items ?? []);
-      const savedRatingIds = new Set<string>((ratingData.ratings ?? []).map((r: { itineraryItemId?: string }) => r.itineraryItemId).filter(Boolean));
+      const existingRatings: { itineraryItemId?: string; manualActivityId?: string }[] = ratingData.ratings ?? [];
+      const ratedItinIds = new Set<string>(existingRatings.map(r => r.itineraryItemId).filter(Boolean) as string[]);
+      const ratedManualIds = new Set<string>(existingRatings.map(r => r.manualActivityId).filter(Boolean) as string[]);
 
       // LODGING: exclude check-out items; strip "Check-in: " prefix from title
       // ACTIVITY: include all
@@ -4879,7 +4882,7 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onC
           rating: 0,
           notes: "",
           wouldReturn: null,
-          alreadySaved: savedRatingIds.has(it.id),
+          alreadySaved: ratedItinIds.has(it.id),
         }));
 
       // SavedItems assigned to trip — exclude flight/lodging/transportation tags
@@ -4896,7 +4899,25 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onC
           alreadySaved: false,
         }));
 
-      setItems([...itinRated, ...saveItems]);
+      // ManualActivity records — deduplicate against itinerary and save titles
+      const existingTitles = new Set<string>([
+        ...itinRated.map(i => i.title.toLowerCase()),
+        ...saveItems.map(i => i.title.toLowerCase()),
+      ]);
+      const manualItems: HowWasItItem[] = ((manualData as { id: string; title: string }[]) ?? [])
+        .filter(m => !existingTitles.has(m.title.toLowerCase()))
+        .map(m => ({
+          id: m.id,
+          title: m.title,
+          type: "ACTIVITY",
+          itemKind: "manual" as const,
+          rating: 0,
+          notes: "",
+          wouldReturn: null,
+          alreadySaved: ratedManualIds.has(m.id),
+        }));
+
+      setItems([...itinRated, ...saveItems, ...manualItems]);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripId]);
@@ -4910,6 +4931,7 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onC
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...(it.itemKind === "itinerary" ? { itineraryItemId: it.id } : {}),
+          ...(it.itemKind === "manual" ? { manualActivityId: it.id } : {}),
           placeName: it.title,
           placeType: it.type.toLowerCase(),
           rating: it.rating,

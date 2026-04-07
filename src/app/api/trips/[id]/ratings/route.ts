@@ -37,6 +37,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const body = await req.json() as {
     itineraryItemId?: string;
+    manualActivityId?: string;
     placeName: string;
     placeType: string;
     rating: number;
@@ -50,6 +51,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       familyProfileId: family.id,
       tripId,
       itineraryItemId: body.itineraryItemId ?? null,
+      manualActivityId: body.manualActivityId ?? null,
       placeName: body.placeName,
       placeType: body.placeType,
       destinationCity: trip.destinationCity ?? null,

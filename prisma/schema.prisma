@@ -811,8 +811,9 @@ model PlaceRating {
   id              String        @id @default(cuid())
   familyProfileId String
   tripId          String
-  itineraryItemId String?
-  placeName       String
+  itineraryItemId  String?
+  manualActivityId String?
+  placeName        String
   placeType       String
   destinationCity String?
   lat             Float?
