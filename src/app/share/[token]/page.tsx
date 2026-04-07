@@ -85,7 +85,7 @@ export default async function SharePage({
       savedItems: { orderBy: [{ dayIndex: "asc" }, { savedAt: "asc" }] },
       itineraryItems: { orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }] },
       manualActivities: { orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }] },
-      familyProfile: { select: { familyName: true, homeCity: true } },
+      familyProfile: { select: { familyName: true } },
       placeRatings: {
         select: {
           itineraryItemId: true,
@@ -121,13 +121,9 @@ export default async function SharePage({
   const heroImg = getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl);
   const dateRange = formatDateRange(trip.startDate, trip.endDate);
   const days = tripDays(trip.startDate, trip.endDate);
-  const curatorName = trip.isAnonymous
+  const curatorName = trip.isAnonymous || !trip.familyProfile?.familyName
     ? "A Flokk family"
-    : trip.familyProfile?.familyName
-    ? trip.familyProfile.homeCity
-      ? `${trip.familyProfile.familyName} Family, ${trip.familyProfile.homeCity}`
-      : `${trip.familyProfile.familyName} Family`
-    : "A Flokk family";
+    : `${trip.familyProfile.familyName} Family`;
 
   const destination = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ");
 
@@ -393,6 +389,7 @@ export default async function SharePage({
                             key={item.id}
                             item={item}
                             isLoggedIn={isLoggedIn}
+                            heroImageUrl={heroImg}
                           />
                         );
                       })}

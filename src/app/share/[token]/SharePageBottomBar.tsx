@@ -33,6 +33,7 @@ export function SharePageBottomBar({
 
   // Steal modal state
   const [stealModalOpen, setStealModalOpen] = useState(false);
+  const [stealAllMode, setStealAllMode] = useState(false);
   const [modalStep, setModalStep] = useState<"days" | "trip">("days");
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [planningTrips, setPlanningTrips] = useState<PlanningTrip[]>([]);
@@ -44,7 +45,32 @@ export function SharePageBottomBar({
 
   const redirectUrl = encodeURIComponent(pathname ?? "");
 
-  function openStealModal() {
+  async function fetchPlanningTrips() {
+    setTripsLoading(true);
+    try {
+      const res = await fetch("/api/trips?status=planning");
+      if (res.ok) {
+        const data = await res.json() as { trips: PlanningTrip[] };
+        setPlanningTrips(data.trips ?? []);
+      }
+    } catch { /* ignore */ } finally {
+      setTripsLoading(false);
+    }
+  }
+
+  async function handleStealAll() {
+    setStealAllMode(true);
+    setSelectedDays(days.map(d => d.dayIndex));
+    setSelectedTripId(null);
+    setStealSuccess(null);
+    setStealError(null);
+    setModalStep("trip");
+    setStealModalOpen(true);
+    await fetchPlanningTrips();
+  }
+
+  function openSpecificDaysModal() {
+    setStealAllMode(false);
     setStealModalOpen(true);
     setModalStep("days");
     setSelectedDays([]);
@@ -65,16 +91,7 @@ export function SharePageBottomBar({
 
   async function goToTripStep() {
     setModalStep("trip");
-    setTripsLoading(true);
-    try {
-      const res = await fetch("/api/trips?status=planning");
-      if (res.ok) {
-        const data = await res.json() as { trips: PlanningTrip[] };
-        setPlanningTrips(data.trips ?? []);
-      }
-    } catch { /* ignore */ } finally {
-      setTripsLoading(false);
-    }
+    await fetchPlanningTrips();
   }
 
   async function handleSteal() {
@@ -124,7 +141,7 @@ export function SharePageBottomBar({
   return (
     <>
       {/* Bottom bar */}
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100, backgroundColor: "#fff", borderTop: "1px solid #F0F0F0", padding: "16px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", boxShadow: "0 -4px 24px rgba(0,0,0,0.08)" }}>
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100, backgroundColor: "#fff", borderTop: "1px solid #F0F0F0", padding: "16px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", boxShadow: "0 -4px 24px rgba(0,0,0,0.08)" }}>
         {isSignedIn ? (
           <>
             {stealSuccess && (
@@ -136,10 +153,16 @@ export function SharePageBottomBar({
               </p>
             )}
             <button
-              onClick={openStealModal}
+              onClick={handleStealAll}
               style={{ width: "100%", maxWidth: "400px", padding: "14px", borderRadius: "999px", backgroundColor: "#C4664A", color: "#fff", fontWeight: 700, fontSize: "15px", border: "none", cursor: "pointer" }}
             >
               Steal This Itinerary
+            </button>
+            <button
+              onClick={openSpecificDaysModal}
+              style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "#AAAAAA", padding: "2px 0", fontFamily: "inherit" }}
+            >
+              Choose specific days →
             </button>
             <p style={{ fontSize: "12px", color: "#888", margin: 0, textAlign: "center" }}>
               or save individual places above
@@ -232,13 +255,13 @@ export function SharePageBottomBar({
             ) : (
               <>
                 <button
-                  onClick={() => setModalStep("days")}
+                  onClick={() => stealAllMode ? closeStealModal() : setModalStep("days")}
                   style={{ fontSize: "13px", color: "#717171", background: "none", border: "none", cursor: "pointer", padding: "0 0 16px 0", display: "block" }}
                 >
-                  Back
+                  {stealAllMode ? "Cancel" : "Back"}
                 </button>
                 <p style={{ fontSize: "20px", fontWeight: 700, color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "6px" }}>
-                  Copy to which trip?
+                  {stealAllMode ? "Copy entire trip to which trip?" : "Copy to which trip?"}
                 </p>
                 <p style={{ fontSize: "13px", color: "#717171", marginBottom: "20px" }}>
                   These places will be added to your vault for that trip.
@@ -282,7 +305,7 @@ export function SharePageBottomBar({
                   disabled={!selectedTripId || stealing}
                   style={{ width: "100%", padding: "14px", borderRadius: "999px", backgroundColor: !selectedTripId || stealing ? "#E5E5E5" : "#C4664A", color: !selectedTripId || stealing ? "#AAAAAA" : "#fff", fontWeight: 700, fontSize: "15px", border: "none", cursor: !selectedTripId || stealing ? "not-allowed" : "pointer" }}
                 >
-                  {stealing ? "Copying..." : `Copy ${selectedDays.length} ${selectedDays.length === 1 ? "day" : "days"}`}
+                  {stealing ? "Copying..." : stealAllMode ? `Copy all ${selectedDays.length} days` : `Copy ${selectedDays.length} ${selectedDays.length === 1 ? "day" : "days"}`}
                 </button>
               </>
             )}
