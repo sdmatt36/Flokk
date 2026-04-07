@@ -7,8 +7,8 @@ export async function GET(req: NextRequest) {
 
   const trips = await db.trip.findMany({
     where: {
-      privacy: "PUBLIC",
-      status: "COMPLETED",
+      shareToken: { not: null },
+      status: { not: "PLANNING" },
       ...(city ? { destinationCity: { contains: city, mode: "insensitive" } } : {}),
     },
     select: {
@@ -20,10 +20,10 @@ export async function GET(req: NextRequest) {
       endDate: true,
       heroImageUrl: true,
       isAnonymous: true,
-      _count: { select: { savedItems: true } },
+      _count: { select: { savedItems: true, placeRatings: true } },
       familyProfile: { select: { familyName: true, homeCity: true } },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ isAnonymous: "asc" }, { updatedAt: "desc" }],
     take: limit,
   });
 

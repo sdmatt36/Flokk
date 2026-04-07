@@ -129,7 +129,7 @@ type PublicTrip = {
   endDate: string | null;
   heroImageUrl: string | null;
   isAnonymous: boolean;
-  _count: { savedItems: number };
+  _count: { savedItems: number; placeRatings: number };
   familyProfile: { familyName: string | null; homeCity: string | null } | null;
 };
 
@@ -141,7 +141,9 @@ type SearchTrip = {
   startDate: string | null;
   endDate: string | null;
   heroImageUrl: string | null;
-  _count: { savedItems: number };
+  isAnonymous: boolean;
+  _count: { savedItems: number; placeRatings: number };
+  familyProfile: { familyName: string | null; homeCity: string | null } | null;
 };
 
 type UserTrip = {
@@ -379,9 +381,12 @@ export default function DiscoverPage() {
                             </span>
                           </div>
                           <p style={{ fontSize: "11px", color: "#AAAAAA" }}>
-                            {nights ? `${nights} nights` : ""}
-                            {nights && trip._count.savedItems > 0 ? " · " : ""}
-                            {trip._count.savedItems > 0 ? `${trip._count.savedItems} saves` : ""}
+                            {[
+                              nights ? `${nights} nights` : null,
+                              trip._count.savedItems > 0 ? `${trip._count.savedItems} saves` : null,
+                              trip._count.placeRatings > 0 ? `${trip._count.placeRatings} ratings` : null,
+                              !trip.isAnonymous && trip.familyProfile?.familyName ? `${trip.familyProfile.familyName} Family` : null,
+                            ].filter(Boolean).join(" · ")}
                           </p>
                         </div>
                       </div>
@@ -425,9 +430,7 @@ export default function DiscoverPage() {
                   ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24))
                   : null;
                 const destination = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ");
-                const familyName = trip.isAnonymous
-                  ? "Flokk Family — Anonymous"
-                  : trip.familyProfile?.familyName
+                const familyName = !trip.isAnonymous && trip.familyProfile?.familyName
                   ? trip.familyProfile.homeCity
                     ? `${trip.familyProfile.familyName} Family, ${trip.familyProfile.homeCity}`
                     : `${trip.familyProfile.familyName} Family`
@@ -450,10 +453,12 @@ export default function DiscoverPage() {
                           <span style={{ fontSize: "12px", color: "#2d2d2d", fontWeight: 600 }}>{destination}</span>
                         </div>
                         <p style={{ fontSize: "11px", color: "#717171" }}>
-                          {nights ? `${nights} nights` : ""}
-                          {nights && trip._count.savedItems > 0 ? " · " : ""}
-                          {trip._count.savedItems > 0 ? `${trip._count.savedItems} saves` : ""}
-                          {familyName ? `${nights || trip._count.savedItems > 0 ? " · " : ""}${familyName}` : ""}
+                          {[
+                            nights ? `${nights} nights` : null,
+                            trip._count.savedItems > 0 ? `${trip._count.savedItems} saves` : null,
+                            trip._count.placeRatings > 0 ? `${trip._count.placeRatings} ratings` : null,
+                            familyName,
+                          ].filter(Boolean).join(" · ")}
                         </p>
                       </div>
                     </div>
