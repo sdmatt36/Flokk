@@ -240,13 +240,25 @@ export default function DiscoverPage() {
   }, []);
 
   useEffect(() => {
-    fetch("/api/discover/activities")
+    fetch("/api/discover/activities?minRating=3")
       .then((r) => r.json())
-      .then((d) => setActivityResults(Array.isArray(d.activities) ? d.activities : []))
-      .catch(() => {});
+      .then((data) => {
+        console.log("[Discover] activities loaded:", data.activities?.length);
+        setActivityResults(data.activities ?? []);
+      })
+      .catch((e) => console.error("[Discover] activities fetch failed:", e));
+
     fetch("/api/trips")
       .then((r) => r.json())
-      .then((d) => setSaveTripList(Array.isArray(d.trips) ? d.trips : []))
+      .then((data) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const trips = (data.trips ?? data ?? []).filter((t: any) => !t.endDate || new Date(t.endDate) >= new Date()).map((t: any) => ({
+          id: t.id,
+          title: t.title ?? t.destinationCity ?? "Trip",
+          destinationCity: t.destinationCity ?? null,
+        }));
+        setSaveTripList(trips);
+      })
       .catch(() => {});
   }, []);
 
