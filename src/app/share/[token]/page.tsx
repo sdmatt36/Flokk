@@ -394,7 +394,6 @@ export default async function SharePage({
                             item={item}
                             isLoggedIn={isLoggedIn}
                             heroImageUrl={heroImg}
-                            tripDestination={tripDestination}
                           />
                         );
                       })}

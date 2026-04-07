@@ -24,15 +24,12 @@ export function ShareActivityCard({
   item,
   isLoggedIn,
   heroImageUrl,
-  tripDestination,
 }: {
   item: SerializableItem;
   isLoggedIn: boolean;
   heroImageUrl?: string | null;
-  tripDestination?: string;
 }) {
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [savedToTrip, setSavedToTrip] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "duplicate" | "error">("idle");
   const [imgFailed, setImgFailed] = useState(false);
   const pathname = usePathname();
 
@@ -50,24 +47,23 @@ export function ShareActivityCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: item.title,
-          description: item.notes,
-          thumbnailUrl: item.imageUrl,
+          city: item.destinationCity,
           lat: item.lat,
           lng: item.lng,
-          destinationCity: item.destinationCity,
-          tripDestination: tripDestination ?? null,
+          placePhotoUrl: item.imageUrl ?? null,
+          websiteUrl: null,
         }),
       });
-      if (res.status === 200 || res.status === 201) {
-        const data = await res.json() as { savedId?: string; duplicate?: boolean; tripTitle?: string | null };
-        setSavedToTrip(data.tripTitle ?? null);
+      const data = await res.json() as { saved?: boolean; duplicate?: boolean };
+      if (data.duplicate) {
+        setSaveState("duplicate");
+      } else if (res.status === 200 || res.status === 201) {
         setSaveState("saved");
       } else {
-        throw new Error("Failed");
+        setSaveState("idle");
       }
     } catch {
-      setSaveState("error");
-      setTimeout(() => setSaveState("idle"), 2000);
+      setSaveState("idle");
     }
   }
 
@@ -155,28 +151,26 @@ export function ShareActivityCard({
           <div className="mt-3 flex justify-end">
             <button
               onClick={handleSave}
-              disabled={saveState === "saving" || saveState === "saved"}
+              disabled={saveState === "saving" || saveState === "saved" || saveState === "duplicate"}
               style={{
                 fontSize: "12px",
-                border: `1px solid ${saveState === "saved" ? "#6B8F71" : "#C4664A"}`,
-                color: saveState === "saved" ? "#6B8F71" : "#C4664A",
+                border: saveState === "saved" || saveState === "duplicate" ? "none" : "1px solid #C4664A",
+                color: saveState === "saved" ? "#6B8F71" : saveState === "duplicate" ? "#AAAAAA" : "#C4664A",
                 backgroundColor: "transparent",
                 padding: "5px 12px",
                 borderRadius: "999px",
-                cursor: saveState === "saving" || saveState === "saved" ? "default" : "pointer",
+                cursor: saveState === "saving" || saveState === "saved" || saveState === "duplicate" ? "default" : "pointer",
                 fontFamily: "inherit",
                 fontWeight: 600,
                 transition: "all 0.15s",
               }}
             >
               {saveState === "saved"
-                ? savedToTrip
-                  ? `Saved to ${savedToTrip}`
-                  : "Saved to library"
+                ? "Saved to your library"
+                : saveState === "duplicate"
+                ? "Already saved"
                 : saveState === "saving"
                 ? "Saving..."
-                : saveState === "error"
-                ? "Try again"
                 : "Save"}
             </button>
           </div>
