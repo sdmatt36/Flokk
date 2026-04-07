@@ -122,7 +122,7 @@ export function SharePageBottomBar({
       {/* Confirmation modal */}
       {confirmOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-4"
+          className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4 pb-32"
           onClick={() => setConfirmOpen(false)}
         >
           <div
