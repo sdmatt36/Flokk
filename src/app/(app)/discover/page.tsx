@@ -10,21 +10,6 @@ import { TravelIntelSection } from "@/components/features/discover/TravelIntelSe
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700", "900"] });
 
-type DiscoverActivity = {
-  title: string;
-  type: string;
-  city: string | null;
-  rating: number;
-  ratingNotes: string | null;
-  wouldReturn: boolean | null;
-  destinationCity: string | null;
-  shareToken: string | null;
-  familyName: string | null;
-  isAnonymous: boolean;
-  venueUrl: string | null;
-  venueName: string | null;
-};
-
 type Recommendation = {
   id: string;
   city: string;
@@ -193,8 +178,6 @@ export default function DiscoverPage() {
   const [suggestions,    setSuggestions]    = useState<string[]>([]);
   const [showSuggestions,setShowSuggestions] = useState(false);
   const [searchResults,  setSearchResults]  = useState<SearchTrip[] | null>(null);
-  const [activityResults, setActivityResults] = useState<DiscoverActivity[] | null>(null);
-  const [savedActivities, setSavedActivities] = useState<Set<string>>(new Set());
   const [isSearching,    setIsSearching]    = useState(false);
   const [searchFocused,  setSearchFocused]  = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -236,44 +219,16 @@ export default function DiscoverPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (searchQuery.trim().length > 1) handleSearch(searchQuery);
-      if (searchQuery.trim().length === 0) clearSearch();
-    }, 300);
-    return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery]);
-
-  useEffect(() => {
-    fetch('/api/discover/activities?minRating=3')
-      .then(r => r.json())
-      .then(data => {
-        console.log('[Discover] mounted activities:', data.activities?.length);
-        setActivityResults(data.activities ?? []);
-      })
-      .catch(e => console.error('[Discover] mount fetch failed:', e));
-  }, []);
-
   async function handleSearch(q: string) {
-    if (!q.trim()) { setSearchResults(null); setActivityResults(null); return; }
+    if (!q.trim()) { setSearchResults(null); return; }
     setIsSearching(true);
     setShowSuggestions(false);
     try {
-      const [tripsRes, activitiesRes] = await Promise.all([
-        fetch(`/api/trips/search?q=${encodeURIComponent(q)}`),
-        fetch(`/api/discover/activities?q=${encodeURIComponent(q)}&minRating=3`),
-      ]);
-      const [tripsData, activitiesData] = await Promise.all([
-        tripsRes.json(),
-        activitiesRes.json(),
-      ]);
-      setSearchResults(tripsData.trips ?? []);
-      setActivityResults(activitiesData.activities ?? []);
-      console.log('[Discover] search activityResults:', activitiesData?.activities?.length);
+      const res = await fetch(`/api/trips/search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      setSearchResults(data.trips ?? []);
     } catch {
       setSearchResults([]);
-      setActivityResults([]);
     } finally {
       setIsSearching(false);
     }
@@ -288,29 +243,8 @@ export default function DiscoverPage() {
   function clearSearch() {
     setSearchQuery("");
     setSearchResults(null);
-    setActivityResults(null);
     setSuggestions([]);
     setShowSuggestions(false);
-  }
-
-  async function handleSaveActivity(activity: DiscoverActivity) {
-    try {
-      const res = await fetch("/api/saves/from-share", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: activity.title,
-          city: activity.city,
-          placePhotoUrl: getTripCoverImage(activity.city, null, null),
-          websiteUrl: activity.venueUrl ?? null,
-        }),
-      });
-      if (res.ok) {
-        setSavedActivities((prev) => new Set(prev).add(activity.title));
-      }
-    } catch (e) {
-      console.error("[Discover] save failed:", e);
-    }
   }
 
   const handleAddYoursClick = async () => {
@@ -414,23 +348,21 @@ export default function DiscoverPage() {
           <div style={{ marginTop: "28px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
               <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>
-                {isSearching
-                  ? "Searching…"
-                  : `${(searchResults?.length ?? 0) + (activityResults?.length ?? 0)} results found`}
+                {isSearching ? "Searching…" : `${searchResults?.length ?? 0} community trips found`}
               </p>
               <button onClick={clearSearch} style={{ fontSize: "12px", color: "#717171", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
                 Clear
               </button>
             </div>
-            {!isSearching && searchResults !== null && (searchResults.length === 0 && (activityResults?.length ?? 0) === 0) && (
+            {!isSearching && searchResults !== null && searchResults.length === 0 && (
               <div style={{ textAlign: "center", padding: "32px 24px", backgroundColor: "#F9F9F9", borderRadius: "16px", border: "1px solid #EEEEEE" }}>
-                <p style={{ fontSize: "15px", fontWeight: 600, color: "#1a1a1a", marginBottom: "6px" }}>No results found</p>
+                <p style={{ fontSize: "15px", fontWeight: 600, color: "#1a1a1a", marginBottom: "6px" }}>No trips found</p>
                 <p style={{ fontSize: "13px", color: "#717171" }}>Try a different city or country name.</p>
               </div>
             )}
-            {!isSearching && ((searchResults && searchResults.length > 0) || (activityResults && activityResults.length > 0)) && (
+            {!isSearching && searchResults && searchResults.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
-                {(searchResults ?? []).map((trip) => {
+                {searchResults.map((trip) => {
                   const cover = getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl);
                   const nights = trip.startDate && trip.endDate
                     ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24))
@@ -472,53 +404,6 @@ export default function DiscoverPage() {
                         </div>
                       </div>
                     </Link>
-                  );
-                })}
-                {(activityResults ?? []).map((activity, i) => {
-                  const cover = getTripCoverImage(activity.city, null, null);
-                  const activityCardHref = activity.shareToken ? `/share/${activity.shareToken}` : null;
-                  const activityFamilyName = activity.isAnonymous || !activity.familyName
-                    ? "A Flokk Family"
-                    : `${activity.familyName} Family`;
-                  const card = (
-                    <div
-                      className="hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
-                      style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
-                    >
-                      <div style={{ height: "140px", backgroundImage: `url(${cover})`, backgroundSize: "cover", backgroundPosition: "center" }} />
-                      <div style={{ padding: "12px 14px" }}>
-                        <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "4px" }}>{activity.title}</p>
-                        <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
-                          <MapPin size={11} style={{ color: "#C4664A", flexShrink: 0 }} />
-                          <span style={{ fontSize: "12px", color: "#717171" }}>
-                            {activity.city ?? activity.destinationCity ?? ""}
-                          </span>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                          <p style={{ fontSize: "11px", color: "#AAAAAA" }}>
-                            {[
-                              `${activity.rating}/5`,
-                              activity.ratingNotes ?? null,
-                              activityFamilyName,
-                            ].filter(Boolean).join(" · ")}
-                          </p>
-                          {activityCardHref && (
-                            <span style={{ fontSize: "11px", color: "#C4664A", fontWeight: 600, flexShrink: 0, marginLeft: "8px" }}>
-                              View trip →
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                  return activityCardHref ? (
-                    <Link key={`activity-${i}`} href={activityCardHref} style={{ textDecoration: "none", display: "block" }}>
-                      {card}
-                    </Link>
-                  ) : (
-                    <div key={`activity-${i}`} style={{ display: "block" }}>
-                      {card}
-                    </div>
                   );
                 })}
               </div>
@@ -654,57 +539,8 @@ export default function DiscoverPage() {
             ))}
           </div>
 
-          {(filtered.length > 0 || (activityResults && activityResults.length > 0)) ? (
+          {filtered.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
-              {(activityResults ?? []).map((activity, i) => {
-                const cover = getTripCoverImage(activity.city, null, null);
-                const activityTag = activity.type === "LODGING" ? "Hotel"
-                  : activity.type === "FLIGHT" ? "Transport"
-                  : "Activity";
-                const attribution = activity.isAnonymous ? "A Flokk Family" : `${activity.familyName} Family`;
-                return (
-                  <div
-                    key={`rated-${i}`}
-                    className="hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
-                    style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
-                  >
-                    <div style={{ height: "160px", backgroundImage: `url(${cover})`, backgroundSize: "cover", backgroundPosition: "center", position: "relative" }}>
-                      <div style={{ position: "absolute", top: "10px", left: "10px" }}>
-                        <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: "#C4664A", color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>
-                          {activityTag}
-                        </span>
-                      </div>
-                      <div style={{ position: "absolute", top: "10px", right: "10px" }}>
-                        <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: "rgba(255,255,255,0.92)", color: "#C4664A", borderRadius: "20px", padding: "3px 10px" }}>
-                          {"★".repeat(activity.rating)}{"☆".repeat(5 - activity.rating)}
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ padding: "14px 16px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
-                        <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
-                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>{activity.city}</span>
-                      </div>
-                      <p style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C", marginBottom: "4px", lineHeight: 1.3 }}>{activity.title}</p>
-                      {activity.ratingNotes && (
-                        <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "8px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                          {activity.ratingNotes}
-                        </p>
-                      )}
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                        <p style={{ fontSize: "11px", color: "#AAAAAA" }}>{attribution}</p>
-                        <button
-                          onClick={() => handleSaveActivity(activity)}
-                          disabled={savedActivities.has(activity.title)}
-                          style={{ fontSize: "11px", color: savedActivities.has(activity.title) ? "#717171" : "#C4664A", fontWeight: 600, background: "none", border: `1px solid ${savedActivities.has(activity.title) ? "#DDDDDD" : "#C4664A"}`, borderRadius: "8px", padding: "4px 10px", cursor: savedActivities.has(activity.title) ? "default" : "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
-                        >
-                          {savedActivities.has(activity.title) ? "Saved" : "+ Save"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
               {displayedDest.map((rec) => (
                 <Link key={rec.id} href={getDestinationHref(rec)} style={{ textDecoration: "none", display: "block" }}>
                   <div
@@ -752,7 +588,6 @@ export default function DiscoverPage() {
             </div>
           )}
         </div>
-
 
       </div>
 
