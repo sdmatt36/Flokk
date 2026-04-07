@@ -10,6 +10,19 @@ import { TravelIntelSection } from "@/components/features/discover/TravelIntelSe
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700", "900"] });
 
+type DiscoverActivity = {
+  title: string;
+  type: string;
+  city: string | null;
+  rating: number;
+  ratingNotes: string | null;
+  wouldReturn: boolean | null;
+  destinationCity: string | null;
+  shareToken: string | null;
+  familyName: string | null;
+  isAnonymous: boolean;
+};
+
 type Recommendation = {
   id: string;
   city: string;
@@ -156,108 +169,6 @@ type UserTrip = {
   startDate?: string | null;
 };
 
-type ActivityResult = {
-  title: string;
-  type: string;
-  city: string;
-  rating: number;
-  ratingNotes: string | null;
-  wouldReturn: boolean | null;
-  shareToken: string | null;
-  familyName: string | null;
-  isAnonymous: boolean;
-};
-
-// ── Community Picks default feed ─────────────────────────────────────────────
-function CommunityPicksSection() {
-  const [activities, setActivities] = useState<ActivityResult[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [cityFilter, setCityFilter] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch("/api/discover/activities?minRating=3")
-      .then((r) => r.json())
-      .then((d) => { setActivities(d.activities ?? []); setLoaded(true); })
-      .catch(() => setLoaded(true));
-  }, []);
-
-  if (!loaded || activities.length === 0) return null;
-
-  const cities = [...new Set(activities.map((a) => a.city))].sort();
-  const displayed = cityFilter ? activities.filter((a) => a.city === cityFilter) : activities;
-
-  return (
-    <div style={{ paddingTop: "64px" }}>
-      <div style={{ marginBottom: "24px" }}>
-        <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", margin: "0 0 6px" }}>
-          COMMUNITY PICKS
-        </p>
-        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "26px", fontWeight: 900, color: "#1B3A5C", margin: "0 0 8px", lineHeight: 1.2 }}>
-          Rated by families, for families
-        </h2>
-        <p style={{ fontSize: "14px", color: "#717171", margin: 0 }}>
-          Real ratings from families who&apos;ve been there.
-        </p>
-      </div>
-
-      {/* City filter pills */}
-      <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "20px", scrollbarWidth: "none" }} className="hide-scrollbar">
-        <button
-          onClick={() => setCityFilter(null)}
-          style={{ flexShrink: 0, padding: "6px 14px", borderRadius: "999px", border: cityFilter === null ? "none" : "1.5px solid #E0E0E0", backgroundColor: cityFilter === null ? "#C4664A" : "#fff", color: cityFilter === null ? "#fff" : "#717171", fontSize: "12px", fontWeight: cityFilter === null ? 700 : 500, cursor: "pointer" }}
-        >
-          All
-        </button>
-        {cities.map((city) => (
-          <button
-            key={city}
-            onClick={() => setCityFilter(city === cityFilter ? null : city)}
-            style={{ flexShrink: 0, padding: "6px 14px", borderRadius: "999px", border: cityFilter === city ? "none" : "1.5px solid #E0E0E0", backgroundColor: cityFilter === city ? "#C4664A" : "#fff", color: cityFilter === city ? "#fff" : "#717171", fontSize: "12px", fontWeight: cityFilter === city ? 700 : 500, cursor: "pointer" }}
-          >
-            {city}
-          </button>
-        ))}
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        {displayed.slice(0, 20).map((act, i) => {
-          const stars = "★".repeat(act.rating) + "☆".repeat(5 - act.rating);
-          const attribution = act.isAnonymous || !act.familyName ? "A Flokk Family" : `${act.familyName} Family`;
-          return (
-            <div
-              key={i}
-              style={{ backgroundColor: "#fff", border: "1px solid #EEEEEE", borderLeft: "3px solid #C4664A", borderRadius: "10px", padding: "12px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
-            >
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px", marginBottom: "4px" }}>
-                <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, margin: 0 }}>{act.title}</p>
-                <span style={{ fontSize: "13px", color: "#C4664A", flexShrink: 0, letterSpacing: "0.05em" }}>{stars}</span>
-              </div>
-              {act.ratingNotes && (
-                <p
-                  style={{
-                    fontSize: "12px", color: "#717171", lineHeight: 1.5, margin: "4px 0",
-                    overflow: "hidden", display: "-webkit-box",
-                    WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
-                  } as React.CSSProperties}
-                >
-                  {act.ratingNotes}
-                </p>
-              )}
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "6px" }}>
-                <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", backgroundColor: "#F5EDE8", color: "#C4664A", borderRadius: "4px", padding: "2px 7px" }}>{act.city}</span>
-                <span style={{ fontSize: "11px", color: "#AAAAAA" }}>from {attribution}</span>
-                {act.wouldReturn === true && (
-                  <span style={{ fontSize: "11px", color: "#6B8F71", fontWeight: 600 }}>Would return</span>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ── Outline button shared style ───────────────────────────────────────────────
 
 const outlineBtn: React.CSSProperties = {
@@ -280,7 +191,7 @@ export default function DiscoverPage() {
   const [suggestions,    setSuggestions]    = useState<string[]>([]);
   const [showSuggestions,setShowSuggestions] = useState(false);
   const [searchResults,  setSearchResults]  = useState<SearchTrip[] | null>(null);
-  const [activityResults, setActivityResults] = useState<ActivityResult[] | null>(null);
+  const [activityResults, setActivityResults] = useState<DiscoverActivity[] | null>(null);
   const [isSearching,    setIsSearching]    = useState(false);
   const [searchFocused,  setSearchFocused]  = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -327,14 +238,16 @@ export default function DiscoverPage() {
     setIsSearching(true);
     setShowSuggestions(false);
     try {
-      const [tripRes, actRes] = await Promise.all([
+      const [tripsRes, activitiesRes] = await Promise.all([
         fetch(`/api/trips/search?q=${encodeURIComponent(q)}`),
         fetch(`/api/discover/activities?q=${encodeURIComponent(q)}&minRating=3`),
       ]);
-      const tripData = await tripRes.json();
-      const actData = await actRes.json();
-      setSearchResults(tripData.trips ?? []);
-      setActivityResults(actData.activities ?? []);
+      const [tripsData, activitiesData] = await Promise.all([
+        tripsRes.json(),
+        activitiesRes.json(),
+      ]);
+      setSearchResults(tripsData.trips ?? []);
+      setActivityResults(activitiesData.activities ?? []);
     } catch {
       setSearchResults([]);
       setActivityResults([]);
@@ -453,96 +366,28 @@ export default function DiscoverPage() {
           Search across trips, places, and destinations
         </p>
 
-        {/* Activity search results */}
-        {activityResults !== null && activityResults.length > 0 && (() => {
-          // Group by city
-          const grouped: Record<string, ActivityResult[]> = {};
-          for (const a of activityResults) {
-            if (!grouped[a.city]) grouped[a.city] = [];
-            grouped[a.city].push(a);
-          }
-          const cities = Object.keys(grouped).sort();
-          return (
-            <div style={{ marginTop: "28px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
-                <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>
-                  {activityResults.length} rated {activityResults.length === 1 ? "activity" : "activities"} found
-                </p>
-                <button onClick={clearSearch} style={{ fontSize: "12px", color: "#717171", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                  Clear
-                </button>
-              </div>
-              {cities.map((city) => (
-                <div key={city} style={{ marginBottom: "28px" }}>
-                  <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em", color: "#C4664A", marginBottom: "10px" }}>
-                    {city} ({grouped[city].length})
-                  </p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    {grouped[city].map((act, i) => {
-                      const stars = "★".repeat(act.rating) + "☆".repeat(5 - act.rating);
-                      const attribution = act.isAnonymous || !act.familyName ? "A Flokk Family" : `${act.familyName} Family`;
-                      return (
-                        <div
-                          key={`${city}-${i}`}
-                          style={{ backgroundColor: "#fff", border: "1px solid #EEEEEE", borderLeft: "3px solid #C4664A", borderRadius: "10px", padding: "12px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)" }}
-                        >
-                          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px", marginBottom: "4px" }}>
-                            <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, margin: 0 }}>{act.title}</p>
-                            <span style={{ fontSize: "13px", color: "#C4664A", flexShrink: 0, letterSpacing: "0.05em" }}>{stars}</span>
-                          </div>
-                          {act.ratingNotes && (
-                            <p
-                              style={{
-                                fontSize: "12px", color: "#717171", lineHeight: 1.5, margin: "4px 0",
-                                overflow: "hidden", display: "-webkit-box",
-                                WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
-                              } as React.CSSProperties}
-                            >
-                              {act.ratingNotes}
-                            </p>
-                          )}
-                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "6px" }}>
-                            <span style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", backgroundColor: "#F5EDE8", color: "#C4664A", borderRadius: "4px", padding: "2px 7px" }}>{city}</span>
-                            <span style={{ fontSize: "11px", color: "#AAAAAA" }}>from {attribution}</span>
-                            {act.wouldReturn === true && (
-                              <span style={{ fontSize: "11px", color: "#6B8F71", fontWeight: 600 }}>Would return</span>
-                            )}
-                            {act.wouldReturn === false && (
-                              <span style={{ fontSize: "11px", color: "#AAAAAA" }}>Wouldn&apos;t return</span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          );
-        })()}
-
-        {/* Trip search results */}
+        {/* Search results */}
         {(searchResults !== null || isSearching) && (
-          <div style={{ marginTop: activityResults && activityResults.length > 0 ? "0" : "28px" }}>
+          <div style={{ marginTop: "28px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" }}>
               <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>
-                {isSearching ? "Searching…" : `${searchResults?.length ?? 0} community trips found`}
+                {isSearching
+                  ? "Searching…"
+                  : `${(searchResults?.length ?? 0) + (activityResults?.length ?? 0)} results found`}
               </p>
-              {!(activityResults && activityResults.length > 0) && (
-                <button onClick={clearSearch} style={{ fontSize: "12px", color: "#717171", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
-                  Clear
-                </button>
-              )}
+              <button onClick={clearSearch} style={{ fontSize: "12px", color: "#717171", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                Clear
+              </button>
             </div>
-            {!isSearching && searchResults !== null && searchResults.length === 0 && (
+            {!isSearching && searchResults !== null && (searchResults.length === 0 && (activityResults?.length ?? 0) === 0) && (
               <div style={{ textAlign: "center", padding: "32px 24px", backgroundColor: "#F9F9F9", borderRadius: "16px", border: "1px solid #EEEEEE" }}>
-                <p style={{ fontSize: "15px", fontWeight: 600, color: "#1a1a1a", marginBottom: "6px" }}>No trips found</p>
+                <p style={{ fontSize: "15px", fontWeight: 600, color: "#1a1a1a", marginBottom: "6px" }}>No results found</p>
                 <p style={{ fontSize: "13px", color: "#717171" }}>Try a different city or country name.</p>
               </div>
             )}
-            {!isSearching && searchResults && searchResults.length > 0 && (
+            {!isSearching && ((searchResults && searchResults.length > 0) || (activityResults && activityResults.length > 0)) && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
-                {searchResults.map((trip) => {
+                {(searchResults ?? []).map((trip) => {
                   const cover = getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl);
                   const nights = trip.startDate && trip.endDate
                     ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24))
@@ -584,6 +429,53 @@ export default function DiscoverPage() {
                         </div>
                       </div>
                     </Link>
+                  );
+                })}
+                {(activityResults ?? []).map((activity, i) => {
+                  const cover = getTripCoverImage(activity.city, null, null);
+                  const activityCardHref = activity.shareToken ? `/share/${activity.shareToken}` : null;
+                  const activityFamilyName = activity.isAnonymous || !activity.familyName
+                    ? "A Flokk Family"
+                    : `${activity.familyName} Family`;
+                  const card = (
+                    <div
+                      className="hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+                      style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
+                    >
+                      <div style={{ height: "140px", backgroundImage: `url(${cover})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+                      <div style={{ padding: "12px 14px" }}>
+                        <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "4px" }}>{activity.title}</p>
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
+                          <MapPin size={11} style={{ color: "#C4664A", flexShrink: 0 }} />
+                          <span style={{ fontSize: "12px", color: "#717171" }}>
+                            {activity.city ?? activity.destinationCity ?? ""}
+                          </span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <p style={{ fontSize: "11px", color: "#AAAAAA" }}>
+                            {[
+                              `${activity.rating}/5`,
+                              activity.ratingNotes ?? null,
+                              activityFamilyName,
+                            ].filter(Boolean).join(" · ")}
+                          </p>
+                          {activityCardHref && (
+                            <span style={{ fontSize: "11px", color: "#C4664A", fontWeight: 600, flexShrink: 0, marginLeft: "8px" }}>
+                              View trip →
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                  return activityCardHref ? (
+                    <Link key={`activity-${i}`} href={activityCardHref} style={{ textDecoration: "none", display: "block" }}>
+                      {card}
+                    </Link>
+                  ) : (
+                    <div key={`activity-${i}`} style={{ display: "block" }}>
+                      {card}
+                    </div>
                   );
                 })}
               </div>
@@ -676,15 +568,12 @@ export default function DiscoverPage() {
           )}
         </div>
 
-        {/* ── SECTION 3: COMMUNITY PICKS ── */}
-        <CommunityPicksSection />
-
-        {/* ── SECTION 4: TRAVEL INTEL ── */}
+        {/* ── SECTION 3: TRAVEL INTEL ── */}
         <div style={{ paddingTop: "64px" }}>
           <TravelIntelSection />
         </div>
 
-        {/* ── SECTION 5: GET INSPIRED ── */}
+        {/* ── SECTION 4: GET INSPIRED ── */}
         <div style={{ paddingTop: "64px" }}>
           <div style={{ marginBottom: "32px" }}>
             <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", margin: "0 0 6px" }}>
