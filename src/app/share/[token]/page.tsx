@@ -71,20 +71,25 @@ function starString(rating: number): string {
 
 export default async function SharePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>;
+  searchParams?: Promise<{ preview?: string }>;
 }) {
   const { token } = await params;
+  const sp = searchParams ? await searchParams : {} as { preview?: string };
 
   const trip = await db.trip.findUnique({
     where: { shareToken: token },
     include: {
       savedItems: { orderBy: [{ dayIndex: "asc" }, { savedAt: "asc" }] },
       itineraryItems: { orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }] },
+      manualActivities: { orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }] },
       familyProfile: { select: { familyName: true, homeCity: true } },
       placeRatings: {
         select: {
           itineraryItemId: true,
+          manualActivityId: true,
           placeName: true,
           rating: true,
           notes: true,
@@ -101,6 +106,7 @@ export default async function SharePage({
   db.trip.update({ where: { id: trip.id }, data: { viewCount: { increment: 1 } } }).catch(() => {});
 
   // Ownership check — server-side, so the bottom bar knows whether to suppress
+  const previewMode = sp.preview === "true";
   const { userId } = await auth();
   let isOwner = false;
   if (userId) {
@@ -108,7 +114,7 @@ export default async function SharePage({
       where: { clerkId: userId },
       select: { familyProfile: { select: { id: true } } },
     });
-    isOwner = viewer?.familyProfile?.id === trip.familyProfileId;
+    isOwner = !previewMode && viewer?.familyProfile?.id === trip.familyProfileId;
   }
   const isLoggedIn = !!userId;
 
@@ -142,7 +148,8 @@ export default async function SharePage({
   // Both are merged and sorted by clock time (untimed items last)
   type DayItem =
     | { kind: "itinerary"; data: typeof trip.itineraryItems[0]; sortKey: number }
-    | { kind: "save"; data: typeof trip.savedItems[0]; sortKey: number };
+    | { kind: "save"; data: typeof trip.savedItems[0]; sortKey: number }
+    | { kind: "manual"; data: typeof trip.manualActivities[0]; sortKey: number };
 
   function timeToMin(t: string | null | undefined): number {
     if (!t) return 9999;
@@ -180,6 +187,17 @@ export default async function SharePage({
     });
   }
 
+  for (const ma of trip.manualActivities) {
+    const di = ma.dayIndex ?? 0;
+    if (di <= 0) continue;
+    if (!dayItemsByDay[di]) dayItemsByDay[di] = [];
+    dayItemsByDay[di].push({
+      kind: "manual",
+      data: ma,
+      sortKey: timeToMin(ma.time),
+    });
+  }
+
   // Sort each day by clock time — timed items first, untimed last
   for (const di of Object.keys(dayItemsByDay).map(Number)) {
     dayItemsByDay[di].sort((a, b) => a.sortKey - b.sortKey);
@@ -192,6 +210,12 @@ export default async function SharePage({
     trip.placeRatings
       .filter((r) => r.itineraryItemId)
       .map((r) => [r.itineraryItemId!, r])
+  );
+  // Ratings keyed by manualActivityId
+  const ratingsByManualId = new Map(
+    trip.placeRatings
+      .filter((r) => r.manualActivityId)
+      .map((r) => [r.manualActivityId!, r])
   );
 
   // ── SECTION 3: Nearby saved places (proximity-filtered photo grid) ────────
@@ -293,7 +317,7 @@ export default async function SharePage({
                             destinationCity: trip.destinationCity,
                             saveable: true,
                           };
-                        } else {
+                        } else if (entry.kind === "itinerary") {
                           const it = entry.data;
                           const displayTitle = it.type === "LODGING"
                             ? it.title.replace(/^check-in:\s*/i, "")
@@ -338,6 +362,29 @@ export default async function SharePage({
                             lng: it.longitude ?? null,
                             destinationCity: trip.destinationCity,
                             saveable: it.type === "ACTIVITY",
+                          };
+                        } else {
+                          const ma = entry.data;
+                          const ratingData = ratingsByManualId.get(ma.id);
+                          item = {
+                            id: `manual_${ma.id}`,
+                            kind: "itinerary",
+                            title: ma.title,
+                            subtitle: [ma.time, ma.address].filter(Boolean).join(" · ") || null,
+                            tag: "ACT",
+                            tagBg: "#F5F5F5",
+                            tagColor: "#888",
+                            notes: ma.notes ?? null,
+                            imageUrl: null,
+                            rating: ratingData ? {
+                              rating: ratingData.rating,
+                              notes: ratingData.notes ?? null,
+                              wouldReturn: ratingData.wouldReturn ?? null,
+                            } : null,
+                            lat: ma.lat ?? null,
+                            lng: ma.lng ?? null,
+                            destinationCity: trip.destinationCity,
+                            saveable: true,
                           };
                         }
 
@@ -436,6 +483,7 @@ export default async function SharePage({
       <SharePageBottomBar
         tripId={trip.id}
         isOwner={isOwner}
+        shareToken={token}
         days={allDayIndices.map(idx => ({
           dayIndex: idx,
           label: dayLabel(idx),

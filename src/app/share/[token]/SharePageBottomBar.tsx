@@ -20,10 +20,12 @@ type PlanningTrip = {
 export function SharePageBottomBar({
   tripId,
   isOwner,
+  shareToken,
   days = [],
 }: {
   tripId: string;
   isOwner: boolean;
+  shareToken?: string;
   days?: DayInfo[];
 }) {
   const { isSignedIn, isLoaded } = useAuth();
@@ -108,6 +110,13 @@ export function SharePageBottomBar({
         <a href={`/trips/${tripId}`} style={{ fontSize: "14px", fontWeight: 700, color: "#C4664A", textDecoration: "none" }}>
           View &amp; edit →
         </a>
+        {shareToken && (
+          <p style={{ fontSize: "12px", color: "#AAAAAA", margin: "6px 0 0" }}>
+            <a href={`/share/${shareToken}?preview=true`} style={{ color: "#AAAAAA", textDecoration: "underline" }}>
+              Preview as visitor
+            </a>
+          </p>
+        )}
       </div>
     );
   }
