@@ -214,6 +214,7 @@ export default function DiscoverPage() {
   const [savePopover, setSavePopover] = useState<{ title: string; city: string | null; venueUrl: string | null } | null>(null);
   const [saveTripList, setSaveTripList] = useState<Array<{ id: string; title: string; destinationCity?: string | null }>>([]);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const allActivitiesRef = useRef<typeof activityResults>([]);
 
   useEffect(() => {
     fetch("/api/trips/public?limit=12")
@@ -242,8 +243,10 @@ export default function DiscoverPage() {
     fetch("/api/discover/activities?minRating=3")
       .then((r) => r.json())
       .then((data) => {
-        console.log("[Discover] activities loaded:", data.activities?.length);
-        setActivityResults(data.activities ?? []);
+        const activities = data.activities ?? [];
+        allActivitiesRef.current = activities;
+        setActivityResults(activities);
+        console.log("[Discover] activities loaded:", activities.length);
       })
       .catch((e) => console.error("[Discover] activities fetch failed:", e));
 
@@ -271,12 +274,12 @@ export default function DiscoverPage() {
     return () => document.removeEventListener("mousedown", handlePopoverClickOutside);
   }, []);
 
-  async function handleSearch(q: string) {
-    if (!q.trim()) { setSearchResults(null); return; }
+  async function handleSearch(query: string) {
+    if (!query.trim()) { setSearchResults(null); return; }
     setIsSearching(true);
     setShowSuggestions(false);
     try {
-      const res = await fetch(`/api/trips/search?q=${encodeURIComponent(q)}`);
+      const res = await fetch(`/api/trips/search?q=${encodeURIComponent(query)}`);
       const data = await res.json();
       setSearchResults(data.trips ?? []);
     } catch {
@@ -284,6 +287,12 @@ export default function DiscoverPage() {
     } finally {
       setIsSearching(false);
     }
+    const q = query.toLowerCase();
+    const localFiltered = allActivitiesRef.current.filter((a) =>
+      a.title.toLowerCase().includes(q) ||
+      (a.city ?? "").toLowerCase().includes(q)
+    );
+    setActivityResults(localFiltered.length > 0 ? localFiltered : allActivitiesRef.current);
   }
 
   function handleSuggestionClick(city: string) {
@@ -297,6 +306,7 @@ export default function DiscoverPage() {
     setSearchResults(null);
     setSuggestions([]);
     setShowSuggestions(false);
+    setActivityResults(allActivitiesRef.current);
   }
 
   async function handleSaveActivity(activity: { title: string; city: string | null; venueUrl: string | null }) {
