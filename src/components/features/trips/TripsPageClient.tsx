@@ -88,17 +88,10 @@ function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => vo
   const inputRef = useRef<HTMLInputElement>(null);
   const [shareStep, setShareStep] = useState<"idle" | "choose" | "copied">("idle");
 
-  async function handleShareClick(e: React.MouseEvent) {
+  function handleShareClick(e: React.MouseEvent) {
     e.stopPropagation();
     e.preventDefault();
-    // isAnonymous has been explicitly set (true or false) — skip choice
-    if (trip.isAnonymous !== null && trip.isAnonymous !== undefined) {
-      await navigator.clipboard.writeText(`${window.location.origin}/share/${trip.shareToken}`);
-      setShareStep("copied");
-      setTimeout(() => setShareStep("idle"), 2000);
-    } else {
-      setShareStep("choose");
-    }
+    setShareStep("choose");
   }
 
   async function handleShareChoice(anonymous: boolean, e: React.MouseEvent) {

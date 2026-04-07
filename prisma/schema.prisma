@@ -239,7 +239,7 @@ model Trip {
   budgetTotal           Float?
   budgetSpent           Float?
   budgetCurrency        String?           @default("USD")
-  isAnonymous               Boolean           @default(true)
+  isAnonymous               Boolean           @default(false)
   shareToken                String?           @unique
   postTripCaptureStarted    Boolean           @default(false)
   postTripCaptureComplete   Boolean           @default(false)
