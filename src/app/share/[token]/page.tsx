@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { getTripCoverImage } from "@/lib/destination-images";
+import { getTripCoverImage, getItemImage } from "@/lib/destination-images";
 import { SharePageBottomBar } from "./SharePageBottomBar";
 import { ShareActivityCard, type SerializableItem } from "./ShareActivityCard";
 
@@ -348,7 +348,7 @@ export default async function SharePage({
                             tagBg: tc.bg,
                             tagColor: tc.color,
                             notes: (it.type === "FLIGHT" || it.type === "TRAIN") && route ? displayTitle : null,
-                            imageUrl: null,
+                            imageUrl: getItemImage(displayTitle, null, null, it.type, trip.destinationCity, trip.destinationCountry),
                             rating: ratingData ? {
                               rating: ratingData.rating,
                               notes: ratingData.notes ?? null,
@@ -371,7 +371,7 @@ export default async function SharePage({
                             tagBg: "#F5F5F5",
                             tagColor: "#888",
                             notes: ma.notes ?? null,
-                            imageUrl: null,
+                            imageUrl: getItemImage(ma.title, null, null, null, trip.destinationCity, trip.destinationCountry),
                             rating: ratingData ? {
                               rating: ratingData.rating,
                               notes: ratingData.notes ?? null,

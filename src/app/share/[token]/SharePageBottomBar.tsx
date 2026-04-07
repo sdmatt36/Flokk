@@ -64,6 +64,8 @@ export function SharePageBottomBar({
     setSelectedTripId(null);
     setStealSuccess(null);
     setStealError(null);
+    setPlanningTrips([]);
+    setTripsLoading(true);
     setModalStep("trip");
     setStealModalOpen(true);
     await fetchPlanningTrips();

@@ -30,6 +30,7 @@ export function ShareActivityCard({
   heroImageUrl?: string | null;
 }) {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [imgFailed, setImgFailed] = useState(false);
   const pathname = usePathname();
 
   const imgSrc = item.imageUrl ?? heroImageUrl ?? null;
@@ -66,17 +67,14 @@ export function ShareActivityCard({
 
   return (
     <div className="bg-white rounded-xl shadow-sm border-l-4 border-[#C4664A] p-4 mb-3 flex gap-3 items-start">
-      {imgSrc ? (
+      {(imgSrc && !imgFailed) ? (
         <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={imgSrc}
             alt={item.title}
             className="w-full h-full object-cover"
-            onError={(e) => {
-              const parent = (e.currentTarget as HTMLImageElement).parentElement;
-              if (parent) parent.style.display = "none";
-            }}
+            onError={() => setImgFailed(true)}
           />
         </div>
       ) : (
