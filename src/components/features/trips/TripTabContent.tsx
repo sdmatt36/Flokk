@@ -5103,7 +5103,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [postTripCaptureComplete, setPostTripCaptureComplete] = useState(initialPostTripCaptureComplete);
   const [showPostTripModal, setShowPostTripModal] = useState(false);
   useEffect(() => {
-    if (tripStatus === "COMPLETED" && !initialPostTripCaptureStarted) {
+    if (tripStatus === "COMPLETED" && !initialPostTripCaptureComplete) {
       const t = setTimeout(() => setShowPostTripModal(true), 1000);
       return () => clearTimeout(t);
     }
