@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useAuth } from "@clerk/nextjs";
-import { useRouter, usePathname } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 type DayInfo = {
   dayIndex: number;
@@ -27,13 +27,7 @@ export function SharePageBottomBar({
   days?: DayInfo[];
 }) {
   const { isSignedIn, isLoaded } = useAuth();
-  const router = useRouter();
   const pathname = usePathname();
-
-  // Clone ("Add to my trips") state
-  const [cloning, setCloning] = useState(false);
-  const [cloned, setCloned] = useState(false);
-  const [cloneError, setCloneError] = useState(false);
 
   // Steal modal state
   const [stealModalOpen, setStealModalOpen] = useState(false);
@@ -47,21 +41,6 @@ export function SharePageBottomBar({
   const [stealError, setStealError] = useState<string | null>(null);
 
   const redirectUrl = encodeURIComponent(pathname ?? "");
-
-  async function handleAddToTrips() {
-    setCloning(true);
-    setCloneError(false);
-    try {
-      const res = await fetch(`/api/trips/${tripId}/clone`, { method: "POST" });
-      if (!res.ok) throw new Error("Failed");
-      const data = await res.json() as { tripId: string };
-      setCloned(true);
-      setTimeout(() => router.push(`/trips/${data.tripId}`), 800);
-    } catch {
-      setCloneError(true);
-      setCloning(false);
-    }
-  }
 
   function openStealModal() {
     setStealModalOpen(true);
@@ -121,7 +100,17 @@ export function SharePageBottomBar({
   }
 
   if (!isLoaded) return null;
-  if (isOwner) return null;
+
+  if (isOwner) {
+    return (
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100, backgroundColor: "#fff", borderTop: "1px solid #F0F0F0", padding: "14px 20px", textAlign: "center", boxShadow: "0 -4px 24px rgba(0,0,0,0.06)" }}>
+        <p style={{ fontSize: "13px", color: "#888", margin: "0 0 4px" }}>This is your trip</p>
+        <a href={`/trips/${tripId}`} style={{ fontSize: "14px", fontWeight: 700, color: "#C4664A", textDecoration: "none" }}>
+          View &amp; edit →
+        </a>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -143,14 +132,9 @@ export function SharePageBottomBar({
             >
               Steal This Itinerary
             </button>
-            <button
-              onClick={handleAddToTrips}
-              disabled={cloning || cloned}
-              style={{ width: "100%", maxWidth: "400px", padding: "11px", borderRadius: "999px", backgroundColor: "transparent", color: cloned ? "#6B8F71" : "#C4664A", fontWeight: 600, fontSize: "14px", border: `1.5px solid ${cloned ? "#6B8F71" : "#C4664A"}`, cursor: cloning || cloned ? "not-allowed" : "pointer", opacity: cloning ? 0.7 : 1 }}
-            >
-              {cloned ? "Added to your trips!" : cloning ? "Adding..." : "Clone full trip"}
-            </button>
-            {cloneError && <p style={{ fontSize: "12px", color: "#C4664A", margin: 0 }}>Something went wrong. Please try again.</p>}
+            <p style={{ fontSize: "12px", color: "#888", margin: 0, textAlign: "center" }}>
+              or save individual places above
+            </p>
           </>
         ) : (
           <>

@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { SharePageBottomBar } from "./SharePageBottomBar";
+import { ShareActivityCard, type SerializableItem } from "./ShareActivityCard";
 
 export const dynamic = "force-dynamic";
 
@@ -109,6 +110,7 @@ export default async function SharePage({
     });
     isOwner = viewer?.familyProfile?.id === trip.familyProfileId;
   }
+  const isLoggedIn = !!userId;
 
   const heroImg = getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl);
   const dateRange = formatDateRange(trip.startDate, trip.endDate);
@@ -210,13 +212,22 @@ export default async function SharePage({
     return sameDay.some((it) => haversineKm(save.lat!, save.lng!, it.latitude!, it.longitude!) <= 3);
   });
 
-  // ── SECTION 4: Ratings list ───────────────────────────────────────────────
-  const ratingsForDisplay = trip.placeRatings;
-
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#FFFFFF", paddingBottom: "120px" }}>
 
-      {/* ── SECTION 1 — Hero header ── */}
+      {/* ── Sticky header ── */}
+      <header style={{ position: "sticky", top: 0, zIndex: 50, backgroundColor: "#fff", borderBottom: "1px solid #F0F0F0" }}>
+        <div style={{ maxWidth: "640px", margin: "0 auto", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <a href="/" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: "#1B3A5C", textDecoration: "none" }}>
+            Flokk
+          </a>
+          <a href="/discover" style={{ fontSize: "13px", color: "#888", textDecoration: "none" }}>
+            ← Browse all trips
+          </a>
+        </div>
+      </header>
+
+      {/* ── Hero ── */}
       <div
         style={{
           height: "280px",
@@ -228,55 +239,9 @@ export default async function SharePage({
           backgroundPosition: "center",
         }}
       >
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.80) 100%)",
-          }}
-        />
-
-        {/* Flokk badge */}
-        <div
-          style={{
-            position: "absolute",
-            top: "16px",
-            left: "16px",
-            zIndex: 2,
-            backgroundColor: "rgba(255,255,255,0.15)",
-            backdropFilter: "blur(8px)",
-            border: "1px solid rgba(255,255,255,0.3)",
-            borderRadius: "20px",
-            padding: "5px 14px",
-            color: "#fff",
-            fontSize: "13px",
-            fontWeight: 700,
-            letterSpacing: "0.02em",
-          }}
-        >
-          flokk
-        </div>
-
-        {/* Trip info */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: "24px",
-            left: "24px",
-            right: "24px",
-            zIndex: 2,
-          }}
-        >
-          <h1
-            style={{
-              fontSize: "30px",
-              fontWeight: 900,
-              color: "#fff",
-              lineHeight: 1.1,
-              marginBottom: "8px",
-              textShadow: "0 2px 12px rgba(0,0,0,0.4)",
-            }}
-          >
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.80) 100%)" }} />
+        <div style={{ position: "absolute", bottom: "24px", left: "24px", right: "24px", zIndex: 2 }}>
+          <h1 style={{ fontSize: "30px", fontWeight: 900, color: "#fff", lineHeight: 1.1, marginBottom: "8px", textShadow: "0 2px 12px rgba(0,0,0,0.4)" }}>
             {trip.title}
           </h1>
           <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.9)", fontWeight: 500, marginBottom: "4px" }}>
@@ -290,159 +255,98 @@ export default async function SharePage({
 
       <div style={{ maxWidth: "640px", margin: "0 auto", padding: "0 16px" }}>
 
-        {/* ── SECTION 2 — Day-by-day itinerary ── */}
+        {/* ── Day-by-day itinerary ── */}
         {allDayIndices.length > 0 && (
           <section style={{ marginTop: "28px" }}>
-            <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "16px" }}>
-              Itinerary
-            </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
               {allDayIndices.map((di) => {
                 const dayItems = dayItemsByDay[di] ?? [];
                 return (
                   <div key={di}>
-                    <p style={{ fontSize: "12px", fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
-                      {dayLabel(di)}
-                    </p>
+                    {/* Day header with extending line */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
+                      <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "17px", fontWeight: 700, color: "#1B3A5C", whiteSpace: "nowrap", margin: 0 }}>
+                        {dayLabel(di)}
+                      </h2>
+                      <div style={{ flex: 1, height: "1px", backgroundColor: "#E5E5E5" }} />
+                    </div>
+
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                       {dayItems.map((entry) => {
+                        let item: SerializableItem;
+
                         if (entry.kind === "save") {
                           const s = entry.data;
-                          const firstTag = s.categoryTags[0];
-                          return (
-                            <div
-                              key={`save_${s.id}`}
-                              style={{
-                                backgroundColor: "#F9F9F9",
-                                borderRadius: "10px",
-                                padding: "10px 12px",
-                              }}
-                            >
-                              <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: s.startTime || s.rawDescription || firstTag ? "4px" : "0" }}>
-                                {s.rawTitle}
-                              </p>
-                              {s.startTime && (
-                                <p style={{ fontSize: "12px", color: "#888", marginBottom: "2px" }}>{s.startTime}</p>
-                              )}
-                              {s.rawDescription && (
-                                <p style={{ fontSize: "12px", color: "#888", lineHeight: 1.5 }}>
-                                  {s.rawDescription.length > 120 ? `${s.rawDescription.slice(0, 120)}…` : s.rawDescription}
-                                </p>
-                              )}
-                              {firstTag && (
-                                <span style={{ display: "inline-block", marginTop: "5px", fontSize: "9px", fontWeight: 800, color: "#888", backgroundColor: "#EEEEEE", borderRadius: "4px", padding: "2px 5px", letterSpacing: "0.06em" }}>
-                                  {firstTag.toUpperCase()}
-                                </span>
-                              )}
-                            </div>
-                          );
+                          item = {
+                            id: `save_${s.id}`,
+                            kind: "save",
+                            title: s.rawTitle ?? "(no title)",
+                            subtitle: s.startTime ?? null,
+                            tag: s.categoryTags[0] ?? null,
+                            tagBg: "#F5F5F5",
+                            tagColor: "#888",
+                            notes: s.rawDescription ? s.rawDescription.slice(0, 200) : null,
+                            imageUrl: s.placePhotoUrl ?? s.mediaThumbnailUrl,
+                            rating: null,
+                            lat: s.lat ?? null,
+                            lng: s.lng ?? null,
+                            destinationCity: trip.destinationCity,
+                            saveable: true,
+                          };
+                        } else {
+                          const it = entry.data;
+                          const displayTitle = it.type === "LODGING"
+                            ? it.title.replace(/^check-in:\s*/i, "")
+                            : it.title;
+                          const route =
+                            it.type === "FLIGHT" || it.type === "TRAIN"
+                              ? it.fromAirport && it.toAirport
+                                ? `${it.fromAirport} → ${it.toAirport}`
+                                : it.fromCity && it.toCity
+                                ? `${it.fromCity} → ${it.toCity}`
+                                : null
+                              : null;
+                          const times = it.departureTime && it.arrivalTime
+                            ? `${it.departureTime} – ${it.arrivalTime}`
+                            : it.departureTime || it.arrivalTime || null;
+                          const tc = TYPE_COLORS[it.type] ?? TYPE_COLORS.ACTIVITY;
+                          const ratingData = ratingsByItemId.get(it.id);
+
+                          const subtitle =
+                            it.type === "FLIGHT" || it.type === "TRAIN"
+                              ? times
+                              : it.type === "LODGING"
+                              ? it.address ?? null
+                              : [times, it.address].filter(Boolean).join(" · ") || null;
+
+                          item = {
+                            id: `itin_${it.id}`,
+                            kind: "itinerary",
+                            title: (it.type === "FLIGHT" || it.type === "TRAIN") && route ? route : displayTitle,
+                            subtitle,
+                            tag: TYPE_LABEL[it.type] ?? "ACT",
+                            tagBg: tc.bg,
+                            tagColor: tc.color,
+                            notes: (it.type === "FLIGHT" || it.type === "TRAIN") && route ? displayTitle : null,
+                            imageUrl: null,
+                            rating: ratingData ? {
+                              rating: ratingData.rating,
+                              notes: ratingData.notes ?? null,
+                              wouldReturn: ratingData.wouldReturn ?? null,
+                            } : null,
+                            lat: it.latitude ?? null,
+                            lng: it.longitude ?? null,
+                            destinationCity: trip.destinationCity,
+                            saveable: it.type === "ACTIVITY",
+                          };
                         }
 
-                        // Itinerary item (FLIGHT, LODGING, TRAIN, ACTIVITY)
-                        const item = entry.data;
-                        const tc = TYPE_COLORS[item.type] ?? TYPE_COLORS.ACTIVITY;
-                        const rating = ratingsByItemId.get(item.id);
-
-                        const displayTitle = item.type === "LODGING"
-                          ? item.title.replace(/^check-in:\s*/i, "")
-                          : item.title;
-
-                        const route =
-                          item.type === "FLIGHT" || item.type === "TRAIN"
-                            ? item.fromAirport && item.toAirport
-                              ? `${item.fromAirport} → ${item.toAirport}`
-                              : item.fromCity && item.toCity
-                              ? `${item.fromCity} → ${item.toCity}`
-                              : null
-                            : null;
-
-                        const times =
-                          item.departureTime && item.arrivalTime
-                            ? `${item.departureTime} – ${item.arrivalTime}`
-                            : item.departureTime || item.arrivalTime || null;
-
                         return (
-                          <div
-                            key={`itin_${item.id}`}
-                            style={{
-                              display: "flex",
-                              alignItems: "flex-start",
-                              gap: "10px",
-                              backgroundColor: "#F9F9F9",
-                              borderRadius: "10px",
-                              padding: "10px 12px",
-                            }}
-                          >
-                            {/* Type badge */}
-                            <div
-                              style={{
-                                flexShrink: 0,
-                                marginTop: "3px",
-                                backgroundColor: tc.bg,
-                                borderRadius: "4px",
-                                padding: "2px 5px",
-                              }}
-                            >
-                              <span style={{ fontSize: "9px", fontWeight: 800, color: tc.color, letterSpacing: "0.05em" }}>
-                                {TYPE_LABEL[item.type] ?? "ACT"}
-                              </span>
-                            </div>
-
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              {item.type === "FLIGHT" || item.type === "TRAIN" ? (
-                                <>
-                                  {route && (
-                                    <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "2px" }}>
-                                      {route}
-                                    </p>
-                                  )}
-                                  <p style={{ fontSize: "13px", fontWeight: 500, color: route ? "#555" : "#1a1a1a", marginBottom: "2px" }}>
-                                    {displayTitle}
-                                  </p>
-                                  {times && (
-                                    <p style={{ fontSize: "12px", color: "#888" }}>{times}</p>
-                                  )}
-                                </>
-                              ) : item.type === "LODGING" ? (
-                                <>
-                                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "2px" }}>
-                                    {displayTitle}
-                                  </p>
-                                  {item.address && (
-                                    <p style={{ fontSize: "12px", color: "#888" }}>{item.address}</p>
-                                  )}
-                                </>
-                              ) : (
-                                /* ACTIVITY and OTHER */
-                                <>
-                                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "2px" }}>
-                                    {displayTitle}
-                                  </p>
-                                  {times && (
-                                    <p style={{ fontSize: "12px", color: "#888" }}>{times}</p>
-                                  )}
-                                  {item.address && (
-                                    <p style={{ fontSize: "12px", color: "#AAAAAA", marginTop: "2px" }}>{item.address}</p>
-                                  )}
-                                  {rating && (
-                                    <div style={{ marginTop: "6px", paddingTop: "6px", borderTop: "1px solid #EEEEEE" }}>
-                                      <p style={{ fontSize: "13px", color: "#C4664A", letterSpacing: "0.05em" }}>
-                                        {starString(rating.rating)}
-                                      </p>
-                                      {rating.notes && (
-                                        <p style={{ fontSize: "12px", color: "#555", marginTop: "2px" }}>{rating.notes}</p>
-                                      )}
-                                      {rating.wouldReturn && (
-                                        <p style={{ fontSize: "11px", color: "#6B8F71", fontWeight: 600, marginTop: "2px" }}>
-                                          Would visit again
-                                        </p>
-                                      )}
-                                    </div>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </div>
+                          <ShareActivityCard
+                            key={item.id}
+                            item={item}
+                            isLoggedIn={isLoggedIn}
+                          />
                         );
                       })}
                     </div>
@@ -453,7 +357,7 @@ export default async function SharePage({
           </section>
         )}
 
-        {/* ── SECTION 3 — Nearby saved places (photo grid, 3+ only) ── */}
+        {/* ── Nearby saved places (photo grid, 3+ only) ── */}
         {nearbySaves.length >= 3 && (
           <section style={{ marginTop: "32px" }}>
             <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>
@@ -462,56 +366,23 @@ export default async function SharePage({
             <p style={{ fontSize: "13px", color: "#888", marginBottom: "14px" }}>
               Places this family saved near their itinerary stops.
             </p>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, 1fr)",
-                gap: "10px",
-              }}
-            >
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px" }}>
               {nearbySaves.slice(0, 12).map((place) => {
                 const img = place.placePhotoUrl ?? place.mediaThumbnailUrl;
                 return (
                   <div
                     key={place.id}
-                    style={{
-                      borderRadius: "12px",
-                      overflow: "hidden",
-                      position: "relative",
-                      aspectRatio: "4/3",
-                      backgroundColor: "#F0F0F0",
-                    }}
+                    style={{ borderRadius: "12px", overflow: "hidden", position: "relative", aspectRatio: "4/3", backgroundColor: "#F0F0F0" }}
                   >
                     {img && (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={img}
-                        alt={place.rawTitle ?? ""}
-                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                      />
+                      <img src={img} alt={place.rawTitle ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     )}
-                    <div
-                      style={{
-                        position: "absolute",
-                        inset: 0,
-                        background: "linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.65) 100%)",
-                      }}
-                    />
-                    <div
-                      style={{
-                        position: "absolute",
-                        bottom: "8px",
-                        left: "8px",
-                        right: "8px",
-                      }}
-                    >
-                      <p style={{ fontSize: "12px", fontWeight: 700, color: "#fff", lineHeight: 1.2, marginBottom: "2px" }}>
-                        {place.rawTitle}
-                      </p>
+                    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.65) 100%)" }} />
+                    <div style={{ position: "absolute", bottom: "8px", left: "8px", right: "8px" }}>
+                      <p style={{ fontSize: "12px", fontWeight: 700, color: "#fff", lineHeight: 1.2, marginBottom: "2px" }}>{place.rawTitle}</p>
                       {place.categoryTags.length > 0 && (
-                        <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.75)" }}>
-                          {place.categoryTags[0]}
-                        </p>
+                        <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.75)" }}>{place.categoryTags[0]}</p>
                       )}
                     </div>
                   </div>
@@ -521,46 +392,7 @@ export default async function SharePage({
           </section>
         )}
 
-        {/* ── SECTION 4 — Ratings and tips (only if How was it? was completed) ── */}
-        {ratingsForDisplay.length > 0 && (
-          <section style={{ marginTop: "32px" }}>
-            <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>
-              What the family thought
-            </h2>
-            <p style={{ fontSize: "13px", color: "#888", marginBottom: "14px" }}>
-              Honest reviews from the people who were there.
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {ratingsForDisplay.map((r) => (
-                <div
-                  key={`${r.itineraryItemId ?? r.placeName}`}
-                  style={{
-                    backgroundColor: "#F9F9F9",
-                    borderRadius: "10px",
-                    padding: "12px 14px",
-                  }}
-                >
-                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "4px" }}>
-                    {r.placeName.replace(/^check-in:\s*/i, "").replace(/^check-out:\s*/i, "")}
-                  </p>
-                  <p style={{ fontSize: "14px", color: "#C4664A", letterSpacing: "0.05em", marginBottom: r.notes || r.wouldReturn ? "6px" : "0" }}>
-                    {starString(r.rating)}
-                  </p>
-                  {r.notes && (
-                    <p style={{ fontSize: "13px", color: "#555", lineHeight: 1.5 }}>{r.notes}</p>
-                  )}
-                  {r.wouldReturn && (
-                    <p style={{ fontSize: "11px", color: "#6B8F71", fontWeight: 600, marginTop: "4px" }}>
-                      Would visit again
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* ── Questions for the Flokker (messaging scaffolding) ── */}
+        {/* ── Questions for the Flokker ── */}
         <div style={{ marginTop: "48px", paddingTop: "32px", borderTop: "1px solid #e5e7eb" }}>
           <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#1B3A5C", marginBottom: "8px" }}>
             Questions for the Flokker
@@ -573,7 +405,25 @@ export default async function SharePage({
           </p>
         </div>
 
-        {/* Empty state — no itinerary and no nearby saves */}
+        {/* ── What is Flokk? (non-logged-in only) ── */}
+        {!isLoggedIn && (
+          <div style={{ marginTop: "32px", paddingTop: "32px", borderTop: "1px solid #F0F0F0", textAlign: "center" }}>
+            <p style={{ fontSize: "14px", color: "#6b7280", marginBottom: "6px" }}>
+              Flokk is free family travel planning.
+            </p>
+            <p style={{ fontSize: "13px", color: "#9ca3af", marginBottom: "16px" }}>
+              Save places, plan days, forward booking emails. Built for families.
+            </p>
+            <a
+              href="/sign-up"
+              style={{ display: "inline-block", padding: "10px 24px", backgroundColor: "#1B3A5C", color: "#fff", fontSize: "13px", fontWeight: 700, borderRadius: "999px", textDecoration: "none" }}
+            >
+              Join free
+            </a>
+          </div>
+        )}
+
+        {/* Empty state */}
         {allDayIndices.length === 0 && nearbySaves.length === 0 && (
           <div style={{ textAlign: "center", padding: "48px 16px", color: "#AAAAAA" }}>
             <p style={{ fontSize: "15px" }}>This trip is being planned — check back soon.</p>
@@ -582,7 +432,7 @@ export default async function SharePage({
 
       </div>
 
-      {/* ── SECTION 5 — Bottom bar (auth-aware CTA) ── */}
+      {/* ── Bottom bar ── */}
       <SharePageBottomBar
         tripId={trip.id}
         isOwner={isOwner}
