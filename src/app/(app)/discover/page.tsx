@@ -233,6 +233,15 @@ export default function DiscoverPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery.trim().length > 1) handleSearch(searchQuery);
+      if (searchQuery.trim().length === 0) clearSearch();
+    }, 300);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
   async function handleSearch(q: string) {
     if (!q.trim()) { setSearchResults(null); setActivityResults(null); return; }
     setIsSearching(true);
