@@ -583,7 +583,15 @@ export default async function SharePage({
       </div>
 
       {/* ── SECTION 5 — Bottom bar (auth-aware CTA) ── */}
-      <SharePageBottomBar tripId={trip.id} isOwner={isOwner} />
+      <SharePageBottomBar
+        tripId={trip.id}
+        isOwner={isOwner}
+        days={allDayIndices.map(idx => ({
+          dayIndex: idx,
+          label: dayLabel(idx),
+          count: dayItemsByDay[idx]?.length ?? 0,
+        }))}
+      />
     </div>
   );
 }

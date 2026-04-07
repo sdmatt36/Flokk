@@ -7,13 +7,19 @@ import { nanoid } from "nanoid";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   const { userId } = await auth();
   console.log("[GET /api/trips] clerkUserId:", userId ?? "null");
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: { "Cache-Control": "no-store" } });
+  const { searchParams } = new URL(request.url);
+  const statusFilter = searchParams.get("status");
+  const statusWhere = statusFilter
+    ? { status: statusFilter.toUpperCase() }
+    : { status: { in: ["PLANNING", "ACTIVE"] } };
   const user = await db.user.findUnique({
     where: { clerkId: userId },
-    include: { familyProfile: { include: { trips: { where: { status: { in: ["PLANNING", "ACTIVE"] } }, orderBy: { startDate: "asc" } } } } },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    include: { familyProfile: { include: { trips: { where: statusWhere as any, orderBy: { startDate: "asc" } } } } },
   });
   const trips = user?.familyProfile?.trips ?? [];
   console.log("[GET /api/trips] returning", trips.length, "trips for familyProfile", user?.familyProfile?.id ?? "none");
