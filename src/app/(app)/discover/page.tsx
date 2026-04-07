@@ -294,15 +294,15 @@ export default function DiscoverPage() {
   }
 
   async function handleSaveActivity(activity: DiscoverActivity) {
-    if (!activity.venueUrl) return;
     try {
-      const res = await fetch("/api/saves", {
+      const res = await fetch("/api/saves/from-share", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          url: activity.venueUrl,
           title: activity.title,
-          description: activity.ratingNotes ?? "",
+          city: activity.city,
+          placePhotoUrl: getTripCoverImage(activity.city, null, null),
+          websiteUrl: activity.venueUrl ?? null,
         }),
       });
       if (res.ok) {
@@ -693,14 +693,13 @@ export default function DiscoverPage() {
                       )}
                       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                         <p style={{ fontSize: "11px", color: "#AAAAAA" }}>{attribution}</p>
-                        {activity.venueUrl && (
-                          <button
-                            onClick={() => handleSaveActivity(activity)}
-                            style={{ fontSize: "11px", color: savedActivities.has(activity.title) ? "#717171" : "#C4664A", fontWeight: 600, background: "none", border: `1px solid ${savedActivities.has(activity.title) ? "#DDDDDD" : "#C4664A"}`, borderRadius: "8px", padding: "4px 10px", cursor: savedActivities.has(activity.title) ? "default" : "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
-                          >
-                            {savedActivities.has(activity.title) ? "Saved" : "+ Save"}
-                          </button>
-                        )}
+                        <button
+                          onClick={() => handleSaveActivity(activity)}
+                          disabled={savedActivities.has(activity.title)}
+                          style={{ fontSize: "11px", color: savedActivities.has(activity.title) ? "#717171" : "#C4664A", fontWeight: 600, background: "none", border: `1px solid ${savedActivities.has(activity.title) ? "#DDDDDD" : "#C4664A"}`, borderRadius: "8px", padding: "4px 10px", cursor: savedActivities.has(activity.title) ? "default" : "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
+                        >
+                          {savedActivities.has(activity.title) ? "Saved" : "+ Save"}
+                        </button>
                       </div>
                     </div>
                   </div>
