@@ -68,6 +68,7 @@ export default async function TripsPage({
       hasLodging: t.itineraryItems.some(i => i.type === "LODGING"),
       itineraryActivityCount: t.itineraryItems.filter(i => i.type === "ACTIVITY").length,
       packingCount: t._count.packingItems,
+      shareToken: t.shareToken,
     };
   });
 

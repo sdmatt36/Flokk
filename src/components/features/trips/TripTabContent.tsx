@@ -4839,10 +4839,11 @@ const STAR_LABELS: Record<number, string> = {
 
 const EXCLUDE_SAVE_TAGS = /flight|airfare|airline|lodging|accommodation|hotel|transportation/i;
 
-function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onComplete, onNavigateToItinerary }: {
+function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, shareToken, onComplete, onNavigateToItinerary }: {
   tripId: string;
   destinationCity?: string | null;
   postTripCaptureComplete: boolean;
+  shareToken?: string;
   onComplete: () => void;
   onNavigateToItinerary: () => void;
 }) {
@@ -4854,6 +4855,14 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onC
   const [spurTip, setSpurTip] = useState("");
   const [spurSaving, setSpurSaving] = useState(false);
   const [spurSaved, setSpurSaved] = useState(false);
+  const [hasShared, setHasShared] = useState(false);
+
+  async function handleShareTrip() {
+    if (!shareToken) return;
+    const shareUrl = `${window.location.origin}/share/${shareToken}`;
+    await navigator.clipboard.writeText(shareUrl);
+    setHasShared(true);
+  }
 
   useEffect(() => {
     Promise.all([
@@ -4978,6 +4987,39 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, onC
 
   return (
     <div style={{ maxWidth: "560px" }}>
+
+      {/* Share nudge — only before ratings are submitted */}
+      {shareToken && !hasShared && (
+        <div style={{ marginBottom: "24px", padding: "16px", backgroundColor: "#FFF8F6", border: "1px solid #C4664A", borderRadius: "12px" }}>
+          <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", marginBottom: "4px" }}>
+            Want to share your {destinationCity ?? "trip"} itinerary with other Flokkers?
+          </p>
+          <p style={{ fontSize: "12px", color: "#717171", marginBottom: "14px" }}>
+            Other families planning {destinationCity ?? "this destination"} would love to see what you did.
+          </p>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <button
+              onClick={handleShareTrip}
+              style={{ padding: "8px 18px", backgroundColor: "#C4664A", color: "#fff", fontSize: "13px", fontWeight: 700, border: "none", borderRadius: "8px", cursor: "pointer", fontFamily: "inherit" }}
+            >
+              Copy share link
+            </button>
+            <button
+              onClick={() => setHasShared(true)}
+              style={{ padding: "8px 12px", color: "#AAAAAA", fontSize: "13px", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+            >
+              Maybe later
+            </button>
+          </div>
+        </div>
+      )}
+      {shareToken && hasShared && (
+        <div style={{ marginBottom: "24px", padding: "12px 16px", backgroundColor: "#F0F7F0", border: "1px solid #6B8F71", borderRadius: "12px" }}>
+          <p style={{ fontSize: "13px", color: "#6B8F71", fontWeight: 600 }}>
+            Share link copied — paste it anywhere to share your trip.
+          </p>
+        </div>
+      )}
 
       {/* Section 1 — Rate bookings */}
       <p style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>
@@ -6119,6 +6161,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           tripId={tripId}
           destinationCity={destinationCity}
           postTripCaptureComplete={postTripCaptureComplete}
+          shareToken={shareToken}
           onComplete={() => setPostTripCaptureComplete(true)}
           onNavigateToItinerary={() => setTab("itinerary")}
         />

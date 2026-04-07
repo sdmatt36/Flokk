@@ -22,6 +22,7 @@ type Trip = {
   hasLodging: boolean;
   itineraryActivityCount: number;
   packingCount: number;
+  shareToken: string | null;
 };
 
 
@@ -83,6 +84,15 @@ function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => vo
   const [isRenaming, setIsRenaming] = useState(false);
   const [draftTitle, setDraftTitle] = useState(trip.title);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function handleShare(e: React.MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    await navigator.clipboard.writeText(`${window.location.origin}/share/${trip.shareToken}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   useEffect(() => {
     if (isRenaming) inputRef.current?.select();
@@ -303,7 +313,16 @@ function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => vo
               </span>
             </div>
           )}
-        </div>
+        {trip.status === "COMPLETED" && trip.shareToken && (
+          <div style={{ marginTop: "10px", display: "flex", justifyContent: "flex-end" }}>
+            <button
+              onClick={handleShare}
+              style={{ fontSize: "12px", color: copied ? "#6B8F71" : "#C4664A", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit", fontWeight: 600 }}
+            >
+              {copied ? "Link copied" : "Share trip"}
+            </button>
+          </div>
+        )}
       </div>
     </Link>
   );
