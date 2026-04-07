@@ -209,10 +209,9 @@ export default function DiscoverPage() {
     isAnonymous: boolean;
     venueUrl: string | null;
     venueName: string | null;
-    imageUrl: string | null;
   }>>([]);
   const [savedActivities, setSavedActivities] = useState<Set<string>>(new Set());
-  const [savePopover, setSavePopover] = useState<{ title: string; city: string | null; imageUrl: string | null; venueUrl: string | null } | null>(null);
+  const [savePopover, setSavePopover] = useState<{ title: string; city: string | null; venueUrl: string | null } | null>(null);
   const [saveTripList, setSaveTripList] = useState<Array<{ id: string; title: string; destinationCity?: string | null }>>([]);
   const popoverRef = useRef<HTMLDivElement>(null);
 
@@ -300,7 +299,7 @@ export default function DiscoverPage() {
     setShowSuggestions(false);
   }
 
-  async function handleSaveActivity(activity: { title: string; city: string | null; imageUrl: string | null; venueUrl: string | null }) {
+  async function handleSaveActivity(activity: { title: string; city: string | null; venueUrl: string | null }) {
     try {
       const res = await fetch("/api/saves/from-share", {
         method: "POST",
@@ -308,7 +307,6 @@ export default function DiscoverPage() {
         body: JSON.stringify({
           title: activity.title,
           city: activity.city ?? null,
-          placePhotoUrl: activity.imageUrl ?? null,
           websiteUrl: activity.venueUrl ?? null,
         }),
       });
@@ -617,7 +615,7 @@ export default function DiscoverPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
               {activityResults.map((act, idx) => {
                 const isSaved = savedActivities.has(act.title);
-                const coverImg = act.imageUrl ?? getTripCoverImage(act.city ?? undefined, undefined, undefined);
+                const coverImg = getTripCoverImage(act.city ?? undefined, undefined, undefined);
                 return (
                   <div
                     key={`act-${idx}`}
@@ -648,7 +646,7 @@ export default function DiscoverPage() {
                           <button
                             onClick={() => {
                               if (isSaved) return;
-                              setSavePopover(savePopover?.title === act.title ? null : { title: act.title, city: act.city, imageUrl: act.imageUrl, venueUrl: act.venueUrl });
+                              setSavePopover(savePopover?.title === act.title ? null : { title: act.title, city: act.city, venueUrl: act.venueUrl });
                             }}
                             style={{
                               fontSize: "12px",
@@ -675,7 +673,7 @@ export default function DiscoverPage() {
                                   {saveTripList.slice(0, 4).map((t) => (
                                     <button
                                       key={t.id}
-                                      onClick={() => handleSaveActivity({ title: act.title, city: act.city, imageUrl: act.imageUrl, venueUrl: act.venueUrl })}
+                                      onClick={() => handleSaveActivity({ title: act.title, city: act.city, venueUrl: act.venueUrl })}
                                       style={{ display: "block", width: "100%", textAlign: "left", fontSize: "12px", color: "#1a1a1a", background: "none", border: "none", cursor: "pointer", padding: "5px 0", fontFamily: "inherit" }}
                                     >
                                       {t.title || t.destinationCity || "Trip"}
@@ -684,7 +682,7 @@ export default function DiscoverPage() {
                                 </div>
                               )}
                               <button
-                                onClick={() => handleSaveActivity({ title: act.title, city: act.city, imageUrl: act.imageUrl, venueUrl: act.venueUrl })}
+                                onClick={() => handleSaveActivity({ title: act.title, city: act.city, venueUrl: act.venueUrl })}
                                 style={{ width: "100%", padding: "8px", backgroundColor: "#C4664A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
                               >
                                 Save to library
