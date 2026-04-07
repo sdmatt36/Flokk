@@ -23,6 +23,8 @@ type Trip = {
   itineraryActivityCount: number;
   packingCount: number;
   shareToken: string | null;
+  isAnonymous: boolean;
+  familyName: string | null;
 };
 
 
@@ -84,14 +86,32 @@ function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => vo
   const [isRenaming, setIsRenaming] = useState(false);
   const [draftTitle, setDraftTitle] = useState(trip.title);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [copied, setCopied] = useState(false);
+  const [shareStep, setShareStep] = useState<"idle" | "choose" | "copied">("idle");
 
-  async function handleShare(e: React.MouseEvent) {
+  async function handleShareClick(e: React.MouseEvent) {
     e.stopPropagation();
     e.preventDefault();
+    // isAnonymous has been explicitly set (true or false) — skip choice
+    if (trip.isAnonymous !== null && trip.isAnonymous !== undefined) {
+      await navigator.clipboard.writeText(`${window.location.origin}/share/${trip.shareToken}`);
+      setShareStep("copied");
+      setTimeout(() => setShareStep("idle"), 2000);
+    } else {
+      setShareStep("choose");
+    }
+  }
+
+  async function handleShareChoice(anonymous: boolean, e: React.MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    await fetch(`/api/trips/${trip.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isAnonymous: anonymous }),
+    });
     await navigator.clipboard.writeText(`${window.location.origin}/share/${trip.shareToken}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setShareStep("copied");
+    setTimeout(() => setShareStep("idle"), 2000);
   }
 
   useEffect(() => {
@@ -314,12 +334,31 @@ function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => vo
             </div>
           )}
         {trip.status === "COMPLETED" && trip.shareToken && (
-          <div style={{ marginTop: "10px", display: "flex", justifyContent: "flex-end" }}>
+          <div style={{ marginTop: "10px", display: "flex", justifyContent: "flex-end", position: "relative" }}>
+            {shareStep === "choose" && (
+              <div style={{ position: "absolute", bottom: "28px", right: 0, backgroundColor: "#fff", border: "1px solid #E5E5E5", borderRadius: "12px", boxShadow: "0 4px 16px rgba(0,0,0,0.12)", padding: "12px", zIndex: 10, width: "180px" }}>
+                <p style={{ fontSize: "11px", color: "#717171", marginBottom: "8px" }}>Share as:</p>
+                {trip.familyName && (
+                  <button
+                    onClick={(e) => handleShareChoice(false, e)}
+                    style={{ display: "block", width: "100%", textAlign: "left", fontSize: "13px", color: "#1B3A5C", background: "none", border: "none", cursor: "pointer", padding: "4px 0", fontFamily: "inherit" }}
+                  >
+                    {trip.familyName} Family
+                  </button>
+                )}
+                <button
+                  onClick={(e) => handleShareChoice(true, e)}
+                  style={{ display: "block", width: "100%", textAlign: "left", fontSize: "13px", color: "#1B3A5C", background: "none", border: "none", cursor: "pointer", padding: "4px 0", fontFamily: "inherit" }}
+                >
+                  Stay anonymous
+                </button>
+              </div>
+            )}
             <button
-              onClick={handleShare}
-              style={{ fontSize: "12px", color: copied ? "#6B8F71" : "#C4664A", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit", fontWeight: 600 }}
+              onClick={handleShareClick}
+              style={{ fontSize: "12px", color: shareStep === "copied" ? "#6B8F71" : "#C4664A", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit", fontWeight: 600 }}
             >
-              {copied ? "Link copied" : "Share trip"}
+              {shareStep === "copied" ? "Link copied" : "Share trip"}
             </button>
           </div>
         )}

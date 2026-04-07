@@ -129,6 +129,7 @@ type PublicTrip = {
   endDate: string | null;
   heroImageUrl: string | null;
   isAnonymous: boolean;
+  shareToken: string | null;
   _count: { savedItems: number; placeRatings: number };
   familyProfile: { familyName: string | null; homeCity: string | null } | null;
 };
@@ -435,8 +436,9 @@ export default function DiscoverPage() {
                     ? `${trip.familyProfile.familyName} Family, ${trip.familyProfile.homeCity}`
                     : `${trip.familyProfile.familyName} Family`
                   : null;
+                const cardHref = trip.shareToken ? `/share/${trip.shareToken}` : `/trips/${trip.id}`;
                 return (
-                  <Link key={trip.id} href={`/trips/${trip.id}`} style={{ textDecoration: "none", display: "block" }}>
+                  <Link key={trip.id} href={cardHref} style={{ textDecoration: "none", display: "block" }}>
                     <div
                       className="hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
                       style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
@@ -452,14 +454,21 @@ export default function DiscoverPage() {
                           <MapPin size={11} style={{ color: "#C4664A", flexShrink: 0 }} />
                           <span style={{ fontSize: "12px", color: "#2d2d2d", fontWeight: 600 }}>{destination}</span>
                         </div>
-                        <p style={{ fontSize: "11px", color: "#717171" }}>
-                          {[
-                            nights ? `${nights} nights` : null,
-                            trip._count.savedItems > 0 ? `${trip._count.savedItems} saves` : null,
-                            trip._count.placeRatings > 0 ? `${trip._count.placeRatings} ratings` : null,
-                            familyName,
-                          ].filter(Boolean).join(" · ")}
-                        </p>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                          <p style={{ fontSize: "11px", color: "#717171" }}>
+                            {[
+                              nights ? `${nights} nights` : null,
+                              trip._count.savedItems > 0 ? `${trip._count.savedItems} saves` : null,
+                              trip._count.placeRatings > 0 ? `${trip._count.placeRatings} ratings` : null,
+                              familyName,
+                            ].filter(Boolean).join(" · ")}
+                          </p>
+                          {trip.shareToken && (
+                            <span style={{ fontSize: "11px", color: "#C4664A", fontWeight: 600, flexShrink: 0, marginLeft: "8px" }}>
+                              Steal days →
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </Link>

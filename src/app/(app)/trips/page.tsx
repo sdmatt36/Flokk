@@ -69,6 +69,8 @@ export default async function TripsPage({
       itineraryActivityCount: t.itineraryItems.filter(i => i.type === "ACTIVITY").length,
       packingCount: t._count.packingItems,
       shareToken: t.shareToken,
+      isAnonymous: t.isAnonymous,
+      familyName: user.familyProfile!.familyName,
     };
   });
 

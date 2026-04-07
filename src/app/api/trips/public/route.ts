@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
       endDate: true,
       heroImageUrl: true,
       isAnonymous: true,
+      shareToken: true,
       _count: { select: { savedItems: true, placeRatings: true } },
       familyProfile: { select: { familyName: true, homeCity: true } },
     },
