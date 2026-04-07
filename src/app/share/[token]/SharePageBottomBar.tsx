@@ -4,117 +4,43 @@ import { useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
 
-type DayInfo = {
-  dayIndex: number;
-  label: string;
-  count: number;
-};
-
-type PlanningTrip = {
-  id: string;
-  title: string;
-  destinationCity: string | null;
-  startDate: string | null;
-};
-
 export function SharePageBottomBar({
   tripId,
   isOwner,
   shareToken,
-  days = [],
+  tripDestination,
+  totalActivityCount,
 }: {
   tripId: string;
   isOwner: boolean;
   shareToken?: string;
-  days?: DayInfo[];
+  tripDestination: string;
+  totalActivityCount: number;
 }) {
   const { isSignedIn, isLoaded } = useAuth();
   const pathname = usePathname();
 
-  // Steal modal state
-  const [stealModalOpen, setStealModalOpen] = useState(false);
-  const [stealAllMode, setStealAllMode] = useState(false);
-  const [modalStep, setModalStep] = useState<"days" | "trip">("days");
-  const [selectedDays, setSelectedDays] = useState<number[]>([]);
-  const [planningTrips, setPlanningTrips] = useState<PlanningTrip[]>([]);
-  const [tripsLoading, setTripsLoading] = useState(false);
-  const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [stealing, setStealing] = useState(false);
-  const [stealSuccess, setStealSuccess] = useState<{ copied: number; tripName: string; targetTripId: string } | null>(null);
-  const [stealError, setStealError] = useState<string | null>(null);
+  const [stolen, setStolen] = useState<{ tripId: string; tripTitle: string; copied: number } | null>(null);
 
   const redirectUrl = encodeURIComponent(pathname ?? "");
 
-  async function fetchPlanningTrips() {
-    setTripsLoading(true);
-    try {
-      const res = await fetch("/api/trips?status=planning");
-      if (res.ok) {
-        const data = await res.json() as { trips: PlanningTrip[] };
-        setPlanningTrips(data.trips ?? []);
-      }
-    } catch { /* ignore */ } finally {
-      setTripsLoading(false);
-    }
-  }
-
-  async function handleStealAll() {
-    setStealAllMode(true);
-    setSelectedDays(days.map(d => d.dayIndex));
-    setSelectedTripId(null);
-    setStealSuccess(null);
-    setStealError(null);
-    setPlanningTrips([]);
-    setTripsLoading(true);
-    setModalStep("trip");
-    setStealModalOpen(true);
-    await fetchPlanningTrips();
-  }
-
-  function openSpecificDaysModal() {
-    setStealAllMode(false);
-    setStealModalOpen(true);
-    setModalStep("days");
-    setSelectedDays([]);
-    setSelectedTripId(null);
-    setStealSuccess(null);
-    setStealError(null);
-  }
-
-  function closeStealModal() {
-    setStealModalOpen(false);
-  }
-
-  function toggleDay(dayIndex: number) {
-    setSelectedDays(prev =>
-      prev.includes(dayIndex) ? prev.filter(d => d !== dayIndex) : [...prev, dayIndex]
-    );
-  }
-
-  async function goToTripStep() {
-    setModalStep("trip");
-    await fetchPlanningTrips();
-  }
-
-  async function handleSteal() {
-    if (!selectedTripId) return;
+  async function handleStealConfirm() {
+    if (!shareToken) return;
     setStealing(true);
-    setStealError(null);
     try {
-      const res = await fetch(`/api/trips/${tripId}/steal`, {
+      const res = await fetch("/api/trips/steal-to-new", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetTripId: selectedTripId, dayIndexes: selectedDays }),
+        body: JSON.stringify({ shareToken }),
       });
-      const data = await res.json() as { copied?: number; tripName?: string; error?: string };
-      if (!res.ok) {
-        setStealError(data.error ?? "Something went wrong.");
-        return;
-      }
-      setStealSuccess({ copied: data.copied!, tripName: data.tripName!, targetTripId: selectedTripId });
-      closeStealModal();
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json() as { tripId: string; tripTitle: string; copied: number };
+      setStolen(data);
+      setConfirmOpen(false);
     } catch {
-      setStealError("Something went wrong. Please try again.");
+      alert("Something went wrong. Please try again.");
     } finally {
       setStealing(false);
     }
@@ -142,29 +68,28 @@ export function SharePageBottomBar({
 
   return (
     <>
+      {/* Success toast */}
+      {stolen && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-[#1B3A5C] text-white text-sm px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 z-50 whitespace-nowrap">
+          <span>{stolen.copied} places copied to {stolen.tripTitle}</span>
+          <a
+            href={`/trips/${stolen.tripId}`}
+            className="text-[#C4664A] font-semibold whitespace-nowrap"
+          >
+            View trip →
+          </a>
+        </div>
+      )}
+
       {/* Bottom bar */}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100, backgroundColor: "#fff", borderTop: "1px solid #F0F0F0", padding: "16px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", boxShadow: "0 -4px 24px rgba(0,0,0,0.08)" }}>
         {isSignedIn ? (
           <>
-            {stealSuccess && (
-              <p style={{ fontSize: "13px", color: "#0A1628", textAlign: "center", margin: 0 }}>
-                {stealSuccess.copied} places copied to{" "}
-                <a href={`/trips/${stealSuccess.targetTripId}`} style={{ color: "#C4664A", fontWeight: 700, textDecoration: "none" }}>
-                  {stealSuccess.tripName}
-                </a>
-              </p>
-            )}
             <button
-              onClick={handleStealAll}
+              onClick={() => setConfirmOpen(true)}
               style={{ width: "100%", maxWidth: "400px", padding: "14px", borderRadius: "999px", backgroundColor: "#C4664A", color: "#fff", fontWeight: 700, fontSize: "15px", border: "none", cursor: "pointer" }}
             >
               Steal This Itinerary
-            </button>
-            <button
-              onClick={openSpecificDaysModal}
-              style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "#AAAAAA", padding: "2px 0", fontFamily: "inherit" }}
-            >
-              Choose specific days →
             </button>
             <p style={{ fontSize: "12px", color: "#888", margin: 0, textAlign: "center" }}>
               or save individual places above
@@ -194,123 +119,48 @@ export function SharePageBottomBar({
         )}
       </div>
 
-      {/* Steal modal */}
-      {stealModalOpen && (
+      {/* Confirmation modal */}
+      {confirmOpen && (
         <div
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
-          onClick={closeStealModal}
+          className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-4"
+          onClick={() => setConfirmOpen(false)}
         >
           <div
-            style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "480px", padding: "28px 24px 40px", maxHeight: "82vh", overflowY: "auto" }}
+            className="bg-white rounded-2xl p-6 w-full max-w-md"
             onClick={e => e.stopPropagation()}
           >
-            {modalStep === "days" ? (
-              <>
-                <p style={{ fontSize: "20px", fontWeight: 700, color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "6px" }}>
-                  Which days do you want?
-                </p>
-                <p style={{ fontSize: "13px", color: "#717171", marginBottom: "20px" }}>
-                  Select the days you&apos;d like to copy into your trip.
-                </p>
-
-                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
-                  {selectedDays.length === days.length && days.length > 0 ? (
-                    <button onClick={() => setSelectedDays([])} style={{ fontSize: "13px", color: "#C4664A", background: "none", border: "none", cursor: "pointer", fontWeight: 600, padding: 0 }}>
-                      Deselect all
-                    </button>
-                  ) : (
-                    <button onClick={() => setSelectedDays(days.map(d => d.dayIndex))} style={{ fontSize: "13px", color: "#C4664A", background: "none", border: "none", cursor: "pointer", fontWeight: 600, padding: 0 }}>
-                      Select all
-                    </button>
-                  )}
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "24px" }}>
-                  {days.map(day => {
-                    const selected = selectedDays.includes(day.dayIndex);
-                    return (
-                      <div
-                        key={day.dayIndex}
-                        onClick={() => toggleDay(day.dayIndex)}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", borderRadius: "10px", border: selected ? "2px solid #C4664A" : "1px solid #E5E5E5", backgroundColor: selected ? "#FFF4EE" : "#FAFAFA", cursor: "pointer" }}
-                      >
-                        <div>
-                          <p style={{ fontSize: "14px", fontWeight: 700, color: "#0A1628", margin: 0 }}>{day.label}</p>
-                          <p style={{ fontSize: "12px", color: "#717171", margin: "2px 0 0 0" }}>{day.count} {day.count === 1 ? "stop" : "stops"}</p>
-                        </div>
-                        <div style={{ width: "20px", height: "20px", borderRadius: "4px", border: selected ? "none" : "2px solid #CCCCCC", backgroundColor: selected ? "#C4664A" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          {selected && <span style={{ color: "#fff", fontSize: "13px", fontWeight: 900, lineHeight: 1 }}>✓</span>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <button
-                  onClick={goToTripStep}
-                  disabled={selectedDays.length === 0}
-                  style={{ width: "100%", padding: "14px", borderRadius: "999px", backgroundColor: selectedDays.length === 0 ? "#E5E5E5" : "#C4664A", color: selectedDays.length === 0 ? "#AAAAAA" : "#fff", fontWeight: 700, fontSize: "15px", border: "none", cursor: selectedDays.length === 0 ? "not-allowed" : "pointer" }}
-                >
-                  Next — {selectedDays.length} {selectedDays.length === 1 ? "day" : "days"} selected
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => stealAllMode ? closeStealModal() : setModalStep("days")}
-                  style={{ fontSize: "13px", color: "#717171", background: "none", border: "none", cursor: "pointer", padding: "0 0 16px 0", display: "block" }}
-                >
-                  {stealAllMode ? "Cancel" : "Back"}
-                </button>
-                <p style={{ fontSize: "20px", fontWeight: 700, color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "6px" }}>
-                  {stealAllMode ? "Copy entire trip to which trip?" : "Copy to which trip?"}
-                </p>
-                <p style={{ fontSize: "13px", color: "#717171", marginBottom: "20px" }}>
-                  These places will be added to your vault for that trip.
-                </p>
-
-                {tripsLoading ? (
-                  <p style={{ fontSize: "14px", color: "#717171", textAlign: "center", padding: "24px 0" }}>Loading your trips...</p>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "24px" }}>
-                    {planningTrips.length === 0 && (
-                      <p style={{ fontSize: "14px", color: "#717171", textAlign: "center", padding: "8px 0 16px" }}>No planning trips found.</p>
-                    )}
-                    {planningTrips.map(t => {
-                      const selected = selectedTripId === t.id;
-                      return (
-                        <div
-                          key={t.id}
-                          onClick={() => setSelectedTripId(t.id)}
-                          style={{ padding: "14px 16px", borderRadius: "10px", border: selected ? "2px solid #C4664A" : "1px solid #E5E5E5", backgroundColor: selected ? "#FFF4EE" : "#FAFAFA", cursor: "pointer" }}
-                        >
-                          <p style={{ fontSize: "14px", fontWeight: 700, color: "#0A1628", margin: 0 }}>{t.title}</p>
-                          {t.destinationCity && <p style={{ fontSize: "12px", color: "#717171", margin: "2px 0 0 0" }}>{t.destinationCity}</p>}
-                        </div>
-                      );
-                    })}
-                    <a
-                      href="/trips/new"
-                      style={{ display: "block", padding: "14px 16px", borderRadius: "10px", border: "1px dashed #CCCCCC", textAlign: "center", fontSize: "14px", color: "#717171", textDecoration: "none", fontWeight: 600 }}
-                    >
-                      + Start a new trip
-                    </a>
-                  </div>
-                )}
-
-                {stealError && (
-                  <p style={{ fontSize: "13px", color: "#C4664A", marginBottom: "12px" }}>{stealError}</p>
-                )}
-
-                <button
-                  onClick={handleSteal}
-                  disabled={!selectedTripId || stealing}
-                  style={{ width: "100%", padding: "14px", borderRadius: "999px", backgroundColor: !selectedTripId || stealing ? "#E5E5E5" : "#C4664A", color: !selectedTripId || stealing ? "#AAAAAA" : "#fff", fontWeight: 700, fontSize: "15px", border: "none", cursor: !selectedTripId || stealing ? "not-allowed" : "pointer" }}
-                >
-                  {stealing ? "Copying..." : stealAllMode ? `Copy all ${selectedDays.length} days` : `Copy ${selectedDays.length} ${selectedDays.length === 1 ? "day" : "days"}`}
-                </button>
-              </>
-            )}
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", fontWeight: 700, color: "#1B3A5C", marginBottom: "8px" }}>
+              Start planning {tripDestination}?
+            </h2>
+            <p style={{ fontSize: "14px", color: "#717171", marginBottom: "24px", lineHeight: 1.5 }}>
+              We&apos;ll create a new {tripDestination} trip and copy all{" "}
+              {totalActivityCount} activities into it as saved places. You can
+              organise them into days from there.
+            </p>
+            <button
+              onClick={handleStealConfirm}
+              disabled={stealing}
+              style={{
+                width: "100%",
+                padding: "14px",
+                borderRadius: "999px",
+                backgroundColor: stealing ? "#E5E5E5" : "#C4664A",
+                color: stealing ? "#AAAAAA" : "#fff",
+                fontWeight: 700,
+                fontSize: "15px",
+                border: "none",
+                cursor: stealing ? "not-allowed" : "pointer",
+                marginBottom: "12px",
+              }}
+            >
+              {stealing ? "Creating your trip..." : `Create my ${tripDestination} trip`}
+            </button>
+            <button
+              onClick={() => setConfirmOpen(false)}
+              style={{ width: "100%", background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "#AAAAAA", padding: "4px 0", fontFamily: "inherit" }}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}

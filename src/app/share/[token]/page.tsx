@@ -126,6 +126,10 @@ export default async function SharePage({
     : `${trip.familyProfile.familyName} Family`;
 
   const destination = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ");
+  const tripDestination = trip.destinationCity ?? destination ?? "this destination";
+  const totalActivityCount =
+    trip.itineraryItems.filter(i => i.type !== "FLIGHT" && i.type !== "LODGING").length +
+    trip.manualActivities.length;
 
   // Build day label
   const tripStart = trip.startDate;
@@ -390,6 +394,7 @@ export default async function SharePage({
                             item={item}
                             isLoggedIn={isLoggedIn}
                             heroImageUrl={heroImg}
+                            tripDestination={tripDestination}
                           />
                         );
                       })}
@@ -481,11 +486,8 @@ export default async function SharePage({
         tripId={trip.id}
         isOwner={isOwner}
         shareToken={token}
-        days={allDayIndices.map(idx => ({
-          dayIndex: idx,
-          label: dayLabel(idx),
-          count: dayItemsByDay[idx]?.length ?? 0,
-        }))}
+        tripDestination={tripDestination}
+        totalActivityCount={totalActivityCount}
       />
     </div>
   );

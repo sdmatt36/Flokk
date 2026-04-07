@@ -13,6 +13,7 @@ export async function POST(request: Request) {
     lat?: number | null;
     lng?: number | null;
     destinationCity?: string | null;
+    tripDestination?: string | null;
   };
 
   if (!body.title?.trim()) {
@@ -41,9 +42,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ duplicate: true, existingId: existing.id });
   }
 
+  // Look up an existing PLANNING trip for this destination
+  let matchingTrip: { id: string; title: string } | null = null;
+  if (body.tripDestination) {
+    matchingTrip = await db.trip.findFirst({
+      where: {
+        familyProfileId: user.familyProfile.id,
+        status: "PLANNING",
+        destinationCity: { contains: body.tripDestination, mode: "insensitive" },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, title: true },
+    });
+  }
+
   const saved = await db.savedItem.create({
     data: {
       familyProfileId: user.familyProfile.id,
+      tripId: matchingTrip?.id ?? null,
       rawTitle: body.title.trim(),
       rawDescription: body.description ?? null,
       mediaThumbnailUrl: body.thumbnailUrl ?? null,
@@ -51,11 +67,14 @@ export async function POST(request: Request) {
       lng: body.lng ?? null,
       destinationCity: body.destinationCity ?? null,
       sourceType: "IN_APP",
-      status: "UNORGANIZED",
+      status: matchingTrip ? "TRIP_ASSIGNED" : "UNORGANIZED",
       categoryTags: [],
       extractionStatus: "ENRICHED",
     },
   });
 
-  return NextResponse.json({ savedId: saved.id }, { status: 201 });
+  return NextResponse.json(
+    { savedId: saved.id, tripTitle: matchingTrip?.title ?? null },
+    { status: 201 }
+  );
 }

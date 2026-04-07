@@ -24,12 +24,15 @@ export function ShareActivityCard({
   item,
   isLoggedIn,
   heroImageUrl,
+  tripDestination,
 }: {
   item: SerializableItem;
   isLoggedIn: boolean;
   heroImageUrl?: string | null;
+  tripDestination?: string;
 }) {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [savedToTrip, setSavedToTrip] = useState<string | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
   const pathname = usePathname();
 
@@ -52,9 +55,12 @@ export function ShareActivityCard({
           lat: item.lat,
           lng: item.lng,
           destinationCity: item.destinationCity,
+          tripDestination: tripDestination ?? null,
         }),
       });
       if (res.status === 200 || res.status === 201) {
+        const data = await res.json() as { savedId?: string; duplicate?: boolean; tripTitle?: string | null };
+        setSavedToTrip(data.tripTitle ?? null);
         setSaveState("saved");
       } else {
         throw new Error("Failed");
@@ -164,7 +170,9 @@ export function ShareActivityCard({
               }}
             >
               {saveState === "saved"
-                ? "Saved"
+                ? savedToTrip
+                  ? `Saved to ${savedToTrip}`
+                  : "Saved to library"
                 : saveState === "saving"
                 ? "Saving..."
                 : saveState === "error"
