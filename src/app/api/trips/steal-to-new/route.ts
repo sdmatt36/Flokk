@@ -23,9 +23,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No family profile" }, { status: 400 });
   }
 
-  // Find source trip
+  // Find source trip — shareToken is sufficient authorization; no isPublic check needed
   const sourceTrip = await db.trip.findFirst({
-    where: { shareToken, isPublic: true },
+    where: { shareToken },
     include: {
       itineraryItems: true,
       manualActivities: true,
