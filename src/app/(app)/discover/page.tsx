@@ -143,6 +143,7 @@ type SearchTrip = {
   endDate: string | null;
   heroImageUrl: string | null;
   isAnonymous: boolean;
+  shareToken: string | null;
   _count: { savedItems: number; placeRatings: number };
   familyProfile: { familyName: string | null; homeCity: string | null } | null;
 };
@@ -366,8 +367,12 @@ export default function DiscoverPage() {
                   const nights = trip.startDate && trip.endDate
                     ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24))
                     : null;
+                  const searchCardHref = trip.shareToken ? `/share/${trip.shareToken}` : `/trips/${trip.id}`;
+                  const searchFamilyName = trip.isAnonymous || !trip.familyProfile?.familyName
+                    ? "A Flokk Family"
+                    : `${trip.familyProfile.familyName} Family`;
                   return (
-                    <Link key={trip.id} href={`/trips/${trip.id}`} style={{ textDecoration: "none", display: "block" }}>
+                    <Link key={trip.id} href={searchCardHref} style={{ textDecoration: "none", display: "block" }}>
                       <div
                         className="hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
                         style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
@@ -381,14 +386,21 @@ export default function DiscoverPage() {
                               {[trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ")}
                             </span>
                           </div>
-                          <p style={{ fontSize: "11px", color: "#AAAAAA" }}>
-                            {[
-                              nights ? `${nights} nights` : null,
-                              trip._count.savedItems > 0 ? `${trip._count.savedItems} saves` : null,
-                              trip._count.placeRatings > 0 ? `${trip._count.placeRatings} ratings` : null,
-                              !trip.isAnonymous && trip.familyProfile?.familyName ? `${trip.familyProfile.familyName} Family` : null,
-                            ].filter(Boolean).join(" · ")}
-                          </p>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <p style={{ fontSize: "11px", color: "#AAAAAA" }}>
+                              {[
+                                nights ? `${nights} nights` : null,
+                                trip._count.savedItems > 0 ? `${trip._count.savedItems} saves` : null,
+                                trip._count.placeRatings > 0 ? `${trip._count.placeRatings} ratings` : null,
+                                searchFamilyName,
+                              ].filter(Boolean).join(" · ")}
+                            </p>
+                            {trip.shareToken && (
+                              <span style={{ fontSize: "11px", color: "#C4664A", fontWeight: 600, flexShrink: 0, marginLeft: "8px" }}>
+                                Steal days →
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </Link>
@@ -431,11 +443,9 @@ export default function DiscoverPage() {
                   ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24))
                   : null;
                 const destination = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ");
-                const familyName = !trip.isAnonymous && trip.familyProfile?.familyName
-                  ? trip.familyProfile.homeCity
-                    ? `${trip.familyProfile.familyName} Family, ${trip.familyProfile.homeCity}`
-                    : `${trip.familyProfile.familyName} Family`
-                  : null;
+                const familyName = trip.isAnonymous || !trip.familyProfile?.familyName
+                  ? "A Flokk Family"
+                  : `${trip.familyProfile.familyName} Family`;
                 const cardHref = trip.shareToken ? `/share/${trip.shareToken}` : `/trips/${trip.id}`;
                 return (
                   <Link key={trip.id} href={cardHref} style={{ textDecoration: "none", display: "block" }}>

@@ -3,13 +3,11 @@ import { db } from "@/lib/db";
 
 export async function GET(req: NextRequest) {
   const limit = Math.min(parseInt(req.nextUrl.searchParams.get("limit") ?? "20"), 50);
-  const city = req.nextUrl.searchParams.get("city");
 
   const trips = await db.trip.findMany({
     where: {
       shareToken: { not: null },
-      status: { not: "PLANNING" },
-      ...(city ? { destinationCity: { contains: city, mode: "insensitive" } } : {}),
+      status: "COMPLETED",
     },
     select: {
       id: true,
@@ -24,7 +22,11 @@ export async function GET(req: NextRequest) {
       _count: { select: { savedItems: true, placeRatings: true } },
       familyProfile: { select: { familyName: true, homeCity: true } },
     },
-    orderBy: [{ isAnonymous: "asc" }, { updatedAt: "desc" }],
+    orderBy: [
+      { placeRatings: { _count: "desc" } },
+      { isAnonymous: "asc" },
+      { updatedAt: "desc" },
+    ],
     take: limit,
   });
 

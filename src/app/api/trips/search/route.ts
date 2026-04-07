@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const trips = await db.trip.findMany({
     where: {
       shareToken: { not: null },
-      status: { not: "PLANNING" },
+      status: "COMPLETED",
       OR: [
         { title: { contains: q, mode: "insensitive" } },
         { destinationCity: { contains: q, mode: "insensitive" } },
@@ -27,11 +27,16 @@ export async function GET(req: NextRequest) {
       endDate: true,
       heroImageUrl: true,
       isAnonymous: true,
+      shareToken: true,
       _count: { select: { savedItems: true, placeRatings: true } },
       familyProfile: { select: { familyName: true, homeCity: true } },
     },
-    orderBy: [{ isAnonymous: "asc" }, { updatedAt: "desc" }],
-    take: 12,
+    orderBy: [
+      { placeRatings: { _count: "desc" } },
+      { isAnonymous: "asc" },
+      { updatedAt: "desc" },
+    ],
+    take: 20,
   });
 
   return NextResponse.json({ trips });
