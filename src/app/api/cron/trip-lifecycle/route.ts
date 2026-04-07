@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   // Find trips whose endDate has passed and are still in PLANNING or ACTIVE status
   const tripsToComplete = await db.trip.findMany({
     where: {
-      endDate: { lt: now },
+      endDate: { lt: new Date(now.getTime() - 9 * 60 * 60 * 1000) },
       status: { in: ["PLANNING", "ACTIVE"] },
     },
     include: {

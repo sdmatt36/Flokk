@@ -318,7 +318,7 @@ export function TripsPageClient({
 }) {
   const [trips, setTrips] = useState<Trip[]>(initialTrips);
   const upcoming = trips.filter((t) => t.status !== "COMPLETED");
-  const past = trips.filter((t) => t.status === "COMPLETED");
+  const past = trips.filter((t) => t.status === "COMPLETED").sort((a, b) => new Date(b.endDate ?? 0).getTime() - new Date(a.endDate ?? 0).getTime());
 
   const [tab, setTab] = useState<"upcoming" | "past">(defaultTab);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
