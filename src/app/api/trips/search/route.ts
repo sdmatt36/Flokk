@@ -10,6 +10,7 @@ export async function GET(req: NextRequest) {
 
   const trips = await db.trip.findMany({
     where: {
+      isPublic: true,
       shareToken: { not: null },
       status: "COMPLETED",
       OR: [

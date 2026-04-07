@@ -29,7 +29,7 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const { tripType, budgetRange, title, privacy, isAnonymous, startDate, endDate } = body as { tripType?: string; budgetRange?: string; title?: string; privacy?: string; isAnonymous?: boolean; startDate?: string; endDate?: string };
+  const { tripType, budgetRange, title, privacy, isAnonymous, isPublic, startDate, endDate } = body as { tripType?: string; budgetRange?: string; title?: string; privacy?: string; isAnonymous?: boolean; isPublic?: boolean; startDate?: string; endDate?: string };
 
   const data: Record<string, string | boolean | Date | null> = {};
   if (tripType !== undefined) data.tripType = tripType;
@@ -37,6 +37,7 @@ export async function PATCH(
   if (title !== undefined) data.title = title.trim() || trip.title;
   if (privacy !== undefined) data.privacy = privacy;
   if (isAnonymous !== undefined) data.isAnonymous = isAnonymous;
+  if (isPublic !== undefined) data.isPublic = isPublic;
   if (startDate !== undefined) data.startDate = startDate ? new Date(startDate) : null;
   if (endDate !== undefined) data.endDate = endDate ? new Date(endDate) : null;
 

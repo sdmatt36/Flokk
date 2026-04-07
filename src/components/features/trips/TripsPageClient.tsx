@@ -100,7 +100,7 @@ function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => vo
     await fetch(`/api/trips/${trip.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isAnonymous: anonymous }),
+      body: JSON.stringify({ isAnonymous: anonymous, isPublic: true }),
     });
     await navigator.clipboard.writeText(`${window.location.origin}/share/${trip.shareToken}`);
     setShareStep("copied");
