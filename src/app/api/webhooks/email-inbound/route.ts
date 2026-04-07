@@ -418,16 +418,11 @@ Field notes:
     const parsedCost = parseCost(extracted.totalCost);
     const detectedCurrency = (extracted.currency as string | null) ?? detectCurrency(extracted.totalCost) ?? "USD";
 
-    async function incrementBudget(tripId: string, cost: number | null) {
-      if (!cost) return;
-      const t = await db.trip.findUnique({ where: { id: tripId }, select: { budgetCurrency: true } });
-      await db.trip.update({
-        where: { id: tripId },
-        data: {
-          budgetSpent: { increment: cost },
-          budgetCurrency: t?.budgetCurrency ?? detectedCurrency,
-        },
-      });
+    // No-op: budgetSpent is deprecated. Tracked total is computed dynamically
+    // from ItineraryItem.totalCost in /api/trips/[id]/budget GET route.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    async function incrementBudget(_tripId: string, _cost: number | null) {
+      return;
     }
 
     // ── Flights ───────────────────────────────────────────────────────────────

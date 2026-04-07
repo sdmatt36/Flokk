@@ -3,6 +3,60 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
+
+async function getTrackedTotal(tripId: string, targetCurrency: string): Promise<number> {
+  const [items, manuals] = await Promise.all([
+    db.itineraryItem.findMany({
+      where: { tripId },
+      select: { totalCost: true, currency: true, type: true },
+    }),
+    db.manualActivity.findMany({
+      where: { tripId },
+      select: { price: true, currency: true },
+    }),
+  ]);
+
+  // Deduplicate lodging — check-in and check-out both store the same totalCost.
+  // Only count LODGING once per unique totalCost+currency pair.
+  const seenLodging = new Set<string>();
+  const deduplicatedItems = items.filter((item) => {
+    if (item.type === "LODGING") {
+      const key = `${item.totalCost}-${item.currency}`;
+      if (seenLodging.has(key)) return false;
+      seenLodging.add(key);
+    }
+    return true;
+  });
+
+  const allCosts = [
+    ...deduplicatedItems.map((i) => ({ amount: i.totalCost, currency: i.currency })),
+    ...manuals.map((m) => ({ amount: m.price, currency: m.currency })),
+  ].filter((c) => c.amount && c.amount > 0);
+
+  if (allCosts.length === 0) return 0;
+
+  // Fetch exchange rates relative to targetCurrency
+  let rates: Record<string, number> = {};
+  try {
+    const res = await fetch(`https://open.er-api.com/v6/latest/${targetCurrency}`);
+    const data = await res.json() as { rates?: Record<string, number> };
+    rates = data.rates ?? {};
+  } catch {
+    // If rate fetch fails, only convert what we can
+  }
+
+  function convertToTarget(amount: number, fromCurrency: string | null): number {
+    if (!fromCurrency || fromCurrency === targetCurrency) return amount;
+    const rate = rates[fromCurrency];
+    if (!rate) return 0; // exclude unconvertible amounts rather than corrupt the total
+    return amount / rate;
+  }
+
+  return Math.round(
+    allCosts.reduce((sum, c) => sum + convertToTarget(c.amount!, c.currency), 0)
+  );
+}
 
 export async function GET(
   _req: Request,
@@ -21,18 +75,20 @@ export async function GET(
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { familyProfileId: true, budgetTotal: true, budgetSpent: true, budgetCurrency: true },
+    select: { familyProfileId: true, budgetTotal: true, budgetCurrency: true },
   });
   if (!trip || trip.familyProfileId !== user.familyProfile.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const { budgetTotal, budgetSpent, budgetCurrency } = trip;
-  const spent = budgetSpent ?? 0;
-  const remaining = budgetTotal != null ? budgetTotal - spent : null;
-  const percentUsed = budgetTotal != null && budgetTotal > 0 ? (spent / budgetTotal) * 100 : null;
+  const targetCurrency = trip.budgetCurrency ?? "USD";
+  const trackedTotal = await getTrackedTotal(tripId, targetCurrency);
 
-  return NextResponse.json({ budgetTotal, budgetSpent: spent, budgetCurrency, remaining, percentUsed });
+  return NextResponse.json({
+    budgetTotal: trip.budgetTotal,
+    budgetCurrency: targetCurrency,
+    trackedTotal,
+  });
 }
 
 export async function PATCH(
@@ -47,22 +103,17 @@ export async function PATCH(
   const body = await req.json() as { budgetTotal?: number | null; budgetCurrency?: string; budgetRange?: string };
   const { budgetTotal, budgetCurrency, budgetRange } = body;
 
-  console.log("[BUDGET PATCH] tripId:", tripId, "budgetTotal:", budgetTotal, "budgetCurrency:", budgetCurrency, "budgetRange:", budgetRange);
-
   const updated = await db.trip.update({
     where: { id: tripId },
     data: {
-      ...(budgetTotal !== undefined && { budgetTotal: Number(budgetTotal) }),
+      ...(budgetTotal !== undefined && { budgetTotal: budgetTotal !== null ? Number(budgetTotal) : null }),
       ...(budgetCurrency !== undefined && { budgetCurrency }),
       ...(budgetRange !== undefined && { budgetRange: budgetRange as import("@prisma/client").BudgetRange }),
     },
   });
 
-  console.log("[BUDGET PATCH] result:", updated.budgetTotal, updated.budgetCurrency);
-
   return NextResponse.json({
     budgetTotal: updated.budgetTotal,
-    budgetSpent: updated.budgetSpent ?? 0,
     budgetCurrency: updated.budgetCurrency,
   });
 }

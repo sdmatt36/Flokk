@@ -238,7 +238,7 @@ model Trip {
   bookingIntelCache     Json?
   bookingIntelUpdatedAt DateTime?
   budgetTotal           Float?
-  budgetSpent           Float?
+  budgetSpent           Float?   // DEPRECATED: tracked total now computed from ItineraryItem.totalCost — do not write
   budgetCurrency        String?           @default("USD")
   isAnonymous               Boolean           @default(false)
   isPublic                  Boolean           @default(false)

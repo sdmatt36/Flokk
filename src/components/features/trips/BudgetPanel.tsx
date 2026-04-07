@@ -2,43 +2,39 @@
 
 import { useState, useEffect, useRef } from "react";
 
-const DEST_CURRENCY_MAP: Record<string, string> = {
-  Seoul: "KRW",
-  Busan: "KRW",
-  Tokyo: "JPY",
-  Osaka: "JPY",
-  Kyoto: "JPY",
-  Fukuoka: "JPY",
-  Sapporo: "JPY",
-  Okinawa: "JPY",
-  Naha: "JPY",
+const DEST_CURRENCY: Record<string, string> = {
+  Okinawa: "JPY", Tokyo: "JPY", Osaka: "JPY", Kyoto: "JPY",
+  Fukuoka: "JPY", Sapporo: "JPY", Naha: "JPY",
+  Seoul: "KRW", Busan: "KRW",
   London: "GBP",
-  Paris: "EUR",
-  Rome: "EUR",
-  Barcelona: "EUR",
-  Amsterdam: "EUR",
-  Berlin: "EUR",
-  Madrid: "EUR",
-  Lisbon: "EUR",
-  Sydney: "AUD",
-  Melbourne: "AUD",
-  Brisbane: "AUD",
-  Toronto: "CAD",
-  Vancouver: "CAD",
-  Bangkok: "THB",
-  Bali: "IDR",
-  Singapore: "SGD",
-  Dubai: "AED",
-  "Hong Kong": "HKD",
-  Taipei: "TWD",
+  Paris: "EUR", Rome: "EUR", Barcelona: "EUR", Amsterdam: "EUR",
+  Berlin: "EUR", Madrid: "EUR", Lisbon: "EUR",
+  Sydney: "AUD", Melbourne: "AUD", Brisbane: "AUD",
+  Toronto: "CAD", Vancouver: "CAD",
+  Singapore: "SGD", Bangkok: "THB", Bali: "IDR",
+  Dubai: "AED", "Hong Kong": "HKD", Taipei: "TWD",
 };
 
-function getDestinationCurrency(destinationCity: string | null | undefined): string {
-  if (!destinationCity) return "USD";
-  const match = Object.keys(DEST_CURRENCY_MAP).find(
-    (k) => destinationCity.toLowerCase().includes(k.toLowerCase())
-  );
-  return match ? DEST_CURRENCY_MAP[match] : "USD";
+const COUNTRY_CURRENCY: Record<string, string> = {
+  Japan: "JPY", Korea: "KRW", "South Korea": "KRW",
+  UK: "GBP", "United Kingdom": "GBP", Ireland: "EUR",
+  France: "EUR", Germany: "EUR", Italy: "EUR", Spain: "EUR",
+  Netherlands: "EUR", Portugal: "EUR", Austria: "EUR",
+  Australia: "AUD", Canada: "CAD", Singapore: "SGD",
+  Thailand: "THB", Indonesia: "IDR", Vietnam: "VND",
+  UAE: "AED", "United Arab Emirates": "AED",
+  Mexico: "MXN", India: "INR", China: "CNY",
+};
+
+function getDestCurrency(destination: string | null | undefined): string {
+  if (!destination) return "USD";
+  for (const [city, curr] of Object.entries(DEST_CURRENCY)) {
+    if (destination.includes(city)) return curr;
+  }
+  for (const [country, curr] of Object.entries(COUNTRY_CURRENCY)) {
+    if (destination.includes(country)) return curr;
+  }
+  return "USD";
 }
 
 const CURRENCIES = ["USD", "GBP", "EUR", "JPY", "KRW", "AUD", "CAD", "SGD", "THB", "AED", "HKD", "TWD", "IDR"];
@@ -46,27 +42,31 @@ const CURRENCIES = ["USD", "GBP", "EUR", "JPY", "KRW", "AUD", "CAD", "SGD", "THB
 export function BudgetPanel({
   tripId,
   destinationCity,
+  destinationCountry,
   budgetTotal,
   budgetCurrency,
-  budgetSpent,
+  trackedTotal,
   loaded,
   onBudgetChange,
 }: {
   tripId: string | undefined;
   destinationCity?: string | null;
+  destinationCountry?: string | null;
   budgetTotal: number | null;
   budgetCurrency: string;
-  budgetSpent: number;
+  trackedTotal: number;
   loaded: boolean;
   onBudgetChange: (total: number | null, currency: string) => void;
 }) {
   const [inputTotal, setInputTotal] = useState<string>(budgetTotal !== null ? String(budgetTotal) : "");
   const [inputCurrency, setInputCurrency] = useState(budgetCurrency);
   const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+  const [showDestCurrency, setShowDestCurrency] = useState(false);
   const [saving, setSaving] = useState(false);
   const rateCache = useRef<Record<string, number>>({});
 
-  const destCurrency = getDestinationCurrency(destinationCity);
+  const destLabel = destinationCity ?? destinationCountry ?? null;
+  const destCurrency = getDestCurrency(destLabel);
 
   // Sync input values when props load from DB (on initial load only)
   useEffect(() => {
@@ -78,6 +78,7 @@ export function BudgetPanel({
   useEffect(() => {
     if (destCurrency === inputCurrency) {
       setExchangeRate(null);
+      setShowDestCurrency(false);
       return;
     }
     const cacheKey = `${inputCurrency}-${destCurrency}`;
@@ -117,14 +118,20 @@ export function BudgetPanel({
   if (!loaded) return null;
 
   const parsedTotal = inputTotal ? Number(inputTotal) : null;
-  const pct =
-    parsedTotal && parsedTotal > 0
-      ? Math.min(100, (budgetSpent / parsedTotal) * 100)
-      : 0;
-  const showConversion =
-    destCurrency !== inputCurrency && exchangeRate !== null && budgetSpent > 0;
-  const convertedSpent = exchangeRate !== null ? Math.round(budgetSpent * exchangeRate) : 0;
-  const hasTrackedData = parsedTotal !== null || budgetSpent > 0;
+  const hasTrackedData = parsedTotal !== null || trackedTotal > 0;
+  const canToggle = destCurrency !== inputCurrency && exchangeRate !== null;
+
+  // Display values — switch between home and destination currency
+  const displayCurrency = showDestCurrency && canToggle ? destCurrency : inputCurrency;
+  const displayTracked = showDestCurrency && canToggle && exchangeRate
+    ? Math.round(trackedTotal * exchangeRate)
+    : trackedTotal;
+  const displayBudget = showDestCurrency && canToggle && exchangeRate && parsedTotal
+    ? Math.round(parsedTotal * exchangeRate)
+    : parsedTotal;
+  const pct = displayBudget && displayBudget > 0
+    ? Math.min(100, (displayTracked / displayBudget) * 100)
+    : 0;
 
   return (
     <div
@@ -155,6 +162,7 @@ export function BudgetPanel({
           onChange={(e) => {
             const newCurrency = e.target.value;
             setInputCurrency(newCurrency);
+            setShowDestCurrency(false);
             const t = inputTotal ? Number(inputTotal) : null;
             handleSave(t, newCurrency);
           }}
@@ -169,9 +177,7 @@ export function BudgetPanel({
           }}
         >
           {CURRENCIES.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
+            <option key={c} value={c}>{c}</option>
           ))}
         </select>
         <input
@@ -206,27 +212,46 @@ export function BudgetPanel({
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              marginBottom: parsedTotal !== null ? "8px" : "0",
+              marginBottom: displayBudget !== null ? "8px" : "0",
             }}
           >
             <span style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C" }}>
-              {parsedTotal !== null
-                ? `${inputCurrency} ${budgetSpent.toLocaleString()} of ${inputCurrency} ${parsedTotal.toLocaleString()} tracked`
-                : `${inputCurrency} ${budgetSpent.toLocaleString()} tracked so far`}
+              {displayBudget !== null
+                ? `${displayCurrency} ${displayTracked.toLocaleString()} of ${displayCurrency} ${displayBudget.toLocaleString()} tracked`
+                : `${displayCurrency} ${displayTracked.toLocaleString()} tracked so far`}
+              {canToggle && (
+                <button
+                  onClick={() => setShowDestCurrency(!showDestCurrency)}
+                  style={{
+                    marginLeft: "10px",
+                    fontSize: "11px",
+                    color: "#C4664A",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                    fontFamily: "inherit",
+                    fontWeight: 600,
+                    textDecoration: "underline",
+                    textUnderlineOffset: "2px",
+                  }}
+                >
+                  {showDestCurrency ? `Show in ${inputCurrency}` : `Show in ${destCurrency}`}
+                </button>
+              )}
             </span>
-            {parsedTotal !== null && (
+            {displayBudget !== null && (
               <span style={{ fontSize: "12px", color: "#717171" }}>{Math.round(pct)}%</span>
             )}
           </div>
 
-          {parsedTotal !== null && (
+          {displayBudget !== null && (
             <div
               style={{
                 height: "6px",
                 borderRadius: "999px",
                 backgroundColor: "#EEEEEE",
                 overflow: "hidden",
-                marginBottom: showConversion ? "10px" : "0",
               }}
             >
               <div
@@ -238,18 +263,6 @@ export function BudgetPanel({
                   transition: "width 0.4s ease",
                 }}
               />
-            </div>
-          )}
-
-          {showConversion && (
-            <div style={{ paddingTop: "8px", borderTop: "1px solid #F0F0F0" }}>
-              <p style={{ fontSize: "12px", color: "#717171", margin: 0 }}>
-                ≈ {destCurrency} {convertedSpent.toLocaleString()} tracked at destination
-              </p>
-              <p style={{ fontSize: "11px", color: "#AAAAAA", margin: "2px 0 0" }}>
-                Exchange rate: 1 {inputCurrency} ={" "}
-                {exchangeRate?.toLocaleString(undefined, { maximumFractionDigits: 2 })} {destCurrency} (live)
-              </p>
             </div>
           )}
         </>
