@@ -17,6 +17,7 @@ export type DiscoverActivity = {
   isAnonymous: boolean;
   venueUrl: string | null;
   venueName: string | null;
+  imageUrl: string | null;
 };
 
 export async function GET(req: NextRequest) {
@@ -41,12 +42,16 @@ export async function GET(req: NextRequest) {
         fp."familyName",
         t."isAnonymous",
         ma."website" AS "venueUrl",
-        COALESCE(ma."venueName", ii.title, ma.title) AS "venueName"
+        COALESCE(ma."venueName", ii.title, ma.title) AS "venueName",
+        si."imageUrl" AS "imageUrl"
       FROM "PlaceRating" pr
       LEFT JOIN "ItineraryItem" ii ON ii.id = pr."itineraryItemId"
       LEFT JOIN "ManualActivity" ma ON ma.id = pr."manualActivityId"
       JOIN "Trip" t ON t.id = COALESCE(ii."tripId", ma."tripId")
       JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
+      LEFT JOIN "SavedItem" si
+        ON LOWER(si."rawTitle") = LOWER(COALESCE(ma.title, ii.title))
+        AND si."imageUrl" IS NOT NULL
       WHERE
         t."isPublic" = true
         AND pr.rating >= ${minRating}
@@ -72,12 +77,16 @@ export async function GET(req: NextRequest) {
         fp."familyName",
         t."isAnonymous",
         ma."website" AS "venueUrl",
-        COALESCE(ma."venueName", ii.title, ma.title) AS "venueName"
+        COALESCE(ma."venueName", ii.title, ma.title) AS "venueName",
+        si."imageUrl" AS "imageUrl"
       FROM "PlaceRating" pr
       LEFT JOIN "ItineraryItem" ii ON ii.id = pr."itineraryItemId"
       LEFT JOIN "ManualActivity" ma ON ma.id = pr."manualActivityId"
       JOIN "Trip" t ON t.id = COALESCE(ii."tripId", ma."tripId")
       JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
+      LEFT JOIN "SavedItem" si
+        ON LOWER(si."rawTitle") = LOWER(COALESCE(ma.title, ii.title))
+        AND si."imageUrl" IS NOT NULL
       WHERE
         t."isPublic" = true
         AND pr.rating >= ${minRating}
@@ -104,6 +113,7 @@ export async function GET(req: NextRequest) {
       isAnonymous: row.isAnonymous ?? true,
       venueUrl: row.venueUrl ?? null,
       venueName: row.venueName ?? null,
+      imageUrl: row.imageUrl ?? null,
     });
   }
 
@@ -120,6 +130,7 @@ export async function GET(req: NextRequest) {
       isAnonymous: r.isAnonymous ?? true,
       venueUrl: r.venueUrl ?? null,
       venueName: r.venueName ?? null,
+      imageUrl: r.imageUrl ?? null,
     })),
     grouped,
     total: rows.length,
