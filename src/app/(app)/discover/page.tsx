@@ -21,6 +21,8 @@ type DiscoverActivity = {
   shareToken: string | null;
   familyName: string | null;
   isAnonymous: boolean;
+  venueUrl: string | null;
+  venueName: string | null;
 };
 
 type Recommendation = {
@@ -192,6 +194,7 @@ export default function DiscoverPage() {
   const [showSuggestions,setShowSuggestions] = useState(false);
   const [searchResults,  setSearchResults]  = useState<SearchTrip[] | null>(null);
   const [activityResults, setActivityResults] = useState<DiscoverActivity[] | null>(null);
+  const [savedActivities, setSavedActivities] = useState<Set<string>>(new Set());
   const [isSearching,    setIsSearching]    = useState(false);
   const [searchFocused,  setSearchFocused]  = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -288,6 +291,26 @@ export default function DiscoverPage() {
     setActivityResults(null);
     setSuggestions([]);
     setShowSuggestions(false);
+  }
+
+  async function handleSaveActivity(activity: DiscoverActivity) {
+    if (!activity.venueUrl) return;
+    try {
+      const res = await fetch("/api/saves", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url: activity.venueUrl,
+          title: activity.title,
+          description: activity.ratingNotes ?? "",
+        }),
+      });
+      if (res.ok) {
+        setSavedActivities((prev) => new Set(prev).add(activity.title));
+      }
+    } catch (e) {
+      console.error("[Discover] save failed:", e);
+    }
   }
 
   const handleAddYoursClick = async () => {
@@ -631,8 +654,58 @@ export default function DiscoverPage() {
             ))}
           </div>
 
-          {filtered.length > 0 ? (
+          {(filtered.length > 0 || (activityResults && activityResults.length > 0)) ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
+              {(activityResults ?? []).map((activity, i) => {
+                const cover = getTripCoverImage(activity.city, null, null);
+                const activityTag = activity.type === "LODGING" ? "Hotel"
+                  : activity.type === "FLIGHT" ? "Transport"
+                  : "Activity";
+                const attribution = activity.isAnonymous ? "A Flokk Family" : `${activity.familyName} Family`;
+                return (
+                  <div
+                    key={`rated-${i}`}
+                    className="hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+                    style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
+                  >
+                    <div style={{ height: "160px", backgroundImage: `url(${cover})`, backgroundSize: "cover", backgroundPosition: "center", position: "relative" }}>
+                      <div style={{ position: "absolute", top: "10px", left: "10px" }}>
+                        <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: "#C4664A", color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>
+                          {activityTag}
+                        </span>
+                      </div>
+                      <div style={{ position: "absolute", top: "10px", right: "10px" }}>
+                        <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: "rgba(255,255,255,0.92)", color: "#C4664A", borderRadius: "20px", padding: "3px 10px" }}>
+                          {"★".repeat(activity.rating)}{"☆".repeat(5 - activity.rating)}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ padding: "14px 16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
+                        <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
+                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>{activity.city}</span>
+                      </div>
+                      <p style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C", marginBottom: "4px", lineHeight: 1.3 }}>{activity.title}</p>
+                      {activity.ratingNotes && (
+                        <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "8px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                          {activity.ratingNotes}
+                        </p>
+                      )}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <p style={{ fontSize: "11px", color: "#AAAAAA" }}>{attribution}</p>
+                        {activity.venueUrl && (
+                          <button
+                            onClick={() => handleSaveActivity(activity)}
+                            style={{ fontSize: "11px", color: savedActivities.has(activity.title) ? "#717171" : "#C4664A", fontWeight: 600, background: "none", border: `1px solid ${savedActivities.has(activity.title) ? "#DDDDDD" : "#C4664A"}`, borderRadius: "8px", padding: "4px 10px", cursor: savedActivities.has(activity.title) ? "default" : "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
+                          >
+                            {savedActivities.has(activity.title) ? "Saved" : "+ Save"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
               {displayedDest.map((rec) => (
                 <Link key={rec.id} href={getDestinationHref(rec)} style={{ textDecoration: "none", display: "block" }}>
                   <div
@@ -681,49 +754,6 @@ export default function DiscoverPage() {
           )}
         </div>
 
-        {/* ── RATED BY FAMILIES ── */}
-        {activityResults && activityResults.length > 0 && (
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold text-[#1B3A5C] mb-4">
-              Rated by families who&apos;ve been there
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {activityResults.map((activity, i) => (
-                <div key={i} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                  <div className="p-4">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <span className="font-semibold text-[#1B3A5C] text-sm leading-tight">
-                        {activity.title}
-                      </span>
-                      <span className="text-[#C4664A] text-sm whitespace-nowrap">
-                        {"★".repeat(activity.rating)}{"☆".repeat(5 - activity.rating)}
-                      </span>
-                    </div>
-                    {activity.ratingNotes && (
-                      <p className="text-xs text-gray-500 mb-2 line-clamp-2">{activity.ratingNotes}</p>
-                    )}
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs bg-[#1B3A5C]/10 text-[#1B3A5C] px-2 py-0.5 rounded-full">
-                        {activity.city}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        {activity.isAnonymous ? "A Flokk Family" : activity.familyName}
-                      </span>
-                    </div>
-                    {activity.shareToken && (
-                      <a
-                        href={`/share/${activity.shareToken}`}
-                        className="text-xs text-[#C4664A] mt-2 block"
-                      >
-                        View full trip →
-                      </a>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
       </div>
 

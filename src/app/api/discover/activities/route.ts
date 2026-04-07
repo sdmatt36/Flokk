@@ -15,6 +15,8 @@ export type DiscoverActivity = {
   shareToken: string | null;
   familyName: string | null;
   isAnonymous: boolean;
+  venueUrl: string | null;
+  venueName: string | null;
 };
 
 export async function GET(req: NextRequest) {
@@ -37,7 +39,9 @@ export async function GET(req: NextRequest) {
         t."destinationCity",
         t."shareToken",
         fp."familyName",
-        t."isAnonymous"
+        t."isAnonymous",
+        ma."website" AS "venueUrl",
+        COALESCE(ma."venueName", ii.title, ma.title) AS "venueName"
       FROM "PlaceRating" pr
       LEFT JOIN "ItineraryItem" ii ON ii.id = pr."itineraryItemId"
       LEFT JOIN "ManualActivity" ma ON ma.id = pr."manualActivityId"
@@ -66,7 +70,9 @@ export async function GET(req: NextRequest) {
         t."destinationCity",
         t."shareToken",
         fp."familyName",
-        t."isAnonymous"
+        t."isAnonymous",
+        ma."website" AS "venueUrl",
+        COALESCE(ma."venueName", ii.title, ma.title) AS "venueName"
       FROM "PlaceRating" pr
       LEFT JOIN "ItineraryItem" ii ON ii.id = pr."itineraryItemId"
       LEFT JOIN "ManualActivity" ma ON ma.id = pr."manualActivityId"
@@ -96,6 +102,8 @@ export async function GET(req: NextRequest) {
       shareToken: row.shareToken ?? null,
       familyName: row.familyName ?? null,
       isAnonymous: row.isAnonymous ?? true,
+      venueUrl: row.venueUrl ?? null,
+      venueName: row.venueName ?? null,
     });
   }
 
@@ -110,6 +118,8 @@ export async function GET(req: NextRequest) {
       shareToken: r.shareToken ?? null,
       familyName: r.familyName ?? null,
       isAnonymous: r.isAnonymous ?? true,
+      venueUrl: r.venueUrl ?? null,
+      venueName: r.venueName ?? null,
     })),
     grouped,
     total: rows.length,
