@@ -242,6 +242,16 @@ export default function DiscoverPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
+  useEffect(() => {
+    fetch('/api/discover/activities?minRating=3')
+      .then(r => r.json())
+      .then(data => {
+        console.log('[Discover] mounted activities:', data.activities?.length);
+        setActivityResults(data.activities ?? []);
+      })
+      .catch(e => console.error('[Discover] mount fetch failed:', e));
+  }, []);
+
   async function handleSearch(q: string) {
     if (!q.trim()) { setSearchResults(null); setActivityResults(null); return; }
     setIsSearching(true);
@@ -257,7 +267,7 @@ export default function DiscoverPage() {
       ]);
       setSearchResults(tripsData.trips ?? []);
       setActivityResults(activitiesData.activities ?? []);
-      console.log('[Discover] activityResults:', activitiesData.activities?.length, activitiesData.activities?.[0]);
+      console.log('[Discover] search activityResults:', activitiesData?.activities?.length);
     } catch {
       setSearchResults([]);
       setActivityResults([]);
@@ -670,6 +680,50 @@ export default function DiscoverPage() {
             </div>
           )}
         </div>
+
+        {/* ── RATED BY FAMILIES ── */}
+        {activityResults && activityResults.length > 0 && (
+          <div className="mt-8">
+            <h3 className="text-lg font-semibold text-[#1B3A5C] mb-4">
+              Rated by families who&apos;ve been there
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {activityResults.map((activity, i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="p-4">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <span className="font-semibold text-[#1B3A5C] text-sm leading-tight">
+                        {activity.title}
+                      </span>
+                      <span className="text-[#C4664A] text-sm whitespace-nowrap">
+                        {"★".repeat(activity.rating)}{"☆".repeat(5 - activity.rating)}
+                      </span>
+                    </div>
+                    {activity.ratingNotes && (
+                      <p className="text-xs text-gray-500 mb-2 line-clamp-2">{activity.ratingNotes}</p>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs bg-[#1B3A5C]/10 text-[#1B3A5C] px-2 py-0.5 rounded-full">
+                        {activity.city}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {activity.isAnonymous ? "A Flokk Family" : activity.familyName}
+                      </span>
+                    </div>
+                    {activity.shareToken && (
+                      <a
+                        href={`/share/${activity.shareToken}`}
+                        className="text-xs text-[#C4664A] mt-2 block"
+                      >
+                        View full trip →
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
       </div>
 
