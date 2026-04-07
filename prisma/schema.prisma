@@ -48,6 +48,7 @@ model FamilyProfile {
   homeCity         String?
   state            String?
   homeCountry      String?
+  homeCurrency     String  @default("USD")
   favoriteAirports String?
   travelFrequency  TravelFrequency?
   budgetRange      BudgetRange?
