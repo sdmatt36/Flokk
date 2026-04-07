@@ -356,6 +356,7 @@ function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => vo
           </div>
         )}
       </div>
+    </div>
     </Link>
   );
 }
