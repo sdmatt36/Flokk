@@ -120,6 +120,17 @@ function getDestinationHref(rec: Recommendation): string {
 
 const FILTERS = ["All", "Culture", "Food", "Outdoor", "Adventure", "Beach", "City Break", "Asia", "Europe"];
 
+const PICKS_FILTERS = ["All", "Restaurants", "Culture", "Outdoors", "Kids & Family", "Shopping", "Hotels"];
+
+const PICKS_TYPE_MAP: Record<string, string[]> = {
+  Restaurants: ["FOOD", "food", "restaurant", "RESTAURANT"],
+  Culture: ["CULTURE", "culture", "ACTIVITY", "activity"],
+  Outdoors: ["OUTDOOR", "outdoor", "NATURE", "nature"],
+  "Kids & Family": ["FAMILY", "family"],
+  Shopping: ["SHOPPING", "shopping"],
+  Hotels: ["LODGING", "lodging"],
+};
+
 type PublicTrip = {
   id: string;
   title: string;
@@ -211,6 +222,8 @@ export default function DiscoverPage() {
     venueName: string | null;
   }>>([]);
   const [savedActivities, setSavedActivities] = useState<Set<string>>(new Set());
+  const [picksQuery, setPicksQuery] = useState("");
+  const [picksFilter, setPicksFilter] = useState("All");
   const [savePopover, setSavePopover] = useState<{ title: string; city: string | null; venueUrl: string | null } | null>(null);
   const [saveTripList, setSaveTripList] = useState<Array<{ id: string; title: string; destinationCity?: string | null }>>([]);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -307,6 +320,19 @@ export default function DiscoverPage() {
     setSuggestions([]);
     setShowSuggestions(false);
     setActivityResults(allActivitiesRef.current);
+  }
+
+  function filterPicks(q: string, f: string) {
+    const base = allActivitiesRef.current;
+    const byType = f === "All" ? base : base.filter((a) => {
+      const allowed = PICKS_TYPE_MAP[f] ?? [];
+      return allowed.some((t) => (a.type ?? "").toLowerCase().includes(t.toLowerCase()));
+    });
+    const byQuery = q.trim().length < 2 ? byType : byType.filter((a) =>
+      a.title.toLowerCase().includes(q.toLowerCase()) ||
+      (a.city ?? "").toLowerCase().includes(q.toLowerCase())
+    );
+    setActivityResults(byQuery);
   }
 
   async function handleSaveActivity(activity: { title: string; city: string | null; venueUrl: string | null }) {
@@ -578,42 +604,53 @@ export default function DiscoverPage() {
           )}
         </div>
 
-        {/* ── SECTION 3: TRAVEL INTEL ── */}
+        {/* ── SECTION 3: COMMUNITY ACTIVITY EXPLORER ── */}
         <div style={{ paddingTop: "64px" }}>
-          <TravelIntelSection />
-        </div>
-
-        {/* ── SECTION 4: GET INSPIRED ── */}
-        <div style={{ paddingTop: "64px" }}>
-          <div style={{ marginBottom: "32px" }}>
-            <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", margin: "0 0 6px" }}>
-              GET INSPIRED
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "8px" }}>
+            <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", margin: 0 }}>
+              COMMUNITY ACTIVITY EXPLORER
             </p>
-            <h2 className={playfair.className} style={{ fontSize: "26px", fontWeight: 900, color: "#1B3A5C", margin: "0 0 8px", lineHeight: 1.2 }}>
-              Destinations picked for your family
-            </h2>
+            <button style={{ flexShrink: 0, marginLeft: "16px", fontSize: "13px", color: "#C4664A", fontWeight: 700, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "3px", padding: 0, fontFamily: "inherit", whiteSpace: "nowrap" }}>
+              Submit content <ChevronRight size={13} />
+            </button>
+          </div>
+          <h2 className={playfair.className} style={{ fontSize: "26px", fontWeight: 900, color: "#1B3A5C", margin: "0 0 8px", lineHeight: 1.2 }}>
+            Community Picks
+          </h2>
+          <p style={{ fontSize: "14px", color: "#717171", marginBottom: "24px" }}>
+            Places and activities saved by families who&apos;ve been there — searchable by destination.
+          </p>
+
+          {/* Search */}
+          <div style={{ position: "relative", marginBottom: "16px" }}>
+            <Search size={16} style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "#AAAAAA", pointerEvents: "none" }} />
+            <input
+              type="text"
+              placeholder="Search a city or country..."
+              value={picksQuery}
+              onChange={(e) => { setPicksQuery(e.target.value); filterPicks(e.target.value, picksFilter); }}
+              style={{ width: "100%", padding: "10px 14px 10px 40px", borderRadius: "10px", border: "1.5px solid #E0E0E0", fontSize: "14px", color: "#1B3A5C", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+            />
           </div>
 
           {/* Filter pills */}
-          <div
-            style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "32px", scrollbarWidth: "none", msOverflowStyle: "none" }}
-            className="hide-scrollbar"
-          >
-            {FILTERS.map((f) => (
+          <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "28px", scrollbarWidth: "none", msOverflowStyle: "none" }} className="hide-scrollbar">
+            {PICKS_FILTERS.map((f) => (
               <button
                 key={f}
-                onClick={() => { setActiveFilter(f); setShowAllDest(false); }}
+                onClick={() => { setPicksFilter(f); filterPicks(picksQuery, f); }}
                 style={{
                   flexShrink: 0,
                   padding: "7px 16px",
                   borderRadius: "999px",
-                  border: activeFilter === f ? "none" : "1.5px solid #E0E0E0",
-                  backgroundColor: activeFilter === f ? "#C4664A" : "#fff",
-                  color: activeFilter === f ? "#fff" : "#717171",
+                  border: picksFilter === f ? "none" : "1.5px solid #E0E0E0",
+                  backgroundColor: picksFilter === f ? "#C4664A" : "#fff",
+                  color: picksFilter === f ? "#fff" : "#717171",
                   fontSize: "13px",
-                  fontWeight: activeFilter === f ? 700 : 500,
+                  fontWeight: picksFilter === f ? 700 : 500,
                   cursor: "pointer",
                   transition: "all 0.15s",
+                  fontFamily: "inherit",
                 }}
               >
                 {f}
@@ -621,7 +658,9 @@ export default function DiscoverPage() {
             ))}
           </div>
 
-          {(filtered.length > 0 || activityResults.length > 0) ? (
+          {activityResults.length === 0 ? (
+            <p style={{ fontSize: "13px", color: "#AAAAAA", padding: "8px 0" }}>Loading picks…</p>
+          ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
               {activityResults.map((act, idx) => {
                 const isSaved = savedActivities.has(act.title);
@@ -705,6 +744,55 @@ export default function DiscoverPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+
+        {/* ── SECTION 4: TRAVEL INTEL ── */}
+        <div style={{ paddingTop: "64px" }}>
+          <TravelIntelSection />
+        </div>
+
+        {/* ── SECTION 4: GET INSPIRED ── */}
+        <div style={{ paddingTop: "64px" }}>
+          <div style={{ marginBottom: "32px" }}>
+            <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", margin: "0 0 6px" }}>
+              GET INSPIRED
+            </p>
+            <h2 className={playfair.className} style={{ fontSize: "26px", fontWeight: 900, color: "#1B3A5C", margin: "0 0 8px", lineHeight: 1.2 }}>
+              Destinations picked for your family
+            </h2>
+          </div>
+
+          {/* Filter pills */}
+          <div
+            style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "32px", scrollbarWidth: "none", msOverflowStyle: "none" }}
+            className="hide-scrollbar"
+          >
+            {FILTERS.map((f) => (
+              <button
+                key={f}
+                onClick={() => { setActiveFilter(f); setShowAllDest(false); }}
+                style={{
+                  flexShrink: 0,
+                  padding: "7px 16px",
+                  borderRadius: "999px",
+                  border: activeFilter === f ? "none" : "1.5px solid #E0E0E0",
+                  backgroundColor: activeFilter === f ? "#C4664A" : "#fff",
+                  color: activeFilter === f ? "#fff" : "#717171",
+                  fontSize: "13px",
+                  fontWeight: activeFilter === f ? 700 : 500,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+
+          {filtered.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
               {displayedDest.map((rec) => (
                 <Link key={rec.id} href={getDestinationHref(rec)} style={{ textDecoration: "none", display: "block" }}>
                   <div
