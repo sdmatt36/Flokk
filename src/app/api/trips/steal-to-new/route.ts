@@ -2,9 +2,21 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
+export const maxDuration = 60;
+
 function generateToken(): string {
   return Math.random().toString(36).substring(2, 15) +
     Math.random().toString(36).substring(2, 15);
+}
+
+function getCategoryTags(title: string, notes: string | null): string[] {
+  const text = (title + " " + (notes ?? "")).toLowerCase();
+  if (/restaurant|cafe|coffee|bar|food|eat|lunch|dinner|breakfast|bbq|burger|pizza|ramen|sushi/.test(text)) return ["food"];
+  if (/museum|palace|temple|village|park|garden|monument|castle|shrine/.test(text)) return ["culture"];
+  if (/beach|hike|outdoor|mountain|lake|river|nature|surf/.test(text)) return ["outdoor"];
+  if (/shop|market|mall|store|boutique/.test(text)) return ["shopping"];
+  if (/cable car|sky|observation|tower|view|baseball|game|sport|stadium|arena/.test(text)) return ["activity"];
+  return ["activity"];
 }
 
 export async function POST(req: Request) {
@@ -23,7 +35,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No family profile" }, { status: 400 });
   }
 
-  // Find source trip — shareToken is sufficient authorization; no isPublic check needed
+  // Find source trip — shareToken is sufficient authorization
   const sourceTrip = await db.trip.findFirst({
     where: { shareToken },
     include: {
@@ -91,7 +103,7 @@ export async function POST(req: Request) {
       placePhotoUrl: null,
       status: "UNORGANIZED",
       sourceType: "IN_APP",
-      categoryTags: [item.type.toLowerCase()],
+      categoryTags: getCategoryTags(item.title, item.notes ?? null),
       extractionStatus: "ENRICHED",
     });
   }
@@ -111,7 +123,7 @@ export async function POST(req: Request) {
       placePhotoUrl: null,
       status: "UNORGANIZED",
       sourceType: "IN_APP",
-      categoryTags: ["activity"],
+      categoryTags: getCategoryTags(item.title, item.notes ?? null),
       extractionStatus: "ENRICHED",
     });
   }
@@ -119,6 +131,47 @@ export async function POST(req: Request) {
   if (savedItems.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await db.savedItem.createMany({ data: savedItems as any[] });
+  }
+
+  // Enrich images for stolen saves via Google Places
+  const newSaves = await db.savedItem.findMany({
+    where: {
+      familyProfileId: user.familyProfile.id,
+      tripId: newTrip.id,
+      placePhotoUrl: null,
+    },
+    select: { id: true, rawTitle: true, destinationCity: true },
+  });
+
+  const toEnrich = newSaves.slice(0, 20);
+  for (const save of toEnrich) {
+    try {
+      const query = encodeURIComponent(`${save.rawTitle} ${save.destinationCity ?? ""}`);
+      const searchRes = await fetch(
+        `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&key=${process.env.GOOGLE_MAPS_API_KEY}`
+      );
+      const searchData = await searchRes.json() as { results?: { place_id: string }[] };
+      const placeId = searchData.results?.[0]?.place_id;
+      if (!placeId) continue;
+
+      const detailRes = await fetch(
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=photos&key=${process.env.GOOGLE_MAPS_API_KEY}`
+      );
+      const detailData = await detailRes.json() as { result?: { photos?: { photo_reference: string }[] } };
+      const photoRef = detailData.result?.photos?.[0]?.photo_reference;
+      if (!photoRef) continue;
+
+      const redirectUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photoRef}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+      const photoRes = await fetch(redirectUrl, { redirect: "follow" });
+      const finalUrl = photoRes.url;
+      if (finalUrl && finalUrl !== redirectUrl) {
+        await db.savedItem.update({
+          where: { id: save.id },
+          data: { placePhotoUrl: finalUrl },
+        });
+      }
+    } catch { continue; }
+    await new Promise(r => setTimeout(r, 200));
   }
 
   return NextResponse.json({

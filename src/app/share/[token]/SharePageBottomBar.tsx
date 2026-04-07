@@ -70,11 +70,14 @@ export function SharePageBottomBar({
     <>
       {/* Success toast */}
       {stolen && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-[#1B3A5C] text-white text-sm px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 z-50 whitespace-nowrap">
-          <span>{stolen.copied} places copied to {stolen.tripTitle}</span>
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-[#1B3A5C] text-white text-sm px-4 py-3 rounded-xl shadow-lg flex flex-col items-center gap-2 z-50 w-72 text-center">
+          <span className="font-semibold">{stolen.tripTitle} created</span>
+          <span className="text-xs" style={{ color: "#D1D5DB" }}>
+            {stolen.copied} places saved. Add dates to start planning.
+          </span>
           <a
             href={`/trips/${stolen.tripId}`}
-            className="text-[#C4664A] font-semibold whitespace-nowrap"
+            className="text-[#C4664A] font-semibold text-sm"
           >
             View trip →
           </a>
