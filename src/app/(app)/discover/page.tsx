@@ -264,14 +264,14 @@ export default function DiscoverPage() {
       .catch(() => [] as DiscoverActivity[]);
 
     Promise.all([realFetch, placeholderFetch]).then(([real, placeholders]) => {
-      const realTitles = new Set(real.map(a => a.title.toLowerCase()));
+      const realTitles = new Set(real.map((a: DiscoverActivity) => a.title.toLowerCase()));
       const dedupedPlaceholders = placeholders.filter(
-        p => !realTitles.has(p.title.toLowerCase())
+        (p: DiscoverActivity) => !realTitles.has(p.title.toLowerCase())
       );
-      const all = [...real, ...dedupedPlaceholders];
+      const all: DiscoverActivity[] = [...real, ...dedupedPlaceholders];
       allActivitiesRef.current = all;
       setActivityResults(all);
-    });
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -715,7 +715,7 @@ export default function DiscoverPage() {
                     <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
                       {act.websiteUrl && (
                         <a href={act.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#1B3A5C", textDecoration: "underline", textAlign: "center" }}>
-                          View venue →
+                          Flokk It →
                         </a>
                       )}
                       <button
