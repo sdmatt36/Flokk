@@ -120,17 +120,6 @@ function getDestinationHref(rec: Recommendation): string {
 
 const FILTERS = ["All", "Culture", "Food", "Outdoor", "Adventure", "Beach", "City Break", "Asia", "Europe"];
 
-const PICKS_FILTERS = ["All", "Restaurants", "Culture", "Outdoors", "Kids & Family", "Shopping", "Hotels"];
-
-const PICKS_TYPE_MAP: Record<string, string[]> = {
-  Restaurants: ["FOOD", "food", "restaurant", "RESTAURANT"],
-  Culture: ["CULTURE", "culture", "ACTIVITY", "activity"],
-  Outdoors: ["OUTDOOR", "outdoor", "NATURE", "nature"],
-  "Kids & Family": ["FAMILY", "family"],
-  Shopping: ["SHOPPING", "shopping"],
-  Hotels: ["LODGING", "lodging"],
-};
-
 type PublicTrip = {
   id: string;
   title: string;
@@ -207,28 +196,6 @@ export default function DiscoverPage() {
   const [isLoadingTrips,  setIsLoadingTrips]  = useState(false);
   const [publishingTrip,  setPublishingTrip]  = useState<string | null>(null);
 
-  // Community activity picks
-  const [activityResults, setActivityResults] = useState<Array<{
-    title: string;
-    type: string;
-    city: string | null;
-    rating: number;
-    ratingNotes: string | null;
-    wouldReturn: boolean | null;
-    shareToken: string | null;
-    familyName: string | null;
-    isAnonymous: boolean;
-    venueUrl: string | null;
-    venueName: string | null;
-  }>>([]);
-  const [savedActivities, setSavedActivities] = useState<Set<string>>(new Set());
-  const [picksQuery, setPicksQuery] = useState("");
-  const [picksFilter, setPicksFilter] = useState("All");
-  const [savePopover, setSavePopover] = useState<{ title: string; city: string | null; venueUrl: string | null } | null>(null);
-  const [saveTripList, setSaveTripList] = useState<Array<{ id: string; title: string; destinationCity?: string | null }>>([]);
-  const popoverRef = useRef<HTMLDivElement>(null);
-  const allActivitiesRef = useRef<typeof activityResults>([]);
-
   useEffect(() => {
     fetch("/api/trips/public?limit=12")
       .then((r) => r.json())
@@ -252,47 +219,12 @@ export default function DiscoverPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    fetch("/api/discover/activities?minRating=3")
-      .then((r) => r.json())
-      .then((data) => {
-        const activities = data.activities ?? [];
-        allActivitiesRef.current = activities;
-        setActivityResults(activities);
-        console.log("[Discover] activities loaded:", activities.length);
-      })
-      .catch((e) => console.error("[Discover] activities fetch failed:", e));
-
-    fetch("/api/trips")
-      .then((r) => r.json())
-      .then((data) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const trips = (data.trips ?? data ?? []).filter((t: any) => !t.endDate || new Date(t.endDate) >= new Date()).map((t: any) => ({
-          id: t.id,
-          title: t.title ?? t.destinationCity ?? "Trip",
-          destinationCity: t.destinationCity ?? null,
-        }));
-        setSaveTripList(trips);
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    function handlePopoverClickOutside(e: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        setSavePopover(null);
-      }
-    }
-    document.addEventListener("mousedown", handlePopoverClickOutside);
-    return () => document.removeEventListener("mousedown", handlePopoverClickOutside);
-  }, []);
-
-  async function handleSearch(query: string) {
-    if (!query.trim()) { setSearchResults(null); return; }
+  async function handleSearch(q: string) {
+    if (!q.trim()) { setSearchResults(null); return; }
     setIsSearching(true);
     setShowSuggestions(false);
     try {
-      const res = await fetch(`/api/trips/search?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/trips/search?q=${encodeURIComponent(q)}`);
       const data = await res.json();
       setSearchResults(data.trips ?? []);
     } catch {
@@ -300,12 +232,6 @@ export default function DiscoverPage() {
     } finally {
       setIsSearching(false);
     }
-    const q = query.toLowerCase();
-    const localFiltered = allActivitiesRef.current.filter((a) =>
-      a.title.toLowerCase().includes(q) ||
-      (a.city ?? "").toLowerCase().includes(q)
-    );
-    setActivityResults(localFiltered.length > 0 ? localFiltered : allActivitiesRef.current);
   }
 
   function handleSuggestionClick(city: string) {
@@ -319,40 +245,6 @@ export default function DiscoverPage() {
     setSearchResults(null);
     setSuggestions([]);
     setShowSuggestions(false);
-    setActivityResults(allActivitiesRef.current);
-  }
-
-  function filterPicks(q: string, f: string) {
-    const base = allActivitiesRef.current;
-    const byType = f === "All" ? base : base.filter((a) => {
-      const allowed = PICKS_TYPE_MAP[f] ?? [];
-      return allowed.some((t) => (a.type ?? "").toLowerCase().includes(t.toLowerCase()));
-    });
-    const byQuery = q.trim().length < 2 ? byType : byType.filter((a) =>
-      a.title.toLowerCase().includes(q.toLowerCase()) ||
-      (a.city ?? "").toLowerCase().includes(q.toLowerCase())
-    );
-    setActivityResults(byQuery);
-  }
-
-  async function handleSaveActivity(activity: { title: string; city: string | null; venueUrl: string | null }) {
-    try {
-      const res = await fetch("/api/saves/from-share", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: activity.title,
-          city: activity.city ?? null,
-          websiteUrl: activity.venueUrl ?? null,
-        }),
-      });
-      if (res.ok) {
-        setSavedActivities((prev) => new Set([...prev, activity.title]));
-        setSavePopover(null);
-      }
-    } catch (err) {
-      console.error("[handleSaveActivity]", err);
-    }
   }
 
   const handleAddYoursClick = async () => {
@@ -604,151 +496,7 @@ export default function DiscoverPage() {
           )}
         </div>
 
-        {/* ── SECTION 3: COMMUNITY ACTIVITY EXPLORER ── */}
-        <div style={{ paddingTop: "64px" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "8px" }}>
-            <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", margin: 0 }}>
-              COMMUNITY ACTIVITY EXPLORER
-            </p>
-            <button style={{ flexShrink: 0, marginLeft: "16px", fontSize: "13px", color: "#C4664A", fontWeight: 700, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "3px", padding: 0, fontFamily: "inherit", whiteSpace: "nowrap" }}>
-              Submit content <ChevronRight size={13} />
-            </button>
-          </div>
-          <h2 className={playfair.className} style={{ fontSize: "26px", fontWeight: 900, color: "#1B3A5C", margin: "0 0 8px", lineHeight: 1.2 }}>
-            Community Picks
-          </h2>
-          <p style={{ fontSize: "14px", color: "#717171", marginBottom: "24px" }}>
-            Places and activities saved by families who&apos;ve been there — searchable by destination.
-          </p>
-
-          {/* Search */}
-          <div style={{ position: "relative", marginBottom: "16px" }}>
-            <Search size={16} style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "#AAAAAA", pointerEvents: "none" }} />
-            <input
-              type="text"
-              placeholder="Search a city or country..."
-              value={picksQuery}
-              onChange={(e) => { setPicksQuery(e.target.value); filterPicks(e.target.value, picksFilter); }}
-              style={{ width: "100%", padding: "10px 14px 10px 40px", borderRadius: "10px", border: "1.5px solid #E0E0E0", fontSize: "14px", color: "#1B3A5C", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
-            />
-          </div>
-
-          {/* Filter pills */}
-          <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "28px", scrollbarWidth: "none", msOverflowStyle: "none" }} className="hide-scrollbar">
-            {PICKS_FILTERS.map((f) => (
-              <button
-                key={f}
-                onClick={() => { setPicksFilter(f); filterPicks(picksQuery, f); }}
-                style={{
-                  flexShrink: 0,
-                  padding: "7px 16px",
-                  borderRadius: "999px",
-                  border: picksFilter === f ? "none" : "1.5px solid #E0E0E0",
-                  backgroundColor: picksFilter === f ? "#C4664A" : "#fff",
-                  color: picksFilter === f ? "#fff" : "#717171",
-                  fontSize: "13px",
-                  fontWeight: picksFilter === f ? 700 : 500,
-                  cursor: "pointer",
-                  transition: "all 0.15s",
-                  fontFamily: "inherit",
-                }}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-
-          {activityResults.length === 0 ? (
-            <p style={{ fontSize: "13px", color: "#AAAAAA", padding: "8px 0" }}>Loading picks…</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
-              {activityResults.map((act, idx) => {
-                const isSaved = savedActivities.has(act.title);
-                const coverImg = getTripCoverImage(act.city ?? undefined, undefined, undefined);
-                return (
-                  <div
-                    key={`act-${idx}`}
-                    className="hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
-                    style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", position: "relative" }}
-                  >
-                    <div style={{ height: "160px", backgroundImage: `url(${coverImg})`, backgroundSize: "cover", backgroundPosition: "center", position: "relative" }}>
-                      <div style={{ position: "absolute", top: "10px", left: "10px" }}>
-                        <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: "#1B3A5C", color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>
-                          Community Pick
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ padding: "14px 16px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
-                        <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
-                        <span style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>{act.city ?? "Unknown"}</span>
-                      </div>
-                      <p style={{ fontSize: "14px", fontWeight: 600, color: "#1B3A5C", marginBottom: "4px", lineHeight: 1.3 }}>{act.title}</p>
-                      {act.ratingNotes && (
-                        <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "8px" }}>{act.ratingNotes}</p>
-                      )}
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "8px" }}>
-                        <span style={{ fontSize: "12px", color: "#C4664A", fontWeight: 700 }}>
-                          {"★".repeat(act.rating)}{"☆".repeat(5 - act.rating)} {act.rating}/5
-                        </span>
-                        <div style={{ position: "relative" }}>
-                          <button
-                            onClick={() => {
-                              if (isSaved) return;
-                              setSavePopover(savePopover?.title === act.title ? null : { title: act.title, city: act.city, venueUrl: act.venueUrl });
-                            }}
-                            style={{
-                              fontSize: "12px",
-                              fontWeight: 700,
-                              color: isSaved ? "#717171" : "#C4664A",
-                              background: "none",
-                              border: `1.5px solid ${isSaved ? "#D0D0D0" : "#C4664A"}`,
-                              borderRadius: "999px",
-                              padding: "4px 12px",
-                              cursor: isSaved ? "default" : "pointer",
-                              fontFamily: "inherit",
-                            }}
-                          >
-                            {isSaved ? "Saved" : "+ Save"}
-                          </button>
-                          {savePopover?.title === act.title && (
-                            <div
-                              ref={popoverRef}
-                              style={{ position: "absolute", bottom: "36px", right: 0, width: "220px", backgroundColor: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.15)", border: "1px solid #EEEEEE", padding: "12px", zIndex: 100 }}
-                            >
-                              <p style={{ fontSize: "12px", fontWeight: 700, color: "#1B3A5C", marginBottom: "8px" }}>Save to your library</p>
-                              {saveTripList.length > 0 && (
-                                <div style={{ marginBottom: "8px" }}>
-                                  {saveTripList.slice(0, 4).map((t) => (
-                                    <button
-                                      key={t.id}
-                                      onClick={() => handleSaveActivity({ title: act.title, city: act.city, venueUrl: act.venueUrl })}
-                                      style={{ display: "block", width: "100%", textAlign: "left", fontSize: "12px", color: "#1a1a1a", background: "none", border: "none", cursor: "pointer", padding: "5px 0", fontFamily: "inherit" }}
-                                    >
-                                      {t.title || t.destinationCity || "Trip"}
-                                    </button>
-                                  ))}
-                                </div>
-                              )}
-                              <button
-                                onClick={() => handleSaveActivity({ title: act.title, city: act.city, venueUrl: act.venueUrl })}
-                                style={{ width: "100%", padding: "8px", backgroundColor: "#C4664A", color: "#fff", border: "none", borderRadius: "8px", fontSize: "12px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-                              >
-                                Save to library
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* ── SECTION 4: TRAVEL INTEL ── */}
+        {/* ── SECTION 3: TRAVEL INTEL ── */}
         <div style={{ paddingTop: "64px" }}>
           <TravelIntelSection />
         </div>
