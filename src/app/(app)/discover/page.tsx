@@ -134,307 +134,39 @@ interface DiscoverActivity {
   shareToken: string | null;
   familyName: string | null;
   isAnonymous: boolean;
-  source: "manual" | "itinerary";
+  visitorCount: number;
+  source: "manual" | "itinerary" | "placeholder";
 }
 
-const PLACEHOLDER_PICKS: DiscoverActivity[] = [
-  {
-    id: "placeholder-1",
-    title: "Senso-ji Temple",
-    type: "CULTURE",
-    city: "Tokyo",
-    rating: null,
-    ratingNotes: "One of Tokyo's most iconic landmarks. Best visited at dawn before the crowds arrive.",
-    wouldReturn: null,
-    websiteUrl: "https://www.senso-ji.jp",
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
+const PICKS_TYPE_MAP: Record<string, { types: string[]; keywords: string[] }> = {
+  Restaurants: {
+    types: ["FOOD"],
+    keywords: ["restaurant", "cafe", "food", "eat", "lunch", "dinner", "breakfast", "bbq", "burger", "taco", "bakery", "bar", "chicken", "korean bbq"],
   },
-  {
-    id: "placeholder-2",
-    title: "Shibuya Crossing",
-    type: "ACTIVITY",
-    city: "Tokyo",
-    rating: null,
-    ratingNotes: "The world's busiest pedestrian crossing. Mesmerising at any time of day.",
-    wouldReturn: null,
-    websiteUrl: null,
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
+  Culture: {
+    types: ["CULTURE"],
+    keywords: ["temple", "shrine", "palace", "museum", "gallery", "village", "historic", "cathedral", "monument", "tower", "hanok", "dmz"],
   },
-  {
-    id: "placeholder-3",
-    title: "Eiffel Tower",
-    type: "CULTURE",
-    city: "Paris",
-    rating: null,
-    ratingNotes: "Book skip-the-line tickets in advance. The view from the second floor is the sweet spot.",
-    wouldReturn: null,
-    websiteUrl: "https://www.toureiffel.paris",
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
+  Outdoors: {
+    types: ["OUTDOOR"],
+    keywords: ["beach", "park", "hike", "trail", "garden", "mountain", "waterfall", "grove", "nature", "walk", "district", "crossing", "cable car"],
   },
-  {
-    id: "placeholder-4",
-    title: "Park Güell",
-    type: "OUTDOOR",
-    city: "Barcelona",
-    rating: null,
-    ratingNotes: "Gaudí's masterpiece. Timed entry required. Kids love the mosaic lizard.",
-    wouldReturn: null,
-    websiteUrl: "https://parkguell.barcelona",
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
+  "Kids & Family": {
+    types: ["FAMILY"],
+    keywords: ["kids", "children", "family", "zoo", "aquarium", "playground", "amusement", "borderless", "teamlab", "cable car", "sky cab", "park", "grand children"],
   },
-  {
-    id: "placeholder-5",
-    title: "Chatuchak Weekend Market",
-    type: "SHOPPING",
-    city: "Bangkok",
-    rating: null,
-    ratingNotes: "Go early, bring cash. One of the world's largest markets — great for families.",
-    wouldReturn: null,
-    websiteUrl: null,
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
+  Shopping: {
+    types: ["SHOPPING"],
+    keywords: ["market", "mall", "shop", "boutique", "street", "takeshita", "boqueria", "chatuchak", "coex", "myeongdong"],
   },
-  {
-    id: "placeholder-6",
-    title: "Alfama District Walk",
-    type: "OUTDOOR",
-    city: "Lisbon",
-    rating: null,
-    ratingNotes: "Winding cobblestone streets with the best views of the city. Wear comfortable shoes.",
-    wouldReturn: null,
-    websiteUrl: null,
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
+  Hotels: {
+    types: ["LODGING"],
+    keywords: ["hotel", "hostel", "inn", "resort", "accommodation", "stay", "moxy", "check-in"],
   },
-  {
-    id: "placeholder-7",
-    title: "Fushimi Inari Shrine",
-    type: "CULTURE",
-    city: "Kyoto",
-    rating: null,
-    ratingNotes: "Thousands of vermillion torii gates winding up the mountain. Go at sunrise or sunset.",
-    wouldReturn: null,
-    websiteUrl: null,
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
+  Sports: {
+    types: ["SPORT"],
+    keywords: ["game", "stadium", "arena", "match", "baseball", "football", "soccer", "basketball", "cricket", "rugby", "tennis", "golf", "surf", "twins", "giants", "lotte"],
   },
-  {
-    id: "placeholder-8",
-    title: "Arashiyama Bamboo Grove",
-    type: "OUTDOOR",
-    city: "Kyoto",
-    rating: null,
-    ratingNotes: "The walk takes 15 minutes but the atmosphere is unforgettable. Arrive before 8am.",
-    wouldReturn: null,
-    websiteUrl: null,
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
-  },
-  {
-    id: "placeholder-9",
-    title: "Tsukiji Outer Market",
-    type: "FOOD",
-    city: "Tokyo",
-    rating: null,
-    ratingNotes: "Best street food in Tokyo. The tamagoyaki and fresh uni are non-negotiable.",
-    wouldReturn: null,
-    websiteUrl: null,
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
-  },
-  {
-    id: "placeholder-10",
-    title: "Louvre Museum",
-    type: "CULTURE",
-    city: "Paris",
-    rating: null,
-    ratingNotes: "Book a guided tour — it's too big to navigate alone. Allow a full day.",
-    wouldReturn: null,
-    websiteUrl: "https://www.louvre.fr",
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
-  },
-  {
-    id: "placeholder-11",
-    title: "La Boqueria Market",
-    type: "FOOD",
-    city: "Barcelona",
-    rating: null,
-    ratingNotes: "The best pintxos bars are behind the market, away from the tourist stalls up front.",
-    wouldReturn: null,
-    websiteUrl: null,
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
-  },
-  {
-    id: "placeholder-12",
-    title: "Wat Pho Temple",
-    type: "CULTURE",
-    city: "Bangkok",
-    rating: null,
-    ratingNotes: "Home to the enormous Reclining Buddha. Combine with a longtail boat ride on the Chao Phraya.",
-    wouldReturn: null,
-    websiteUrl: null,
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
-  },
-  {
-    id: "placeholder-13",
-    title: "Belém Tower",
-    type: "CULTURE",
-    city: "Lisbon",
-    rating: null,
-    ratingNotes: "16th-century fortress on the Tagus River. The pasteis de nata at the nearby bakery are essential.",
-    wouldReturn: null,
-    websiteUrl: null,
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
-  },
-  {
-    id: "placeholder-14",
-    title: "Nishiki Market",
-    type: "FOOD",
-    city: "Kyoto",
-    rating: null,
-    ratingNotes: "Five narrow blocks of vendors selling pickles, street food, and fresh tofu. The 'Kitchen of Kyoto'.",
-    wouldReturn: null,
-    websiteUrl: null,
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
-  },
-  {
-    id: "placeholder-15",
-    title: "Disneyland Paris",
-    type: "FAMILY",
-    city: "Paris",
-    rating: null,
-    ratingNotes: "Worth a day trip from central Paris. Buy a Priority Pass to skip main attraction queues.",
-    wouldReturn: null,
-    websiteUrl: "https://www.disneylandparis.com",
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
-  },
-  {
-    id: "placeholder-16",
-    title: "Floating Markets of Bangkok",
-    type: "SHOPPING",
-    city: "Bangkok",
-    rating: null,
-    ratingNotes: "Damnoen Saduak is the classic. Book a guided long-tail boat for the best experience.",
-    wouldReturn: null,
-    websiteUrl: null,
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
-  },
-  {
-    id: "placeholder-17",
-    title: "Sagrada Família",
-    type: "CULTURE",
-    city: "Barcelona",
-    rating: null,
-    ratingNotes: "Book the tower access when you buy tickets. The stained glass on the east facade is extraordinary.",
-    wouldReturn: null,
-    websiteUrl: "https://sagradafamilia.org",
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
-  },
-  {
-    id: "placeholder-18",
-    title: "Kinkaku-ji Golden Pavilion",
-    type: "CULTURE",
-    city: "Kyoto",
-    rating: null,
-    ratingNotes: "The gold-leaf temple reflected in the pond. Arrives buses of tour groups by 9am — go earlier.",
-    wouldReturn: null,
-    websiteUrl: null,
-    imageUrl: null,
-    tripId: "",
-    shareToken: null,
-    familyName: null,
-    isAnonymous: true,
-    source: "manual",
-  },
-];
-
-const PICKS_TYPE_MAP: Record<string, string[]> = {
-  Restaurants: ["FOOD"],
-  Culture: ["CULTURE"],
-  Outdoors: ["OUTDOOR"],
-  "Kids & Family": ["FAMILY"],
-  Shopping: ["SHOPPING"],
-  Hotels: ["LODGING"],
 };
 
 type PublicTrip = {
@@ -522,19 +254,25 @@ export default function DiscoverPage() {
   const [showAllPicks, setShowAllPicks]       = useState(false);
 
   useEffect(() => {
-    fetch("/api/discover/activities")
-      .then((r) => r.json())
-      .then((data) => {
-        const real: DiscoverActivity[] = data.activities ?? [];
-        const realIds = new Set(real.map((a) => a.title.toLowerCase()));
-        const placeholders = PLACEHOLDER_PICKS.filter(
-          (p) => !realIds.has(p.title.toLowerCase())
-        );
-        const all = [...real, ...placeholders];
-        allActivitiesRef.current = all;
-        setActivityResults(all);
-      })
-      .catch(() => {});
+    const realFetch = fetch("/api/discover/activities")
+      .then(r => r.json())
+      .then(d => (d.activities ?? []) as DiscoverActivity[])
+      .catch(() => [] as DiscoverActivity[]);
+
+    const placeholderFetch = fetch("/api/discover/placeholder-activities")
+      .then(r => r.json())
+      .then(d => (d.activities ?? []) as DiscoverActivity[])
+      .catch(() => [] as DiscoverActivity[]);
+
+    Promise.all([realFetch, placeholderFetch]).then(([real, placeholders]) => {
+      const realTitles = new Set(real.map(a => a.title.toLowerCase()));
+      const dedupedPlaceholders = placeholders.filter(
+        p => !realTitles.has(p.title.toLowerCase())
+      );
+      const all = [...real, ...dedupedPlaceholders];
+      allActivitiesRef.current = all;
+      setActivityResults(all);
+    });
   }, []);
 
   useEffect(() => {
@@ -619,14 +357,23 @@ export default function DiscoverPage() {
     } catch {}
   };
 
-  const filteredPicks = activityResults.filter((a) => {
-    const matchesSearch = !picksSearch ||
+  const filteredPicks = activityResults.filter(a => {
+    const matchesSearch =
+      !picksSearch ||
       a.title.toLowerCase().includes(picksSearch.toLowerCase()) ||
       (a.city ?? "").toLowerCase().includes(picksSearch.toLowerCase());
-    if (picksSearch) return matchesSearch;
-    const matchesFilter = picksFilter === "All" ||
-      (PICKS_TYPE_MAP[picksFilter] ?? []).includes((a.type ?? "").toUpperCase());
-    return matchesFilter;
+
+    const matchesFilter = (() => {
+      if (picksFilter === "All") return true;
+      const rule = PICKS_TYPE_MAP[picksFilter];
+      if (!rule) return true;
+      const titleLower = a.title.toLowerCase();
+      const matchesType = rule.types.includes(a.type ?? "");
+      const matchesKeyword = rule.keywords.some(k => titleLower.includes(k));
+      return matchesType || matchesKeyword;
+    })();
+
+    return matchesSearch && matchesFilter;
   });
 
   const displayedPicks = showAllPicks ? filteredPicks : filteredPicks.slice(0, 6);
@@ -888,17 +635,17 @@ export default function DiscoverPage() {
             <input
               type="text"
               value={picksSearch}
-              onChange={(e) => setPicksSearch(e.target.value)}
+              onChange={(e) => { setPicksSearch(e.target.value); setShowAllPicks(false); }}
               placeholder="Search a city or activity..."
               style={{ width: "100%", padding: "10px 14px 10px 40px", borderRadius: "10px", border: "1.5px solid #E0E0E0", fontSize: "14px", color: "#1B3A5C", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
             />
           </div>
 
           <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "28px", scrollbarWidth: "none", msOverflowStyle: "none" }} className="hide-scrollbar">
-            {["All", "Restaurants", "Culture", "Outdoors", "Kids & Family", "Shopping", "Hotels"].map((f) => (
+            {["All", "Restaurants", "Culture", "Outdoors", "Kids & Family", "Shopping", "Hotels", "Sports"].map((f) => (
               <button
                 key={f}
-                onClick={() => setPicksFilter(f)}
+                onClick={() => { setPicksFilter(f); setShowAllPicks(false); }}
                 style={{
                   flexShrink: 0,
                   padding: "7px 16px",
@@ -945,6 +692,11 @@ export default function DiscoverPage() {
                         Flokk Approved
                       </span>
                     )}
+                    {(act.visitorCount ?? 0) >= 2 && (
+                      <span className="absolute bottom-3 right-3 bg-[#1B3A5C] text-white text-xs px-2 py-1 rounded-full font-medium">
+                        {act.visitorCount} Flokkers visited
+                      </span>
+                    )}
                   </div>
                   <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", flex: 1 }}>
                     <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "3px" }}>{act.city ?? ""}</p>
@@ -953,9 +705,13 @@ export default function DiscoverPage() {
                       <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "6px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{act.ratingNotes}</p>
                     )}
                     <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "10px" }}>
-                      {act.isAnonymous || !act.familyName
-                        ? "A Real Flokker"
-                        : `${act.familyName} Family`}
+                      {act.source === "placeholder"
+                        ? "Flokk Pick"
+                        : (act.visitorCount ?? 0) >= 2
+                          ? `${act.visitorCount} Flokk families visited`
+                          : act.isAnonymous || !act.familyName
+                            ? "A Real Flokker"
+                            : `${act.familyName} Family`}
                     </p>
                     <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
                       {act.websiteUrl && (

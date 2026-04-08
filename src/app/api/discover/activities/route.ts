@@ -18,6 +18,7 @@ export type DiscoverActivity = {
   shareToken: string | null;
   familyName: string | null;
   isAnonymous: boolean;
+  visitorCount: number;
   source: "manual" | "itinerary";
 };
 
@@ -32,9 +33,9 @@ export async function GET(req: NextRequest) {
   if (q.length >= 2) {
     const like = `%${q}%`;
     rows = await db.$queryRaw(Prisma.sql`
-      SELECT * FROM (
+      WITH raw_activities AS (
         SELECT
-          ma.id::text AS id,
+          ma.id,
           ma.title,
           COALESCE(ma.type, 'ACTIVITY') AS type,
           ma.city,
@@ -43,10 +44,11 @@ export async function GET(req: NextRequest) {
           pr."wouldReturn",
           ma.website AS "websiteUrl",
           ma."imageUrl",
-          t.id::text AS "tripId",
+          t.id AS "tripId",
           t."shareToken",
           fp."familyName",
           t."isAnonymous",
+          fp.id AS "profileId",
           'manual' AS source,
           ma."createdAt"
         FROM "ManualActivity" ma
@@ -61,19 +63,20 @@ export async function GET(req: NextRequest) {
         UNION ALL
 
         SELECT
-          ii.id::text AS id,
+          ii.id,
           ii.title,
-          ii.type,
+          COALESCE(ii.type, 'ACTIVITY') AS type,
           NULL::text AS city,
           pr.rating,
           pr.notes AS "ratingNotes",
           pr."wouldReturn",
           NULL::text AS "websiteUrl",
           NULL::text AS "imageUrl",
-          t.id::text AS "tripId",
+          t.id AS "tripId",
           t."shareToken",
           fp."familyName",
           t."isAnonymous",
+          fp.id AS "profileId",
           'itinerary' AS source,
           ii."createdAt"
         FROM "ItineraryItem" ii
@@ -85,7 +88,35 @@ export async function GET(req: NextRequest) {
           AND t."isPublic" = true
           AND ii.type NOT IN ('FLIGHT', 'TRAIN', 'LODGING', 'TRANSIT')
           AND (pr.rating IS NULL OR pr.rating >= 3)
-      ) combined
+      ),
+      aggregated AS (
+        SELECT
+          MIN(id) AS id,
+          title,
+          MAX(type) AS type,
+          MAX(city) AS city,
+          ROUND(AVG(rating)) AS rating,
+          MAX("ratingNotes") AS "ratingNotes",
+          MAX("wouldReturn"::int)::boolean AS "wouldReturn",
+          MAX("websiteUrl") AS "websiteUrl",
+          MAX("imageUrl") AS "imageUrl",
+          MIN("tripId") AS "tripId",
+          MIN("shareToken") AS "shareToken",
+          CASE
+            WHEN COUNT(DISTINCT "profileId") = 1 THEN MAX("familyName")
+            ELSE NULL
+          END AS "familyName",
+          CASE
+            WHEN COUNT(DISTINCT "profileId") = 1 THEN MAX("isAnonymous"::int)::boolean
+            ELSE true
+          END AS "isAnonymous",
+          COUNT(DISTINCT "profileId") AS "visitorCount",
+          MAX(source) AS source,
+          MAX("createdAt") AS "createdAt"
+        FROM raw_activities
+        GROUP BY LOWER(TRIM(title)), LOWER(TRIM(COALESCE(city, '')))
+      )
+      SELECT * FROM aggregated
       WHERE (
         LOWER(COALESCE(title, '')) LIKE LOWER(${like})
         OR LOWER(COALESCE(city, '')) LIKE LOWER(${like})
@@ -96,9 +127,9 @@ export async function GET(req: NextRequest) {
     `);
   } else {
     rows = await db.$queryRaw(Prisma.sql`
-      SELECT * FROM (
+      WITH raw_activities AS (
         SELECT
-          ma.id::text AS id,
+          ma.id,
           ma.title,
           COALESCE(ma.type, 'ACTIVITY') AS type,
           ma.city,
@@ -107,10 +138,11 @@ export async function GET(req: NextRequest) {
           pr."wouldReturn",
           ma.website AS "websiteUrl",
           ma."imageUrl",
-          t.id::text AS "tripId",
+          t.id AS "tripId",
           t."shareToken",
           fp."familyName",
           t."isAnonymous",
+          fp.id AS "profileId",
           'manual' AS source,
           ma."createdAt"
         FROM "ManualActivity" ma
@@ -125,19 +157,20 @@ export async function GET(req: NextRequest) {
         UNION ALL
 
         SELECT
-          ii.id::text AS id,
+          ii.id,
           ii.title,
-          ii.type,
+          COALESCE(ii.type, 'ACTIVITY') AS type,
           NULL::text AS city,
           pr.rating,
           pr.notes AS "ratingNotes",
           pr."wouldReturn",
           NULL::text AS "websiteUrl",
           NULL::text AS "imageUrl",
-          t.id::text AS "tripId",
+          t.id AS "tripId",
           t."shareToken",
           fp."familyName",
           t."isAnonymous",
+          fp.id AS "profileId",
           'itinerary' AS source,
           ii."createdAt"
         FROM "ItineraryItem" ii
@@ -149,7 +182,35 @@ export async function GET(req: NextRequest) {
           AND t."isPublic" = true
           AND ii.type NOT IN ('FLIGHT', 'TRAIN', 'LODGING', 'TRANSIT')
           AND (pr.rating IS NULL OR pr.rating >= 3)
-      ) combined
+      ),
+      aggregated AS (
+        SELECT
+          MIN(id) AS id,
+          title,
+          MAX(type) AS type,
+          MAX(city) AS city,
+          ROUND(AVG(rating)) AS rating,
+          MAX("ratingNotes") AS "ratingNotes",
+          MAX("wouldReturn"::int)::boolean AS "wouldReturn",
+          MAX("websiteUrl") AS "websiteUrl",
+          MAX("imageUrl") AS "imageUrl",
+          MIN("tripId") AS "tripId",
+          MIN("shareToken") AS "shareToken",
+          CASE
+            WHEN COUNT(DISTINCT "profileId") = 1 THEN MAX("familyName")
+            ELSE NULL
+          END AS "familyName",
+          CASE
+            WHEN COUNT(DISTINCT "profileId") = 1 THEN MAX("isAnonymous"::int)::boolean
+            ELSE true
+          END AS "isAnonymous",
+          COUNT(DISTINCT "profileId") AS "visitorCount",
+          MAX(source) AS source,
+          MAX("createdAt") AS "createdAt"
+        FROM raw_activities
+        GROUP BY LOWER(TRIM(title)), LOWER(TRIM(COALESCE(city, '')))
+      )
+      SELECT * FROM aggregated
       ${minRating !== null ? Prisma.sql`WHERE rating >= ${minRating}` : Prisma.sql``}
       ORDER BY "createdAt" DESC, rating DESC NULLS LAST
       LIMIT 200
@@ -170,6 +231,7 @@ export async function GET(req: NextRequest) {
     shareToken: r.shareToken ?? null,
     familyName: r.familyName ?? null,
     isAnonymous: r.isAnonymous ?? true,
+    visitorCount: Number(r.visitorCount ?? 1),
     source: r.source as "manual" | "itinerary",
   }));
 
