@@ -648,6 +648,7 @@ model ManualActivity {
   status           String   @default("interested")
   confirmationCode String?
   city             String?
+  type             String?  @default("ACTIVITY")
   dayIndex         Int?
   sortOrder        Int      @default(0)
   createdAt        DateTime @default(now())
