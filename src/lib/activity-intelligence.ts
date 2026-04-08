@@ -87,6 +87,26 @@ export async function classifyBatch(
   return results;
 }
 
+export async function verifyWebsiteUrl(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      method: "HEAD",
+      redirect: "follow",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.ok) return url;
+    // Some servers reject HEAD — retry with GET
+    const res2 = await fetch(url, {
+      method: "GET",
+      redirect: "follow",
+      signal: AbortSignal.timeout(5000),
+    });
+    return res2.ok ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function enrichActivityImage(
   title: string,
   city: string | null,

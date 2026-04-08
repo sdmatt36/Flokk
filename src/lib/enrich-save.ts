@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
 import he from "he";
 import { getVenueImage } from "@/lib/destination-images";
+import { verifyWebsiteUrl } from "@/lib/activity-intelligence";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
@@ -219,7 +220,10 @@ async function getPlaceDetails(
     if (data.status !== "OK" || !data.candidates[0]) return {};
     const c = data.candidates[0];
     const result: { website?: string; photoUrl?: string; rating?: number } = {};
-    if (c.website) result.website = c.website;
+    if (c.website) {
+      const verified = await verifyWebsiteUrl(c.website);
+      if (verified) result.website = verified;
+    }
     if (typeof c.rating === "number") result.rating = c.rating;
     if (c.photos?.[0]?.photo_reference) {
       result.photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${c.photos[0].photo_reference}&key=${GOOGLE_MAPS_API_KEY}`;
