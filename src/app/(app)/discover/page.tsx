@@ -6,7 +6,6 @@ import { MapPin, ChevronRight, X, Search } from "lucide-react";
 import { Playfair_Display } from "next/font/google";
 import { KNOWN_CITIES } from "@/lib/destination-coords";
 import { getTripCoverImage } from "@/lib/destination-images";
-import { TravelIntelSection } from "@/components/features/discover/TravelIntelSection";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700", "900"] });
 
@@ -754,11 +753,6 @@ export default function DiscoverPage() {
             )}
             </>
           )}
-        </div>
-
-        {/* ── SECTION 4: TRAVEL INTEL ── */}
-        <div style={{ paddingTop: "64px" }}>
-          <TravelIntelSection />
         </div>
 
         {/* ── SECTION 4: GET INSPIRED ── */}
