@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
           MIN(id) AS id,
           title,
           MAX(type) AS type,
-          MAX(city) AS city,
+          city,
           ROUND(AVG(rating)) AS rating,
           MAX("ratingNotes") AS "ratingNotes",
           MAX("wouldReturn"::int)::boolean AS "wouldReturn",
@@ -114,7 +114,7 @@ export async function GET(req: NextRequest) {
           MAX(source) AS source,
           MAX("createdAt") AS "createdAt"
         FROM raw_activities
-        GROUP BY LOWER(TRIM(title)), LOWER(TRIM(COALESCE(city, '')))
+        GROUP BY title, city
       )
       SELECT * FROM aggregated
       WHERE (
@@ -188,7 +188,7 @@ export async function GET(req: NextRequest) {
           MIN(id) AS id,
           title,
           MAX(type) AS type,
-          MAX(city) AS city,
+          city,
           ROUND(AVG(rating)) AS rating,
           MAX("ratingNotes") AS "ratingNotes",
           MAX("wouldReturn"::int)::boolean AS "wouldReturn",
@@ -208,7 +208,7 @@ export async function GET(req: NextRequest) {
           MAX(source) AS source,
           MAX("createdAt") AS "createdAt"
         FROM raw_activities
-        GROUP BY LOWER(TRIM(title)), LOWER(TRIM(COALESCE(city, '')))
+        GROUP BY title, city
       )
       SELECT * FROM aggregated
       ${minRating !== null ? Prisma.sql`WHERE rating >= ${minRating}` : Prisma.sql``}
