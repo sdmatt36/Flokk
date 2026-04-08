@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 import { EditFamilyClient } from "@/components/features/family/EditFamilyClient";
 
 export const dynamic = "force-dynamic";
@@ -9,18 +10,16 @@ export default async function EditFamilyPage() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: {
-      familyProfile: {
-        include: { members: { orderBy: { createdAt: "asc" } } },
-      },
-    },
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) redirect("/onboarding");
+
+  const profile = await db.familyProfile.findUnique({
+    where: { id: profileId },
+    include: { members: { orderBy: { createdAt: "asc" } } },
   });
+  if (!profile) redirect("/onboarding");
 
-  if (!user?.familyProfile) redirect("/onboarding");
-
-  const { familyName, members } = user.familyProfile;
+  const { familyName, members } = profile;
 
   // Serialize for client — convert Date to ISO string
   const serializedMembers = members.map((m) => ({

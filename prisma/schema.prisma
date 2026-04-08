@@ -72,6 +72,16 @@ model FamilyProfile {
   senderEmails     String[]            @default([])
   senderEmailVerifications SenderEmailVerification[]
   placeRatings     PlaceRating[]
+  profileMembers   ProfileMember[]
+}
+
+model ProfileMember {
+  id              String        @id @default(cuid())
+  clerkUserId     String        @unique
+  familyProfileId String
+  familyProfile   FamilyProfile @relation(fields: [familyProfileId], references: [id], onDelete: Cascade)
+  role            String        @default("member")
+  createdAt       DateTime      @default(now())
 }
 
 model SenderEmailVerification {

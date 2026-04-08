@@ -1,6 +1,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { sendTransactional } from "@/lib/loops";
 import { nanoid } from "nanoid";
@@ -16,13 +17,16 @@ export async function GET(request: Request) {
   const statusWhere = statusFilter
     ? { status: statusFilter.toUpperCase() }
     : { status: { in: ["PLANNING", "ACTIVE"] } };
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    include: { familyProfile: { include: { trips: { where: statusWhere as any, orderBy: { startDate: "asc" } } } } },
-  });
-  const trips = user?.familyProfile?.trips ?? [];
-  console.log("[GET /api/trips] returning", trips.length, "trips for familyProfile", user?.familyProfile?.id ?? "none");
+  const profileId = await resolveProfileId(userId);
+  const profile = profileId
+    ? await db.familyProfile.findUnique({
+        where: { id: profileId },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        include: { trips: { where: statusWhere as any, orderBy: { startDate: "asc" } } },
+      })
+    : null;
+  const trips = profile?.trips ?? [];
+  console.log("[GET /api/trips] returning", trips.length, "trips for familyProfile", profileId ?? "none");
   return NextResponse.json(
     { trips: trips.map(t => ({ id: t.id, title: t.title, destinationCity: t.destinationCity, destinationCountry: t.destinationCountry, startDate: t.startDate })) },
     { headers: { "Cache-Control": "no-store" } }
@@ -33,14 +37,10 @@ export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: true },
-  });
-
-  if (!user?.familyProfile) {
-    return NextResponse.json({ error: "No family profile" }, { status: 400 });
-  }
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "No family profile" }, { status: 400 });
+  const familyProfile = await db.familyProfile.findUnique({ where: { id: profileId } });
+  if (!familyProfile) return NextResponse.json({ error: "No family profile" }, { status: 400 });
 
   const body = await req.json();
   const { destination, startDate, endDate, status, isAnonymous } = body as {
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
 
   const trip = await db.trip.create({
     data: {
-      familyProfileId: user.familyProfile.id,
+      familyProfileId: familyProfile.id,
       title,
       destinationCity,
       destinationCountry,
@@ -86,10 +86,10 @@ export async function POST(req: Request) {
 
   // Loops: fire first-trip-created if this is their first trip
   try {
-    const tripCount = await db.trip.count({ where: { familyProfileId: user.familyProfile.id } });
+    const tripCount = await db.trip.count({ where: { familyProfileId: familyProfile.id } });
     if (tripCount === 1) {
       const clerkUser = await currentUser();
-      const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? user.email;
+      const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? "";
       const firstName = clerkUser?.firstName ?? "";
       await sendTransactional(email, "cmn5lhq4k0uk60iyud4tn6qa1", {
         firstName,

@@ -23,6 +23,7 @@ function normalizeUrl(url: string): string {
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 import he from "he";
 import { z, ZodError } from "zod";
 import { extractOgMetadata } from "@/lib/og-extract";
@@ -64,17 +65,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { url, tripId, title, description, thumbnailUrl, tags, lat, lng, dayIndex, extractedCheckin, extractedCheckout, userRating, userNote } = SaveSchema.parse(body);
 
-    const user = await db.user.findUnique({
-      where: { clerkId: userId },
-      include: { familyProfile: true },
-    });
-
-    if (!user?.familyProfile) {
-      return NextResponse.json(
-        { error: "Complete onboarding first" },
-        { status: 400 }
-      );
-    }
+    const profileId = await resolveProfileId(userId);
+    if (!profileId) return NextResponse.json({ error: "Complete onboarding first" }, { status: 400 });
+    const saveProfile = await db.familyProfile.findUnique({ where: { id: profileId } });
+    if (!saveProfile) return NextResponse.json({ error: "Complete onboarding first" }, { status: 400 });
 
     const sourceType = detectSourceType(url);
 
@@ -105,7 +99,7 @@ export async function POST(request: Request) {
     const baseUrl = normalizeUrl(url).split("?")[0];
     const existingByUrl = await db.savedItem.findFirst({
       where: {
-        familyProfileId: user.familyProfile.id,
+        familyProfileId: saveProfile.id,
         sourceUrl: { contains: baseUrl, mode: "insensitive" },
       },
       select: { id: true, rawTitle: true, destinationCity: true },
@@ -123,7 +117,7 @@ export async function POST(request: Request) {
     if (rawTitle) {
       const existingByTitle = await db.savedItem.findFirst({
         where: {
-          familyProfileId: user.familyProfile.id,
+          familyProfileId: saveProfile.id,
           rawTitle: { equals: rawTitle, mode: "insensitive" },
         },
         select: { id: true, rawTitle: true, destinationCity: true },
@@ -140,7 +134,7 @@ export async function POST(request: Request) {
 
     const savedItem = await db.savedItem.create({
       data: {
-        familyProfileId: user.familyProfile.id,
+        familyProfileId: saveProfile.id,
         tripId: tripId ?? null,
         sourceType,
         sourceUrl: url,
@@ -169,10 +163,10 @@ export async function POST(request: Request) {
 
     // Loops: fire first-save if this is their first saved item
     try {
-      const saveCount = await db.savedItem.count({ where: { familyProfileId: user.familyProfile.id } });
+      const saveCount = await db.savedItem.count({ where: { familyProfileId: saveProfile.id } });
       if (saveCount === 1) {
         const clerkUser = await currentUser();
-        const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? user.email;
+        const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? "";
         const firstName = clerkUser?.firstName ?? "";
         await sendTransactional(email, "cmn5lkkpe0dkm0ix9bdca2o54", {
           firstName,
@@ -236,14 +230,11 @@ export async function GET(request: Request) {
       }
     }
 
-    const user = await db.user.findUnique({
-      where: { clerkId: userId },
-      include: { familyProfile: true },
-    });
+    const getProfileId = await resolveProfileId(userId);
 
-    console.log("[GET /api/saves] familyProfileId:", user?.familyProfile?.id ?? "none");
+    console.log("[GET /api/saves] familyProfileId:", getProfileId ?? "none");
 
-    if (!user?.familyProfile) {
+    if (!getProfileId) {
       console.log("[GET /api/saves] No familyProfile — returning empty");
       return NextResponse.json(
         { saves: [] },
@@ -253,7 +244,7 @@ export async function GET(request: Request) {
 
     const saves = await db.savedItem.findMany({
       where: {
-        familyProfileId: user.familyProfile.id,
+        familyProfileId: getProfileId,
         ...(category && category !== "all"
           ? { categoryTags: { has: category } }
           : {}),
@@ -277,7 +268,7 @@ export async function GET(request: Request) {
 
     console.log("[GET /api/saves] tripId param:", tripId ?? "none");
     const sanitized = saves.map(s => ({ ...s, mediaThumbnailUrl: sanitizeThumbnailUrl(s.mediaThumbnailUrl) }));
-    console.log("[GET /api/saves] returning", sanitized.length, "saves for familyProfile", user.familyProfile.id);
+    console.log("[GET /api/saves] returning", sanitized.length, "saves for familyProfile", getProfileId);
 
     return NextResponse.json(
       { saves: sanitized },

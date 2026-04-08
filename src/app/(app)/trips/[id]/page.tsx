@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 import { MapPin, Calendar, ChevronLeft } from "lucide-react";
 import { TripTabContent } from "@/components/features/trips/TripTabContent";
 import { CommunityTripView } from "@/components/features/trips/CommunityTripView";
@@ -52,12 +53,14 @@ export default async function TripDetailPage({
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: { include: { members: true } } },
-  });
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) redirect("/onboarding");
 
-  if (!user?.familyProfile) redirect("/onboarding");
+  const profile = await db.familyProfile.findUnique({
+    where: { id: profileId },
+    include: { members: true },
+  });
+  if (!profile) redirect("/onboarding");
 
   const trip = await db.trip.findUnique({
     where: { id },
@@ -68,7 +71,7 @@ export default async function TripDetailPage({
 
   if (!trip) notFound();
 
-  const isOwner = trip.familyProfileId === user.familyProfile.id;
+  const isOwner = trip.familyProfileId === profile.id;
   const isCommunity = !isOwner && trip.privacy === "PUBLIC";
 
   // Block non-owners from non-public trips
@@ -96,7 +99,7 @@ export default async function TripDetailPage({
   const startDateIso = trip.startDate ? trip.startDate.toISOString() : null;
   const endDateIso = trip.endDate ? trip.endDate.toISOString() : null;
 
-  const viewerMembers = (user.familyProfile?.members ?? []).map((m) => ({
+  const viewerMembers = (profile.members ?? []).map((m) => ({
     role: m.role as "ADULT" | "CHILD",
     name: m.name,
     birthDate: m.birthDate ? m.birthDate.toISOString() : null,

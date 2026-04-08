@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 import { ChevronLeft, MapPin, Sparkles, Clock, Users, DollarSign, ExternalLink, Navigation } from "lucide-react";
 import { SaveNotes } from "@/components/features/saves/SaveNotes";
 
@@ -70,21 +71,24 @@ export default async function SaveDetailPage({ params }: { params: Promise<{ id:
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: { include: { interests: true, members: true } } },
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) redirect("/onboarding");
+
+  const profile = await db.familyProfile.findUnique({
+    where: { id: profileId },
+    include: { interests: true, members: true },
   });
-  if (!user?.familyProfile) redirect("/onboarding");
+  if (!profile) redirect("/onboarding");
 
   const item = await db.savedItem.findUnique({
     where: { id },
     include: { trip: { select: { id: true, title: true } } },
   });
 
-  if (!item || item.familyProfileId !== user.familyProfile.id) notFound();
+  if (!item || item.familyProfileId !== profile.id) notFound();
 
   const tags = item.categoryTags ?? [];
-  const interestKeys = user.familyProfile.interests.map(i => i.interestKey);
+  const interestKeys = profile.interests.map(i => i.interestKey);
   const gradient = getGradient(tags);
   const matchReason = buildMatchReason(tags, interestKeys);
   const sourceLabel = SOURCE_LABEL[item.sourceType] ?? item.sourceType;

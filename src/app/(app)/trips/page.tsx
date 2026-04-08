@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 import { TripsPageClient } from "@/components/features/trips/TripsPageClient";
 
 export const dynamic = "force-dynamic";
@@ -14,28 +15,26 @@ export default async function TripsPage({
   if (!userId) redirect("/sign-in");
   const { tab } = await searchParams;
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) redirect("/onboarding");
+
+  const profile = await db.familyProfile.findUnique({
+    where: { id: profileId },
     include: {
-      familyProfile: {
+      trips: {
+        orderBy: { startDate: "asc" },
         include: {
-          trips: {
-            orderBy: { startDate: "asc" },
-            include: {
-              _count: { select: { savedItems: true, packingItems: true } },
-              savedItems: { select: { dayIndex: true }, where: { dayIndex: { not: null } } },
-              manualActivities: { select: { dayIndex: true, status: true }, where: { dayIndex: { not: null } } },
-              itineraryItems: { select: { type: true } },
-            },
-          },
+          _count: { select: { savedItems: true, packingItems: true } },
+          savedItems: { select: { dayIndex: true }, where: { dayIndex: { not: null } } },
+          manualActivities: { select: { dayIndex: true, status: true }, where: { dayIndex: { not: null } } },
+          itineraryItems: { select: { type: true } },
         },
       },
     },
   });
+  if (!profile) redirect("/onboarding");
 
-  if (!user?.familyProfile) redirect("/onboarding");
-
-  const trips = user.familyProfile.trips.map((t) => {
+  const trips = profile.trips.map((t) => {
     // Build per-day item counts
     const dayItemCounts: Record<number, number> = {};
     for (const item of t.savedItems) {
@@ -70,7 +69,7 @@ export default async function TripsPage({
       packingCount: t._count.packingItems,
       shareToken: t.shareToken,
       isAnonymous: t.isAnonymous,
-      familyName: user.familyProfile!.familyName,
+      familyName: profile.familyName,
     };
   });
 

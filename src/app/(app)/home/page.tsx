@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 import { INTERESTS } from "@/types";
 import { Playfair_Display } from "next/font/google";
 import {
@@ -64,26 +65,23 @@ export default async function HomePage() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) redirect("/onboarding");
+
+  const profile = await db.familyProfile.findUnique({
+    where: { id: profileId },
     include: {
-      familyProfile: {
-        include: {
-          members: true,
-          interests: true,
-          trips: {
-            orderBy: { startDate: "asc" },
-          },
-          savedItems: {
-            orderBy: { savedAt: "desc" },
-            take: 20,
-          },
-        },
+      members: true,
+      interests: true,
+      trips: {
+        orderBy: { startDate: "asc" },
+      },
+      savedItems: {
+        orderBy: { savedAt: "desc" },
+        take: 20,
       },
     },
   });
-
-  const profile = user?.familyProfile;
   if (!profile) redirect("/onboarding");
 
   // Only PLANNING/ACTIVE trips for save-to dropdowns (excludes community templates)
@@ -182,7 +180,7 @@ export default async function HomePage() {
   }).slice(0, 6);
 
   const greeting = getGreeting();
-  const rawName = profile.familyName || user?.email?.split("@")[0] || "there";
+  const rawName = profile.familyName || "there";
   const displayName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
   const today = new Date();
   const futureTrips = profile.trips.filter((t) => t.startDate && t.startDate > today);
