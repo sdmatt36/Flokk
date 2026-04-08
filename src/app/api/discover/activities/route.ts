@@ -5,123 +5,172 @@ import { Prisma } from "@prisma/client";
 export const dynamic = "force-dynamic";
 
 export type DiscoverActivity = {
+  id: string;
   title: string;
-  type: string;
+  type: string | null;
   city: string | null;
-  rating: number;
+  rating: number | null;
   ratingNotes: string | null;
   wouldReturn: boolean | null;
-  destinationCity: string | null;
+  websiteUrl: string | null;
+  imageUrl: string | null;
+  tripId: string;
   shareToken: string | null;
   familyName: string | null;
   isAnonymous: boolean;
-  venueUrl: string | null;
-  venueName: string | null;
+  source: "manual" | "itinerary";
 };
 
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
-  const minRating = Math.max(1, Math.min(5, parseInt(req.nextUrl.searchParams.get("minRating") ?? "3")));
+  const minRatingParam = req.nextUrl.searchParams.get("minRating");
+  const minRating = minRatingParam ? Math.max(1, Math.min(5, parseInt(minRatingParam))) : null;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let rows: any[];
 
   if (q.length >= 2) {
     const like = `%${q}%`;
-    rows = await db.$queryRaw<DiscoverActivity[]>(Prisma.sql`
-      SELECT
-        COALESCE(ii.title, ma.title) AS title,
-        COALESCE(ii.type, 'ACTIVITY') AS type,
-        COALESCE(ma.city, pr."destinationCity", t."destinationCity") AS city,
-        pr.rating,
-        pr.notes AS "ratingNotes",
-        pr."wouldReturn",
-        t."destinationCity",
-        t."shareToken",
-        fp."familyName",
-        t."isAnonymous",
-        ma."website" AS "venueUrl",
-        COALESCE(ma."venueName", ii.title, ma.title) AS "venueName"
-      FROM "PlaceRating" pr
-      LEFT JOIN "ItineraryItem" ii ON ii.id = pr."itineraryItemId"
-      LEFT JOIN "ManualActivity" ma ON ma.id = pr."manualActivityId"
-      JOIN "Trip" t ON t.id = COALESCE(ii."tripId", ma."tripId")
-      JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
-      WHERE
-        t."isPublic" = true
-        AND pr.rating >= ${minRating}
-        AND (
-          LOWER(COALESCE(ii.title, ma.title, '')) LIKE LOWER(${like})
-          OR LOWER(COALESCE(ma.city, pr."destinationCity", t."destinationCity", '')) LIKE LOWER(${like})
-          OR LOWER(COALESCE(t."destinationCity", '')) LIKE LOWER(${like})
-          OR LOWER(COALESCE(t."destinationCountry", '')) LIKE LOWER(${like})
-        )
-      ORDER BY pr.rating DESC, t."isAnonymous" ASC
+    rows = await db.$queryRaw(Prisma.sql`
+      SELECT * FROM (
+        SELECT
+          ma.id::text AS id,
+          ma.title,
+          'ACTIVITY' AS type,
+          ma.city,
+          pr.rating,
+          pr.notes AS "ratingNotes",
+          pr."wouldReturn",
+          ma.website AS "websiteUrl",
+          NULL::text AS "imageUrl",
+          t.id::text AS "tripId",
+          t."shareToken",
+          fp."familyName",
+          t."isAnonymous",
+          'manual' AS source,
+          ma."createdAt"
+        FROM "ManualActivity" ma
+        JOIN "Trip" t ON t.id = ma."tripId"
+        JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
+        LEFT JOIN "PlaceRating" pr ON pr."manualActivityId" = ma.id
+        WHERE t."endDate" IS NOT NULL
+          AND t."endDate" < NOW()
+          AND t."isPublic" = true
+
+        UNION ALL
+
+        SELECT
+          ii.id::text AS id,
+          ii.title,
+          ii.type,
+          NULL::text AS city,
+          pr.rating,
+          pr.notes AS "ratingNotes",
+          pr."wouldReturn",
+          NULL::text AS "websiteUrl",
+          NULL::text AS "imageUrl",
+          t.id::text AS "tripId",
+          t."shareToken",
+          fp."familyName",
+          t."isAnonymous",
+          'itinerary' AS source,
+          ii."createdAt"
+        FROM "ItineraryItem" ii
+        JOIN "Trip" t ON t.id = ii."tripId"
+        JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
+        LEFT JOIN "PlaceRating" pr ON pr."itineraryItemId" = ii.id
+        WHERE t."endDate" IS NOT NULL
+          AND t."endDate" < NOW()
+          AND t."isPublic" = true
+          AND ii.type NOT IN ('FLIGHT', 'TRAIN', 'LODGING', 'TRANSIT')
+      ) combined
+      WHERE (
+        LOWER(COALESCE(title, '')) LIKE LOWER(${like})
+        OR LOWER(COALESCE(city, '')) LIKE LOWER(${like})
+      )
+      ${minRating !== null ? Prisma.sql`AND rating >= ${minRating}` : Prisma.sql``}
+      ORDER BY "createdAt" DESC, rating DESC NULLS LAST
+      LIMIT 200
     `);
   } else {
-    rows = await db.$queryRaw<DiscoverActivity[]>(Prisma.sql`
-      SELECT
-        COALESCE(ii.title, ma.title) AS title,
-        COALESCE(ii.type, 'ACTIVITY') AS type,
-        COALESCE(ma.city, pr."destinationCity", t."destinationCity") AS city,
-        pr.rating,
-        pr.notes AS "ratingNotes",
-        pr."wouldReturn",
-        t."destinationCity",
-        t."shareToken",
-        fp."familyName",
-        t."isAnonymous",
-        ma."website" AS "venueUrl",
-        COALESCE(ma."venueName", ii.title, ma.title) AS "venueName"
-      FROM "PlaceRating" pr
-      LEFT JOIN "ItineraryItem" ii ON ii.id = pr."itineraryItemId"
-      LEFT JOIN "ManualActivity" ma ON ma.id = pr."manualActivityId"
-      JOIN "Trip" t ON t.id = COALESCE(ii."tripId", ma."tripId")
-      JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
-      WHERE
-        t."isPublic" = true
-        AND pr.rating >= ${minRating}
-      ORDER BY pr.rating DESC, t."isAnonymous" ASC
-      LIMIT 50
+    rows = await db.$queryRaw(Prisma.sql`
+      SELECT * FROM (
+        SELECT
+          ma.id::text AS id,
+          ma.title,
+          'ACTIVITY' AS type,
+          ma.city,
+          pr.rating,
+          pr.notes AS "ratingNotes",
+          pr."wouldReturn",
+          ma.website AS "websiteUrl",
+          NULL::text AS "imageUrl",
+          t.id::text AS "tripId",
+          t."shareToken",
+          fp."familyName",
+          t."isAnonymous",
+          'manual' AS source,
+          ma."createdAt"
+        FROM "ManualActivity" ma
+        JOIN "Trip" t ON t.id = ma."tripId"
+        JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
+        LEFT JOIN "PlaceRating" pr ON pr."manualActivityId" = ma.id
+        WHERE t."endDate" IS NOT NULL
+          AND t."endDate" < NOW()
+          AND t."isPublic" = true
+
+        UNION ALL
+
+        SELECT
+          ii.id::text AS id,
+          ii.title,
+          ii.type,
+          NULL::text AS city,
+          pr.rating,
+          pr.notes AS "ratingNotes",
+          pr."wouldReturn",
+          NULL::text AS "websiteUrl",
+          NULL::text AS "imageUrl",
+          t.id::text AS "tripId",
+          t."shareToken",
+          fp."familyName",
+          t."isAnonymous",
+          'itinerary' AS source,
+          ii."createdAt"
+        FROM "ItineraryItem" ii
+        JOIN "Trip" t ON t.id = ii."tripId"
+        JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
+        LEFT JOIN "PlaceRating" pr ON pr."itineraryItemId" = ii.id
+        WHERE t."endDate" IS NOT NULL
+          AND t."endDate" < NOW()
+          AND t."isPublic" = true
+          AND ii.type NOT IN ('FLIGHT', 'TRAIN', 'LODGING', 'TRANSIT')
+      ) combined
+      ${minRating !== null ? Prisma.sql`WHERE rating >= ${minRating}` : Prisma.sql``}
+      ORDER BY "createdAt" DESC, rating DESC NULLS LAST
+      LIMIT 200
     `);
   }
 
-  // Group by city
-  const grouped: Record<string, DiscoverActivity[]> = {};
-  for (const row of rows) {
-    const city = (row.city as string | null) ?? row.destinationCity ?? "Unknown";
-    if (!grouped[city]) grouped[city] = [];
-    grouped[city].push({
-      title: row.title,
-      type: row.type,
-      city,
-      rating: Number(row.rating),
-      ratingNotes: row.ratingNotes ?? null,
-      wouldReturn: row.wouldReturn ?? null,
-      destinationCity: row.destinationCity ?? null,
-      shareToken: row.shareToken ?? null,
-      familyName: row.familyName ?? null,
-      isAnonymous: row.isAnonymous ?? true,
-      venueUrl: row.venueUrl ?? null,
-      venueName: row.venueName ?? null,
-    });
-  }
+  const activities: DiscoverActivity[] = rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    type: r.type ?? null,
+    city: r.city ?? null,
+    rating: r.rating !== null && r.rating !== undefined ? Number(r.rating) : null,
+    ratingNotes: r.ratingNotes ?? null,
+    wouldReturn: r.wouldReturn ?? null,
+    websiteUrl: r.websiteUrl ?? null,
+    imageUrl: r.imageUrl ?? null,
+    tripId: r.tripId,
+    shareToken: r.shareToken ?? null,
+    familyName: r.familyName ?? null,
+    isAnonymous: r.isAnonymous ?? true,
+    source: r.source as "manual" | "itinerary",
+  }));
 
   return NextResponse.json({
-    activities: rows.map((r) => ({
-      title: r.title,
-      type: r.type,
-      city: (r.city as string | null) ?? r.destinationCity ?? "Unknown",
-      rating: Number(r.rating),
-      ratingNotes: r.ratingNotes ?? null,
-      wouldReturn: r.wouldReturn ?? null,
-      shareToken: r.shareToken ?? null,
-      familyName: r.familyName ?? null,
-      isAnonymous: r.isAnonymous ?? true,
-      venueUrl: r.venueUrl ?? null,
-      venueName: r.venueName ?? null,
-    })),
-    grouped,
-    total: rows.length,
+    activities,
+    total: activities.length,
   });
 }

@@ -120,6 +120,32 @@ function getDestinationHref(rec: Recommendation): string {
 
 const FILTERS = ["All", "Culture", "Food", "Outdoor", "Adventure", "Beach", "City Break", "Asia", "Europe"];
 
+interface DiscoverActivity {
+  id: string;
+  title: string;
+  type: string | null;
+  city: string | null;
+  rating: number | null;
+  ratingNotes: string | null;
+  wouldReturn: boolean | null;
+  websiteUrl: string | null;
+  imageUrl: string | null;
+  tripId: string;
+  shareToken: string | null;
+  familyName: string | null;
+  isAnonymous: boolean;
+  source: "manual" | "itinerary";
+}
+
+const PICKS_TYPE_MAP: Record<string, string[]> = {
+  Restaurants: ["FOOD", "food", "RESTAURANT"],
+  Culture: ["CULTURE", "culture", "ACTIVITY"],
+  Outdoors: ["OUTDOOR", "outdoor", "NATURE"],
+  "Kids & Family": ["FAMILY", "family", "KIDS"],
+  Shopping: ["SHOPPING", "shopping"],
+  Hotels: ["LODGING", "lodging", "HOTEL"],
+};
+
 type PublicTrip = {
   id: string;
   title: string;
@@ -196,6 +222,24 @@ export default function DiscoverPage() {
   const [isLoadingTrips,  setIsLoadingTrips]  = useState(false);
   const [publishingTrip,  setPublishingTrip]  = useState<string | null>(null);
 
+  // Community Picks
+  const [activityResults, setActivityResults] = useState<DiscoverActivity[]>([]);
+  const allActivitiesRef = useRef<DiscoverActivity[]>([]);
+  const [savedActivities, setSavedActivities] = useState<Set<string>>(new Set());
+  const [picksFilter, setPicksFilter]         = useState("All");
+  const [picksSearch, setPicksSearch]         = useState("");
+
+  useEffect(() => {
+    fetch("/api/discover/activities")
+      .then((r) => r.json())
+      .then((data) => {
+        const all: DiscoverActivity[] = data.activities ?? [];
+        allActivitiesRef.current = all;
+        setActivityResults(all);
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     fetch("/api/trips/public?limit=12")
       .then((r) => r.json())
@@ -260,6 +304,33 @@ export default function DiscoverPage() {
       setIsLoadingTrips(false);
     }
   };
+
+  const handlePickSave = async (act: DiscoverActivity) => {
+    try {
+      await fetch("/api/saves/from-share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: act.title,
+          city: act.city,
+          placePhotoUrl: act.imageUrl ?? "",
+          websiteUrl: act.websiteUrl ?? "",
+          tripId: null,
+        }),
+      });
+      setSavedActivities((prev) => new Set(prev).add(act.id));
+    } catch {}
+  };
+
+  const filteredPicks = allActivitiesRef.current.filter((a) => {
+    const matchesSearch = !picksSearch ||
+      a.title.toLowerCase().includes(picksSearch.toLowerCase()) ||
+      (a.city ?? "").toLowerCase().includes(picksSearch.toLowerCase());
+    const matchesFilter = picksFilter === "All" ||
+      (PICKS_TYPE_MAP[picksFilter] ?? []).some((t) =>
+        (a.type ?? "").toLowerCase().includes(t.toLowerCase()));
+    return matchesSearch && matchesFilter;
+  });
 
   const filtered      = activeFilter === "All" ? RECOMMENDATIONS : RECOMMENDATIONS.filter((r) => r.tag === activeFilter || r.region === activeFilter);
   const displayedTrips = showAllTrips ? publicTrips : publicTrips.slice(0, 6);
@@ -496,7 +567,122 @@ export default function DiscoverPage() {
           )}
         </div>
 
-        {/* ── SECTION 3: TRAVEL INTEL ── */}
+        {/* ── SECTION 3: COMMUNITY ACTIVITY EXPLORER ── */}
+        <div style={{ paddingTop: "64px" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "8px" }}>
+            <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", margin: 0 }}>
+              Community Activity Explorer
+            </p>
+            <button style={{ flexShrink: 0, marginLeft: "16px", fontSize: "13px", color: "#C4664A", fontWeight: 700, background: "none", border: "1.5px solid #C4664A", borderRadius: "999px", padding: "5px 14px", cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+              Submit content →
+            </button>
+          </div>
+          <h2 className={playfair.className} style={{ fontSize: "26px", fontWeight: 900, color: "#1B3A5C", margin: "0 0 8px", lineHeight: 1.2 }}>
+            Community Picks
+          </h2>
+          <p style={{ fontSize: "14px", color: "#717171", marginBottom: "24px" }}>
+            Places and activities saved by families who&apos;ve been there — searchable by destination.
+          </p>
+
+          <div style={{ position: "relative", marginBottom: "16px" }}>
+            <Search size={16} style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "#AAAAAA", pointerEvents: "none" }} />
+            <input
+              type="text"
+              value={picksSearch}
+              onChange={(e) => setPicksSearch(e.target.value)}
+              placeholder="Search a city or activity..."
+              style={{ width: "100%", padding: "10px 14px 10px 40px", borderRadius: "10px", border: "1.5px solid #E0E0E0", fontSize: "14px", color: "#1B3A5C", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
+            />
+          </div>
+
+          <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "28px", scrollbarWidth: "none", msOverflowStyle: "none" }} className="hide-scrollbar">
+            {["All", "Restaurants", "Culture", "Outdoors", "Kids & Family", "Shopping", "Hotels"].map((f) => (
+              <button
+                key={f}
+                onClick={() => setPicksFilter(f)}
+                style={{
+                  flexShrink: 0,
+                  padding: "7px 16px",
+                  borderRadius: "999px",
+                  border: picksFilter === f ? "none" : "1.5px solid #E0E0E0",
+                  backgroundColor: picksFilter === f ? "#C4664A" : "#fff",
+                  color: picksFilter === f ? "#fff" : "#717171",
+                  fontSize: "13px",
+                  fontWeight: picksFilter === f ? 700 : 500,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                  fontFamily: "inherit",
+                }}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+
+          {activityResults.length === 0 && picksSearch === "" && picksFilter === "All" ? (
+            <p style={{ fontSize: "13px", color: "#AAAAAA", padding: "8px 0" }}>Loading picks…</p>
+          ) : filteredPicks.length === 0 ? (
+            <p style={{ fontSize: "13px", color: "#AAAAAA", textAlign: "center", padding: "48px 24px" }}>
+              {picksSearch ? `No activities found for "${picksSearch}"` : `No activities in this category yet.`}
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
+              {filteredPicks.map((act) => (
+                <div key={act.id} style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column" }}>
+                  <div style={{ height: "160px", backgroundColor: "#1B3A5C1A", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
+                    {act.imageUrl ? (
+                      <img src={act.imageUrl} alt={act.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                    ) : (
+                      <span style={{ fontSize: "40px", color: "rgba(27,58,92,0.15)" }}>★</span>
+                    )}
+                    {act.rating !== null && (
+                      <span style={{ position: "absolute", top: "10px", right: "10px", backgroundColor: "rgba(255,255,255,0.92)", color: "#1B3A5C", fontSize: "11px", padding: "3px 8px", borderRadius: "999px" }}>
+                        {"★".repeat(act.rating)}{"☆".repeat(5 - act.rating)}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", flex: 1 }}>
+                    <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "3px" }}>{act.city ?? ""}</p>
+                    <p style={{ fontSize: "14px", fontWeight: 600, color: "#1B3A5C", marginBottom: "4px", lineHeight: 1.3 }}>{act.title}</p>
+                    {act.ratingNotes && (
+                      <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "6px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{act.ratingNotes}</p>
+                    )}
+                    <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "10px" }}>
+                      {act.isAnonymous ? "A Flokk Family" : (act.familyName ?? "A Flokk Family")}
+                    </p>
+                    <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {act.websiteUrl && (
+                        <a href={act.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#1B3A5C", textDecoration: "underline", textAlign: "center" }}>
+                          View venue →
+                        </a>
+                      )}
+                      <button
+                        onClick={() => handlePickSave(act)}
+                        disabled={savedActivities.has(act.id)}
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          border: `1.5px solid ${savedActivities.has(act.id) ? "#D0D0D0" : "#C4664A"}`,
+                          color: savedActivities.has(act.id) ? "#AAAAAA" : "#C4664A",
+                          backgroundColor: "transparent",
+                          borderRadius: "8px",
+                          padding: "8px",
+                          cursor: savedActivities.has(act.id) ? "default" : "pointer",
+                          fontFamily: "inherit",
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        {savedActivities.has(act.id) ? "Saved ✓" : "+ Save"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── SECTION 4: TRAVEL INTEL ── */}
         <div style={{ paddingTop: "64px" }}>
           <TravelIntelSection />
         </div>
