@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { db } from "@/lib/db";
 
 let _client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -110,7 +111,8 @@ export async function verifyWebsiteUrl(url: string): Promise<string | null> {
 export async function enrichActivityImage(
   title: string,
   city: string | null,
-  type: string | null
+  type: string | null,
+  manualActivity?: { id: string; familyProfileId: string; title: string }
 ): Promise<string | null> {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) return null;
@@ -136,7 +138,30 @@ export async function enrichActivityImage(
     // Step 2 — Get photo URL and follow redirect to final lh3.googleusercontent.com URL
     const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photoRef}&key=${apiKey}`;
     const photoRes = await fetch(photoUrl, { redirect: "follow" });
-    return photoRes.url ?? null;
+    const finalImageUrl = photoRes.url ?? null;
+    if (!finalImageUrl) return null;
+
+    // Step 3 — If manualActivity context provided, write to ManualActivity and sync SavedItem
+    if (manualActivity) {
+      await db.manualActivity.update({
+        where: { id: manualActivity.id },
+        data: { imageUrl: finalImageUrl },
+      });
+
+      try {
+        await db.savedItem.updateMany({
+          where: {
+            familyProfileId: manualActivity.familyProfileId,
+            rawTitle: { contains: manualActivity.title, mode: "insensitive" },
+          },
+          data: { placePhotoUrl: finalImageUrl },
+        });
+      } catch (e) {
+        console.error("[enrichActivityImage] SavedItem sync failed:", e);
+      }
+    }
+
+    return finalImageUrl;
   } catch {
     return null;
   }

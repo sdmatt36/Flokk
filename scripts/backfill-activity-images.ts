@@ -17,18 +17,20 @@ async function main() {
       title: true,
       city: true,
       type: true,
+      trip: { select: { familyProfileId: true } },
     },
   });
 
   console.log(`Enriching images for ${activities.length} ManualActivity rows...`);
 
   for (const act of activities) {
-    const imageUrl = await enrichActivityImage(act.title, act.city, act.type);
+    const imageUrl = await enrichActivityImage(
+      act.title,
+      act.city,
+      act.type,
+      { id: act.id, familyProfileId: act.trip.familyProfileId, title: act.title }
+    );
     if (imageUrl) {
-      await prisma.manualActivity.update({
-        where: { id: act.id },
-        data: { imageUrl },
-      });
       console.log(`  ✓ ${act.title} → ${imageUrl.slice(0, 60)}...`);
     } else {
       console.log(`  ✗ ${act.title} → no image found`);
