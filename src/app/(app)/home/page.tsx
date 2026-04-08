@@ -91,36 +91,86 @@ export default async function HomePage() {
     (t) => t.status === "PLANNING" || t.status === "ACTIVE"
   );
 
-  // Top community trips for "Popular with Flokk families"
-  // Fetch broadly then JS-filter: seeded community trips share familyProfileId with user in dev
-  const rawCommunityTrips = await db.trip.findMany({
-    where: { privacy: "PUBLIC", status: "COMPLETED" },
+  // Popular with Flokk Families — completed public trips ordered by recency, deduplicated by city
+  const rawPopularTrips = await db.trip.findMany({
+    where: {
+      privacy: "PUBLIC",
+      status: "COMPLETED",
+      endDate: { lt: new Date() },
+      familyProfileId: { not: profile.id },
+    },
     select: {
       id: true,
-      familyProfileId: true,
-      title: true,
       destinationCity: true,
       destinationCountry: true,
       startDate: true,
       endDate: true,
       heroImageUrl: true,
-      _count: { select: { savedItems: true } },
+      isAnonymous: true,
       familyProfile: { select: { familyName: true } },
     },
-    orderBy: { savedItems: { _count: "desc" } },
-    take: 20,
+    orderBy: { endDate: "desc" },
+    take: 40,
   });
 
-  const activeCities = new Set(
-    activePlannedTrips
-      .map((t) => t.destinationCity?.toLowerCase())
-      .filter((c): c is string => Boolean(c))
-  );
+  type PopularCard = {
+    id: string;
+    city: string;
+    country: string | null;
+    imageUrl: string;
+    tripId: string | null;
+    label: string;
+  };
 
-  const communityTrips = rawCommunityTrips
-    .filter((t) => t.familyProfileId !== profile.id || t.id.startsWith("cmtrip-"))
-    .filter((t) => !activeCities.has(t.destinationCity?.toLowerCase() ?? ""))
-    .slice(0, 4);
+  const seenPopularCities = new Set<string>();
+  const popularCards: PopularCard[] = [];
+
+  for (const t of rawPopularTrips) {
+    if (!t.destinationCity) continue;
+    const cityKey = t.destinationCity.toLowerCase();
+    if (seenPopularCities.has(cityKey)) continue;
+    seenPopularCities.add(cityKey);
+    const nights =
+      t.startDate && t.endDate
+        ? Math.round((t.endDate.getTime() - t.startDate.getTime()) / (1000 * 60 * 60 * 24))
+        : null;
+    const attribution =
+      !t.isAnonymous && t.familyProfile.familyName
+        ? `by ${t.familyProfile.familyName}`
+        : "by Community";
+    popularCards.push({
+      id: t.id,
+      city: t.destinationCity,
+      country: t.destinationCountry ?? null,
+      imageUrl: getTripCoverImage(t.destinationCity, t.destinationCountry, t.heroImageUrl),
+      tripId: t.id,
+      label: nights ? `${nights} nights · ${attribution}` : attribution,
+    });
+    if (popularCards.length >= 4) break;
+  }
+
+  // Pad with curated fallbacks if fewer than 4 real results
+  const POPULAR_FALLBACKS = [
+    { city: "Lisbon", country: "Portugal" },
+    { city: "Kyoto", country: "Japan" },
+    { city: "Barcelona", country: "Spain" },
+    { city: "Bangkok", country: "Thailand" },
+  ];
+  if (popularCards.length < 4) {
+    const existingCities = new Set(popularCards.map((d) => d.city.toLowerCase()));
+    for (const fb of POPULAR_FALLBACKS) {
+      if (existingCities.has(fb.city.toLowerCase())) continue;
+      popularCards.push({
+        id: `fallback-${fb.city}`,
+        city: fb.city,
+        country: fb.country,
+        imageUrl: getTripCoverImage(fb.city, fb.country, null),
+        tripId: null,
+        label: "by Community",
+      });
+      if (popularCards.length >= 4) break;
+    }
+  }
 
   // Deduplicate saved items by rawTitle (keeps most recent), then take 6
   const seenTitles = new Set<string>();
@@ -437,37 +487,27 @@ export default async function HomePage() {
                   See all
                 </Link>
               </div>
-              {communityTrips.length === 0 ? (
-                <Link href="/discover" style={{ display: "block", textAlign: "center", padding: "20px", backgroundColor: "#F9F9F9", borderRadius: "14px", fontSize: "13px", color: "#C4664A", fontWeight: 600, textDecoration: "none" }}>
-                  Explore community trips →
-                </Link>
-              ) : (
-                <div className="grid grid-cols-2" style={{ gap: "10px" }}>
-                  {communityTrips.map((trip) => {
-                    const img = getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl);
-                    const nights = trip.startDate && trip.endDate
-                      ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24))
-                      : null;
-                    const familyName = trip.familyProfile?.familyName;
-                    return (
-                      <Link key={trip.id} href={`/trips/${trip.id}`} style={{ textDecoration: "none" }}>
-                        <div style={{ height: "130px", borderRadius: "14px", overflow: "hidden", position: "relative", backgroundImage: `url(${img})`, backgroundSize: "cover", backgroundPosition: "center" }}>
-                          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.75) 100%)" }} />
-                          <div style={{ position: "absolute", bottom: "10px", left: "10px", right: "10px", zIndex: 2 }}>
-                            <p style={{ fontSize: "12px", fontWeight: 700, color: "#fff", lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {trip.destinationCity ?? trip.title}
-                            </p>
-                            <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.75)", marginTop: "2px" }}>
-                              {nights ? `${nights} nights` : trip.destinationCountry ?? ""}
-                              {familyName ? ` · by ${familyName}` : ""}
-                            </p>
-                          </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
+              <div className="grid grid-cols-2" style={{ gap: "10px" }}>
+                {popularCards.map((card) => (
+                  <Link
+                    key={card.id}
+                    href={card.tripId ? `/trips/${card.tripId}` : "/discover"}
+                    style={{ textDecoration: "none" }}
+                  >
+                    <div style={{ height: "130px", borderRadius: "14px", overflow: "hidden", position: "relative", backgroundImage: `url(${card.imageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }}>
+                      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.75) 100%)" }} />
+                      <div style={{ position: "absolute", bottom: "10px", left: "10px", right: "10px", zIndex: 2 }}>
+                        <p style={{ fontSize: "12px", fontWeight: 700, color: "#fff", lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {card.city}
+                        </p>
+                        <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.75)", marginTop: "2px" }}>
+                          {card.label}
+                        </p>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
             </div>
             </div>{/* end popular trips order wrapper */}
 
