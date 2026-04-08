@@ -134,11 +134,16 @@ export default async function HomePage() {
   const greeting = getGreeting();
   const rawName = profile.familyName || user?.email?.split("@")[0] || "there";
   const displayName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
-  const activeTrip = profile.trips.find((t) => t.status === "PLANNING" || t.status === "ACTIVE") ?? null;
-  const hasCompletedTrips = profile.trips.some(
+  const today = new Date();
+  const futureTrips = profile.trips.filter((t) => t.startDate && t.startDate > today);
+  const completedTrips = profile.trips.filter(
     (t) => t.status === "COMPLETED" && !t.id.startsWith("cmtrip-")
   );
-  const activeTripCover = getTripCoverImage(activeTrip?.destinationCity, activeTrip?.destinationCountry, activeTrip?.heroImageUrl);
+  const heroTrip = futureTrips[0] ?? completedTrips[completedTrips.length - 1] ?? null;
+  const sidebarTrip = futureTrips[1] ?? null;
+  const hasCompletedTrips = completedTrips.length > 0;
+  const heroCover = getTripCoverImage(heroTrip?.destinationCity, heroTrip?.destinationCountry, heroTrip?.heroImageUrl);
+  const sidebarCover = getTripCoverImage(sidebarTrip?.destinationCity, sidebarTrip?.destinationCountry, sidebarTrip?.heroImageUrl);
 
   const adultCount = profile.members.filter((m) => m.role === "ADULT").length;
   const kidCount = profile.members.filter((m) => m.role === "CHILD").length;
@@ -174,7 +179,7 @@ export default async function HomePage() {
                 overflow: "hidden",
                 borderRadius: "24px",
                 height: "380px",
-                backgroundImage: `url('${activeTripCover}')`,
+                backgroundImage: `url('${heroCover}')`,
                 backgroundSize: "cover",
                 backgroundPosition: "center",
               }}
@@ -182,9 +187,9 @@ export default async function HomePage() {
               <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0) 100%)", zIndex: 1 }} />
               {/* Status pill — top left */}
               <div style={{ position: "absolute", top: "16px", left: "16px", zIndex: 3 }}>
-                {activeTrip ? (
+                {heroTrip ? (
                   <span style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)", color: "#fff", borderRadius: "999px", padding: "5px 12px" }}>
-                    {activeTrip.status === "ACTIVE" ? "Now traveling" : "Up next"}
+                    {heroTrip.status === "ACTIVE" ? "Now traveling" : heroTrip.status === "COMPLETED" ? "Last trip" : "Up next"}
                   </span>
                 ) : (
                   <span style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)", color: "#fff", borderRadius: "999px", padding: "5px 12px" }}>
@@ -194,22 +199,22 @@ export default async function HomePage() {
               </div>
               <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "24px 24px 18px 24px", zIndex: 2 }}>
                 <p className={playfair.className} style={{ color: "#fff", fontSize: "36px", fontWeight: 900, lineHeight: 1.2, marginTop: "4px", textShadow: "0px 2px 12px rgba(0,0,0,0.95)" }}>
-                  {activeTrip ? activeTrip.title : "Where to next?"}
+                  {heroTrip ? heroTrip.title : "Where to next?"}
                 </p>
-                {activeTrip?.destinationCity && (
+                {heroTrip?.destinationCity && (
                   <p style={{ fontSize: "14px", color: "#ccc", display: "flex", alignItems: "center", gap: "4px", marginTop: "4px" }}>
                     <MapPin size={13} />
-                    {activeTrip.destinationCity}{activeTrip.destinationCountry ? `, ${activeTrip.destinationCountry}` : ""}
+                    {heroTrip.destinationCity}{heroTrip.destinationCountry ? `, ${heroTrip.destinationCountry}` : ""}
                   </p>
                 )}
-                {!activeTrip && (
+                {!heroTrip && (
                   <p style={{ fontSize: "14px", fontStyle: "italic", color: "rgba(255,255,255,0.65)", marginTop: "8px" }}>
                     Save it, plan it, book it, share it.
                   </p>
                 )}
-                {activeTrip ? (
+                {heroTrip ? (
                   <Link
-                    href={`/trips/${activeTrip.id}`}
+                    href={`/trips/${heroTrip.id}`}
                     style={{ alignSelf: "flex-start", fontWeight: 600, padding: "10px 20px", borderRadius: "999px", fontSize: "14px", marginTop: "12px", backgroundColor: "#C4664A", color: "#fff", textDecoration: "none" }}
                   >
                     View trip
@@ -231,7 +236,7 @@ export default async function HomePage() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
               <DropLinkTile trips={activePlannedTrips.map(t => ({ id: t.id, title: t.title, startDate: t.startDate ? t.startDate.toISOString() : null, endDate: t.endDate ? t.endDate.toISOString() : null }))} />
               <Link
-                href={activeTrip ? `/trips/${activeTrip.id}?tab=recommended` : "/discover"}
+                href={heroTrip ? `/trips/${heroTrip.id}?tab=recommended` : "/discover"}
                 style={{ position: "relative", borderRadius: "16px", overflow: "hidden", display: "block", height: "160px", backgroundImage: "url('https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=400&q=80')", backgroundSize: "cover", backgroundPosition: "center", textDecoration: "none" }}
               >
                 <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)" }} />
@@ -301,36 +306,36 @@ export default async function HomePage() {
                 <h2 style={{ fontWeight: 700, color: "#1a1a1a", fontSize: "15px" }}>Your trips</h2>
                 <AddTripButton />
               </div>
-              {activeTrip ? (
-                <Link href={`/trips/${activeTrip.id}`} style={{ textDecoration: "none" }}>
+              {sidebarTrip ? (
+                <Link href={`/trips/${sidebarTrip.id}`} style={{ textDecoration: "none" }}>
                   <div style={{ backgroundColor: "#fff", borderRadius: "20px", overflow: "hidden", border: "1.5px solid #EEEEEE", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
                     {/* Hero photo */}
-                    <div style={{ height: "110px", position: "relative", overflow: "hidden", backgroundImage: `url('${activeTripCover}')`, backgroundSize: "cover", backgroundPosition: "center" }}>
+                    <div style={{ height: "110px", position: "relative", overflow: "hidden", backgroundImage: `url('${sidebarCover}')`, backgroundSize: "cover", backgroundPosition: "center" }}>
                       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.25)" }} />
                       <div style={{ position: "absolute", bottom: "12px", left: "16px", zIndex: 2 }}>
-                        <p style={{ fontSize: "20px", fontWeight: 800, color: "#fff", lineHeight: 1.2 }}>{activeTrip.title}</p>
+                        <p style={{ fontSize: "20px", fontWeight: 800, color: "#fff", lineHeight: 1.2 }}>{sidebarTrip.title}</p>
                       </div>
                       <div style={{ position: "absolute", top: "12px", right: "12px", zIndex: 2, backgroundColor: "rgba(255,255,255,0.92)", borderRadius: "20px", padding: "3px 10px" }}>
-                        <span style={{ fontSize: "11px", fontWeight: 700, color: (STATUS_COLOR[activeTrip.status] ?? STATUS_COLOR.PLANNING).text }}>
-                          {STATUS_LABEL[activeTrip.status]}
+                        <span style={{ fontSize: "11px", fontWeight: 700, color: (STATUS_COLOR[sidebarTrip.status] ?? STATUS_COLOR.PLANNING).text }}>
+                          {STATUS_LABEL[sidebarTrip.status]}
                         </span>
                       </div>
                     </div>
                     {/* Details */}
                     <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                        {(activeTrip.destinationCity || activeTrip.destinationCountry) && (
+                        {(sidebarTrip.destinationCity || sidebarTrip.destinationCountry) && (
                           <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
                             <MapPin size={13} style={{ color: "#C4664A", flexShrink: 0 }} />
                             <span style={{ fontSize: "13px", color: "#2d2d2d", fontWeight: 600 }}>
-                              {[activeTrip.destinationCity, activeTrip.destinationCountry].filter(Boolean).join(", ")}
+                              {[sidebarTrip.destinationCity, sidebarTrip.destinationCountry].filter(Boolean).join(", ")}
                             </span>
                           </div>
                         )}
                         <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
                           <Calendar size={13} style={{ color: "#717171", flexShrink: 0 }} />
                           <span style={{ fontSize: "13px", color: "#717171" }}>
-                            {formatDateRange(activeTrip.startDate, activeTrip.endDate) ?? "May 4 – May 8, 2025"}
+                            {formatDateRange(sidebarTrip.startDate, sidebarTrip.endDate) ?? ""}
                           </span>
                         </div>
                       </div>
@@ -338,14 +343,17 @@ export default async function HomePage() {
                   </div>
                 </Link>
               ) : (
-                <div style={{ backgroundColor: "#F5F5F5", borderLeft: "4px solid #C4664A", borderRadius: "16px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", padding: "20px 20px 20px 24px" }}>
-                  <p style={{ color: "#717171", fontSize: "16px", fontWeight: 700, lineHeight: 1.3, marginBottom: "4px" }}>Your trip history lives here</p>
-                  <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "12px" }}>
-                    Add a past or upcoming trip and it stays here forever — shareable, searchable, and ready to build on.
+                <div style={{ backgroundColor: "#1B3A5C", borderRadius: "20px", padding: "24px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)" }}>
+                  <p style={{ fontSize: "15px", fontWeight: 700, color: "#fff", lineHeight: 1.3, marginBottom: "8px" }}>What&apos;s next for your family?</p>
+                  <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", lineHeight: 1.5, marginBottom: "16px" }}>
+                    Plan your next adventure and build your trip from scratch.
                   </p>
-                  <button style={{ fontSize: "12px", fontWeight: 600, padding: "8px 16px", borderRadius: "999px", border: "1.5px solid #C4664A", color: "#C4664A", backgroundColor: "transparent", cursor: "pointer" }}>
-                    Add your first trip
-                  </button>
+                  <Link
+                    href="/trips/new"
+                    style={{ display: "inline-block", fontSize: "13px", fontWeight: 700, padding: "9px 18px", borderRadius: "999px", backgroundColor: "#C4664A", color: "#fff", textDecoration: "none" }}
+                  >
+                    Plan a trip
+                  </Link>
                 </div>
               )}
             </div>
