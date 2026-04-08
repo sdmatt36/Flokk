@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { resolveProfileId } from "@/lib/profile-access";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +16,14 @@ export async function PATCH(req: Request) {
   }
 
   // Verify the member belongs to the current user's family profile
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: { include: { members: { where: { id: memberId } } } } },
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  const profile = await db.familyProfile.findUnique({
+    where: { id: profileId },
+    include: { members: { where: { id: memberId } } },
   });
-  if (!user?.familyProfile || user.familyProfile.members.length === 0) {
+  if (!profile || profile.members.length === 0) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 
 export const dynamic = "force-dynamic";
 
@@ -10,11 +11,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
   const { id: tripId } = await params;
 
-  const user = await db.user.findUnique({ where: { clerkId: userId }, include: { familyProfile: true } });
-  if (!user?.familyProfile) return NextResponse.json({ error: "No family profile" }, { status: 400 });
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "No family profile" }, { status: 400 });
 
   const trip = await db.trip.findUnique({ where: { id: tripId } });
-  if (!trip || trip.familyProfileId !== user.familyProfile.id) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!trip || trip.familyProfileId !== profileId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json() as { postTripCaptureStarted?: boolean; postTripCaptureComplete?: boolean };
   const data: Record<string, boolean> = {};

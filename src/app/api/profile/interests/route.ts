@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 import { z, ZodError } from "zod";
 import { InterestCategory } from "@prisma/client";
 
@@ -32,11 +33,14 @@ export async function GET() {
     const { userId } = await auth();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const user = await db.user.findUnique({
-      where: { clerkId: userId },
-      include: { familyProfile: { include: { interests: true } } },
+    const profileId = await resolveProfileId(userId);
+    if (!profileId) return NextResponse.json({ interestKeys: [] });
+
+    const profile = await db.familyProfile.findUnique({
+      where: { id: profileId },
+      include: { interests: true },
     });
-    const interestKeys = user?.familyProfile?.interests.map((i) => i.interestKey) ?? [];
+    const interestKeys = profile?.interests.map((i) => i.interestKey) ?? [];
     return NextResponse.json({ interestKeys });
   } catch {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -51,13 +55,8 @@ export async function PATCH(request: Request) {
     const body = await request.json();
     const { interestKeys } = Schema.parse(body);
 
-    const user = await db.user.findUnique({
-      where: { clerkId: userId },
-      include: { familyProfile: true },
-    });
-    if (!user?.familyProfile) return NextResponse.json({ error: "No family profile" }, { status: 400 });
-
-    const profileId = user.familyProfile.id;
+    const profileId = await resolveProfileId(userId);
+    if (!profileId) return NextResponse.json({ error: "No family profile" }, { status: 400 });
 
     // Replace all interests
     await db.declaredInterest.deleteMany({ where: { familyProfileId: profileId } });

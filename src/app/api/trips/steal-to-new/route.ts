@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 
 export const maxDuration = 60;
 
@@ -27,11 +28,8 @@ export async function POST(req: Request) {
 
   const { shareToken } = await req.json() as { shareToken: string };
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: true },
-  });
-  if (!user?.familyProfile) {
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) {
     return NextResponse.json({ error: "No family profile" }, { status: 400 });
   }
 
@@ -48,7 +46,7 @@ export async function POST(req: Request) {
   }
 
   // Prevent stealing your own trip
-  if (sourceTrip.familyProfileId === user.familyProfile.id) {
+  if (sourceTrip.familyProfileId === profileId) {
     return NextResponse.json({ error: "Cannot steal your own trip" }, { status: 400 });
   }
 
@@ -57,7 +55,7 @@ export async function POST(req: Request) {
   // Create new trip for this user
   const newTrip = await db.trip.create({
     data: {
-      familyProfileId: user.familyProfile.id,
+      familyProfileId: profileId,
       title: `${destinationCity} Trip`,
       destinationCity: sourceTrip.destinationCity,
       destinationCountry: sourceTrip.destinationCountry,
@@ -91,7 +89,7 @@ export async function POST(req: Request) {
   for (const item of sourceTrip.itineraryItems) {
     if (item.type === "FLIGHT" || item.type === "LODGING") continue;
     savedItems.push({
-      familyProfileId: user.familyProfile.id,
+      familyProfileId: profileId,
       tripId: newTrip.id,
       rawTitle: item.title,
       rawDescription: item.notes ?? null,
@@ -111,7 +109,7 @@ export async function POST(req: Request) {
   // Manual activities — include all
   for (const item of sourceTrip.manualActivities) {
     savedItems.push({
-      familyProfileId: user.familyProfile.id,
+      familyProfileId: profileId,
       tripId: newTrip.id,
       rawTitle: item.title,
       rawDescription: item.notes ?? null,
@@ -136,7 +134,7 @@ export async function POST(req: Request) {
   // Enrich images for stolen saves via Google Places
   const newSaves = await db.savedItem.findMany({
     where: {
-      familyProfileId: user.familyProfile.id,
+      familyProfileId: profileId,
       tripId: newTrip.id,
       placePhotoUrl: null,
     },

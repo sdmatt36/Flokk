@@ -1,17 +1,20 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { resolveProfileId } from "@/lib/profile-access";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: { include: { loyaltyPrograms: true } } },
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json([]);
+  const profile = await db.familyProfile.findUnique({
+    where: { id: profileId },
+    include: { loyaltyPrograms: true },
   });
-  return NextResponse.json(user?.familyProfile?.loyaltyPrograms ?? []);
+  return NextResponse.json(profile?.loyaltyPrograms ?? []);
 }
 
 export async function POST(req: Request) {
@@ -22,11 +25,8 @@ export async function POST(req: Request) {
   if (!programName || memberNumber === undefined) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: true },
-  });
-  if (!user?.familyProfile) {
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) {
     return NextResponse.json({ error: "No family profile" }, { status: 404 });
   }
   const program = await db.loyaltyProgram.create({
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
       programName,
       memberNumber: memberNumber || "",
       programType: programType ?? "airline",
-      familyProfileId: user.familyProfile.id,
+      familyProfileId: profileId,
     },
   });
   return NextResponse.json(program);

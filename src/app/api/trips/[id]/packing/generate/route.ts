@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 import Anthropic from "@anthropic-ai/sdk";
 
 export const dynamic = "force-dynamic";
@@ -23,29 +24,30 @@ export async function POST(
     }
     console.log("[packing/generate] Auth OK userId:", userId);
 
-    const user = await db.user.findUnique({
-      where: { clerkId: userId },
-      include: {
-        familyProfile: {
-          include: { members: true },
-        },
-      },
-    });
-
-    if (!user?.familyProfile) {
+    const profileId = await resolveProfileId(userId);
+    if (!profileId) {
       console.log("[packing/generate] No family profile for userId:", userId);
       return NextResponse.json({ error: "No family profile" }, { status: 400 });
     }
-    console.log("[packing/generate] Profile OK, members:", user.familyProfile.members.length);
+
+    const profile = await db.familyProfile.findUnique({
+      where: { id: profileId },
+      include: { members: true },
+    });
+    if (!profile) {
+      console.log("[packing/generate] Profile not found for profileId:", profileId);
+      return NextResponse.json({ error: "No family profile" }, { status: 400 });
+    }
+    console.log("[packing/generate] Profile OK, members:", profile.members.length);
 
     const trip = await db.trip.findUnique({ where: { id: tripId } });
-    if (!trip || trip.familyProfileId !== user.familyProfile.id) {
+    if (!trip || trip.familyProfileId !== profileId) {
       console.log("[packing/generate] Trip not found or unauthorized tripId:", tripId);
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
     console.log("[packing/generate] Trip fetched:", trip.destinationCity, trip.destinationCountry);
 
-    const members = user.familyProfile.members ?? [];
+    const members = profile.members ?? [];
     const memberSummary = members.length > 0
       ? members.map((m) => {
           const age = m.birthDate ? new Date().getFullYear() - new Date(m.birthDate).getFullYear() : null;

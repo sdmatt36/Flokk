@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 import { DietaryReq } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -13,13 +14,16 @@ export async function PATCH(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: { include: { members: true } } },
-  });
-  if (!user?.familyProfile) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const member = user.familyProfile.members.find((m) => m.id === id);
+  const profile = await db.familyProfile.findUnique({
+    where: { id: profileId },
+    include: { members: true },
+  });
+  if (!profile) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const member = profile.members.find((m) => m.id === id);
   if (!member) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await request.json();
@@ -55,13 +59,16 @@ export async function DELETE(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: { include: { members: true } } },
-  });
-  if (!user?.familyProfile) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const member = user.familyProfile.members.find((m) => m.id === id);
+  const profile = await db.familyProfile.findUnique({
+    where: { id: profileId },
+    include: { members: true },
+  });
+  if (!profile) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const member = profile.members.find((m) => m.id === id);
   if (!member) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   await db.familyMember.delete({ where: { id } });

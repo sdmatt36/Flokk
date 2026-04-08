@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 
 export const dynamic = "force-dynamic";
 
@@ -12,17 +13,14 @@ export async function GET(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: true },
-  });
-  if (!user?.familyProfile) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const item = await db.savedItem.findUnique({
     where: { id },
     include: { trip: { select: { id: true, title: true } } },
   });
-  if (!item || item.familyProfileId !== user.familyProfile.id) {
+  if (!item || item.familyProfileId !== profileId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -37,14 +35,11 @@ export async function PATCH(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: true },
-  });
-  if (!user?.familyProfile) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const item = await db.savedItem.findUnique({ where: { id } });
-  if (!item || item.familyProfileId !== user.familyProfile.id) {
+  if (!item || item.familyProfileId !== profileId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -83,17 +78,14 @@ export async function DELETE(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: true },
-  });
-  if (!user?.familyProfile) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const item = await db.savedItem.findUnique({
     where: { id },
     select: { familyProfileId: true },
   });
-  if (!item || item.familyProfileId !== user.familyProfile.id) {
+  if (!item || item.familyProfileId !== profileId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

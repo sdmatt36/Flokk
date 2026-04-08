@@ -1,17 +1,20 @@
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { resolveProfileId } from "@/lib/profile-access";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: { include: { paymentCards: true } } },
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json([]);
+  const profile = await db.familyProfile.findUnique({
+    where: { id: profileId },
+    include: { paymentCards: true },
   });
-  return NextResponse.json(user?.familyProfile?.paymentCards ?? []);
+  return NextResponse.json(profile?.paymentCards ?? []);
 }
 
 export async function POST(req: Request) {
@@ -22,11 +25,8 @@ export async function POST(req: Request) {
   if (!cardName || !cardType || !network) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: true },
-  });
-  if (!user?.familyProfile) {
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) {
     return NextResponse.json({ error: "No family profile" }, { status: 404 });
   }
   const card = await db.paymentCard.create({
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       cardType,
       network,
       lastFour: lastFour || null,
-      familyProfileId: user.familyProfile.id,
+      familyProfileId: profileId,
     },
   });
   return NextResponse.json(card);

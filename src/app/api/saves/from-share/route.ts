@@ -1,17 +1,14 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 
 export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    select: { familyProfile: { select: { id: true } } },
-  });
-
-  if (!user?.familyProfile) {
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) {
     return NextResponse.json({ error: "Complete onboarding first" }, { status: 400 });
   }
 
@@ -31,7 +28,7 @@ export async function POST(request: Request) {
   // Dedup by title within this family's saves
   const existing = await db.savedItem.findFirst({
     where: {
-      familyProfileId: user.familyProfile.id,
+      familyProfileId: profileId,
       rawTitle: { equals: body.title.trim(), mode: "insensitive" },
     },
     select: { id: true },
@@ -43,7 +40,7 @@ export async function POST(request: Request) {
 
   await db.savedItem.create({
     data: {
-      familyProfileId: user.familyProfile.id,
+      familyProfileId: profileId,
       tripId: null,
       rawTitle: body.title.trim(),
       destinationCity: body.city ?? null,

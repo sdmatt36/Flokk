@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 import { getVenueImage } from "@/lib/destination-images";
 
 export async function POST(request: Request) {
@@ -12,11 +13,8 @@ export async function POST(request: Request) {
     const { sourceItemId } = body as { sourceItemId: string };
     if (!sourceItemId) return NextResponse.json({ error: "Missing sourceItemId" }, { status: 400 });
 
-    const user = await db.user.findUnique({
-      where: { clerkId: userId },
-      include: { familyProfile: true },
-    });
-    if (!user?.familyProfile) {
+    const profileId = await resolveProfileId(userId);
+    if (!profileId) {
       return NextResponse.json({ error: "Complete onboarding first" }, { status: 400 });
     }
 
@@ -31,7 +29,7 @@ export async function POST(request: Request) {
 
     const savedItem = await db.savedItem.create({
       data: {
-        familyProfileId: user.familyProfile.id,
+        familyProfileId: profileId,
         sourceType: "IN_APP",
         rawTitle: source.rawTitle,
         rawDescription: source.rawDescription,

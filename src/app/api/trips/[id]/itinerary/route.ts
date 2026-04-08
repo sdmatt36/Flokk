@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 import { getVenueImage } from "@/lib/destination-images";
 
 export const dynamic = "force-dynamic";
@@ -16,17 +17,13 @@ export async function GET(
 
   const { id: tripId } = await params;
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: true },
-  });
-
-  if (!user?.familyProfile) {
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) {
     return NextResponse.json({ error: "No family profile" }, { status: 400 });
   }
 
   const trip = await db.trip.findUnique({ where: { id: tripId } });
-  if (!trip || trip.familyProfileId !== user.familyProfile.id) {
+  if (!trip || trip.familyProfileId !== profileId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -66,17 +63,13 @@ export async function POST(
 
   const { id: tripId } = await params;
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: true },
-  });
-
-  if (!user?.familyProfile) {
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) {
     return NextResponse.json({ error: "No family profile" }, { status: 400 });
   }
 
   const trip = await db.trip.findUnique({ where: { id: tripId } });
-  if (!trip || trip.familyProfileId !== user.familyProfile.id) {
+  if (!trip || trip.familyProfileId !== profileId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -97,7 +90,7 @@ export async function POST(
 
   const item = await db.savedItem.create({
     data: {
-      familyProfileId: user.familyProfile.id,
+      familyProfileId: profileId,
       tripId,
       sourceType: "IN_APP",
       rawTitle: title,

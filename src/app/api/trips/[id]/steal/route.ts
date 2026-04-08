@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 
 export async function POST(
   req: Request,
@@ -17,11 +18,8 @@ export async function POST(
     return NextResponse.json({ error: "targetTripId and dayIndexes required" }, { status: 400 });
   }
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: true },
-  });
-  if (!user?.familyProfile) {
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) {
     return NextResponse.json({ error: "No family profile" }, { status: 400 });
   }
 
@@ -39,7 +37,7 @@ export async function POST(
     where: { id: targetTripId },
     select: { familyProfileId: true, title: true },
   });
-  if (!targetTrip || targetTrip.familyProfileId !== user.familyProfile.id) {
+  if (!targetTrip || targetTrip.familyProfileId !== profileId) {
     return NextResponse.json({ error: "Target trip not found" }, { status: 404 });
   }
 
@@ -82,7 +80,7 @@ export async function POST(
 
   for (const item of itineraryItems) {
     savedItems.push({
-      familyProfileId: user.familyProfile.id,
+      familyProfileId: profileId,
       tripId: targetTripId,
       rawTitle: item.title,
       rawDescription: item.notes ?? null,
@@ -100,7 +98,7 @@ export async function POST(
 
   for (const item of manualActivities) {
     savedItems.push({
-      familyProfileId: user.familyProfile.id,
+      familyProfileId: profileId,
       tripId: targetTripId,
       rawTitle: item.title,
       rawDescription: item.notes ?? null,

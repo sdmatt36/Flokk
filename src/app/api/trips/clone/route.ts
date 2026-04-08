@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 import { getVenueImage } from "@/lib/destination-images";
 
 export async function POST(request: Request) {
@@ -21,11 +22,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const user = await db.user.findUnique({
-      where: { clerkId: userId },
-      include: { familyProfile: true },
-    });
-    if (!user?.familyProfile) {
+    const profileId = await resolveProfileId(userId);
+    if (!profileId) {
       return NextResponse.json({ error: "Complete onboarding first" }, { status: 400 });
     }
 
@@ -45,7 +43,7 @@ export async function POST(request: Request) {
 
     const newTrip = await db.trip.create({
       data: {
-        familyProfileId: user.familyProfile.id,
+        familyProfileId: profileId,
         title: title.trim(),
         destinationCity: source.destinationCity,
         destinationCountry: source.destinationCountry,
@@ -60,7 +58,7 @@ export async function POST(request: Request) {
     if (importActivities && source.savedItems.length > 0) {
       await db.savedItem.createMany({
         data: source.savedItems.map((item) => ({
-          familyProfileId: user.familyProfile!.id,
+          familyProfileId: profileId,
           tripId: newTrip.id,
           sourceType: "IN_APP" as const,
           rawTitle: item.rawTitle,

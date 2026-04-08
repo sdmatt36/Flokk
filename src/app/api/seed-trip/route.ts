@@ -1,25 +1,20 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 
 export async function POST() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: true },
-  });
-
-  if (!user?.familyProfile) {
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) {
     return NextResponse.json({ error: "No family profile" }, { status: 400 });
   }
 
-  const fpId = user.familyProfile.id;
-
   const trip = await db.trip.create({
     data: {
-      familyProfileId: fpId,
+      familyProfileId: profileId,
       title: "Okinawa May '25",
       destinationCity: "Okinawa",
       destinationCountry: "Japan",
@@ -30,7 +25,7 @@ export async function POST() {
       savedItems: {
         create: [
           {
-            familyProfileId: fpId,
+            familyProfileId: profileId,
             sourceType: "MANUAL",
             sourceUrl: "https://www.okinawatravelinfo.com",
             rawTitle: "Churaumi Aquarium",
@@ -40,7 +35,7 @@ export async function POST() {
             categoryTags: ["aquarium", "family", "kids"],
           },
           {
-            familyProfileId: fpId,
+            familyProfileId: profileId,
             sourceType: "GOOGLE_MAPS",
             sourceUrl: "https://maps.google.com/?q=Katsuren+Castle",
             rawTitle: "Katsuren Castle Ruins",
@@ -50,7 +45,7 @@ export async function POST() {
             categoryTags: ["history", "culture", "outdoors"],
           },
           {
-            familyProfileId: fpId,
+            familyProfileId: profileId,
             sourceType: "INSTAGRAM",
             sourceUrl: "https://www.instagram.com/p/example",
             rawTitle: "Naha Kokusai-dori Street Food",

@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 import { nanoid } from "nanoid";
 
 export const dynamic = "force-dynamic";
@@ -14,11 +15,8 @@ export async function POST(
 
   const { id } = await params;
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: true },
-  });
-  if (!user?.familyProfile) {
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) {
     return NextResponse.json({ error: "No family profile" }, { status: 400 });
   }
 
@@ -33,7 +31,7 @@ export async function POST(
 
   if (!source) return NextResponse.json({ error: "Trip not found" }, { status: 404 });
 
-  const isOwner = source.familyProfileId === user.familyProfile.id;
+  const isOwner = source.familyProfileId === profileId;
   if (!isOwner && source.privacy !== "PUBLIC") {
     return NextResponse.json({ error: "Trip not accessible" }, { status: 403 });
   }
@@ -41,7 +39,7 @@ export async function POST(
   // Create the cloned trip
   const newTrip = await db.trip.create({
     data: {
-      familyProfileId: user.familyProfile.id,
+      familyProfileId: profileId,
       title: source.title,
       destinationCity: source.destinationCity,
       destinationCountry: source.destinationCountry,
@@ -60,7 +58,7 @@ export async function POST(
   if (source.savedItems.length > 0) {
     await db.savedItem.createMany({
       data: source.savedItems.map((item) => ({
-        familyProfileId: user.familyProfile!.id,
+        familyProfileId: profileId,
         tripId: newTrip.id,
         sourceType: item.sourceType,
         sourceUrl: item.sourceUrl,

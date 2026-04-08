@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 import { DietaryReq, MemberRole } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -9,24 +10,24 @@ export async function GET() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: { include: { members: { orderBy: { createdAt: "asc" } } } } },
-  });
-  if (!user?.familyProfile) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  return NextResponse.json({ members: user.familyProfile.members });
+  const profile = await db.familyProfile.findUnique({
+    where: { id: profileId },
+    include: { members: { orderBy: { createdAt: "asc" } } },
+  });
+  if (!profile) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  return NextResponse.json({ members: profile.members });
 }
 
 export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: true },
-  });
-  if (!user?.familyProfile) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await request.json();
   const { name, role, birthDate, dietaryRequirements } = body;
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
 
   const member = await db.familyMember.create({
     data: {
-      familyProfileId: user.familyProfile.id,
+      familyProfileId: profileId,
       name: name || null,
       role: role as MemberRole,
       birthDate: birthDate ? new Date(birthDate) : null,
@@ -54,11 +55,14 @@ export async function PATCH(req: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const user = await db.user.findUnique({
-    where: { clerkId: userId },
-    include: { familyProfile: { include: { members: true } } },
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "No family profile" }, { status: 400 });
+
+  const profile = await db.familyProfile.findUnique({
+    where: { id: profileId },
+    include: { members: true },
   });
-  if (!user?.familyProfile) return NextResponse.json({ error: "No family profile" }, { status: 400 });
+  if (!profile) return NextResponse.json({ error: "No family profile" }, { status: 400 });
 
   const body = await req.json();
   const { members } = body as {
@@ -66,7 +70,7 @@ export async function PATCH(req: Request) {
   };
   if (!Array.isArray(members)) return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
 
-  const ownedIds = new Set(user.familyProfile.members.map((m) => m.id));
+  const ownedIds = new Set(profile.members.map((m) => m.id));
   for (const m of members) {
     if (!ownedIds.has(m.id)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
