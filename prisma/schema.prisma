@@ -649,6 +649,7 @@ model ManualActivity {
   confirmationCode String?
   city             String?
   type             String?  @default("ACTIVITY")
+  imageUrl         String?
   dayIndex         Int?
   sortOrder        Int      @default(0)
   createdAt        DateTime @default(now())

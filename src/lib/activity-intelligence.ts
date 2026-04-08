@@ -86,3 +86,38 @@ export async function classifyBatch(
 
   return results;
 }
+
+export async function enrichActivityImage(
+  title: string,
+  city: string | null,
+  type: string | null
+): Promise<string | null> {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    // Build search query based on type
+    let query = title;
+    if (city) query += ` ${city}`;
+
+    // For sports, search for the stadium/venue
+    const isSport = type === "SPORT" ||
+      /game|stadium|arena|match|baseball|football|soccer|basketball|cricket/i.test(title);
+    if (isSport) query = `${title} stadium arena ${city ?? ""}`.trim();
+
+    // Step 1 — Text search to get place_id
+    const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}`;
+    const searchRes = await fetch(searchUrl);
+    const searchData = await searchRes.json();
+
+    const photoRef = searchData.results?.[0]?.photos?.[0]?.photo_reference;
+    if (!photoRef) return null;
+
+    // Step 2 — Get photo URL and follow redirect to final lh3.googleusercontent.com URL
+    const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photoRef}&key=${apiKey}`;
+    const photoRes = await fetch(photoUrl, { redirect: "follow" });
+    return photoRes.url ?? null;
+  } catch {
+    return null;
+  }
+}
