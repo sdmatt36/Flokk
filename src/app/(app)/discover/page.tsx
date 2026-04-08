@@ -137,6 +137,105 @@ interface DiscoverActivity {
   source: "manual" | "itinerary";
 }
 
+const PLACEHOLDER_PICKS: DiscoverActivity[] = [
+  {
+    id: "placeholder-1",
+    title: "Senso-ji Temple",
+    type: "CULTURE",
+    city: "Tokyo",
+    rating: null,
+    ratingNotes: "One of Tokyo's most iconic landmarks. Best visited at dawn before the crowds arrive.",
+    wouldReturn: null,
+    websiteUrl: "https://www.senso-ji.jp",
+    imageUrl: null,
+    tripId: "",
+    shareToken: null,
+    familyName: null,
+    isAnonymous: true,
+    source: "manual",
+  },
+  {
+    id: "placeholder-2",
+    title: "Shibuya Crossing",
+    type: "ACTIVITY",
+    city: "Tokyo",
+    rating: null,
+    ratingNotes: "The world's busiest pedestrian crossing. Mesmerising at any time of day.",
+    wouldReturn: null,
+    websiteUrl: null,
+    imageUrl: null,
+    tripId: "",
+    shareToken: null,
+    familyName: null,
+    isAnonymous: true,
+    source: "manual",
+  },
+  {
+    id: "placeholder-3",
+    title: "Eiffel Tower",
+    type: "CULTURE",
+    city: "Paris",
+    rating: null,
+    ratingNotes: "Book skip-the-line tickets in advance. The view from the second floor is the sweet spot.",
+    wouldReturn: null,
+    websiteUrl: "https://www.toureiffel.paris",
+    imageUrl: null,
+    tripId: "",
+    shareToken: null,
+    familyName: null,
+    isAnonymous: true,
+    source: "manual",
+  },
+  {
+    id: "placeholder-4",
+    title: "Park Güell",
+    type: "OUTDOOR",
+    city: "Barcelona",
+    rating: null,
+    ratingNotes: "Gaudí's masterpiece. Timed entry required. Kids love the mosaic lizard.",
+    wouldReturn: null,
+    websiteUrl: "https://parkguell.barcelona",
+    imageUrl: null,
+    tripId: "",
+    shareToken: null,
+    familyName: null,
+    isAnonymous: true,
+    source: "manual",
+  },
+  {
+    id: "placeholder-5",
+    title: "Chatuchak Weekend Market",
+    type: "SHOPPING",
+    city: "Bangkok",
+    rating: null,
+    ratingNotes: "Go early, bring cash. One of the world's largest markets — great for families.",
+    wouldReturn: null,
+    websiteUrl: null,
+    imageUrl: null,
+    tripId: "",
+    shareToken: null,
+    familyName: null,
+    isAnonymous: true,
+    source: "manual",
+  },
+  {
+    id: "placeholder-6",
+    title: "Alfama District Walk",
+    type: "OUTDOOR",
+    city: "Lisbon",
+    rating: null,
+    ratingNotes: "Winding cobblestone streets with the best views of the city. Wear comfortable shoes.",
+    wouldReturn: null,
+    websiteUrl: null,
+    imageUrl: null,
+    tripId: "",
+    shareToken: null,
+    familyName: null,
+    isAnonymous: true,
+    source: "manual",
+  },
+];
+
 const PICKS_TYPE_MAP: Record<string, string[]> = {
   Restaurants: ["FOOD", "food", "RESTAURANT"],
   Culture: ["CULTURE", "culture", "ACTIVITY"],
@@ -234,7 +333,12 @@ export default function DiscoverPage() {
     fetch("/api/discover/activities")
       .then((r) => r.json())
       .then((data) => {
-        const all: DiscoverActivity[] = data.activities ?? [];
+        const real: DiscoverActivity[] = data.activities ?? [];
+        const realIds = new Set(real.map((a) => a.title.toLowerCase()));
+        const placeholders = PLACEHOLDER_PICKS.filter(
+          (p) => !realIds.has(p.title.toLowerCase())
+        );
+        const all = [...real, ...placeholders];
         allActivitiesRef.current = all;
         setActivityResults(all);
       })
@@ -657,7 +761,9 @@ export default function DiscoverPage() {
                       <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "6px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{act.ratingNotes}</p>
                     )}
                     <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "10px" }}>
-                      {"A Flokk Family"}
+                      {act.isAnonymous || !act.familyName
+                        ? "A Real Flokker"
+                        : `${act.familyName} Family`}
                     </p>
                     <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
                       {act.websiteUrl && (
