@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { classifyActivityType } from "@/lib/activity-intelligence";
 
 // Returns the city the traveler is in on a given date by looking at the most recent
 // LODGING check-in on or before that day. Falls back to trip destinationCity.
@@ -123,6 +124,13 @@ export async function POST(
       dayIndex,
     },
   });
+
+  // Classify activity type (fire-and-forget)
+  classifyActivityType(activity.title, activity.venueName, activity.address)
+    .then((type) => {
+      db.manualActivity.update({ where: { id: activity.id }, data: { type } }).catch(() => {});
+    })
+    .catch(() => {});
 
   // Increment budgetSpent only if activity currency matches trip's budgetCurrency
   if (price) {
