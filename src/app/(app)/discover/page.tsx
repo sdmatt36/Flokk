@@ -228,6 +228,7 @@ export default function DiscoverPage() {
   const [savedActivities, setSavedActivities] = useState<Set<string>>(new Set());
   const [picksFilter, setPicksFilter]         = useState("All");
   const [picksSearch, setPicksSearch]         = useState("");
+  const [showAllPicks, setShowAllPicks]       = useState(false);
 
   useEffect(() => {
     fetch("/api/discover/activities")
@@ -322,7 +323,7 @@ export default function DiscoverPage() {
     } catch {}
   };
 
-  const filteredPicks = allActivitiesRef.current.filter((a) => {
+  const filteredPicks = activityResults.filter((a) => {
     const matchesSearch = !picksSearch ||
       a.title.toLowerCase().includes(picksSearch.toLowerCase()) ||
       (a.city ?? "").toLowerCase().includes(picksSearch.toLowerCase());
@@ -331,6 +332,8 @@ export default function DiscoverPage() {
         (a.type ?? "").toLowerCase().includes(t.toLowerCase()));
     return matchesSearch && matchesFilter;
   });
+
+  const displayedPicks = showAllPicks ? filteredPicks : filteredPicks.slice(0, 6);
 
   const filtered      = activeFilter === "All" ? RECOMMENDATIONS : RECOMMENDATIONS.filter((r) => r.tag === activeFilter || r.region === activeFilter);
   const displayedTrips = showAllTrips ? publicTrips : publicTrips.slice(0, 6);
@@ -626,8 +629,9 @@ export default function DiscoverPage() {
               {picksSearch ? `No activities found for "${picksSearch}"` : `No activities in this category yet.`}
             </p>
           ) : (
+            <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
-              {filteredPicks.map((act) => (
+              {displayedPicks.map((act) => (
                 <div key={act.id} style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column" }}>
                   <div style={{ height: "160px", backgroundColor: "#1B3A5C1A", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
                     {act.imageUrl ? (
@@ -640,6 +644,11 @@ export default function DiscoverPage() {
                         {"★".repeat(act.rating)}{"☆".repeat(5 - act.rating)}
                       </span>
                     )}
+                    {act.rating !== null && act.rating >= 3 && (
+                      <span className="absolute bottom-3 left-3 bg-[#C4664A] text-white text-xs px-2 py-1 rounded-full font-medium">
+                        Flokk Approved
+                      </span>
+                    )}
                   </div>
                   <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", flex: 1 }}>
                     <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "3px" }}>{act.city ?? ""}</p>
@@ -648,7 +657,7 @@ export default function DiscoverPage() {
                       <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "6px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{act.ratingNotes}</p>
                     )}
                     <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "10px" }}>
-                      {act.isAnonymous ? "A Flokk Family" : (act.familyName ?? "A Flokk Family")}
+                      {"A Flokk Family"}
                     </p>
                     <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
                       {act.websiteUrl && (
@@ -679,6 +688,17 @@ export default function DiscoverPage() {
                 </div>
               ))}
             </div>
+            {filteredPicks.length > 6 && !showAllPicks && (
+              <div style={{ textAlign: "center", marginTop: "32px" }}>
+                <button
+                  onClick={() => setShowAllPicks(true)}
+                  style={{ padding: "10px 28px", borderRadius: "999px", border: "2px solid #1B3A5C", backgroundColor: "transparent", color: "#1B3A5C", fontSize: "14px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
+                >
+                  Load more places →
+                </button>
+              </div>
+            )}
+            </>
           )}
         </div>
 

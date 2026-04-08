@@ -56,6 +56,7 @@ export async function GET(req: NextRequest) {
         WHERE t."endDate" IS NOT NULL
           AND t."endDate" < NOW()
           AND t."isPublic" = true
+          AND (pr.rating IS NULL OR pr.rating >= 3)
 
         UNION ALL
 
@@ -83,6 +84,7 @@ export async function GET(req: NextRequest) {
           AND t."endDate" < NOW()
           AND t."isPublic" = true
           AND ii.type NOT IN ('FLIGHT', 'TRAIN', 'LODGING', 'TRANSIT')
+          AND (pr.rating IS NULL OR pr.rating >= 3)
       ) combined
       WHERE (
         LOWER(COALESCE(title, '')) LIKE LOWER(${like})
@@ -118,6 +120,7 @@ export async function GET(req: NextRequest) {
         WHERE t."endDate" IS NOT NULL
           AND t."endDate" < NOW()
           AND t."isPublic" = true
+          AND (pr.rating IS NULL OR pr.rating >= 3)
 
         UNION ALL
 
@@ -145,6 +148,7 @@ export async function GET(req: NextRequest) {
           AND t."endDate" < NOW()
           AND t."isPublic" = true
           AND ii.type NOT IN ('FLIGHT', 'TRAIN', 'LODGING', 'TRANSIT')
+          AND (pr.rating IS NULL OR pr.rating >= 3)
       ) combined
       ${minRating !== null ? Prisma.sql`WHERE rating >= ${minRating}` : Prisma.sql``}
       ORDER BY "createdAt" DESC, rating DESC NULLS LAST
