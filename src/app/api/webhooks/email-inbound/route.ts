@@ -360,13 +360,20 @@ Field notes:
     // ── Match trip ─────────────────────────────────────────────────────────────
     const bookingDate = (extracted.checkIn ?? extracted.departureDate) as string | null;
 
-    // Destination keywords from Claude-extracted city/country only (not subject words — too noisy)
+    // Destination keywords from Claude-extracted location fields:
+    // - city: hotel/activity location city
+    // - toCity: flight/train arrival city (primary destination signal)
+    // - fromCity: flight/train departure city (included so both legs can match a trip)
+    // - country: country of the booking
     const destKeywords: string[] = [
-      extracted.city, extracted.toCity, extracted.country,
+      extracted.city, extracted.toCity, extracted.fromCity, extracted.country,
     ]
       .filter((v): v is string => typeof v === "string" && v.length > 0)
       .flatMap((v) => v.split(/[\s,/-]+/))
       .filter((v) => v.length > 2);
+
+    console.log(`[email-match] type: ${extracted.type ?? "unknown"} | toCity: ${extracted.toCity ?? "null"} | fromCity: ${extracted.fromCity ?? "null"} | city: ${extracted.city ?? "null"} | country: ${extracted.country ?? "null"} | bookingDate: ${bookingDate ?? "null"}`);
+    console.log(`[email-match] destKeywords: [${destKeywords.join(", ")}]`);
 
     // Subject words kept as weak last-resort fallback only
     const subjectWords = subject.replace(/fwd?:/i, "")
@@ -400,8 +407,12 @@ Field notes:
     let matchedTrip: typeof trips[0] | null = null;
 
     // Priority 1: Destination keyword match — primary signal, most reliable
+    // Uses city/toCity/fromCity/country from Claude extraction.
+    // For flights: toCity matches the arrival trip; fromCity matches the departure trip (date disambiguates).
+    // For hotels/activities: city matches the local trip.
     if (destKeywords.length > 0) {
       const destMatches = trips.filter((t) => tripMatchesDestination(t, destKeywords));
+      console.log(`[email-match] P1 dest matches (${destMatches.length}): ${destMatches.map(t => `"${t.title}"`).join(", ")}`);
       if (destMatches.length > 0) {
         // Within destination matches, prefer trips where the booking date overlaps
         const withDate = bookingDate ? destMatches.filter((t) => dateInTripRange(bookingDate, t)) : [];
@@ -414,6 +425,7 @@ Field notes:
     // Priority 2: Date overlap only — when destination wasn't extracted or didn't match
     if (!matchedTrip && bookingDate) {
       const dateMatches = trips.filter((t) => dateInTripRange(bookingDate, t));
+      console.log(`[email-match] P2 date matches (${dateMatches.length}): ${dateMatches.map(t => `"${t.title}"`).join(", ")}`);
       if (dateMatches.length > 0) {
         dateMatches.sort((a, b) => {
           const score = (s: string | null) => s === "PLANNING" ? 0 : s === "ACTIVE" ? 1 : 2;
@@ -432,6 +444,7 @@ Field notes:
     if (!matchedTrip && subjectWords.length > 0) {
       const subjectMatches = trips.filter((t) => tripMatchesDestination(t, subjectWords));
       if (subjectMatches.length > 0) {
+        console.log(`[email-match] P3 subject matches (${subjectMatches.length}): ${subjectMatches.map(t => `"${t.title}"`).join(", ")}`);
         subjectMatches.sort(sortByRelevance);
         matchedTrip = subjectMatches[0];
       }
@@ -439,6 +452,7 @@ Field notes:
 
     // No match → unassigned (tripId = null, stored against familyProfile for surfacing in UI)
     const resolvedTripId: string | null = matchedTrip?.id ?? null;
+    console.log(`[email-match] result: tripId = ${resolvedTripId ?? "null — unassigned"} | matched: "${matchedTrip?.title ?? "none"}"`);
     console.log(`[email-inbound] trip match: "${matchedTrip?.title ?? "UNASSIGNED"}" | resolvedTripId: ${resolvedTripId ?? "null"}`);
 
     if (trips.length === 0) {
