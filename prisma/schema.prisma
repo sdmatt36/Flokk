@@ -780,9 +780,10 @@ enum PointAction {
 
 model ItineraryItem {
   id               String   @id @default(cuid())
-  tripId           String
-  trip             Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  type             String   // FLIGHT | LODGING | TRAIN | ACTIVITY | CAR_RENTAL | RESTAURANT | OTHER
+  tripId           String?
+  trip             Trip?    @relation(fields: [tripId], references: [id], onDelete: SetNull)
+  familyProfileId  String?  // retained when tripId is null so unassigned items can be queried by profile
+  type             String // FLIGHT | LODGING | TRAIN | ACTIVITY | CAR_RENTAL | RESTAURANT | OTHER
   title            String
   scheduledDate    String?
   departureTime    String?

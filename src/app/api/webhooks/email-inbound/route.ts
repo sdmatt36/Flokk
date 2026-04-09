@@ -118,7 +118,7 @@ type FlightFields = {
 };
 
 async function resolveFlightFieldsFromVault(
-  tripId: string,
+  tripId: string | null,
   confirmationCode: string | null,
   extracted: Record<string, unknown>
 ): Promise<FlightFields> {
@@ -133,8 +133,8 @@ async function resolveFlightFieldsFromVault(
 
   // All key fields present — no vault lookup needed
   if (result.fromAirport && result.toAirport && result.departureTime) return result;
-  // No confirmation code — can't match vault docs
-  if (!confirmationCode) return result;
+  // No confirmation code or no trip — can't match vault docs
+  if (!confirmationCode || !tripId) return result;
 
   const priorDocs = await db.tripDocument.findMany({
     where: { tripId, type: "booking" },
@@ -169,9 +169,10 @@ async function resolveFlightFieldsFromVault(
 
 // ── dayIndex helper ──────────────────────────────────────────────────────────
 
-async function getDayIndex(tripId: string, dateStr: string): Promise<number> {
+async function getDayIndex(tripId: string | null, dateStr: string): Promise<number | null> {
+  if (!tripId) return null;
   const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } });
-  if (!trip?.startDate) return 0;
+  if (!trip?.startDate) return null;
   const rawStart = new Date(trip.startDate);
   const shiftedStart = new Date(rawStart.getTime() + 12 * 60 * 60 * 1000);
   const start = new Date(shiftedStart.getUTCFullYear(), shiftedStart.getUTCMonth(), shiftedStart.getUTCDate());
@@ -359,56 +360,89 @@ Field notes:
     // ── Match trip ─────────────────────────────────────────────────────────────
     const bookingDate = (extracted.checkIn ?? extracted.departureDate) as string | null;
 
+    // Destination keywords from Claude-extracted city/country only (not subject words — too noisy)
     const destKeywords: string[] = [
-      extracted.city, extracted.fromCity, extracted.toCity, extracted.country,
+      extracted.city, extracted.toCity, extracted.country,
     ]
       .filter((v): v is string => typeof v === "string" && v.length > 0)
       .flatMap((v) => v.split(/[\s,/-]+/))
       .filter((v) => v.length > 2);
 
+    // Subject words kept as weak last-resort fallback only
     const subjectWords = subject.replace(/fwd?:/i, "")
       .split(/[\s|:\-–—]+/).map((w) => w.trim()).filter((w) => w.length > 2);
-    const allKeywords = [...new Set([...destKeywords, ...subjectWords])];
+
+    // Helper: does a booking date fall within a trip's range (allow 3 days before start for pre-trip hotels)
+    function dateInTripRange(dateStr: string, trip: typeof trips[0]): boolean {
+      if (!trip.startDate || !trip.endDate) return false;
+      const [y, m, d] = dateStr.split("-").map(Number);
+      const booking = new Date(y, m - 1, d);
+      const start = new Date(trip.startDate); start.setHours(0, 0, 0, 0);
+      start.setDate(start.getDate() - 3); // allow 3 days before trip start
+      const end = new Date(trip.endDate);   end.setHours(23, 59, 59, 999);
+      return booking >= start && booking <= end;
+    }
+
+    const now = new Date();
+    function sortByRelevance(a: typeof trips[0], b: typeof trips[0]): number {
+      const score = (s: string | null) => s === "PLANNING" ? 0 : s === "ACTIVE" ? 1 : 2;
+      const diff = score(a.status ?? null) - score(b.status ?? null);
+      if (diff !== 0) return diff;
+      const aDate = a.startDate ? new Date(a.startDate).getTime() : Infinity;
+      const bDate = b.startDate ? new Date(b.startDate).getTime() : Infinity;
+      const aFuture = a.startDate ? new Date(a.startDate) >= now : false;
+      const bFuture = b.startDate ? new Date(b.startDate) >= now : false;
+      if (aFuture && !bFuture) return -1;
+      if (!aFuture && bFuture) return 1;
+      return aDate - bDate;
+    }
 
     let matchedTrip: typeof trips[0] | null = null;
 
-    if (bookingDate) {
-      const [by, bm, bd] = bookingDate.split("-").map(Number);
-      const booking = new Date(by, bm - 1, bd);
-      const dateMatches = trips.filter((trip) => {
-        if (!trip.startDate || !trip.endDate) return false;
-        const start = new Date(trip.startDate); start.setHours(0, 0, 0, 0);
-        const end = new Date(trip.endDate);     end.setHours(23, 59, 59, 999);
-        return booking >= start && booking <= end;
-      });
-      dateMatches.sort((a, b) => {
-        const score = (s: string | null) => s === "PLANNING" ? 0 : s === "ACTIVE" ? 1 : 2;
-        const diff = score(a.status ?? null) - score(b.status ?? null);
-        if (diff !== 0) return diff;
-        const durA = (a.endDate ? new Date(a.endDate).getTime() : Infinity) - (a.startDate ? new Date(a.startDate).getTime() : 0);
-        const durB = (b.endDate ? new Date(b.endDate).getTime() : Infinity) - (b.startDate ? new Date(b.startDate).getTime() : 0);
-        return durA - durB;
-      });
-      matchedTrip = dateMatches[0] ?? null;
+    // Priority 1: Destination keyword match — primary signal, most reliable
+    if (destKeywords.length > 0) {
+      const destMatches = trips.filter((t) => tripMatchesDestination(t, destKeywords));
+      if (destMatches.length > 0) {
+        // Within destination matches, prefer trips where the booking date overlaps
+        const withDate = bookingDate ? destMatches.filter((t) => dateInTripRange(bookingDate, t)) : [];
+        const candidates = withDate.length > 0 ? withDate : destMatches;
+        candidates.sort(sortByRelevance);
+        matchedTrip = candidates[0];
+      }
     }
 
-    if (!matchedTrip && allKeywords.length > 0) {
-      const now = new Date();
-      matchedTrip = trips
-        .filter((t) => tripMatchesDestination(t, allKeywords))
-        .sort((a, b) => {
-          const aDate = a.startDate ? new Date(a.startDate).getTime() : Infinity;
-          const bDate = b.startDate ? new Date(b.startDate).getTime() : Infinity;
-          const aFuture = aDate >= now.getTime(), bFuture = bDate >= now.getTime();
-          if (aFuture && !bFuture) return -1;
-          if (!aFuture && bFuture) return 1;
-          return aDate - bDate;
-        })[0] ?? null;
+    // Priority 2: Date overlap only — when destination wasn't extracted or didn't match
+    if (!matchedTrip && bookingDate) {
+      const dateMatches = trips.filter((t) => dateInTripRange(bookingDate, t));
+      if (dateMatches.length > 0) {
+        dateMatches.sort((a, b) => {
+          const score = (s: string | null) => s === "PLANNING" ? 0 : s === "ACTIVE" ? 1 : 2;
+          const diff = score(a.status ?? null) - score(b.status ?? null);
+          if (diff !== 0) return diff;
+          // Prefer shorter (more specific) trips
+          const durA = (a.endDate ? new Date(a.endDate).getTime() : Infinity) - (a.startDate ? new Date(a.startDate).getTime() : 0);
+          const durB = (b.endDate ? new Date(b.endDate).getTime() : Infinity) - (b.startDate ? new Date(b.startDate).getTime() : 0);
+          return durA - durB;
+        });
+        matchedTrip = dateMatches[0];
+      }
     }
 
-    const resolvedTripId = matchedTrip?.id ?? trips[0]?.id ?? null;
-    if (!resolvedTripId) {
-      console.log("[email-inbound] no trip to assign — dropping");
+    // Priority 3: Subject word match as weak fallback (only if neither destination nor date matched)
+    if (!matchedTrip && subjectWords.length > 0) {
+      const subjectMatches = trips.filter((t) => tripMatchesDestination(t, subjectWords));
+      if (subjectMatches.length > 0) {
+        subjectMatches.sort(sortByRelevance);
+        matchedTrip = subjectMatches[0];
+      }
+    }
+
+    // No match → unassigned (tripId = null, stored against familyProfile for surfacing in UI)
+    const resolvedTripId: string | null = matchedTrip?.id ?? null;
+    console.log(`[email-inbound] trip match: "${matchedTrip?.title ?? "UNASSIGNED"}" | resolvedTripId: ${resolvedTripId ?? "null"}`);
+
+    if (trips.length === 0) {
+      console.log("[email-inbound] no trips on profile — dropping");
       return NextResponse.json({ received: true, status: "no_trip" });
     }
 
@@ -421,7 +455,7 @@ Field notes:
     // No-op: budgetSpent is deprecated. Tracked total is computed dynamically
     // from ItineraryItem.totalCost in /api/trips/[id]/budget GET route.
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    async function incrementBudget(_tripId: string, _cost: number | null) {
+    async function incrementBudget(_tripId: string | null, _cost: number | null) {
       return;
     }
 
@@ -455,7 +489,7 @@ Field notes:
             data: { title: outboundTitle, departureTime: resolved.departureTime, arrivalTime: resolved.arrivalTime, fromAirport: resolved.fromAirport, toAirport: resolved.toAirport, fromCity: resolved.fromCity, toCity: resolved.toCity, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex: outboundDayIndex },
           })
         : await db.itineraryItem.create({
-            data: { tripId: resolvedTripId, type: "FLIGHT", title: outboundTitle, scheduledDate: (extracted.departureDate as string | null) ?? null, departureTime: resolved.departureTime, arrivalTime: resolved.arrivalTime, fromAirport: resolved.fromAirport, toAirport: resolved.toAirport, fromCity: resolved.fromCity, toCity: resolved.toCity, confirmationCode: outboundConf, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex: outboundDayIndex },
+            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: "FLIGHT", title: outboundTitle, scheduledDate: (extracted.departureDate as string | null) ?? null, departureTime: resolved.departureTime, arrivalTime: resolved.arrivalTime, fromAirport: resolved.fromAirport, toAirport: resolved.toAirport, fromCity: resolved.fromCity, toCity: resolved.toCity, confirmationCode: outboundConf, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex: outboundDayIndex },
           });
       // Geocode arrival airport (where the family lands — critical map pin)
       // Priority: IATA+city (e.g. "GMP airport Seoul") → city fallback (e.g. "Seoul international airport")
@@ -471,49 +505,51 @@ Field notes:
       }
       console.log("[email-inbound] created outbound ItineraryItem:", outboundItem.id);
 
-      // Also keep Flight record (powers booking intel card)
-      await db.flight.create({
-        data: {
-          tripId: resolvedTripId,
-          type: "outbound",
-          airline: (extracted.airline as string | null) ?? "",
-          flightNumber: extracted.flightNumber as string,
-          fromAirport: (extracted.fromAirport as string | null) ?? "",
-          fromCity: (extracted.fromCity as string | null) ?? (extracted.fromAirport as string | null) ?? "",
-          toAirport: (extracted.toAirport as string | null) ?? "",
-          toCity: (extracted.toCity as string | null) ?? (extracted.toAirport as string | null) ?? "",
-          departureDate: (extracted.departureDate as string | null) ?? "",
-          departureTime: (extracted.departureTime as string | null) ?? "",
-          arrivalDate: (extracted.arrivalDate as string | null) ?? null,
-          arrivalTime: (extracted.arrivalTime as string | null) ?? null,
-          confirmationCode: (extracted.confirmationCode as string | null) ?? null,
-          status: "booked",
-          dayIndex: outboundDayIndex,
-        },
-      });
+      // Also keep Flight record (powers booking intel card) — only when trip is matched
+      if (resolvedTripId) {
+        await db.flight.create({
+          data: {
+            tripId: resolvedTripId,
+            type: "outbound",
+            airline: (extracted.airline as string | null) ?? "",
+            flightNumber: extracted.flightNumber as string,
+            fromAirport: (extracted.fromAirport as string | null) ?? "",
+            fromCity: (extracted.fromCity as string | null) ?? (extracted.fromAirport as string | null) ?? "",
+            toAirport: (extracted.toAirport as string | null) ?? "",
+            toCity: (extracted.toCity as string | null) ?? (extracted.toAirport as string | null) ?? "",
+            departureDate: (extracted.departureDate as string | null) ?? "",
+            departureTime: (extracted.departureTime as string | null) ?? "",
+            arrivalDate: (extracted.arrivalDate as string | null) ?? null,
+            arrivalTime: (extracted.arrivalTime as string | null) ?? null,
+            confirmationCode: (extracted.confirmationCode as string | null) ?? null,
+            status: "booked",
+            dayIndex: outboundDayIndex,
+          },
+        });
 
-      // Outbound vault doc — always create using resolvedTripId
-      const outboundVaultLabel = outboundFrom && outboundTo
-        ? `${outboundFrom} → ${outboundTo}`
-        : `${(extracted.airline as string) ?? ""} ${extracted.flightNumber as string}`.trim();
-      await db.tripDocument.create({
-        data: {
-          tripId: resolvedTripId,
-          label: outboundVaultLabel,
-          type: "booking",
-          content: JSON.stringify({
-            type: "flight", vendorName: extracted.airline, flightNumber: extracted.flightNumber,
-            airline: extracted.airline, fromAirport: extracted.fromAirport, toAirport: extracted.toAirport,
-            fromCity: extracted.fromCity, toCity: extracted.toCity,
-            departureDate: extracted.departureDate, departureTime: extracted.departureTime,
-            arrivalDate: extracted.arrivalDate, arrivalTime: extracted.arrivalTime,
-            confirmationCode: extracted.confirmationCode,
-            totalCost: extracted.totalCost, currency: extracted.currency,
-            guestNames: extracted.guestNames, returnDepartureDate: extracted.returnDepartureDate,
-          }),
-        },
-      });
-      console.log("[email-inbound] created outbound vault doc for trip:", resolvedTripId);
+        // Outbound vault doc
+        const outboundVaultLabel = outboundFrom && outboundTo
+          ? `${outboundFrom} → ${outboundTo}`
+          : `${(extracted.airline as string) ?? ""} ${extracted.flightNumber as string}`.trim();
+        await db.tripDocument.create({
+          data: {
+            tripId: resolvedTripId,
+            label: outboundVaultLabel,
+            type: "booking",
+            content: JSON.stringify({
+              type: "flight", vendorName: extracted.airline, flightNumber: extracted.flightNumber,
+              airline: extracted.airline, fromAirport: extracted.fromAirport, toAirport: extracted.toAirport,
+              fromCity: extracted.fromCity, toCity: extracted.toCity,
+              departureDate: extracted.departureDate, departureTime: extracted.departureTime,
+              arrivalDate: extracted.arrivalDate, arrivalTime: extracted.arrivalTime,
+              confirmationCode: extracted.confirmationCode,
+              totalCost: extracted.totalCost, currency: extracted.currency,
+              guestNames: extracted.guestNames, returnDepartureDate: extracted.returnDepartureDate,
+            }),
+          },
+        });
+        console.log("[email-inbound] created outbound vault doc for trip:", resolvedTripId);
+      }
 
       // FIX 2: Return flight ItineraryItem
       if (extracted.returnDepartureDate) {
@@ -529,6 +565,7 @@ Field notes:
           : await db.itineraryItem.create({
           data: {
             tripId: resolvedTripId,
+            familyProfileId: familyProfile.id,
             type: "FLIGHT",
             title: returnTitle,
             scheduledDate: extracted.returnDepartureDate as string,
@@ -557,53 +594,54 @@ Field notes:
         }
         console.log("[email-inbound] created return ItineraryItem:", returnItem.id);
 
-        // Also keep return Flight record
-        await db.flight.create({
-          data: {
-            tripId: resolvedTripId,
-            type: "return",
-            airline: (extracted.airline as string | null) ?? "",
-            flightNumber: ((extracted.flightNumber as string) ?? "") + " (return)",
-            fromAirport: (extracted.returnFromAirport as string | null) ?? (extracted.toAirport as string | null) ?? "",
-            fromCity: (extracted.toCity as string | null) ?? (extracted.returnFromAirport as string | null) ?? "",
-            toAirport: (extracted.returnToAirport as string | null) ?? (extracted.fromAirport as string | null) ?? "",
-            toCity: (extracted.fromCity as string | null) ?? (extracted.returnToAirport as string | null) ?? "",
-            departureDate: extracted.returnDepartureDate as string,
-            departureTime: (extracted.returnDepartureTime as string | null) ?? "",
-            arrivalDate: (extracted.returnArrivalDate as string | null) ?? null,
-            arrivalTime: (extracted.returnArrivalTime as string | null) ?? null,
-            confirmationCode: (extracted.confirmationCode as string | null) ?? null,
-            status: "booked",
-            dayIndex: returnDayIndex,
-          },
-        });
-
-        // Return vault doc — always create using resolvedTripId
-        const returnVaultFrom = (extracted.returnFromAirport as string | null) || (extracted.toAirport as string | null) || null;
-        const returnVaultTo   = (extracted.returnToAirport   as string | null) || (extracted.fromAirport as string | null) || null;
-        const returnVaultLabel = returnVaultFrom && returnVaultTo
-          ? `${returnVaultFrom} → ${returnVaultTo}`
-          : `${(extracted.airline as string) ?? ""} ${extracted.flightNumber as string} (return)`.trim();
-        await db.tripDocument.create({
-          data: {
-            tripId: resolvedTripId,
-            label: returnVaultLabel,
-            type: "booking",
-            content: JSON.stringify({
-              type: "flight", vendorName: extracted.airline,
+        // Also keep return Flight record and vault doc — only when trip is matched
+        if (resolvedTripId) {
+          await db.flight.create({
+            data: {
+              tripId: resolvedTripId,
+              type: "return",
+              airline: (extracted.airline as string | null) ?? "",
               flightNumber: ((extracted.flightNumber as string) ?? "") + " (return)",
-              airline: extracted.airline,
-              fromAirport: extracted.returnFromAirport ?? extracted.toAirport,
-              toAirport: extracted.returnToAirport ?? extracted.fromAirport,
-              fromCity: extracted.toCity, toCity: extracted.fromCity,
-              departureDate: extracted.returnDepartureDate, departureTime: extracted.returnDepartureTime,
-              arrivalDate: extracted.returnArrivalDate ?? null, arrivalTime: extracted.returnArrivalTime ?? null,
-              confirmationCode: extracted.confirmationCode,
-              totalCost: null, currency: extracted.currency, guestNames: extracted.guestNames,
-            }),
-          },
-        });
-        console.log("[email-inbound] created return vault doc for trip:", resolvedTripId);
+              fromAirport: (extracted.returnFromAirport as string | null) ?? (extracted.toAirport as string | null) ?? "",
+              fromCity: (extracted.toCity as string | null) ?? (extracted.returnFromAirport as string | null) ?? "",
+              toAirport: (extracted.returnToAirport as string | null) ?? (extracted.fromAirport as string | null) ?? "",
+              toCity: (extracted.fromCity as string | null) ?? (extracted.returnToAirport as string | null) ?? "",
+              departureDate: extracted.returnDepartureDate as string,
+              departureTime: (extracted.returnDepartureTime as string | null) ?? "",
+              arrivalDate: (extracted.returnArrivalDate as string | null) ?? null,
+              arrivalTime: (extracted.returnArrivalTime as string | null) ?? null,
+              confirmationCode: (extracted.confirmationCode as string | null) ?? null,
+              status: "booked",
+              dayIndex: returnDayIndex,
+            },
+          });
+
+          const returnVaultFrom = (extracted.returnFromAirport as string | null) || (extracted.toAirport as string | null) || null;
+          const returnVaultTo   = (extracted.returnToAirport   as string | null) || (extracted.fromAirport as string | null) || null;
+          const returnVaultLabel = returnVaultFrom && returnVaultTo
+            ? `${returnVaultFrom} → ${returnVaultTo}`
+            : `${(extracted.airline as string) ?? ""} ${extracted.flightNumber as string} (return)`.trim();
+          await db.tripDocument.create({
+            data: {
+              tripId: resolvedTripId,
+              label: returnVaultLabel,
+              type: "booking",
+              content: JSON.stringify({
+                type: "flight", vendorName: extracted.airline,
+                flightNumber: ((extracted.flightNumber as string) ?? "") + " (return)",
+                airline: extracted.airline,
+                fromAirport: extracted.returnFromAirport ?? extracted.toAirport,
+                toAirport: extracted.returnToAirport ?? extracted.fromAirport,
+                fromCity: extracted.toCity, toCity: extracted.fromCity,
+                departureDate: extracted.returnDepartureDate, departureTime: extracted.returnDepartureTime,
+                arrivalDate: extracted.returnArrivalDate ?? null, arrivalTime: extracted.returnArrivalTime ?? null,
+                confirmationCode: extracted.confirmationCode,
+                totalCost: null, currency: extracted.currency, guestNames: extracted.guestNames,
+              }),
+            },
+          });
+          console.log("[email-inbound] created return vault doc for trip:", resolvedTripId);
+        }
       }
 
       await incrementBudget(resolvedTripId, parsedCost);
@@ -625,7 +663,7 @@ Field notes:
       const checkInItem = existingCheckIn
         ? await db.itineraryItem.update({ where: { id: existingCheckIn.id }, data: { title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex: checkInDayIndex } })
         : await db.itineraryItem.create({
-            data: { tripId: resolvedTripId, type: "LODGING", title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, confirmationCode: hotelConf, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, notes: null, passengers, dayIndex: checkInDayIndex },
+            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: "LODGING", title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, confirmationCode: hotelConf, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, notes: null, passengers, dayIndex: checkInDayIndex },
           });
       // Geocode hotel by name + city
       const hotelCity = (extracted.city as string | null) ?? (extracted.toCity as string | null) ?? "";
@@ -646,6 +684,7 @@ Field notes:
           : await db.itineraryItem.create({
           data: {
             tripId: resolvedTripId,
+            familyProfileId: familyProfile.id,
             type: "LODGING",
             title: `Check-out: ${hotelName}`,
             scheduledDate: checkOutDate,
@@ -731,7 +770,7 @@ Field notes:
             data: { title: itemTitle, scheduledDate: confirmedDate, departureTime: (extracted.departureTime as string | null) ?? null, arrivalTime: (extracted.arrivalTime as string | null) ?? null, fromCity: (extracted.fromCity as string | null) ?? null, toCity: (extracted.toCity as string | null) ?? null, notes: autoNotes, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex },
           })
         : await db.itineraryItem.create({
-            data: { tripId: resolvedTripId, type: catchAllType, title: itemTitle, scheduledDate: confirmedDate, departureTime: (extracted.departureTime as string | null) ?? null, arrivalTime: (extracted.arrivalTime as string | null) ?? null, fromCity: (extracted.fromCity as string | null) ?? null, toCity: (extracted.toCity as string | null) ?? null, confirmationCode: catchAllConf, notes: autoNotes, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex },
+            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: catchAllType, title: itemTitle, scheduledDate: confirmedDate, departureTime: (extracted.departureTime as string | null) ?? null, arrivalTime: (extracted.arrivalTime as string | null) ?? null, fromCity: (extracted.fromCity as string | null) ?? null, toCity: (extracted.toCity as string | null) ?? null, confirmationCode: catchAllConf, notes: autoNotes, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex },
           });
 
       if (matchedTrip && extracted.confirmationCode) {

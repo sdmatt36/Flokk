@@ -27,6 +27,19 @@ type Trip = {
   familyName: string | null;
 };
 
+type UnassignedItem = {
+  id: string;
+  type: string;
+  title: string;
+  scheduledDate: string | null;
+  address: string | null;
+  confirmationCode: string | null;
+  totalCost: number | null;
+  currency: string | null;
+  fromCity: string | null;
+  toCity: string | null;
+};
+
 
 const STATUS_LABEL: Record<string, string> = {
   PLANNING: "Planning",
@@ -376,6 +389,31 @@ export function TripsPageClient({
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const displayed = tab === "upcoming" ? upcoming : past;
 
+  const [unassigned, setUnassigned] = useState<UnassignedItem[]>([]);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/itinerary/unassigned")
+      .then(r => r.json())
+      .then((items: UnassignedItem[]) => { if (Array.isArray(items)) setUnassigned(items); })
+      .catch(() => {});
+  }, []);
+
+  async function handleAssign(itemId: string, tripId: string) {
+    if (!tripId) return;
+    setAssigningId(itemId);
+    try {
+      await fetch("/api/itinerary/unassigned", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId, tripId }),
+      });
+      setUnassigned(prev => prev.filter(i => i.id !== itemId));
+    } catch { /* ignore */ } finally {
+      setAssigningId(null);
+    }
+  }
+
   const handleDelete = (id: string) => setTrips((prev) => prev.filter((t) => t.id !== id));
 
   // TODO: wire to Trip Wizard when built
@@ -471,6 +509,41 @@ export function TripsPageClient({
             onBlur={(e) => { e.currentTarget.style.borderColor = "#EEEEEE"; }}
           />
         </div>
+
+        {/* Unassigned bookings */}
+        {unassigned.length > 0 && (
+          <div style={{ marginBottom: "24px", backgroundColor: "#FFFBEB", border: "1px solid #D97706", borderLeft: "3px solid #C4664A", borderRadius: "12px", padding: "16px 20px" }}>
+            <p style={{ fontSize: "13px", fontWeight: 700, color: "#D97706", marginBottom: "12px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              Unassigned bookings ({unassigned.length})
+            </p>
+            <p style={{ fontSize: "13px", color: "#717171", marginBottom: "16px", lineHeight: 1.5 }}>
+              These bookings could not be matched to a trip automatically. Assign each one to the correct trip.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {unassigned.map(item => (
+                <div key={item.id} style={{ backgroundColor: "#fff", borderLeft: "3px solid #C4664A", borderRadius: "8px", padding: "12px 14px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: "14px", fontWeight: 600, color: "#1B3A5C", marginBottom: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</p>
+                    <p style={{ fontSize: "12px", color: "#717171" }}>
+                      {[item.type, item.scheduledDate, item.fromCity && item.toCity ? `${item.fromCity} → ${item.toCity}` : (item.fromCity ?? item.toCity)].filter(Boolean).join(" · ")}
+                    </p>
+                  </div>
+                  <select
+                    disabled={assigningId === item.id}
+                    defaultValue=""
+                    onChange={(e) => { if (e.target.value) handleAssign(item.id, e.target.value); }}
+                    style={{ fontSize: "13px", color: "#1B3A5C", border: "1px solid #DDDDDD", borderRadius: "8px", padding: "6px 10px", backgroundColor: "#fff", cursor: "pointer", flexShrink: 0 }}
+                  >
+                    <option value="" disabled>Assign to trip</option>
+                    {trips.map(t => (
+                      <option key={t.id} value={t.id}>{t.title}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Tab bar */}
         <div style={{ display: "flex", borderBottom: "1px solid rgba(0,0,0,0.08)", marginBottom: "20px" }}>
