@@ -112,6 +112,7 @@ async function main() {
   const confByTrip = new Map<string, Set<string>>();
   const titleByTrip = new Map<string, Set<string>>();
   for (const item of existingItems) {
+    if (item.tripId === null) continue;
     if (!confByTrip.has(item.tripId)) confByTrip.set(item.tripId, new Set());
     if (!titleByTrip.has(item.tripId)) titleByTrip.set(item.tripId, new Set());
     if (item.confirmationCode) confByTrip.get(item.tripId)!.add(item.confirmationCode);

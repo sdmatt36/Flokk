@@ -44,10 +44,10 @@ async function main() {
     console.log(`[fix-ana] found ItineraryItem ${item.id} title="${item.title}" fromAirport=${item.fromAirport} toAirport=${item.toAirport} departureTime=${item.departureTime} arrivalTime=${item.arrivalTime}`);
 
     // Step 2: check the Flight model record first (might have data)
-    const flightRecord = await db.flight.findFirst({
+    const flightRecord = item.tripId ? await db.flight.findFirst({
       where: { confirmationCode: CONF_CODE, tripId: item.tripId },
       select: { fromAirport: true, toAirport: true, fromCity: true, toCity: true, departureTime: true, arrivalTime: true },
-    });
+    }) : null;
 
     // Flight model uses empty strings when Claude failed — treat those as absent
     const fromFlight = flightRecord?.fromAirport?.trim() || null;
@@ -69,10 +69,10 @@ async function main() {
 
     const anyMissing = !fromAirport || !toAirport || !departureTime;
     if (anyMissing) {
-      const vaultDocs = await db.tripDocument.findMany({
+      const vaultDocs = item.tripId ? await db.tripDocument.findMany({
         where: { tripId: item.tripId, type: "booking" },
         select: { content: true },
-      });
+      }) : [];
 
       for (const doc of vaultDocs) {
         let b: Record<string, unknown> = {};
