@@ -147,7 +147,8 @@ function normalizeLocationToKeywords(raw: string): string[] {
   const key = raw.trim().toLowerCase();
   const mapped = AIRPORT_TO_CITY[key];
   if (mapped) return [mapped.city, mapped.country];
-  return raw.split(/[\s,/-]+/).filter((v) => v.length > 2);
+  const tokens = raw.split(/[\s,/-]+/).filter((v) => v.length > 2);
+  return [raw.trim(), ...tokens];
 }
 
 // Home airports — when a flight departs AND arrives at one of these, it is
@@ -501,9 +502,18 @@ Field notes:
       const destMatches = trips.filter((t) => tripMatchesDestination(t, destKeywords));
       console.log(`[email-match] P1 dest matches (${destMatches.length}): ${destMatches.map(t => `"${t.title}"`).join(", ")}`);
       if (destMatches.length > 0) {
-        // Within destination matches, prefer trips where the booking date overlaps
-        const withDate = bookingDate ? destMatches.filter((t) => dateInTripRange(bookingDate, t)) : [];
-        const candidates = withDate.length > 0 ? withDate : destMatches;
+        // Promote trips that match the full extracted city phrase over partial token matches.
+        // Prevents "Chiang" matching both Chiang Mai and Chiang Rai — the full phrase wins.
+        const exactPhraseMatches = destMatches.filter((t) => {
+          const haystack = [t.title, t.destinationCity, t.destinationCountry]
+            .filter(Boolean).join(" ").toLowerCase();
+          return [extracted.city, extracted.toCity, extracted.fromCity, extracted.country]
+            .filter((v): v is string => typeof v === "string" && v.length > 0)
+            .some((phrase) => haystack.includes(phrase.toLowerCase()));
+        });
+        const promotedMatches = exactPhraseMatches.length > 0 ? exactPhraseMatches : destMatches;
+        const withDate = bookingDate ? promotedMatches.filter((t) => dateInTripRange(bookingDate, t)) : [];
+        const candidates = withDate.length > 0 ? withDate : promotedMatches;
         candidates.sort(sortByRelevance);
         matchedTrip = candidates[0];
       }
