@@ -1590,6 +1590,11 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [expandedSlotKey, setExpandedSlotKey] = useState<string | null>(null);
   const [selectedItineraryItem, setSelectedItineraryItem] = useState<ItineraryItemLocal | null>(null);
   const [editActivityTitle, setEditActivityTitle] = useState("");
+  const [editingItinFields, setEditingItinFields] = useState(false);
+  const [editItTime, setEditItTime] = useState("");
+  const [editItDate, setEditItDate] = useState("");
+  const [editItNotes, setEditItNotes] = useState("");
+  const [editItSaving, setEditItSaving] = useState(false);
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
   const [detailRemover, setDetailRemover] = useState<(() => void) | null>(null);
   const [editingFlight, setEditingFlight] = useState<Flight | null>(null);
@@ -2484,24 +2489,27 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 const isVTC = (lat: number | null | undefined, lng: number | null | undefined) =>
                                   lat != null && lng != null && typeof lat === "number" && typeof lng === "number" &&
                                   lat !== 0 && lng !== 0 && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+                                // Extract coords from any UnifiedDayItem regardless of item type
+                                const getCoords = (i: UnifiedDayItem): { lat: number; lng: number } | null => {
+                                  if (isVTC(i.lat, i.lng)) return { lat: i.lat!, lng: i.lng! };
+                                  return null;
+                                };
                                 const prevIt = item.itineraryItem;
-                                const useArrivalCoords = (prevIt?.type === "TRAIN" || prevIt?.type === "FLIGHT") &&
-                                  isVTC(prevIt?.arrivalLat, prevIt?.arrivalLng);
-                                const fromLat = useArrivalCoords ? prevIt!.arrivalLat! : (item.lat ?? null);
-                                const fromLng = useArrivalCoords ? prevIt!.arrivalLng! : (item.lng ?? null);
-                                // For FLIGHT next items, use departure airport coords (not arrival)
-                                // so transit "Baymond → PUS" uses PUS coords, not NRT
+                                // For TRAIN/FLIGHT preceding items, use arrival coords as the starting point
+                                const fromCoords = (prevIt && (prevIt.type === "TRAIN" || prevIt.type === "FLIGHT") && isVTC(prevIt.arrivalLat, prevIt.arrivalLng))
+                                  ? { lat: prevIt.arrivalLat!, lng: prevIt.arrivalLng! }
+                                  : getCoords(item);
+                                // For FLIGHT next items, use departure airport coords
                                 const nextItItem = next?.itineraryItem;
                                 const nextFlightItem = next?.flight;
                                 const nextFromAirport = (nextItItem?.type === "FLIGHT" ? nextItItem.fromAirport : nextFlightItem?.fromAirport)?.toUpperCase().trim() ?? "";
                                 const depCoords = nextFromAirport ? AIRPORT_COORDS[nextFromAirport] : null;
-                                const toLat = depCoords?.lat ?? (next?.lat ?? null);
-                                const toLng = depCoords?.lng ?? (next?.lng ?? null);
+                                const toCoords = depCoords ? { lat: depCoords.lat, lng: depCoords.lng } : (next ? getCoords(next) : null);
 
-                                const prevHasCoords = isVTC(fromLat, fromLng);
-                                const nextHasCoords = isVTC(toLat, toLng);
+                                const prevHasCoords = fromCoords != null;
+                                const nextHasCoords = toCoords != null;
                                 const distanceBetweenItems = prevHasCoords && nextHasCoords
-                                  ? haversineKm(fromLat!, fromLng!, toLat!, toLng!)
+                                  ? haversineKm(fromCoords!.lat, fromCoords!.lng, toCoords!.lat, toCoords!.lng)
                                   : 999;
 
                                 return [
@@ -2865,7 +2873,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 </div>,
                                 prevHasCoords && nextHasCoords && distanceBetweenItems <= 50 ? (
                                   (() => {
-                                    const transit = computeTransit(fromLat!, fromLng!, toLat!, toLng!);
+                                    const transit = computeTransit(fromCoords!.lat, fromCoords!.lng, toCoords!.lat, toCoords!.lng);
                                     return (
                                       <div key={`transit_${idx}`} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "2px 28px 6px", marginBottom: "2px" }}>
                                         <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(0,0,0,0.06)" }} />
@@ -3192,7 +3200,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         return (
           <div
             style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 500, display: "flex", alignItems: isDesktop ? "center" : "flex-end", justifyContent: "center", padding: isDesktop ? "16px" : "0" }}
-            onClick={() => setSelectedItineraryItem(null)}
+            onClick={() => { setSelectedItineraryItem(null); setEditingItinFields(false); }}
           >
             <div
               style={{ backgroundColor: "#fff", width: "100%", maxWidth: isDesktop ? "440px" : undefined, borderRadius: isDesktop ? "16px" : "20px 20px 0 0", padding: "24px", maxHeight: "85vh", overflowY: "auto" }}
@@ -3200,7 +3208,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
                 <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#999" }}>{typeLabel}</span>
-                <button onClick={() => setSelectedItineraryItem(null)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", color: "#AAAAAA" }}>
+                <button onClick={() => { setSelectedItineraryItem(null); setEditingItinFields(false); }} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", color: "#AAAAAA" }}>
                   <X size={20} />
                 </button>
               </div>
@@ -3233,6 +3241,50 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                 const guestsLabel = sit.passengers.length > 0
                   ? sit.passengers.length <= 2 ? sit.passengers.join(", ") : `${sit.passengers.length} guests`
                   : null;
+                const itEditInputStyle: React.CSSProperties = { width: "100%", border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "10px 12px", fontSize: "14px", color: "#1a1a1a", outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
+                if (editingItinFields) return (
+                  <div>
+                    <p style={{ ...titleStyle, marginBottom: "20px" }}>{hotelName}</p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                      <div>
+                        <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>{isCheckOut ? "Check-out time" : "Check-in time"}</label>
+                        <input type="time" value={editItTime} onChange={e => setEditItTime(e.target.value)} style={itEditInputStyle} />
+                      </div>
+                      <div>
+                        <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>Date</label>
+                        <input type="date" value={editItDate} onChange={e => setEditItDate(e.target.value)} style={itEditInputStyle} />
+                      </div>
+                      <div>
+                        <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>Notes</label>
+                        <textarea value={editItNotes} onChange={e => setEditItNotes(e.target.value)} rows={3} placeholder="Any notes..." style={{ ...itEditInputStyle, resize: "none" }} />
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        setEditItSaving(true);
+                        try {
+                          const res = await fetch(`/api/trips/${tripId}/itinerary/${sit.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ departureTime: editItTime || null, scheduledDate: editItDate || null, notes: editItNotes || null }),
+                          });
+                          const d = await res.json();
+                          if (res.ok && d.item) {
+                            setLocalItineraryItems(prev => prev.map(i => i.id === sit.id ? { ...i, ...d.item } : i));
+                          }
+                          setSelectedItineraryItem(null);
+                          setEditingItinFields(false);
+                        } catch { /* ignore */ } finally { setEditItSaving(false); }
+                      }}
+                      style={{ display: "block", width: "100%", marginTop: "16px", padding: "12px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: editItSaving ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: editItSaving ? 0.7 : 1 }}
+                    >
+                      {editItSaving ? "Saving..." : "Save changes"}
+                    </button>
+                    <button onClick={() => setEditingItinFields(false)} style={{ display: "block", width: "100%", marginTop: "10px", background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "#717171", textAlign: "center", fontFamily: "inherit" }}>
+                      Cancel
+                    </button>
+                  </div>
+                );
                 return (
                   <div>
                     <p style={titleStyle}>{hotelName}</p>
@@ -3254,6 +3306,12 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                         Open in Maps
                       </a>
                     )}
+                    <button
+                      onClick={() => { setEditItTime(sit.departureTime ?? ""); setEditItDate(sit.scheduledDate ?? ""); setEditItNotes(sit.notes ?? ""); setEditingItinFields(true); }}
+                      style={{ display: "block", width: "100%", marginTop: "8px", padding: "12px", backgroundColor: "transparent", color: "#C4664A", border: "1.5px solid #C4664A", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      Edit
+                    </button>
                   </div>
                 );
               })()}
@@ -3261,6 +3319,50 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
               {sit.type === "TRAIN" && (() => {
                 const trainRoute = sit.fromCity && sit.toCity ? `${sit.fromCity} → ${sit.toCity}` : sit.title;
                 const operator = sit.fromCity && sit.toCity && sit.title !== trainRoute ? sit.title : null;
+                const itEditInputStyle: React.CSSProperties = { width: "100%", border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "10px 12px", fontSize: "14px", color: "#1a1a1a", outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
+                if (editingItinFields) return (
+                  <div>
+                    <p style={{ ...titleStyle, marginBottom: "20px" }}>{trainRoute}</p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                      <div>
+                        <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>Departure time</label>
+                        <input type="time" value={editItTime} onChange={e => setEditItTime(e.target.value)} style={itEditInputStyle} />
+                      </div>
+                      <div>
+                        <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>Date</label>
+                        <input type="date" value={editItDate} onChange={e => setEditItDate(e.target.value)} style={itEditInputStyle} />
+                      </div>
+                      <div>
+                        <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>Notes</label>
+                        <textarea value={editItNotes} onChange={e => setEditItNotes(e.target.value)} rows={3} placeholder="Any notes..." style={{ ...itEditInputStyle, resize: "none" }} />
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        setEditItSaving(true);
+                        try {
+                          const res = await fetch(`/api/trips/${tripId}/itinerary/${sit.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ departureTime: editItTime || null, scheduledDate: editItDate || null, notes: editItNotes || null }),
+                          });
+                          const d = await res.json();
+                          if (res.ok && d.item) {
+                            setLocalItineraryItems(prev => prev.map(i => i.id === sit.id ? { ...i, ...d.item } : i));
+                          }
+                          setSelectedItineraryItem(null);
+                          setEditingItinFields(false);
+                        } catch { /* ignore */ } finally { setEditItSaving(false); }
+                      }}
+                      style={{ display: "block", width: "100%", marginTop: "16px", padding: "12px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: editItSaving ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: editItSaving ? 0.7 : 1 }}
+                    >
+                      {editItSaving ? "Saving..." : "Save changes"}
+                    </button>
+                    <button onClick={() => setEditingItinFields(false)} style={{ display: "block", width: "100%", marginTop: "10px", background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "#717171", textAlign: "center", fontFamily: "inherit" }}>
+                      Cancel
+                    </button>
+                  </div>
+                );
                 return (
                   <div>
                     <p style={titleStyle}>{trainRoute}</p>
@@ -3271,6 +3373,12 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       {sit.arrivalTime && <><span style={lblStyle}>Arrives</span><span style={rowStyle}>{sit.arrivalTime}</span></>}
                       {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
                     </div>
+                    <button
+                      onClick={() => { setEditItTime(sit.departureTime ?? ""); setEditItDate(sit.scheduledDate ?? ""); setEditItNotes(sit.notes ?? ""); setEditingItinFields(true); }}
+                      style={{ display: "block", width: "100%", marginTop: "8px", padding: "12px", backgroundColor: "transparent", color: "#C4664A", border: "1.5px solid #C4664A", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      Edit
+                    </button>
                   </div>
                 );
               })()}

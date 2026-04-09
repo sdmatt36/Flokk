@@ -25,7 +25,7 @@ export async function PATCH(
   }
 
   const body = await req.json() as Record<string, unknown>;
-  const { dayIndex, sortOrder, title } = body;
+  const { dayIndex, sortOrder, title, departureTime, scheduledDate, notes } = body;
 
   const updated = await db.itineraryItem.update({
     where: { id: itemId },
@@ -33,8 +33,28 @@ export async function PATCH(
       ...(dayIndex !== undefined ? { dayIndex: dayIndex as number } : {}),
       ...(sortOrder !== undefined ? { sortOrder: sortOrder as number } : {}),
       ...(title !== undefined ? { title: title as string } : {}),
+      ...(departureTime !== undefined ? { departureTime: (departureTime as string | null) ?? null } : {}),
+      ...(scheduledDate !== undefined ? { scheduledDate: (scheduledDate as string | null) ?? null } : {}),
+      ...(notes !== undefined ? { notes: (notes as string | null) ?? null } : {}),
     },
   });
+
+  // Geocode from address if coords are missing (fires after save so new coords appear on next load)
+  if (updated.latitude == null && updated.address) {
+    const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+    if (apiKey) {
+      try {
+        const geoUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(updated.address)}&key=${apiKey}`;
+        const geoRes = await fetch(geoUrl);
+        const geoData = await geoRes.json() as { results?: Array<{ geometry?: { location?: { lat: number; lng: number } } }> };
+        const loc = geoData.results?.[0]?.geometry?.location;
+        if (loc?.lat && loc?.lng) {
+          const withCoords = await db.itineraryItem.update({ where: { id: itemId }, data: { latitude: loc.lat, longitude: loc.lng } });
+          return NextResponse.json({ item: withCoords });
+        }
+      } catch { /* geocoding optional */ }
+    }
+  }
 
   return NextResponse.json({ item: updated });
 }
