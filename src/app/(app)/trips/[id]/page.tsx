@@ -66,6 +66,7 @@ export default async function TripDetailPage({
     where: { id },
     include: {
       savedItems: { orderBy: [{ dayIndex: "asc" }, { savedAt: "asc" }] },
+      _count: { select: { manualActivities: true, itineraryItems: true } },
     },
   });
 
@@ -204,7 +205,9 @@ export default async function TripDetailPage({
           <div style={{ display: "flex", alignItems: "center", gap: "8px", opacity: 0.85 }}>
             <MapPin size={12} style={{ color: "#fff" }} />
             {(() => {
-              const count = trip.savedItems.filter(i => (i.dayIndex ?? 0) > 0).length;
+              const count = trip.savedItems.length +
+                (trip._count?.manualActivities ?? 0) +
+                (trip._count?.itineraryItems ?? 0);
               const label = count === 0 ? "No saves yet" : count === 1 ? "1 place" : `${count} places`;
               return <span style={{ fontSize: "12px", color: "#fff" }}>{label}</span>;
             })()}
