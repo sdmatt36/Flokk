@@ -608,7 +608,10 @@ Field notes:
       // (covers cases where Claude populates legs but omits outboundDestination).
       if (!outboundDestAirport && !outboundDestCity && legs.length > 1) {
         const HOME = new Set(["NRT", "HND", "LHR", "LGW", "YVR", "JFK", "LAX"]);
-        const outboundLeg = legs.find((l) => !HOME.has(l.to));
+        // Find the furthest non-home stop — last leg whose destination is not a home airport.
+        // For NRT→SIN→CMB→LHR→NRT this correctly picks CMB not SIN.
+        const nonHomeLegs = legs.filter((l) => !HOME.has(l.to));
+        const outboundLeg = nonHomeLegs[nonHomeLegs.length - 1] ?? null;
         if (outboundLeg) {
           resolved.toAirport = outboundLeg.to;
           resolved.toCity    = outboundLeg.toCity ?? outboundLeg.to;
