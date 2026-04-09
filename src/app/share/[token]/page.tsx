@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getTripCoverImage, getItemImage } from "@/lib/destination-images";
 import { SharePageBottomBar } from "./SharePageBottomBar";
 import { ShareActivityCard, type SerializableItem } from "./ShareActivityCard";
+import { SaveDayButton } from "./SaveDayButton";
 
 export const dynamic = "force-dynamic";
 
@@ -293,6 +294,50 @@ export default async function SharePage({
                         {dayLabel(di)}
                       </h2>
                       <div style={{ flex: 1, height: "1px", backgroundColor: "#E5E5E5" }} />
+                      <SaveDayButton
+                        isLoggedIn={!!userId}
+                        currentPath={`/share/${trip.shareToken}`}
+                        items={dayItems
+                          .map((entry) => {
+                            if (entry.kind === "save") {
+                              const s = entry.data;
+                              return {
+                                id: `save_${s.id}`,
+                                title: s.rawTitle ?? "",
+                                lat: s.lat ?? null,
+                                lng: s.lng ?? null,
+                                imageUrl: s.placePhotoUrl ?? s.mediaThumbnailUrl ?? null,
+                                destinationCity: trip.destinationCity,
+                              };
+                            }
+                            if (entry.kind === "itinerary") {
+                              const it = entry.data;
+                              if (it.type !== "ACTIVITY") return null;
+                              return {
+                                id: it.id,
+                                title: it.title,
+                                lat: it.latitude ?? null,
+                                lng: it.longitude ?? null,
+                                imageUrl: null,
+                                destinationCity: trip.destinationCity,
+                              };
+                            }
+                            if (entry.kind === "manual") {
+                              const ma = entry.data;
+                              return {
+                                id: ma.id,
+                                title: ma.title,
+                                lat: ma.lat ?? null,
+                                lng: ma.lng ?? null,
+                                imageUrl: null,
+                                destinationCity: trip.destinationCity,
+                              };
+                            }
+                            return null;
+                          })
+                          .filter((x): x is NonNullable<typeof x> => x !== null)
+                        }
+                      />
                     </div>
 
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>

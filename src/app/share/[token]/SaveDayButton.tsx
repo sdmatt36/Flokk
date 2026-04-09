@@ -1,0 +1,89 @@
+"use client";
+import { useState } from "react";
+
+interface SaveableItem {
+  id: string;
+  title: string;
+  lat: number | null;
+  lng: number | null;
+  imageUrl: string | null;
+  destinationCity: string | null;
+}
+
+interface SaveDayButtonProps {
+  items: SaveableItem[];
+  isLoggedIn: boolean;
+  currentPath: string;
+}
+
+export function SaveDayButton({ items, isLoggedIn, currentPath }: SaveDayButtonProps) {
+  const [state, setState] = useState<"idle" | "saving" | "done">("idle");
+  const [savedCount, setSavedCount] = useState(0);
+
+  if (items.length === 0) return null;
+
+  async function handleSaveDay() {
+    if (!isLoggedIn) {
+      window.location.href = `/sign-up?redirect_url=${encodeURIComponent(currentPath)}`;
+      return;
+    }
+    setState("saving");
+    let count = 0;
+    for (const item of items) {
+      try {
+        const res = await fetch("/api/saves/from-share", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: item.title,
+            city: item.destinationCity,
+            lat: item.lat,
+            lng: item.lng,
+            placePhotoUrl: item.imageUrl,
+          }),
+        });
+        const data = await res.json();
+        if (data.saved) count++;
+      } catch {
+        // continue on individual failures
+      }
+    }
+    setSavedCount(count);
+    setState("done");
+  }
+
+  if (state === "done") {
+    return (
+      <span style={{
+        fontSize: "12px",
+        color: "#C4664A",
+        fontWeight: 600,
+        whiteSpace: "nowrap",
+      }}>
+        {savedCount} {savedCount === 1 ? "place" : "places"} saved
+      </span>
+    );
+  }
+
+  return (
+    <button
+      onClick={handleSaveDay}
+      disabled={state === "saving"}
+      style={{
+        fontSize: "12px",
+        fontWeight: 600,
+        color: state === "saving" ? "#999" : "#C4664A",
+        background: "none",
+        border: "1px solid",
+        borderColor: state === "saving" ? "#DDD" : "#C4664A",
+        borderRadius: "20px",
+        padding: "4px 12px",
+        cursor: state === "saving" ? "default" : "pointer",
+        whiteSpace: "nowrap",
+        flexShrink: 0,
+      }}
+    >
+      {state === "saving" ? "Saving..." : `Save day (${items.length})`}
+    </button>
+  );
+}
