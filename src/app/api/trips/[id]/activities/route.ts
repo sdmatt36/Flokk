@@ -65,6 +65,8 @@ export async function POST(
     notes,
     status,
     confirmationCode,
+    lat: clientLat,
+    lng: clientLng,
   } = body;
 
   if (!title || !date) {
@@ -90,10 +92,10 @@ export async function POST(
     dayIndex = diff;
   }
 
-  // Geocode venue using day-aware city context (lodging city for that day, not trip primary city)
-  let lat: number | null = null;
-  let lng: number | null = null;
-  if (venueName || address) {
+  // Use client-provided coords (from Places confirmation or AI fallback); geocode only if not supplied
+  let lat: number | null = typeof clientLat === "number" ? clientLat : null;
+  let lng: number | null = typeof clientLng === "number" ? clientLng : null;
+  if ((lat == null || lng == null) && (venueName || address)) {
     try {
       const activityCity = await getCityForDay(tripId, date);
       const geocodeQuery = [title, venueName, address, activityCity].filter(Boolean).join(", ");

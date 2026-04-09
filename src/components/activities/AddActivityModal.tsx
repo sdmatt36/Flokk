@@ -20,6 +20,8 @@ export type ExistingActivity = {
   status: string;
   confirmationCode?: string | null;
   address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
 };
 
 type PlacesSuggestion = {
@@ -96,6 +98,10 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
       .then((d: { budgetCurrency?: string } | null) => { if (d?.budgetCurrency) setCurrency(d.budgetCurrency); })
       .catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [lat, setLat] = useState<number | null>(existingActivity?.lat ?? null);
+  const [lng, setLng] = useState<number | null>(existingActivity?.lng ?? null);
+  const [addressFromPlaces, setAddressFromPlaces] = useState(false);
+  const addressEditedRef = useRef(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [suggestion, setSuggestion] = useState<PlacesSuggestion | null>(null);
@@ -125,6 +131,8 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
         notes: notes.trim() || null,
         status,
         confirmationCode: confirmationCode.trim() || null,
+        lat: lat ?? null,
+        lng: lng ?? null,
       };
 
       const url = isEditing
@@ -150,6 +158,24 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
     } finally {
       setSaving(false);
     }
+  }
+
+  async function triggerAiFallback(activityName: string) {
+    if (!activityName || activityName.length < 3) return;
+    try {
+      const r = await fetch("/api/activities/ai-lookup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activityName, city: destinationCity, country: destinationCountry }),
+      });
+      const d = await r.json() as { address: string; website: string; latitude: number; longitude: number; confidence: "high" | "low" } | null;
+      if (!d) return;
+      if (d.confidence === "high") {
+        if (d.address && !addressEditedRef.current) { setAddress(d.address); setAddressFromPlaces(true); }
+        if (d.website) setWebsite(prev => prev || d.website);
+      }
+      if (d.latitude != null && d.longitude != null) { setLat(d.latitude); setLng(d.longitude); }
+    } catch { /* ignore */ }
   }
 
   return createPortal(
@@ -238,7 +264,11 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
                         body: JSON.stringify({ query: v.trim(), city: destinationCity, country: destinationCountry }),
                       });
                       const d = await r.json() as PlacesSuggestion | null;
-                      if (d) setSuggestion(d);
+                      if (d) {
+                        setSuggestion(d);
+                      } else {
+                        triggerAiFallback(v.trim());
+                      }
                     } catch { /* ignore */ } finally {
                       setSuggestionLoading(false);
                     }
@@ -274,8 +304,10 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
                       type="button"
                       onClick={() => {
                         if (suggestion.name && !venueName) setVenueName(suggestion.name);
-                        if (suggestion.address && !address) setAddress(suggestion.address);
+                        if (suggestion.address && !address) { setAddress(suggestion.address); setAddressFromPlaces(true); addressEditedRef.current = false; }
                         if (suggestion.website && !website) setWebsite(suggestion.website);
+                        if (suggestion.lat != null) setLat(suggestion.lat);
+                        if (suggestion.lng != null) setLng(suggestion.lng);
                         setSuggestion(null);
                       }}
                       style={{ fontSize: "12px", fontWeight: 700, color: "#4a7c59", background: "rgba(74,124,89,0.1)", border: "none", cursor: "pointer", padding: "4px 10px", borderRadius: "6px", flexShrink: 0 }}
@@ -284,7 +316,7 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSuggestion(null)}
+                      onClick={() => { setSuggestion(null); triggerAiFallback(title.trim()); }}
                       style={{ fontSize: "12px", fontWeight: 700, color: "#717171", background: "none", border: "none", cursor: "pointer", padding: "4px 6px", flexShrink: 0 }}
                     >
                       No ✗
@@ -335,10 +367,13 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
             <input
               type="text"
               value={address}
-              onChange={e => setAddress(e.target.value)}
+              onChange={e => { setAddress(e.target.value); setAddressFromPlaces(false); addressEditedRef.current = true; }}
               placeholder="e.g. 123 Bukchon-ro, Jongno-gu, Seoul"
               style={inputStyle}
             />
+            {addressFromPlaces && (
+              <p style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}>From Google Places — edit if needed</p>
+            )}
           </div>
 
           {/* Website */}
