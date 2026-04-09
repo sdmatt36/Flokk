@@ -24,7 +24,7 @@ export default async function TripsPage({
       trips: {
         orderBy: { startDate: "asc" },
         include: {
-          _count: { select: { savedItems: true, packingItems: true } },
+          _count: { select: { savedItems: true, packingItems: true, manualActivities: true, itineraryItems: true } },
           savedItems: { select: { dayIndex: true }, where: { dayIndex: { not: null } } },
           manualActivities: { select: { dayIndex: true, status: true }, where: { dayIndex: { not: null } } },
           itineraryItems: { select: { type: true } },
@@ -60,6 +60,8 @@ export default async function TripsPage({
       status: t.status as "PLANNING" | "ACTIVE" | "COMPLETED",
       heroImageUrl: t.heroImageUrl,
       savedCount: t._count.savedItems,
+      manualActivityCount: t._count.manualActivities,
+      itineraryItemCount: t._count.itineraryItems,
       dayItemCounts,
       wellPlannedDays,
       startedDays,

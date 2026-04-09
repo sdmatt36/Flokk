@@ -15,6 +15,8 @@ type Trip = {
   status: "PLANNING" | "ACTIVE" | "COMPLETED";
   heroImageUrl: string | null;
   savedCount: number;
+  manualActivityCount: number;
+  itineraryItemCount: number;
   dayItemCounts: Record<number, number>;
   wellPlannedDays: number;
   startedDays: number;
@@ -295,10 +297,10 @@ function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => vo
             })() : (
               <div style={{ textAlign: "right", flexShrink: 0 }}>
                 <p style={{ fontSize: "20px", fontWeight: 800, color: "#C4664A", lineHeight: 1 }}>
-                  {trip.savedCount}
+                  {trip.savedCount + trip.manualActivityCount + trip.itineraryItemCount}
                 </p>
                 <p style={{ fontSize: "11px", color: "#717171", marginTop: "2px" }}>
-                  {trip.savedCount === 1 ? "place" : "places"}
+                  {(trip.savedCount + trip.manualActivityCount + trip.itineraryItemCount) === 1 ? "place" : "places"}
                 </p>
               </div>
             )}
