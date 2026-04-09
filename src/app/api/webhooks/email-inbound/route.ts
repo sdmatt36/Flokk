@@ -236,7 +236,6 @@ async function getDayIndex(tripId: string | null, dateStr: string): Promise<numb
   const duration = trip.endDate
     ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24))
     : 30;
-  console.log(`[getDayIndex] dateStr: ${dateStr} | start: ${start.toISOString()} | idx: ${idx} | duration: ${duration} | result: ${(idx < 0 || idx > duration) ? 0 : idx}`);
   if (idx < 0 || idx > duration) return 0;
   return idx;
 }
