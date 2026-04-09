@@ -44,8 +44,8 @@ export function SaveDayButton({ items, isLoggedIn, currentPath }: SaveDayButtonP
         });
         const data = await res.json();
         if (data.saved) count++;
-      } catch {
-        // continue on individual failures
+      } catch (err) {
+        console.error("[SaveDayButton] fetch failed for item:", item.title, err);
       }
     }
     setSavedCount(count);
