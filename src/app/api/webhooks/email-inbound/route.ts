@@ -507,7 +507,7 @@ Field notes:
         const exactPhraseMatches = destMatches.filter((t) => {
           const haystack = [t.title, t.destinationCity, t.destinationCountry]
             .filter(Boolean).join(" ").toLowerCase();
-          return [extracted.city, extracted.toCity, extracted.fromCity, extracted.country]
+          return [extracted.city, extracted.toCity, extracted.fromCity]
             .filter((v): v is string => typeof v === "string" && v.length > 0)
             .some((phrase) => haystack.includes(phrase.toLowerCase()));
         });
