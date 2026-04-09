@@ -592,38 +592,38 @@ Field notes:
         console.log(`[email-inbound] resolved flight fields from prior vault — from: ${resolved.fromAirport} to: ${resolved.toAirport} dep: ${resolved.departureTime}`);
       }
 
-      // For multi-leg flights, prefer Claude's outboundDestination over resolved.toAirport
-      // (which may be the return leg airport, e.g. LHR on NRT→SIN→CMB→LHR→NRT).
-      const legs = Array.isArray(extracted.legs) ? extracted.legs as Array<{ from: string; to: string; fromCity?: string; toCity?: string; departure?: string }> : [];
-      const outboundDestAirport = (extracted.outboundDestinationAirport as string | null)?.trim() || null;
-      const outboundDestCity    = (extracted.outboundDestination       as string | null)?.trim() || null;
+      // Derive outbound destination from legs array — never trust Claude's
+      // outboundDestination/outboundDestinationAirport interpretation.
+      // For HND→SIN→CMB→LHR→HND: nonHomeLegs = [SIN, CMB], picks CMB (last non-home).
+      const legs = Array.isArray(extracted.legs)
+        ? extracted.legs as Array<{ from: string; to: string; fromCity?: string; toCity?: string; departure?: string }>
+        : [];
+
+      const HOME = new Set(["NRT", "HND", "LHR", "LGW", "YVR", "JFK", "LAX"]);
+
+      let effectiveToAirport: string | null = null;
+      let effectiveToCity: string | null = null;
 
       if (legs.length > 1) {
-        console.log(`[email-inbound] multi-leg flight detected: ${legs.length} legs, outbound destination: ${outboundDestCity ?? "unknown"} (${outboundDestAirport ?? "?"})`);
-      }
-
-      // Override resolved toAirport/toCity with outbound destination.
-      // When Claude returns outboundDestination, use it directly.
-      // When it is null but legs are present, derive from the first non-home leg
-      // (covers cases where Claude populates legs but omits outboundDestination).
-      if (!outboundDestAirport && !outboundDestCity && legs.length > 1) {
-        const HOME = new Set(["NRT", "HND", "LHR", "LGW", "YVR", "JFK", "LAX"]);
-        // Find the furthest non-home stop — last leg whose destination is not a home airport.
-        // For NRT→SIN→CMB→LHR→NRT this correctly picks CMB not SIN.
         const nonHomeLegs = legs.filter((l) => !HOME.has(l.to));
         const outboundLeg = nonHomeLegs[nonHomeLegs.length - 1] ?? null;
         if (outboundLeg) {
-          resolved.toAirport = outboundLeg.to;
-          resolved.toCity    = outboundLeg.toCity ?? outboundLeg.to;
-          console.log(`[email-inbound] derived outbound from legs: ${outboundLeg.to} (${outboundLeg.toCity ?? "no city"})`);
+          effectiveToAirport = outboundLeg.to;
+          effectiveToCity    = outboundLeg.toCity ?? outboundLeg.to;
+          console.log(`[email-inbound] multi-leg flight detected: ${legs.length} legs, derived outbound: ${effectiveToCity} (${effectiveToAirport})`);
         }
-      } else {
-        if (outboundDestAirport) resolved.toAirport = outboundDestAirport;
-        if (outboundDestCity)    resolved.toCity    = outboundDestCity;
+      } else if (legs.length === 1) {
+        effectiveToAirport = legs[0].to;
+        effectiveToCity    = legs[0].toCity ?? legs[0].to;
       }
 
-      const effectiveToAirport = resolved.toAirport;
-      const effectiveToCity    = resolved.toCity;
+      // Fall back to Claude's raw fields only if legs array is empty
+      if (!effectiveToAirport) effectiveToAirport = resolved.toAirport;
+      if (!effectiveToCity)    effectiveToCity    = resolved.toCity;
+
+      // Patch resolved so geocoding and title use the correct destination
+      resolved.toAirport = effectiveToAirport;
+      resolved.toCity    = effectiveToCity;
 
       const outboundFrom = resolved.fromAirport || resolved.fromCity || null;
       const outboundTo   = effectiveToAirport   || effectiveToCity   || null;
