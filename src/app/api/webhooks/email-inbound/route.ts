@@ -541,6 +541,21 @@ Field notes:
       return NextResponse.json({ received: true, status: "no_trip" });
     }
 
+    // Duplicate guard: if this confirmationCode already exists on the resolved trip,
+    // skip processing entirely. Prevents re-forwarded emails from creating duplicate items.
+    // Only checked when confirmationCode is non-null — null-code bookings are allowed through.
+    const incomingConfCode = (extracted.confirmationCode as string | null) ?? null;
+    if (resolvedTripId && incomingConfCode) {
+      const existing = await db.itineraryItem.findFirst({
+        where: { tripId: resolvedTripId, confirmationCode: incomingConfCode },
+        select: { id: true, title: true },
+      });
+      if (existing) {
+        console.log(`[email-inbound] duplicate detected — confirmationCode: ${incomingConfCode} already on trip ${resolvedTripId} as "${existing.title}" — skipping`);
+        return NextResponse.json({ received: true, skipped: "duplicate" });
+      }
+    }
+
     const passengers = Array.isArray(extracted.guestNames) ? (extracted.guestNames as string[]) : [];
 
     // ── FIX 4: cost helper ────────────────────────────────────────────────────
