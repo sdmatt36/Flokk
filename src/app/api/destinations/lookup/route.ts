@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
     url.searchParams.set("input", q);
-    url.searchParams.set("types", "geocode");
+    url.searchParams.set("types", "locality|administrative_area_level_3");
     url.searchParams.set("language", "en");
     url.searchParams.set("key", GOOGLE_API_KEY);
 
@@ -42,21 +42,33 @@ export async function GET(req: NextRequest) {
       return NextResponse.json([]);
     }
 
-    const suggestions: DestinationSuggestion[] = (data.predictions ?? [])
-      .slice(0, 6)
-      .map((p) => {
-        const terms = p.terms ?? [];
-        const cityName = terms[0]?.value ?? p.structured_formatting.main_text;
-        const countryName = terms[terms.length - 1]?.value ?? "";
-        return {
-          placeId: p.place_id,
-          cityName,
-          countryName,
-          description: p.description,
-        };
-      });
+    // Deduplicate by description (formatted address) before mapping
+    const seen = new Set<string>();
+    const unique = (data.predictions ?? []).filter((p) => {
+      if (seen.has(p.description)) return false;
+      seen.add(p.description);
+      return true;
+    });
 
-    return NextResponse.json(suggestions);
+    const mapped: DestinationSuggestion[] = unique.map((p) => {
+      const terms = p.terms ?? [];
+      const cityName = terms[0]?.value ?? p.structured_formatting.main_text;
+      const countryName = terms[terms.length - 1]?.value ?? "";
+      return {
+        placeId: p.place_id,
+        cityName,
+        countryName,
+        description: p.description,
+      };
+    });
+
+    // Sort non-US results first when the query resembles a well-known international city
+    const hasInternationalMatch = mapped.some((s) => s.countryName !== "United States");
+    const suggestions: DestinationSuggestion[] = hasInternationalMatch
+      ? [...mapped.filter((s) => s.countryName !== "United States"), ...mapped.filter((s) => s.countryName === "United States")]
+      : mapped;
+
+    return NextResponse.json(suggestions.slice(0, 6));
   } catch (e) {
     console.error("[destinations/lookup] error:", e);
     return NextResponse.json([]);
