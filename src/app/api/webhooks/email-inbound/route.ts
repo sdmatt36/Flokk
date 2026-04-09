@@ -796,6 +796,78 @@ Field notes:
         }
       }
 
+      // Legs-based return leg — only when legs array has a non-home→home segment
+      // AND the simple returnDepartureDate path hasn't already handled it.
+      // For HND→SIN→CMB→LHR: returnLeg = CMB→LHR (first leg where from=non-home, to=home).
+      if (legs.length > 1 && !extracted.returnDepartureDate) {
+        const returnLeg = legs.find((l) => !HOME.has(l.from) && HOME.has(l.to)) ?? null;
+        if (returnLeg) {
+          const [retDate, retTime] = (returnLeg.departure ?? "").split("T");
+          const retDayIndex = retDate ? await getDayIndex(resolvedTripId, retDate) : null;
+          const retTitle = `${returnLeg.from} → ${returnLeg.to}`;
+          const retConf = (extracted.confirmationCode as string | null) ?? null;
+
+          const existingRetLeg = retConf && retDate ? await db.itineraryItem.findFirst({
+            where: { tripId: resolvedTripId, confirmationCode: retConf, type: "FLIGHT", scheduledDate: retDate },
+          }) : null;
+
+          const retItem = existingRetLeg
+            ? await db.itineraryItem.update({
+                where: { id: existingRetLeg.id },
+                data: { title: retTitle, departureTime: retTime ?? null, dayIndex: retDayIndex },
+              })
+            : await db.itineraryItem.create({
+                data: {
+                  tripId: resolvedTripId,
+                  familyProfileId: familyProfile.id,
+                  type: "FLIGHT",
+                  title: retTitle,
+                  scheduledDate: retDate || null,
+                  departureTime: retTime ?? null,
+                  arrivalTime: (extracted.arrivalTime as string | null) ?? null,
+                  fromAirport: returnLeg.from,
+                  toAirport: returnLeg.to,
+                  fromCity: returnLeg.fromCity ?? returnLeg.from,
+                  toCity: returnLeg.toCity ?? returnLeg.to,
+                  confirmationCode: retConf,
+                  passengers,
+                  dayIndex: retDayIndex,
+                },
+              });
+
+          // Geocode return arrival (home airport)
+          const retArrivalIATA = returnLeg.to;
+          const retArrivalCity = returnLeg.toCity ?? null;
+          if (retArrivalIATA || retArrivalCity) {
+            const retGeoQuery = retArrivalIATA && retArrivalCity
+              ? `${retArrivalIATA} airport ${retArrivalCity}`
+              : retArrivalIATA ? `${retArrivalIATA} airport` : `${retArrivalCity} international airport`;
+            const retGeo = await geocodePlace(retGeoQuery);
+            if (retGeo) await db.itineraryItem.update({ where: { id: retItem.id }, data: { latitude: retGeo.lat, longitude: retGeo.lng, arrivalLat: retGeo.lat, arrivalLng: retGeo.lng } });
+          }
+          console.log(`[email-inbound] created return leg ItineraryItem: ${retItem.id} ${retTitle}`);
+
+          // Vault doc for return leg
+          if (resolvedTripId) {
+            await db.tripDocument.create({
+              data: {
+                tripId: resolvedTripId,
+                label: retTitle,
+                type: "booking",
+                content: JSON.stringify({
+                  type: "flight", vendorName: extracted.airline, airline: extracted.airline,
+                  fromAirport: returnLeg.from, toAirport: returnLeg.to,
+                  fromCity: returnLeg.fromCity ?? returnLeg.from, toCity: returnLeg.toCity ?? returnLeg.to,
+                  departureDate: retDate || null, departureTime: retTime ?? null,
+                  confirmationCode: extracted.confirmationCode,
+                  totalCost: null, currency: extracted.currency, guestNames: extracted.guestNames,
+                }),
+              },
+            });
+          }
+        }
+      }
+
       await incrementBudget(resolvedTripId, parsedCost);
       return NextResponse.json({ received: true, status: "success", type: "flight", tripId: resolvedTripId });
 
