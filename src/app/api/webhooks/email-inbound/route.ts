@@ -150,6 +150,12 @@ function normalizeLocationToKeywords(raw: string): string[] {
   return raw.split(/[\s,/-]+/).filter((v) => v.length > 2);
 }
 
+// Home airports — when a flight departs AND arrives at one of these, it is
+// a round trip originating from home. In that case destination keyword matching
+// is unreliable (final toAirport is the home airport, not the destination), so
+// P0 match uses departure date overlap instead.
+const HOME_AIRPORTS = new Set(["NRT", "HND", "LHR", "LGW", "YVR", "JFK", "LAX"]);
+
 // ── Vault flight field resolution ────────────────────────────────────────────
 // When Claude fails to extract airports/times on a re-forward, fill in missing
 // fields from a prior vault TripDocument for the same trip+confirmationCode.
@@ -453,11 +459,39 @@ Field notes:
 
     let matchedTrip: typeof trips[0] | null = null;
 
+    // Priority 0: Round-trip flight — both fromAirport and toAirport are home airports.
+    // toAirport is the return leg landing at home, so it is NOT the trip destination.
+    // Skip keyword matching entirely and match by departure date overlap instead.
+    // Example: NRT→SIN→CMB→LHR→NRT — toAirport=NRT, but destination is Sri Lanka.
+    const fromIATA = (extracted.fromAirport as string | null)?.toUpperCase() ?? null;
+    const toIATA   = (extracted.toAirport   as string | null)?.toUpperCase() ?? null;
+    const isRoundTrip =
+      extracted.type === "flight" &&
+      !!fromIATA && HOME_AIRPORTS.has(fromIATA) &&
+      !!toIATA   && HOME_AIRPORTS.has(toIATA);
+
+    if (isRoundTrip && bookingDate) {
+      const roundTripMatches = trips.filter((t) => dateInTripRange(bookingDate, t));
+      console.log(`[email-match] P0 round-trip (${fromIATA}→${toIATA}) date matches (${roundTripMatches.length}): ${roundTripMatches.map(t => `"${t.title}"`).join(", ")}`);
+      if (roundTripMatches.length === 1) {
+        matchedTrip = roundTripMatches[0];
+      } else if (roundTripMatches.length > 1) {
+        // Multiple trips overlap — pick shortest (most specific) trip
+        roundTripMatches.sort((a, b) => {
+          const durA = (a.endDate ? new Date(a.endDate).getTime() : Infinity) - (a.startDate ? new Date(a.startDate).getTime() : 0);
+          const durB = (b.endDate ? new Date(b.endDate).getTime() : Infinity) - (b.startDate ? new Date(b.startDate).getTime() : 0);
+          return durA - durB;
+        });
+        matchedTrip = roundTripMatches[0];
+      }
+    }
+
     // Priority 1: Destination keyword match — primary signal, most reliable
     // Uses city/toCity/fromCity/country from Claude extraction.
     // For flights: toCity matches the arrival trip; fromCity matches the departure trip (date disambiguates).
     // For hotels/activities: city matches the local trip.
-    if (destKeywords.length > 0) {
+    // Skipped if P0 already matched (round trip).
+    if (!matchedTrip && destKeywords.length > 0) {
       const destMatches = trips.filter((t) => tripMatchesDestination(t, destKeywords));
       console.log(`[email-match] P1 dest matches (${destMatches.length}): ${destMatches.map(t => `"${t.title}"`).join(", ")}`);
       if (destMatches.length > 0) {
