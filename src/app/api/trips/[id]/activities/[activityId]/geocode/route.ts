@@ -34,7 +34,7 @@ export async function POST(
   const apiKey = process.env.GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) return NextResponse.json({ error: "No geocoding key" }, { status: 500 });
 
-  const query = [activity.venueName ?? activity.title, trip?.destinationCity, trip?.destinationCountry]
+  const query = [trip?.destinationCity, activity.venueName ?? activity.title, trip?.destinationCountry]
     .filter(Boolean)
     .join(", ");
 
