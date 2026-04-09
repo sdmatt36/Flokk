@@ -1601,6 +1601,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [openMoveMenuId, setOpenMoveMenuId] = useState<string | null>(null);
   const [moveMenuAnchor, setMoveMenuAnchor] = useState<{ top: number; left: number; width: number } | null>(null);
   const moveMenuRef = useRef<HTMLDivElement | null>(null);
+  // Geocoded coordinate overrides for activities with null lat/lng (populated by fallback geocoding)
+  const [geocodedOverrides, setGeocodedOverrides] = useState<Map<string, { lat: number; lng: number }>>(new Map());
+  const [noLocationIds, setNoLocationIds] = useState<Set<string>>(new Set());
+  const geocodingInProgressRef = useRef<Set<string>>(new Set());
 
   // Close move menu on mousedown outside the dropdown
   useEffect(() => {
@@ -1624,6 +1628,27 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   // Sync local copies from props (new items added, etc.)
   useEffect(() => { setLocalActivities(activities); }, [activities]);
   useEffect(() => { setLocalFlights(flights); }, [flights]);
+
+  // Fallback geocoding: fire-and-forget for activities with null lat/lng
+  useEffect(() => {
+    const nullCoord = localActivities.filter(
+      a => a.lat == null && a.lng == null && !geocodingInProgressRef.current.has(a.id)
+    );
+    if (!tripId || nullCoord.length === 0) return;
+    for (const a of nullCoord) {
+      geocodingInProgressRef.current.add(a.id);
+      fetch(`/api/trips/${tripId}/activities/${a.id}/geocode`, { method: "POST" })
+        .then(r => r.json())
+        .then((data: { lat?: number | null; lng?: number | null }) => {
+          if (data.lat && data.lng) {
+            setGeocodedOverrides(prev => { const m = new Map(prev); m.set(a.id, { lat: data.lat!, lng: data.lng! }); return m; });
+          } else {
+            setNoLocationIds(prev => new Set(prev).add(a.id));
+          }
+        })
+        .catch(() => setNoLocationIds(prev => new Set(prev).add(a.id)));
+    }
+  }, [localActivities, tripId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Time-aware sort key ───────────────────────────────────────────────────
   // Returns minutes-since-midnight for the item's effective time.
@@ -1768,6 +1793,44 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     ].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }
 
+  /** Build ordered map pins for a specific day, matching visual list order exactly. */
+  function buildMapPinsForDay(dayIndex: number): { title: string; lat: number; lng: number; dayIndex: number }[] {
+    function validCoord(lat: unknown, lng: unknown): boolean {
+      return lat != null && lng != null &&
+        typeof lat === "number" && typeof lng === "number" &&
+        (lat as number) !== 0 && (lng as number) !== 0 &&
+        (lat as number) >= -90 && (lat as number) <= 90 &&
+        (lng as number) >= -180 && (lng as number) <= 180;
+    }
+    return buildDayItems(dayIndex).flatMap(item => {
+      let title = "";
+      let lat: number | null = null;
+      let lng: number | null = null;
+      if (item.itemType === "itinerary" && item.itineraryItem) {
+        const it = item.itineraryItem;
+        title = it.title;
+        if (it.type === "FLIGHT") { lat = it.arrivalLat ?? null; lng = it.arrivalLng ?? null; }
+        else { lat = it.latitude ?? null; lng = it.longitude ?? null; }
+      } else if (item.itemType === "activity" && item.activity) {
+        const a = item.activity;
+        title = a.title;
+        const override = geocodedOverrides.get(a.id);
+        lat = override?.lat ?? a.lat ?? null;
+        lng = override?.lng ?? a.lng ?? null;
+      } else if (item.itemType === "flight" && item.flight) {
+        const f = item.flight;
+        title = f.toAirport ? `Flight to ${f.toAirport}` : "Flight";
+        const coords = AIRPORT_COORDS[(f.toAirport ?? "").toUpperCase().trim()];
+        lat = coords?.lat ?? null; lng = coords?.lng ?? null;
+      } else if (item.itemType === "saved" && item.recAddition) {
+        title = item.recAddition.title;
+        lat = item.recAddition.lat ?? null;
+        lng = item.recAddition.lng ?? null;
+      }
+      if (!validCoord(lat, lng)) return [];
+      return [{ title, lat: lat!, lng: lng!, dayIndex }];
+    });
+  }
 
   // ── Conflict detection ────────────────────────────────────────────────────
   function timeToMinutes(time: string): number {
@@ -2292,9 +2355,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                 tripId={tripId}
                 destinationCity={destinationCity}
                 destinationCountry={destinationCountry}
-                savedItems={recAdditions.filter(a => a.lat != null && a.lng != null) as { title: string; lat: number; lng: number; dayIndex?: number | null }[]}
-                activities={localActivities.filter(a => a.lat != null && a.lng != null).map(a => ({ title: a.title, lat: a.lat!, lng: a.lng!, dayIndex: a.dayIndex }))}
-                importedBookingPins={[...localItineraryItems]
+                savedItems={openDay >= 0 ? [] : recAdditions.filter(a => a.lat != null && a.lng != null) as { title: string; lat: number; lng: number; dayIndex?: number | null }[]}
+                activities={openDay >= 0 ? buildMapPinsForDay(openDay) : localActivities.filter(a => a.lat != null && a.lng != null).map(a => ({ title: a.title, lat: a.lat!, lng: a.lng!, dayIndex: a.dayIndex }))}
+                importedBookingPins={openDay >= 0 ? [] : [...localItineraryItems]
                   .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
                   .filter(it => it.latitude != null && it.longitude != null && it.latitude !== 0 && it.longitude !== 0)
                   .map(it => ({ id: it.id, title: it.title, type: it.type, dayIndex: it.dayIndex ?? null, latitude: it.latitude!, longitude: it.longitude!, arrivalLat: it.arrivalLat ?? null, arrivalLng: it.arrivalLng ?? null }))}
@@ -2615,6 +2678,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                 )}
                                               </div>
                                               {a.notes && <p style={{ fontSize: "12px", color: "#888", marginTop: "4px", fontStyle: "italic" }}>{a.notes}</p>}
+                                              {noLocationIds.has(a.id) && (
+                                                <p style={{ fontSize: "11px", color: "#AAAAAA", marginTop: "4px" }}>No location — add an address to show on map</p>
+                                              )}
                                               {onRemoveActivityFromDay && (
                                                 <button onClick={e => { e.stopPropagation(); onRemoveActivityFromDay(a.id); }} style={{ fontSize: "11px", color: "#e53e3e", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: "4px 0 0" }}>Remove from day</button>
                                               )}
@@ -2963,9 +3029,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
             tripId={tripId}
             destinationCity={destinationCity}
             destinationCountry={destinationCountry}
-            savedItems={recAdditions.filter(a => a.lat != null && a.lng != null) as { title: string; lat: number; lng: number; dayIndex?: number | null }[]}
-            activities={localActivities.filter(a => a.lat != null && a.lng != null).map(a => ({ title: a.title, lat: a.lat!, lng: a.lng!, dayIndex: a.dayIndex }))}
-            importedBookingPins={[...localItineraryItems]
+            savedItems={openDay >= 0 ? [] : recAdditions.filter(a => a.lat != null && a.lng != null) as { title: string; lat: number; lng: number; dayIndex?: number | null }[]}
+            activities={openDay >= 0 ? buildMapPinsForDay(openDay) : localActivities.filter(a => a.lat != null && a.lng != null).map(a => ({ title: a.title, lat: a.lat!, lng: a.lng!, dayIndex: a.dayIndex }))}
+            importedBookingPins={openDay >= 0 ? [] : [...localItineraryItems]
               .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
               .filter(it => it.latitude != null && it.longitude != null && it.latitude !== 0 && it.longitude !== 0)
               .map(it => ({ id: it.id, title: it.title, type: it.type, dayIndex: it.dayIndex ?? null, latitude: it.latitude!, longitude: it.longitude!, arrivalLat: it.arrivalLat ?? null, arrivalLng: it.arrivalLng ?? null }))}
