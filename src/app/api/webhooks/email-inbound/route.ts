@@ -334,7 +334,7 @@ export async function POST(req: NextRequest) {
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
+      max_tokens: 1500,
       messages: [{
         role: "user",
         content: `${isGetYourGuide && gygActivityHint ? `CRITICAL: This is a GetYourGuide booking. The activity name is "${gygActivityHint}". Use this exact string as the activityName field. Do NOT use "GetYourGuide" as the activityName or title. Put "GetYourGuide" in the vendorName field only.\n\n` : ""}Extract booking information from this confirmation email. Return ONLY valid JSON with no markdown.
@@ -374,11 +374,17 @@ Return this exact JSON structure:
   "contactPhone": "string or null",
   "contactEmail": "string or null",
   "guestNames": ["string"] or [],
+  "legs": [{ "from": "IATA", "to": "IATA", "fromCity": "string", "toCity": "string", "departure": "YYYY-MM-DDTHH:MM" }] or [],
+  "outboundDestination": "string or null — the furthest non-home city in the itinerary (the actual trip destination, not the return airport)",
+  "outboundDestinationAirport": "IATA code or null — airport code for outboundDestination",
   "confidence": "0.0 to 1.0"
 }
 
 Field notes:
-- guestNames: Extract ALL passenger/guest/traveler names as an array. For activity/tour bookings (GetYourGuide, Viator, Klook), look under "Travelers", "Guests", "Participants" sections and include every name listed. For flights, include all passenger names on the booking, not just the primary contact. For hotels, include all guests listed. Return [] only if no names are found anywhere in the email.`,
+- guestNames: Extract ALL passenger/guest/traveler names as an array. For activity/tour bookings (GetYourGuide, Viator, Klook), look under "Travelers", "Guests", "Participants" sections and include every name listed. For flights, include all passenger names on the booking, not just the primary contact. For hotels, include all guests listed. Return [] only if no names are found anywhere in the email.
+- legs: For flights ONLY. Extract every individual flight segment as a separate leg object. A Tokyo→Singapore→Colombo→London itinerary has 3 legs. Always populate this array for flights even if only one segment.
+- outboundDestination / outboundDestinationAirport: For round-trip flights that depart from and return to a home airport (NRT, HND, LHR, LGW), identify the furthest destination city/airport — NOT the return airport. Example: NRT→SIN→CMB→LHR→NRT has outboundDestination="Colombo" and outboundDestinationAirport="CMB". For one-way or simple round trips, this is just toCity/toAirport.
+- fromAirport/toAirport/fromCity/toCity: Keep these for backward compatibility. fromAirport = first leg departure, toAirport = outboundDestinationAirport (NOT the return leg airport), fromCity = first leg departure city, toCity = outboundDestination city.`,
       }],
     });
 
@@ -583,8 +589,26 @@ Field notes:
         console.log(`[email-inbound] resolved flight fields from prior vault — from: ${resolved.fromAirport} to: ${resolved.toAirport} dep: ${resolved.departureTime}`);
       }
 
+      // For multi-leg flights, prefer Claude's outboundDestination over resolved.toAirport
+      // (which may be the return leg airport, e.g. LHR on NRT→SIN→CMB→LHR→NRT).
+      const legs = Array.isArray(extracted.legs) ? extracted.legs as Array<{ from: string; to: string; fromCity?: string; toCity?: string; departure?: string }> : [];
+      const outboundDestAirport = (extracted.outboundDestinationAirport as string | null)?.trim() || null;
+      const outboundDestCity    = (extracted.outboundDestination       as string | null)?.trim() || null;
+
+      if (legs.length > 1) {
+        console.log(`[email-inbound] multi-leg flight detected: ${legs.length} legs, outbound destination: ${outboundDestCity ?? "unknown"} (${outboundDestAirport ?? "?"})`);
+      }
+
+      // Override resolved toAirport/toCity with outbound destination when available
+      const effectiveToAirport = outboundDestAirport ?? resolved.toAirport;
+      const effectiveToCity    = outboundDestCity    ?? resolved.toCity;
+
+      // Also patch the resolved object so geocoding (below) targets the real destination
+      if (outboundDestAirport) resolved.toAirport = outboundDestAirport;
+      if (outboundDestCity)    resolved.toCity    = outboundDestCity;
+
       const outboundFrom = resolved.fromAirport || resolved.fromCity || null;
-      const outboundTo   = resolved.toAirport   || resolved.toCity   || null;
+      const outboundTo   = effectiveToAirport   || effectiveToCity   || null;
       const outboundTitle = outboundFrom && outboundTo
         ? `${outboundFrom} → ${outboundTo}`
         : outboundFrom ? `${outboundFrom} → (destination)` : outboundTo ? `(origin) → ${outboundTo}` : (extracted.flightNumber as string) ?? "Flight";
