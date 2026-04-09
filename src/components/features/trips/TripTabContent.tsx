@@ -127,6 +127,7 @@ type Activity = {
   sortOrder?: number;
   lat?: number | null;
   lng?: number | null;
+  type?: string | null;
 };
 
 // ── Shared sub-components ────────────────────────────────────────────────────
@@ -1438,11 +1439,11 @@ const ITINERARY_KEY = (tripId?: string) => `flokk_itinerary_additions_${tripId ?
 // Budget UI consolidated into BudgetPanel (src/components/features/trips/BudgetPanel.tsx)
 
 // ── Activity detail modal ─────────────────────────────────────────────────────
-function ActivityDetailModal({ activity, onClose, onEdit, onRemove, onMarkBooked, onAddToItinerary }: {
+function ActivityDetailModal({ activity, onClose, onEdit, onDelete, onMarkBooked, onAddToItinerary }: {
   activity: Activity;
   onClose: () => void;
   onEdit: () => void;
-  onRemove?: () => void;
+  onDelete?: () => void;
   onMarkBooked?: () => void;
   onAddToItinerary?: () => void;
 }) {
@@ -1533,12 +1534,12 @@ function ActivityDetailModal({ activity, onClose, onEdit, onRemove, onMarkBooked
                 Mark as booked ✓
               </button>
             )}
-            {onRemove && (
+            {onDelete && (
               <button
-                onClick={onRemove}
+                onClick={onDelete}
                 style={{ width: "100%", padding: "11px", backgroundColor: "transparent", color: "#e53e3e", border: "none", borderRadius: "12px", fontSize: "13px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
               >
-                Remove from day
+                Delete activity
               </button>
             )}
           </div>
@@ -1549,7 +1550,7 @@ function ActivityDetailModal({ activity, onClose, onEdit, onRemove, onMarkBooked
   );
 }
 
-function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight, budgetTotal, trackedTotal, budgetCurrency, budgetLoaded, onBudgetChange }: {
+function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onDeleteActivity, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight, budgetTotal, trackedTotal, budgetCurrency, budgetLoaded, onBudgetChange }: {
   flyTarget: { lat: number; lng: number } | null;
   onFlyTargetConsumed: () => void;
   tripId?: string;
@@ -1563,6 +1564,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   flights?: Flight[];
   activities?: Activity[];
   onRemoveActivityFromDay?: (id: string) => void;
+  onDeleteActivity?: (id: string) => void;
   onMarkActivityBooked?: (id: string) => void;
   onRemoveFlightFromDay?: (id: string) => void;
   onAddFlight?: () => void;
@@ -1697,7 +1699,14 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       if (isArrival) return timeToMin(f.arrivalTime) ?? 0;
       return 1440 + (timeToMin(f.departureTime) ?? 0);
     }
-    // Activity or save: use actual startTime if present, else noon
+    // ManualActivity: use actual time if present, else semantic default based on title/type
+    if (item.itemType === "activity" && item.activity) {
+      const a = item.activity;
+      if (a.time) return timeToMin(a.time) ?? 720;
+      if (/hotel|hostel|resort|airbnb|inn|hyatt|hilton|marriott|sheraton|westin|check.?in/i.test(a.title)) return 900;
+      return 720;
+    }
+    // Save or other: use actual startTime if present, else noon
     return timeToMin(item.startTime) ?? 720;
   }
 
@@ -1787,10 +1796,14 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         lng: it.longitude ?? null,
         itineraryItem: it,
       })),
-    // Sort purely by sortOrder — semantic weight is baked into the initial sortOrder
-    // values on first load (see initialization effects below), so manual reordering
-    // always wins without the semantic weight overriding on every re-render.
-    ].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+    // Primary sort: sortOrder (preserves manual drag-and-drop order).
+    // Tiebreaker: semantic time key so untimed items with equal sortOrder
+    // still appear in the correct clock position (e.g. LODGING at 15:00).
+    ].sort((a, b) => {
+      const so = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+      if (so !== 0) return so;
+      return toSortKey(a) - toSortKey(b);
+    });
   }
 
   /** Build ordered map pins for a specific day, matching visual list order exactly. */
@@ -2681,8 +2694,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                               {noLocationIds.has(a.id) && (
                                                 <p style={{ fontSize: "11px", color: "#AAAAAA", marginTop: "4px" }}>No location — add an address to show on map</p>
                                               )}
-                                              {onRemoveActivityFromDay && (
-                                                <button onClick={e => { e.stopPropagation(); onRemoveActivityFromDay(a.id); }} style={{ fontSize: "11px", color: "#e53e3e", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: "4px 0 0" }}>Remove from day</button>
+                                              {onDeleteActivity && (
+                                                <button onClick={e => { e.stopPropagation(); if (window.confirm("Delete this activity permanently?")) onDeleteActivity(a.id); }} style={{ fontSize: "11px", color: "#e53e3e", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: "4px 0 0" }}>Delete</button>
                                               )}
                                             </div>
                                           </div>
@@ -3055,7 +3068,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           activity={detailActivity}
           onClose={() => setDetailActivity(null)}
           onEdit={() => { setDetailActivity(null); onEditActivity?.(detailActivity); }}
-          onRemove={onRemoveActivityFromDay ? () => { setDetailActivity(null); onRemoveActivityFromDay(detailActivity.id); } : undefined}
+          onDelete={onDeleteActivity ? () => { setDetailActivity(null); onDeleteActivity(detailActivity.id); } : undefined}
           onMarkBooked={onMarkActivityBooked ? () => { setDetailActivity(null); onMarkActivityBooked(detailActivity.id); } : undefined}
         />
       )}
@@ -4665,7 +4678,7 @@ function ActivityCard({ activity, onDelete, onEdit, onMarkBooked, onAddToItinera
         <ActivityDetailModal
           activity={activity}
           onClose={() => setShowDetail(false)}
-          onRemove={() => { onDelete(); setShowDetail(false); }}
+          onDelete={() => { onDelete(); setShowDetail(false); }}
           onEdit={() => { setShowDetail(false); onEdit(); }}
           onMarkBooked={onMarkBooked ? () => { onMarkBooked(); setShowDetail(false); } : undefined}
           onAddToItinerary={onAddToItinerary ? () => { onAddToItinerary(); setShowDetail(false); } : undefined}
@@ -5488,7 +5501,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       {tab === "saved" && (
         <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} />
       )}
-      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} budgetTotal={budgetTotal} trackedTotal={trackedTotal} budgetCurrency={budgetCurrency} budgetLoaded={budgetLoaded} onBudgetChange={handleBudgetChange} />}
+      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onDeleteActivity={handleDeleteActivity} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} budgetTotal={budgetTotal} trackedTotal={trackedTotal} budgetCurrency={budgetCurrency} budgetLoaded={budgetLoaded} onBudgetChange={handleBudgetChange} />}
       {tab === "packing" && <PackingContent tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} tripStartDate={tripStartDate} tripEndDate={tripEndDate} />}
       {tab === "notes" && (
         <div style={{ maxWidth: "600px" }}>

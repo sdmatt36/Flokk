@@ -102,6 +102,7 @@ export async function PATCH(
       ...(notes !== undefined && { notes: notes ?? null }),
       ...(status !== undefined && { status }),
       ...(confirmationCode !== undefined && { confirmationCode: confirmationCode ?? null }),
+      ...(body.sortOrder !== undefined && { sortOrder: body.sortOrder }),
     },
   });
 

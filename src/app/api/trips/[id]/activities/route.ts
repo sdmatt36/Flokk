@@ -71,6 +71,12 @@ export async function POST(
     return NextResponse.json({ error: "Title and date required" }, { status: 400 });
   }
 
+  // Apply default check-in/check-out time for lodging when user didn't supply one
+  let resolvedTime: string | null = time ?? null;
+  if (!resolvedTime && /hotel|hostel|resort|airbnb|inn|hyatt|hilton|marriott|sheraton|westin|check.?in/i.test(title ?? "")) {
+    resolvedTime = /check.?out|checkout|departure|leaving/i.test(title ?? "") ? "11:00" : "15:00";
+  }
+
   // Calculate dayIndex (0-indexed, timezone-safe) from trip startDate
   let dayIndex: number | null = null;
   const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, destinationCity: true, destinationCountry: true } });
@@ -109,7 +115,7 @@ export async function POST(
       tripId,
       title,
       date,
-      time: time ?? null,
+      time: resolvedTime,
       endTime: endTime ?? null,
       venueName: venueName ?? null,
       address: address ?? null,
