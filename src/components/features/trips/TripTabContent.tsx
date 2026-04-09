@@ -1390,6 +1390,24 @@ const AIRPORT_COORDS: Record<string, { lat: number; lng: number }> = {
   CAI: { lat: 30.1219, lng: 31.4056 },   RAK: { lat: 31.6069, lng: -8.0363 },
 };
 
+const AIRPORT_COUNTRY: Record<string, string> = {
+  NRT: "JP", HND: "JP", KIX: "JP", OKA: "JP",
+  ICN: "KR", GMP: "KR", PUS: "KR", CJU: "KR",
+  CDG: "FR", LHR: "GB", LGW: "GB",
+  BCN: "ES", MAD: "ES", LIS: "PT", FCO: "IT",
+  AMS: "NL", FRA: "DE", ZRH: "CH", PRG: "CZ",
+  VIE: "AT", DUB: "IE", CPH: "DK",
+  BKK: "TH", DMK: "TH", SIN: "SG", HKG: "HK",
+  TPE: "TW", MNL: "PH", KUL: "MY",
+  CGK: "ID", DPS: "ID", CMB: "LK",
+  DEL: "IN", BOM: "IN", DXB: "AE", AUH: "AE",
+  LAX: "US", JFK: "US", EWR: "US", ORD: "US", SFO: "US", MIA: "US",
+  YUL: "CA", YYZ: "CA",
+  SYD: "AU", MEL: "AU",
+  GRU: "BR", EZE: "AR",
+  CPT: "ZA", JNB: "ZA", CAI: "EG", RAK: "MA",
+};
+
 type RecAddition = { dayIndex: number; title: string; location: string; img?: string; savedItemId?: string; lat?: number | null; lng?: number | null; isBooked?: boolean; sortOrder: number; startTime?: string | null; categoryTags?: string[] };
 
 // Unified sortable item — combines SavedItems, ManualActivities, and Flights into one sortable list per day
@@ -1927,6 +1945,43 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       const origins = [...new Set(depFlights.map(({ it }) => it.fromAirport).filter(Boolean))];
       if (origins.length > 1) {
         warnings.push(`Multiple departing flights from different airports on this day`);
+      }
+    }
+
+    // Rule 4: airport departure buffer (3h international, 2h domestic)
+    const depFlightsWithTime = itItems.filter(({ it, unified }) =>
+      it.type === "FLIGHT" && (unified.sortOrder ?? 0) >= 85 && !!it.departureTime
+    );
+    for (const { it: depFlight } of depFlightsWithTime) {
+      const depMin = timeToMinutes(depFlight.departureTime!);
+      const fromCountry = depFlight.fromAirport ? AIRPORT_COUNTRY[depFlight.fromAirport.toUpperCase()] : undefined;
+      const toCountry = depFlight.toAirport ? AIRPORT_COUNTRY[depFlight.toAirport.toUpperCase()] : undefined;
+      const isDomestic = !!fromCountry && !!toCountry && fromCountry === toCountry;
+      const requiredBuffer = isDomestic ? 120 : 180;
+      const requiredHours = isDomestic ? 2 : 3;
+
+      // Latest timed item on this day that comes before the flight and isn't itself a departure flight
+      const priorTimes = items
+        .filter(i => {
+          if (!i.startTime) return false;
+          if (timeToMinutes(i.startTime) >= depMin) return false;
+          if (i.itemType === "itinerary" && i.itineraryItem?.type === "FLIGHT" && (i.sortOrder ?? 0) >= 85) return false;
+          if (i.itemType === "flight") return false;
+          return true;
+        })
+        .map(i => timeToMinutes(i.startTime!));
+
+      if (priorTimes.length === 0) continue;
+      const latestActivityMin = Math.max(...priorTimes);
+      const gap = depMin - latestActivityMin;
+
+      if (gap < requiredBuffer) {
+        const route = depFlight.fromAirport && depFlight.toAirport
+          ? `${depFlight.fromAirport}–${depFlight.toAirport}`
+          : depFlight.fromAirport ?? depFlight.toAirport ?? "flight";
+        warnings.push(
+          `Allow at least ${requiredHours} hours to reach the airport for your ${route} flight at ${depFlight.departureTime}.`
+        );
       }
     }
 
