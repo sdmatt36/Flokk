@@ -102,6 +102,54 @@ function tripMatchesDestination(
   return keywords.some((kw) => haystack.includes(kw.toLowerCase()));
 }
 
+// Maps IATA codes and full airport names to canonical city/country strings.
+// Used to normalize Claude-extracted toCity/fromCity values before trip matching
+// (Claude often returns "CMB" or "Colombo Bandaranaike" instead of "Colombo").
+const AIRPORT_TO_CITY: Record<string, { city: string; country: string }> = {
+  cmb: { city: "Colombo", country: "Sri Lanka" },
+  "colombo bandaranaike": { city: "Colombo", country: "Sri Lanka" },
+  bkk: { city: "Bangkok", country: "Thailand" },
+  dmk: { city: "Bangkok", country: "Thailand" },
+  "bangkok suvarnabhumi": { city: "Bangkok", country: "Thailand" },
+  sin: { city: "Singapore", country: "Singapore" },
+  "singapore changi": { city: "Singapore", country: "Singapore" },
+  hnd: { city: "Tokyo", country: "Japan" },
+  nrt: { city: "Tokyo", country: "Japan" },
+  "tokyo haneda": { city: "Tokyo", country: "Japan" },
+  "tokyo narita": { city: "Tokyo", country: "Japan" },
+  lhr: { city: "London", country: "United Kingdom" },
+  "london heathrow": { city: "London", country: "United Kingdom" },
+  cai: { city: "Cairo", country: "Egypt" },
+  cairo: { city: "Cairo", country: "Egypt" },
+  lxr: { city: "Luxor", country: "Egypt" },
+  luxor: { city: "Luxor", country: "Egypt" },
+  ath: { city: "Athens", country: "Greece" },
+  athens: { city: "Athens", country: "Greece" },
+  pus: { city: "Busan", country: "South Korea" },
+  icn: { city: "Seoul", country: "South Korea" },
+  gmp: { city: "Seoul", country: "South Korea" },
+  incheon: { city: "Seoul", country: "South Korea" },
+  oka: { city: "Okinawa", country: "Japan" },
+  kix: { city: "Osaka", country: "Japan" },
+  "osaka kansai": { city: "Osaka", country: "Japan" },
+  cdg: { city: "Paris", country: "France" },
+  "paris charles de gaulle": { city: "Paris", country: "France" },
+  fco: { city: "Rome", country: "Italy" },
+  bcn: { city: "Barcelona", country: "Spain" },
+  dxb: { city: "Dubai", country: "United Arab Emirates" },
+  auh: { city: "Abu Dhabi", country: "United Arab Emirates" },
+};
+
+// Converts a raw location string (airport code, airport name, or city) into
+// matchable keywords. If it maps to a known airport, returns the canonical
+// city and country instead of splitting the raw string.
+function normalizeLocationToKeywords(raw: string): string[] {
+  const key = raw.trim().toLowerCase();
+  const mapped = AIRPORT_TO_CITY[key];
+  if (mapped) return [mapped.city, mapped.country];
+  return raw.split(/[\s,/-]+/).filter((v) => v.length > 2);
+}
+
 // ── Vault flight field resolution ────────────────────────────────────────────
 // When Claude fails to extract airports/times on a re-forward, fill in missing
 // fields from a prior vault TripDocument for the same trip+confirmationCode.
@@ -360,17 +408,16 @@ Field notes:
     // ── Match trip ─────────────────────────────────────────────────────────────
     const bookingDate = (extracted.checkIn ?? extracted.departureDate) as string | null;
 
-    // Destination keywords from Claude-extracted location fields:
-    // - city: hotel/activity location city
-    // - toCity: flight/train arrival city (primary destination signal)
-    // - fromCity: flight/train departure city (included so both legs can match a trip)
-    // - country: country of the booking
+    // Destination keywords from Claude-extracted location fields, normalized
+    // through AIRPORT_TO_CITY so IATA codes / full airport names expand to
+    // canonical city/country strings that match trip.destinationCity/Country.
     const destKeywords: string[] = [
-      extracted.city, extracted.toCity, extracted.fromCity, extracted.country,
-    ]
-      .filter((v): v is string => typeof v === "string" && v.length > 0)
-      .flatMap((v) => v.split(/[\s,/-]+/))
-      .filter((v) => v.length > 2);
+      ...new Set(
+        [extracted.city, extracted.toCity, extracted.fromCity, extracted.country]
+          .filter((v): v is string => typeof v === "string" && v.length > 0)
+          .flatMap((v) => normalizeLocationToKeywords(v))
+      ),
+    ];
 
     console.log(`[email-match] type: ${extracted.type ?? "unknown"} | toCity: ${extracted.toCity ?? "null"} | fromCity: ${extracted.fromCity ?? "null"} | city: ${extracted.city ?? "null"} | country: ${extracted.country ?? "null"} | bookingDate: ${bookingDate ?? "null"}`);
     console.log(`[email-match] destKeywords: [${destKeywords.join(", ")}]`);
