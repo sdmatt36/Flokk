@@ -547,17 +547,18 @@ Field notes:
       return NextResponse.json({ received: true, status: "no_trip" });
     }
 
-    // Duplicate guard: if this confirmationCode already exists on the resolved trip,
-    // skip processing entirely. Prevents re-forwarded emails from creating duplicate items.
-    // Only checked when confirmationCode is non-null — null-code bookings are allowed through.
+    // Duplicate guard: check confirmationCode across ALL trips for this profile.
+    // A trip-scoped check misses cases where a prior forward mismatched to the wrong trip —
+    // the code already exists on that trip, so a re-forward to the correct trip must be blocked too.
+    // Only applied when confirmationCode is non-null — null-code bookings are allowed through.
     const incomingConfCode = (extracted.confirmationCode as string | null) ?? null;
-    if (resolvedTripId && incomingConfCode) {
+    if (incomingConfCode) {
       const existing = await db.itineraryItem.findFirst({
-        where: { tripId: resolvedTripId, confirmationCode: incomingConfCode },
-        select: { id: true, title: true },
+        where: { confirmationCode: incomingConfCode, familyProfileId: familyProfile.id },
+        select: { id: true, title: true, tripId: true },
       });
       if (existing) {
-        console.log(`[email-inbound] duplicate detected — confirmationCode: ${incomingConfCode} already on trip ${resolvedTripId} as "${existing.title}" — skipping`);
+        console.log(`[email-inbound] duplicate detected globally — confirmationCode: ${incomingConfCode} already exists as "${existing.title}" on trip ${existing.tripId ?? "unassigned"} — skipping`);
         return NextResponse.json({ received: true, skipped: "duplicate" });
       }
     }
@@ -576,7 +577,9 @@ Field notes:
     }
 
     // ── Flights ───────────────────────────────────────────────────────────────
-    if (extracted.type === "flight" && extracted.flightNumber) {
+    // flightNumber is NOT required — multi-leg itinerary emails and some airline
+    // direct booking confirmations do not surface a single flightNumber field.
+    if (extracted.type === "flight") {
       const outboundDayIndex = extracted.departureDate
         ? await getDayIndex(resolvedTripId, extracted.departureDate as string)
         : null;
@@ -599,13 +602,25 @@ Field notes:
         console.log(`[email-inbound] multi-leg flight detected: ${legs.length} legs, outbound destination: ${outboundDestCity ?? "unknown"} (${outboundDestAirport ?? "?"})`);
       }
 
-      // Override resolved toAirport/toCity with outbound destination when available
-      const effectiveToAirport = outboundDestAirport ?? resolved.toAirport;
-      const effectiveToCity    = outboundDestCity    ?? resolved.toCity;
+      // Override resolved toAirport/toCity with outbound destination.
+      // When Claude returns outboundDestination, use it directly.
+      // When it is null but legs are present, derive from the first non-home leg
+      // (covers cases where Claude populates legs but omits outboundDestination).
+      if (!outboundDestAirport && !outboundDestCity && legs.length > 1) {
+        const HOME = new Set(["NRT", "HND", "LHR", "LGW", "YVR", "JFK", "LAX"]);
+        const outboundLeg = legs.find((l) => !HOME.has(l.to));
+        if (outboundLeg) {
+          resolved.toAirport = outboundLeg.to;
+          resolved.toCity    = outboundLeg.toCity ?? outboundLeg.to;
+          console.log(`[email-inbound] derived outbound from legs: ${outboundLeg.to} (${outboundLeg.toCity ?? "no city"})`);
+        }
+      } else {
+        if (outboundDestAirport) resolved.toAirport = outboundDestAirport;
+        if (outboundDestCity)    resolved.toCity    = outboundDestCity;
+      }
 
-      // Also patch the resolved object so geocoding (below) targets the real destination
-      if (outboundDestAirport) resolved.toAirport = outboundDestAirport;
-      if (outboundDestCity)    resolved.toCity    = outboundDestCity;
+      const effectiveToAirport = resolved.toAirport;
+      const effectiveToCity    = resolved.toCity;
 
       const outboundFrom = resolved.fromAirport || resolved.fromCity || null;
       const outboundTo   = effectiveToAirport   || effectiveToCity   || null;
