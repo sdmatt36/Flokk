@@ -23,6 +23,7 @@ export function SaveDayButton({ items, isLoggedIn, currentPath }: SaveDayButtonP
   if (items.length === 0) return null;
 
   async function handleSaveDay() {
+    console.log("[SaveDayButton] clicked, isLoggedIn:", isLoggedIn, "items:", items.length);
     if (!isLoggedIn) {
       window.location.href = `/sign-up?redirect_url=${encodeURIComponent(currentPath)}`;
       return;
@@ -31,6 +32,7 @@ export function SaveDayButton({ items, isLoggedIn, currentPath }: SaveDayButtonP
     let count = 0;
     for (const item of items) {
       try {
+        console.log("[SaveDayButton] saving:", item.title);
         const res = await fetch("/api/saves/from-share", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -43,26 +45,14 @@ export function SaveDayButton({ items, isLoggedIn, currentPath }: SaveDayButtonP
           }),
         });
         const data = await res.json();
+        console.log("[SaveDayButton] response for", item.title, ":", data);
         if (data.saved) count++;
       } catch (err) {
-        console.error("[SaveDayButton] fetch failed for item:", item.title, err);
+        console.error("[SaveDayButton] fetch error for", item.title, ":", err);
       }
     }
     setSavedCount(count);
     setState("done");
-  }
-
-  if (state === "done") {
-    return (
-      <span style={{
-        fontSize: "12px",
-        color: "#C4664A",
-        fontWeight: 600,
-        whiteSpace: "nowrap",
-      }}>
-        {savedCount} {savedCount === 1 ? "place" : "places"} saved
-      </span>
-    );
   }
 
   return (
@@ -72,10 +62,10 @@ export function SaveDayButton({ items, isLoggedIn, currentPath }: SaveDayButtonP
       style={{
         fontSize: "12px",
         fontWeight: 600,
-        color: state === "saving" ? "#999" : "#C4664A",
+        color: state === "done" ? "#1B3A5C" : state === "saving" ? "#999" : "#C4664A",
         background: "none",
         border: "1px solid",
-        borderColor: state === "saving" ? "#DDD" : "#C4664A",
+        borderColor: state === "done" ? "#1B3A5C" : state === "saving" ? "#DDD" : "#C4664A",
         borderRadius: "20px",
         padding: "4px 12px",
         cursor: state === "saving" ? "default" : "pointer",
@@ -83,7 +73,11 @@ export function SaveDayButton({ items, isLoggedIn, currentPath }: SaveDayButtonP
         flexShrink: 0,
       }}
     >
-      {state === "saving" ? "Saving..." : `Save day (${items.length})`}
+      {state === "done"
+        ? `${savedCount} ${savedCount === 1 ? "place" : "places"} saved`
+        : state === "saving"
+        ? "Saving..."
+        : `Save day (${items.length})`}
     </button>
   );
 }
