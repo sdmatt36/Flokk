@@ -2481,6 +2481,35 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
 
                           {/* All day items */}
                           <div>
+                              {(() => {
+                                // "From [hotel] · Directions →" above the first item with coords
+                                const isVTCq = (lat: number | null | undefined, lng: number | null | undefined) =>
+                                  lat != null && lng != null && lat !== 0 && lng !== 0 &&
+                                  lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+                                const activeLodging = localItineraryItems
+                                  .filter(it => it.type === "LODGING" && /^check-in:/i.test(it.title) &&
+                                    it.dayIndex != null && it.dayIndex <= dayIndex &&
+                                    isVTCq(it.latitude, it.longitude))
+                                  .sort((a, b) => (b.dayIndex ?? 0) - (a.dayIndex ?? 0))[0] ?? null;
+                                if (!activeLodging) return null;
+                                const firstWithCoords = allDayItems.find(it =>
+                                  isVTCq(it.lat, it.lng) &&
+                                  !(it.itemType === "itinerary" && it.itineraryItem?.type === "LODGING")
+                                );
+                                if (!firstWithCoords?.lat || !firstWithCoords?.lng) return null;
+                                const hotelName = activeLodging.title.replace(/^check-in:\s*/i, "");
+                                const directionsUrl = getDirectionsUrl(activeLodging.latitude!, activeLodging.longitude!, firstWithCoords.lat, firstWithCoords.lng);
+                                return (
+                                  <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "4px 28px 8px", marginBottom: "2px" }}>
+                                    <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(0,0,0,0.06)" }} />
+                                    <span style={{ fontSize: "11px", color: "#888", whiteSpace: "nowrap" }}>From {hotelName}</span>
+                                    <a href={directionsUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: "11px", color: "#C4664A", fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}>
+                                      Directions →
+                                    </a>
+                                    <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(0,0,0,0.06)" }} />
+                                  </div>
+                                );
+                              })()}
                               {allDayItems.flatMap((item, idx) => {
                                 const next = allDayItems[idx + 1];
 
