@@ -77,6 +77,10 @@ export default async function TripDetailPage({
 
   // Block non-owners from non-public trips
   if (!isOwner && !isCommunity) notFound();
+  // Community viewers get the canonical share page experience
+  if (isCommunity && trip.shareToken) {
+    redirect(`/share/${trip.shareToken}`);
+  }
 
   const dateRange = formatDateRange(trip.startDate, trip.endDate);
   const days = tripDays(trip.startDate, trip.endDate);
