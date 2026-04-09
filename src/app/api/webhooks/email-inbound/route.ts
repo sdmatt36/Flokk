@@ -538,9 +538,11 @@ Field notes:
     }
 
     // No match → unassigned (tripId = null, stored against familyProfile for surfacing in UI)
-    const resolvedTripId: string | null = matchedTrip?.id ?? null;
-    console.log(`[email-match] result: tripId = ${resolvedTripId ?? "null — unassigned"} | matched: "${matchedTrip?.title ?? "none"}"`);
-    console.log(`[email-inbound] trip match: "${matchedTrip?.title ?? "UNASSIGNED"}" | resolvedTripId: ${resolvedTripId ?? "null"}`);
+    const confidenceScore = (extracted.confidence as number) ?? 0;
+    const resolvedTripId: string | null =
+      (matchedTrip && confidenceScore >= 0.8) ? matchedTrip.id : null;
+    console.log(`[email-match] result: tripId = ${resolvedTripId ?? "null — unassigned"} | matched: "${matchedTrip?.title ?? "none"}" | confidence: ${confidenceScore}`);
+    console.log(`[email-inbound] trip match: "${matchedTrip?.title ?? "UNASSIGNED"}" | resolvedTripId: ${resolvedTripId ?? "null"} | confidence: ${confidenceScore}`);
 
     if (trips.length === 0) {
       console.log("[email-inbound] no trips on profile — dropping");
