@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { MapPin, ChevronRight, X, Search } from "lucide-react";
 import { Playfair_Display } from "next/font/google";
-import { KNOWN_CITIES } from "@/lib/destination-coords";
 import { getTripCoverImage } from "@/lib/destination-images";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700", "900"] });
@@ -223,7 +222,8 @@ const outlineBtn: React.CSSProperties = {
 export default function DiscoverPage() {
   // Global search
   const [searchQuery,    setSearchQuery]    = useState("");
-  const [suggestions,    setSuggestions]    = useState<string[]>([]);
+  const [suggestions,    setSuggestions]    = useState<{cityName: string; countryName: string; placeId?: string}[]>([]);
+  const cityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showSuggestions,setShowSuggestions] = useState(false);
   const [searchResults,  setSearchResults]  = useState<SearchTrip[] | null>(null);
   const [isSearching,    setIsSearching]    = useState(false);
@@ -282,9 +282,16 @@ export default function DiscoverPage() {
   }, []);
 
   useEffect(() => {
+    if (cityDebounceRef.current) clearTimeout(cityDebounceRef.current);
     if (searchQuery.length < 2) { setSuggestions([]); return; }
-    const q = searchQuery.toLowerCase();
-    setSuggestions(KNOWN_CITIES.filter((c) => c.toLowerCase().includes(q)).slice(0, 6));
+    cityDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/destinations/lookup?q=${encodeURIComponent(searchQuery)}`);
+        const data = await res.json();
+        setSuggestions(Array.isArray(data) ? data.slice(0, 6) : []);
+      } catch { setSuggestions([]); }
+    }, 300);
+    return () => { if (cityDebounceRef.current) clearTimeout(cityDebounceRef.current); };
   }, [searchQuery]);
 
   useEffect(() => {
@@ -312,10 +319,11 @@ export default function DiscoverPage() {
     }
   }
 
-  function handleSuggestionClick(city: string) {
-    setSearchQuery(city);
+  function handleSuggestionClick(cityName: string, countryName: string) {
+    const value = countryName ? `${cityName}, ${countryName}` : cityName;
+    setSearchQuery(value);
     setShowSuggestions(false);
-    handleSearch(city);
+    handleSearch(value);
   }
 
   function clearSearch() {
@@ -441,14 +449,19 @@ export default function DiscoverPage() {
 
           {showSuggestions && suggestions.length > 0 && (
             <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, backgroundColor: "#fff", border: "1.5px solid #E5E5E5", borderRadius: "14px", boxShadow: "0 4px 16px rgba(0,0,0,0.10)", zIndex: 100, overflow: "hidden" }}>
-              {suggestions.map((city) => (
+              {suggestions.map((s) => (
                 <button
-                  key={city}
-                  onMouseDown={() => handleSuggestionClick(city)}
-                  style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", padding: "10px 16px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontSize: "14px", color: "#1a1a1a", fontFamily: "inherit" }}
+                  key={s.placeId ?? `${s.cityName}-${s.countryName}`}
+                  onMouseDown={() => handleSuggestionClick(s.cityName, s.countryName)}
+                  style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", padding: "10px 16px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
                 >
                   <MapPin size={13} style={{ color: "#C4664A", flexShrink: 0 }} />
-                  {city}
+                  <span>
+                    <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{s.cityName}</span>
+                    {s.countryName && s.countryName !== s.cityName && (
+                      <span style={{ fontSize: "12px", color: "#888", marginLeft: "6px" }}>· {s.countryName}</span>
+                    )}
+                  </span>
                 </button>
               ))}
             </div>

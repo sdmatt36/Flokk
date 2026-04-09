@@ -1,8 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import { X, MapPin } from "lucide-react";
+
+type DestinationSuggestion = {
+  placeId: string;
+  cityName: string;
+  countryName: string;
+};
+
+type AiSuggestion = {
+  name: string;
+  country: string;
+};
 
 export function AddTripButton() {
   const [open, setOpen] = useState(false);
@@ -37,6 +48,82 @@ function AddTripModal({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Autocomplete
+  const [suggestions, setSuggestions] = useState<DestinationSuggestion[]>([]);
+  const [aiSuggestions, setAiSuggestions] = useState<AiSuggestion[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const aiDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Dismiss dropdown on outside click
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  // Fetch Places suggestions with debounce
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (aiDebounceRef.current) clearTimeout(aiDebounceRef.current);
+
+    if (destination.length < 2) {
+      setSuggestions([]);
+      setAiSuggestions([]);
+      setSuggestionsLoading(false);
+      return;
+    }
+
+    setSuggestionsLoading(true);
+
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/destinations/lookup?q=${encodeURIComponent(destination)}`);
+        const data: DestinationSuggestion[] = await res.json();
+        setSuggestions(Array.isArray(data) ? data : []);
+        setSuggestionsLoading(false);
+
+        // AI fallback if Places returned nothing
+        if (data.length === 0) {
+          aiDebounceRef.current = setTimeout(async () => {
+            try {
+              const aiRes = await fetch("/api/destinations/ai-lookup", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ query: destination }),
+              });
+              const aiData: AiSuggestion[] = await aiRes.json();
+              setAiSuggestions(Array.isArray(aiData) ? aiData : []);
+            } catch { /* ignore */ }
+          }, 200);
+        } else {
+          setAiSuggestions([]);
+        }
+      } catch {
+        setSuggestionsLoading(false);
+      }
+    }, 400);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (aiDebounceRef.current) clearTimeout(aiDebounceRef.current);
+    };
+  }, [destination]);
+
+  function selectSuggestion(cityName: string, countryName: string) {
+    const value = countryName ? `${cityName}, ${countryName}` : cityName;
+    setDestination(value);
+    setSuggestions([]);
+    setAiSuggestions([]);
+    setShowDropdown(false);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!destination.trim() || !startDate || !endDate) {
@@ -61,6 +148,8 @@ function AddTripModal({ onClose }: { onClose: () => void }) {
       setLoading(false);
     }
   }
+
+  const hasDropdown = showDropdown && (suggestions.length > 0 || aiSuggestions.length > 0);
 
   return (
     <div
@@ -117,23 +206,86 @@ function AddTripModal({ onClose }: { onClose: () => void }) {
             <label style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a1a" }}>
               Destination
             </label>
-            <input
-              type="text"
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              placeholder="e.g. Kyoto, Japan"
-              style={{
-                fontSize: "15px",
-                padding: "10px 14px",
-                borderRadius: "10px",
-                border: "1.5px solid #EEEEEE",
-                outline: "none",
-                color: "#1a1a1a",
-                backgroundColor: "#fff",
-                width: "100%",
-                boxSizing: "border-box",
-              }}
-            />
+            <div ref={dropdownRef} style={{ position: "relative" }}>
+              <input
+                type="text"
+                value={destination}
+                onChange={(e) => { setDestination(e.target.value); setShowDropdown(true); }}
+                onFocus={() => { if (destination.length >= 2) setShowDropdown(true); }}
+                placeholder="e.g. Ninh Binh, Vietnam"
+                autoComplete="off"
+                style={{
+                  fontSize: "15px",
+                  padding: "10px 14px",
+                  borderRadius: "10px",
+                  border: "1.5px solid #EEEEEE",
+                  outline: "none",
+                  color: "#1a1a1a",
+                  backgroundColor: "#fff",
+                  width: "100%",
+                  boxSizing: "border-box",
+                }}
+              />
+              {hasDropdown && (
+                <div style={{
+                  position: "absolute",
+                  top: "calc(100% + 4px)",
+                  left: 0,
+                  right: 0,
+                  backgroundColor: "#fff",
+                  border: "1.5px solid #E5E5E5",
+                  borderRadius: "12px",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
+                  zIndex: 200,
+                  overflow: "hidden",
+                }}>
+                  {suggestions.map((s) => (
+                    <button
+                      key={s.placeId}
+                      type="button"
+                      onMouseDown={() => selectSuggestion(s.cityName, s.countryName)}
+                      style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", padding: "10px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
+                    >
+                      <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
+                      <span>
+                        <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{s.cityName}</span>
+                        {s.countryName && s.countryName !== s.cityName && (
+                          <span style={{ fontSize: "12px", color: "#888", marginLeft: "6px" }}>· {s.countryName}</span>
+                        )}
+                      </span>
+                    </button>
+                  ))}
+                  {aiSuggestions.length > 0 && (
+                    <>
+                      <div style={{ padding: "4px 14px 2px", fontSize: "10px", fontWeight: 700, color: "#AAAAAA", textTransform: "uppercase", letterSpacing: "0.06em", borderTop: suggestions.length > 0 ? "1px solid #F0F0F0" : undefined }}>
+                        AI suggested
+                      </div>
+                      {aiSuggestions.map((s, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onMouseDown={() => selectSuggestion(s.name, s.country)}
+                          style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", padding: "10px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
+                        >
+                          <MapPin size={12} style={{ color: "#AAAAAA", flexShrink: 0 }} />
+                          <span>
+                            <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{s.name}</span>
+                            {s.country && (
+                              <span style={{ fontSize: "12px", color: "#888", marginLeft: "6px" }}>· {s.country}</span>
+                            )}
+                          </span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                </div>
+              )}
+              {suggestionsLoading && destination.length >= 2 && suggestions.length === 0 && aiSuggestions.length === 0 && (
+                <p style={{ position: "absolute", top: "calc(100% + 6px)", left: "14px", fontSize: "12px", color: "#AAAAAA" }}>
+                  Searching...
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Dates */}

@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Search, X, MapPin } from "lucide-react";
 import { Playfair_Display } from "next/font/google";
-import { KNOWN_CITIES } from "@/lib/destination-coords";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700", "900"] });
 
@@ -202,7 +201,8 @@ function SubmitModal({ onClose }: { onClose: () => void }) {
   const [submitUrl, setSubmitUrl] = useState("");
   const [submitType, setSubmitType] = useState("Article");
   const [submitDest, setSubmitDest] = useState("");
-  const [submitDestSuggs, setSubmitDestSuggs] = useState<string[]>([]);
+  const [submitDestSuggs, setSubmitDestSuggs] = useState<{cityName: string; countryName: string; placeId?: string}[]>([]);
+  const submitDestDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [submitAgeGroups, setSubmitAgeGroups] = useState<string[]>(["All ages"]);
   const [submitTags, setSubmitTags] = useState<string[]>([]);
   const [submitNote, setSubmitNote] = useState("");
@@ -214,9 +214,16 @@ function SubmitModal({ onClose }: { onClose: () => void }) {
   const [ogLoading, setOgLoading] = useState(false);
 
   useEffect(() => {
+    if (submitDestDebounceRef.current) clearTimeout(submitDestDebounceRef.current);
     if (submitDest.length < 2) { setSubmitDestSuggs([]); return; }
-    const q = submitDest.toLowerCase();
-    setSubmitDestSuggs(KNOWN_CITIES.filter((c) => c.toLowerCase().includes(q)).slice(0, 5));
+    submitDestDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/destinations/lookup?q=${encodeURIComponent(submitDest)}`);
+        const data = await res.json();
+        setSubmitDestSuggs(Array.isArray(data) ? data.slice(0, 5) : []);
+      } catch { setSubmitDestSuggs([]); }
+    }, 300);
+    return () => { if (submitDestDebounceRef.current) clearTimeout(submitDestDebounceRef.current); };
   }, [submitDest]);
 
   async function handleUrlBlur() {
@@ -372,15 +379,20 @@ function SubmitModal({ onClose }: { onClose: () => void }) {
                 />
                 {submitDestSuggs.length > 0 && submitDest && (
                   <div style={{ position: "absolute", top: "calc(100% - 6px)", left: 0, right: 0, backgroundColor: "#fff", border: "1.5px solid #E8E8E8", borderRadius: "12px", boxShadow: "0 4px 16px rgba(0,0,0,0.10)", zIndex: 10, overflow: "hidden" }}>
-                    {submitDestSuggs.map((c) => (
+                    {submitDestSuggs.map((s) => (
                       <button
-                        key={c}
+                        key={s.placeId ?? `${s.cityName}-${s.countryName}`}
                         type="button"
-                        onMouseDown={() => { setSubmitDest(c); setSubmitDestSuggs([]); }}
-                        style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "10px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontSize: "14px", color: "#1a1a1a", fontFamily: "inherit" }}
+                        onMouseDown={() => { setSubmitDest(s.countryName ? `${s.cityName}, ${s.countryName}` : s.cityName); setSubmitDestSuggs([]); }}
+                        style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", padding: "10px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
                       >
                         <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
-                        {c}
+                        <span>
+                          <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{s.cityName}</span>
+                          {s.countryName && s.countryName !== s.cityName && (
+                            <span style={{ fontSize: "12px", color: "#888", marginLeft: "6px" }}>· {s.countryName}</span>
+                          )}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -494,7 +506,8 @@ const FILTERS: FilterType[] = ["All", "Articles", "Videos", "Guides"];
 export default function TravelIntelPage() {
   const [searchCity, setSearchCity] = useState("");
   const [searchInput, setSearchInput] = useState("");
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<{cityName: string; countryName: string; placeId?: string}[]>([]);
+  const cityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showSugg, setShowSugg] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterType>("All");
   const [activeTopic, setActiveTopic] = useState<TopicTag | null>(null);
@@ -516,9 +529,16 @@ export default function TravelIntelPage() {
 
   // City autocomplete
   useEffect(() => {
+    if (cityDebounceRef.current) clearTimeout(cityDebounceRef.current);
     if (searchInput.length < 2) { setSuggestions([]); return; }
-    const q = searchInput.toLowerCase();
-    setSuggestions(KNOWN_CITIES.filter((c) => c.toLowerCase().includes(q)).slice(0, 6));
+    cityDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/destinations/lookup?q=${encodeURIComponent(searchInput)}`);
+        const data = await res.json();
+        setSuggestions(Array.isArray(data) ? data.slice(0, 6) : []);
+      } catch { setSuggestions([]); }
+    }, 300);
+    return () => { if (cityDebounceRef.current) clearTimeout(cityDebounceRef.current); };
   }, [searchInput]);
 
   // Click outside closes suggestions
@@ -530,9 +550,10 @@ export default function TravelIntelPage() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  function applyCity(city: string) {
-    setSearchInput(city);
-    setSearchCity(city);
+  function applyCity(cityName: string, countryName?: string) {
+    const value = countryName ? `${cityName}, ${countryName}` : cityName;
+    setSearchInput(value);
+    setSearchCity(value);
     setShowSugg(false);
     setSuggestions([]);
   }
@@ -599,14 +620,19 @@ export default function TravelIntelPage() {
           </div>
           {showSugg && suggestions.length > 0 && (
             <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, backgroundColor: "#fff", border: "1.5px solid #E5E5E5", borderRadius: "14px", boxShadow: "0 4px 16px rgba(0,0,0,0.10)", zIndex: 100, overflow: "hidden" }}>
-              {suggestions.map((c) => (
+              {suggestions.map((s) => (
                 <button
-                  key={c}
-                  onMouseDown={() => applyCity(c)}
-                  style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", padding: "10px 16px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontSize: "14px", color: "#1a1a1a", fontFamily: "inherit" }}
+                  key={s.placeId ?? `${s.cityName}-${s.countryName}`}
+                  onMouseDown={() => applyCity(s.cityName, s.countryName)}
+                  style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", padding: "10px 16px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
                 >
                   <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
-                  {c}
+                  <span>
+                    <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{s.cityName}</span>
+                    {s.countryName && s.countryName !== s.cityName && (
+                      <span style={{ fontSize: "12px", color: "#888", marginLeft: "6px" }}>· {s.countryName}</span>
+                    )}
+                  </span>
                 </button>
               ))}
             </div>

@@ -5,7 +5,6 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, X, Star, Check, Plus, Upload } from "lucide-react";
 import { COUNTRIES } from "@/lib/countries";
-import { KNOWN_CITIES } from "@/lib/destination-coords";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -162,6 +161,8 @@ function Step1Basics({
   const [error, setError] = useState("");
   const [titleManuallyEdited, setTitleManuallyEdited] = useState(false);
   const [showSuggestionsFor, setShowSuggestionsFor] = useState<number | null>(null);
+  const [destSuggestions, setDestSuggestions] = useState<{cityName: string; countryName: string; placeId?: string}[][]>([[]]);
+  const destDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const primaryCity = destinations[0]?.city ?? "";
 
@@ -180,6 +181,20 @@ function Step1Basics({
 
   const updateCity = (i: number, v: string) => {
     setDestinations((prev) => prev.map((d, idx) => idx === i ? { ...d, city: v } : d));
+    if (destDebounceRef.current) clearTimeout(destDebounceRef.current);
+    if (v.length < 2) {
+      setDestSuggestions((prev) => { const next = [...prev]; next[i] = []; return next; });
+      return;
+    }
+    destDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/destinations/lookup?q=${encodeURIComponent(v)}`);
+        const data = await res.json();
+        setDestSuggestions((prev) => { const next = [...prev]; next[i] = Array.isArray(data) ? data.slice(0, 8) : []; return next; });
+      } catch {
+        setDestSuggestions((prev) => { const next = [...prev]; next[i] = []; return next; });
+      }
+    }, 300);
   };
 
   const handleStartChange = (v: string) => {
@@ -207,9 +222,7 @@ function Step1Basics({
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
         <label style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a1a" }}>Destination city *</label>
         {destinations.map((dest, i) => {
-          const suggestions = dest.city.length >= 2
-            ? KNOWN_CITIES.filter((c) => c.toLowerCase().includes(dest.city.toLowerCase())).slice(0, 8)
-            : [];
+          const suggestions = destSuggestions[i] ?? [];
           return (
             <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
               {i > 0 && (
@@ -231,16 +244,19 @@ function Step1Basics({
                 />
                 {showSuggestionsFor === i && suggestions.length > 0 && (
                   <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50, backgroundColor: "#fff", border: "1.5px solid #EEEEEE", borderRadius: "12px", overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.1)", marginTop: "4px" }}>
-                    {suggestions.map((city) => (
+                    {suggestions.map((s) => (
                       <button
-                        key={city}
+                        key={s.placeId ?? `${s.cityName}-${s.countryName}`}
                         type="button"
-                        onMouseDown={(e) => { e.preventDefault(); updateCity(i, city); setShowSuggestionsFor(null); }}
-                        style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "14px", color: "#1a1a1a", background: "none", border: "none", borderBottom: "1px solid #F5F5F5", cursor: "pointer", fontFamily: "inherit" }}
+                        onMouseDown={(e) => { e.preventDefault(); updateCity(i, s.countryName ? `${s.cityName}, ${s.countryName}` : s.cityName); setShowSuggestionsFor(null); }}
+                        style={{ display: "flex", alignItems: "center", gap: "8px", width: "100%", textAlign: "left", padding: "10px 14px", background: "none", border: "none", borderBottom: "1px solid #F5F5F5", cursor: "pointer", fontFamily: "inherit" }}
                         onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#FFF8F6"; }}
                         onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = ""; }}
                       >
-                        {city}
+                        <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{s.cityName}</span>
+                        {s.countryName && s.countryName !== s.cityName && (
+                          <span style={{ fontSize: "12px", color: "#888", marginLeft: "4px" }}>· {s.countryName}</span>
+                        )}
                       </button>
                     ))}
                   </div>
