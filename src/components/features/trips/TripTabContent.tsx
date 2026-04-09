@@ -5439,11 +5439,13 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           destinationCountry={destinationCountry}
           onClose={() => { setShowActivityModal(false); setEditingActivity(null); setActivityDefaultDate(undefined); }}
           onSaved={(updated) => {
+            console.log('[activity save] updated:', JSON.stringify(updated), 'editingActivity:', editingActivity?.id ?? null);
             setShowActivityModal(false);
             setEditingActivity(null);
             if (updated && editingActivity) {
               setActivities(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a));
             } else {
+              console.log('[activity save] fallback to fetchActivities — updated:', !!updated, 'editingActivity:', !!editingActivity);
               fetchActivities();
             }
           }}

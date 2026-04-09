@@ -32,6 +32,7 @@ export async function PATCH(
 
   const { id: tripId, activityId } = await params;
   const body = await request.json();
+  console.log('[PATCH activity] activityId:', activityId, 'tripId:', tripId, 'body:', JSON.stringify(body));
 
   const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, destinationCity: true, destinationCountry: true } });
 
@@ -122,6 +123,7 @@ export async function PATCH(
     }
   }
 
+  console.log('[PATCH activity] response:', JSON.stringify({ id: updated.id, dayIndex: updated.dayIndex, time: updated.time, sortOrder: updated.sortOrder }));
   return NextResponse.json(updated);
 }
 
