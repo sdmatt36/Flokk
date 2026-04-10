@@ -21,6 +21,11 @@ const PLACEHOLDER_PICKS = [
   { id: "ph-17", title: "Fushimi Inari Shrine", type: "CULTURE", city: "Kyoto", ratingNotes: "The thousand torii gates. Halfway up is stunning.", websiteUrl: null },
   { id: "ph-18", title: "Nishiki Market", type: "FOOD", city: "Kyoto", ratingNotes: "Kyoto's kitchen. Narrow covered market with incredible street food.", websiteUrl: null },
   { id: "ph-19", title: "Arashiyama Monkey Park", type: "FAMILY", city: "Kyoto", ratingNotes: "Short hike up, monkeys at the top. Kids absolutely love it.", websiteUrl: null },
+  { id: "ph-20", title: "Tower of London", type: "CULTURE", city: "London", ratingNotes: "The Crown Jewels are unmissable. Book in advance to skip the queues.", websiteUrl: "https://www.hrp.org.uk/tower-of-london" },
+  { id: "ph-21", title: "Borough Market", type: "FOOD", city: "London", ratingNotes: "London's best food market. Arrive hungry on a weekday to avoid weekend crowds.", websiteUrl: "https://boroughmarket.org.uk" },
+  { id: "ph-22", title: "Hyde Park", type: "OUTDOOR", city: "London", ratingNotes: "Perfect for picnics and a morning run. Diana Memorial Fountain is a hit with kids.", websiteUrl: null },
+  { id: "ph-23", title: "Natural History Museum", type: "FAMILY", city: "London", ratingNotes: "Free entry. The dinosaur skeleton in the main hall alone is worth the trip.", websiteUrl: "https://www.nhm.ac.uk" },
+  { id: "ph-24", title: "Tate Modern", type: "CULTURE", city: "London", ratingNotes: "Free and world-class. The Turbine Hall installations are always spectacular.", websiteUrl: "https://www.tate.org.uk/visit/tate-modern" },
 ];
 
 const imageCache = new Map<string, string | null>();

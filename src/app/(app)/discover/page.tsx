@@ -264,11 +264,20 @@ export default function DiscoverPage() {
       .catch(() => [] as DiscoverActivity[]);
 
     Promise.all([realFetch, placeholderFetch]).then(([real, placeholders]) => {
-      const realTitles = new Set(real.map((a: DiscoverActivity) => a.title.toLowerCase()));
+      // Build a map of placeholder imageUrls keyed by lowercased title
+      const placeholderImageMap = new Map<string, string | null>(
+        placeholders.map((p: DiscoverActivity) => [p.title.toLowerCase(), p.imageUrl])
+      );
+      // For real activities missing an imageUrl, fall back to the matching placeholder's image
+      const enrichedReal: DiscoverActivity[] = real.map((a: DiscoverActivity) => ({
+        ...a,
+        imageUrl: a.imageUrl ?? placeholderImageMap.get(a.title.toLowerCase()) ?? null,
+      }));
+      const realTitles = new Set(enrichedReal.map((a: DiscoverActivity) => a.title.toLowerCase()));
       const dedupedPlaceholders = placeholders.filter(
         (p: DiscoverActivity) => !realTitles.has(p.title.toLowerCase())
       );
-      const all: DiscoverActivity[] = [...real, ...dedupedPlaceholders];
+      const all: DiscoverActivity[] = [...enrichedReal, ...dedupedPlaceholders];
       allActivitiesRef.current = all;
       setActivityResults(all);
     }).catch(() => {});
