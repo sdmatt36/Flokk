@@ -1,69 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { ShareActivityCard, type SerializableItem } from "./ShareActivityCard";
-import { SaveDayButton, type SaveableItem } from "./SaveDayButton";
-
-const CATEGORY_ORDER = ["Lodging", "Food", "Culture", "Kids", "Outdoor", "Shopping", "Transportation", "Other"] as const;
-type Category = (typeof CATEGORY_ORDER)[number];
-
-function getCategory(tag: string | null, title?: string | null): Category {
-  const check = (s: string): Category | null => {
-    const t = s.toLowerCase().trim();
-    if (t === "stay" || t === "lodging" || t.includes("hotel") || t.includes("hostel") || t.includes("accommodation")) return "Lodging";
-    if (
-      t === "food" || t.includes("food") || t.includes("restaurant") || t.includes("restaurants") ||
-      t.includes("cafe") || t.includes("dining") || t.includes("lunch") || t.includes("dinner") ||
-      t.includes("breakfast") || t.includes("brunch") || t.includes("taco") || t.includes("burger") ||
-      t.includes("bbq") || t.includes("grill") || t.includes("bistro") || t.includes("brasserie") ||
-      t.includes("tavern") || t.includes("pub") || t.includes("eatery") || t.includes("sushi") ||
-      t.includes("ramen") || t.includes("noodle") || t.includes("pizza") || t.includes("bakery") ||
-      t.includes("bakers") || t.includes("patisserie") || t.includes("snack") || t.includes("buffet") ||
-      t.includes("steakhouse") || t.includes("seafood") || t.includes("izakaya") || t.includes("yakitori") ||
-      t.includes("hotpot") || t.includes("dim sum") || t.includes("curry") || t.includes("deli") ||
-      t.includes("sandwich") || t.includes("mipo") || t.includes("sam ryan")
-    ) return "Food";
-    if (
-      t === "culture" || t.includes("culture") || t.includes("museum") || t.includes("art") ||
-      t.includes("temple") || t.includes("shrine") || t.includes("gallery") || t.includes("village") ||
-      t.includes("district") || t.includes("hanok") || t.includes("dmz") || t.includes("insider") ||
-      t.includes("tour") || t.includes("cathedral") || t.includes("church") || t.includes("castle") ||
-      t.includes("fortress") || t.includes("tower") || t.includes("ruins") || t.includes("heritage") ||
-      t.includes("traditional") || t.includes("folk") || t.includes("cultural") || t.includes("exhibition") ||
-      t.includes("cemetery") || t.includes("memorial") || t.includes("statue") || t.includes("landmark") ||
-      t.includes("viewpoint") || t.includes("observatory") || t.includes("lookout") || t.includes("panorama")
-    ) return "Culture";
-    if (
-      t === "kids" || t === "family" || t.includes("kid") || t.includes("child") || t.includes("family") ||
-      t.includes("lego") || t.includes("science") || t.includes("discovery") || t.includes("wonder") ||
-      t.includes("adventure") || t.includes("trampoline") || t.includes("bowling") || t.includes("arcade") ||
-      t.includes("laser tag") || t.includes("escape room") || t.includes("water park") ||
-      t.includes("safari") || t.includes("farm") || t.includes("petting")
-    ) return "Kids";
-    if (
-      t === "outdoor" || t === "outdoors" || t.includes("outdoor") || t.includes("park") ||
-      t.includes("hike") || t.includes("beach") || t.includes("nature") || t.includes("garden") ||
-      t.includes("cable car") || t.includes("sky cab") || t.includes("gondola") || t.includes("chairlift") ||
-      t.includes("tram") || t.includes("river") || t.includes("lake") || t.includes("waterfall") ||
-      t.includes("forest") || t.includes("botanical") || t.includes("national park") || t.includes("coast") ||
-      t.includes("cliff") || t.includes("valley") || t.includes("island") || t.includes("sunrise") ||
-      t.includes("sunset") || t.includes("scenic") || t.includes("namsam") || t.includes("namsan")
-    ) return "Outdoor";
-    if (t === "shopping" || t.includes("shop") || t.includes("market") || t.includes("mall")) return "Shopping";
-    if (t === "flt" || t === "rail" || t === "transportation" || t.includes("transport") || t.includes("flight") || t.includes("train") || t.includes("transit")) return "Transportation";
-    return null;
-  };
-
-  if (tag) {
-    const result = check(tag);
-    if (result) return result;
-  }
-  if (title) {
-    const result = check(title);
-    if (result) return result;
-  }
-  return "Other";
-}
+import { useState, useRef, useEffect } from "react";
+import { ChevronDown, MapPin, BookmarkCheck, Bookmark, ExternalLink, ChevronRight } from "lucide-react";
+import { CommunityTripMap, type MarkerDef } from "@/components/features/trips/CommunityTripMap";
+import Link from "next/link";
+import { getDestinationCoords } from "@/lib/destination-coords";
+import type { SerializableItem } from "./ShareActivityCard";
+import type { SaveableItem } from "./SaveDayButton";
 
 export interface DayData {
   index: number;
@@ -73,115 +16,325 @@ export interface DayData {
   saveItems: SaveableItem[];
 }
 
+type RelatedTrip = { id: string | null; city: string; country: string; img: string; tags: string[] };
+
+const RELATED_TRIPS_BY_DEST: Record<string, RelatedTrip[]> = {
+  Kyoto: [
+    { id: null, city: "Tokyo", country: "Japan", img: "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?w=400&auto=format&fit=crop&q=80", tags: ["Culture", "Kids"] },
+    { id: null, city: "Osaka", country: "Japan", img: "https://images.unsplash.com/photo-1589452271712-64b8a66c3570?w=400&auto=format&fit=crop&q=80", tags: ["Food", "Kids"] },
+    { id: null, city: "Madrid", country: "Spain", img: "https://images.unsplash.com/photo-1539037116277-4db20889f2d4?w=400&auto=format&fit=crop&q=80", tags: ["Food", "Culture"] },
+    { id: null, city: "Lisbon", country: "Portugal", img: "https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=400&auto=format&fit=crop&q=80", tags: ["Adventure", "History"] },
+  ],
+  Madrid: [
+    { id: null, city: "Kyoto", country: "Japan", img: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=400&auto=format&fit=crop&q=80", tags: ["Culture", "Kid-friendly"] },
+    { id: null, city: "Lisbon", country: "Portugal", img: "https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=400&auto=format&fit=crop&q=80", tags: ["Adventure", "History"] },
+    { id: null, city: "Seville", country: "Spain", img: "https://images.unsplash.com/photo-1558642891-54be180ea339?w=400&auto=format&fit=crop&q=80", tags: ["History", "Culture"] },
+    { id: null, city: "Barcelona", country: "Spain", img: "https://images.unsplash.com/photo-1583422409516-2895a77efded?w=400&auto=format&fit=crop&q=80", tags: ["Beach", "Culture"] },
+  ],
+  Lisbon: [
+    { id: null, city: "Kyoto", country: "Japan", img: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=400&auto=format&fit=crop&q=80", tags: ["Culture", "Kid-friendly"] },
+    { id: null, city: "Madrid", country: "Spain", img: "https://images.unsplash.com/photo-1539037116277-4db20889f2d4?w=400&auto=format&fit=crop&q=80", tags: ["Food", "Culture"] },
+    { id: null, city: "Porto", country: "Portugal", img: "https://images.unsplash.com/photo-1538332576228-eb5b4c4de6f5?w=400&auto=format&fit=crop&q=80", tags: ["Food", "History"] },
+    { id: null, city: "Seville", country: "Spain", img: "https://images.unsplash.com/photo-1558642891-54be180ea339?w=400&auto=format&fit=crop&q=80", tags: ["History", "Culture"] },
+  ],
+  Seoul: [
+    { id: null, city: "Tokyo", country: "Japan", img: "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?w=400&auto=format&fit=crop&q=80", tags: ["Culture", "Food"] },
+    { id: null, city: "Kyoto", country: "Japan", img: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=400&auto=format&fit=crop&q=80", tags: ["Culture", "Kids"] },
+    { id: null, city: "Bangkok", country: "Thailand", img: "https://images.unsplash.com/photo-1508009603885-50cf7c8dd0d5?w=400&auto=format&fit=crop&q=80", tags: ["Food", "Culture"] },
+    { id: null, city: "Taipei", country: "Taiwan", img: "https://images.unsplash.com/photo-1470004914212-05527e49370b?w=400&auto=format&fit=crop&q=80", tags: ["Food", "Kids"] },
+  ],
+};
+
+function buildAllMarkers(days: DayData[]): MarkerDef[] {
+  const markers: MarkerDef[] = [];
+  let num = 0;
+  for (const day of days) {
+    for (const item of day.items) {
+      if (item.lat != null && item.lng != null) {
+        num++;
+        markers.push({ num, label: item.title, lat: item.lat!, lng: item.lng! });
+      }
+    }
+  }
+  return markers;
+}
+
+function buildDayMarkers(day: DayData): MarkerDef[] {
+  const markers: MarkerDef[] = [];
+  let num = 0;
+  for (const item of day.items) {
+    if (item.lat != null && item.lng != null) {
+      num++;
+      markers.push({ num, label: item.title, lat: item.lat!, lng: item.lng! });
+    }
+  }
+  return markers;
+}
+
 export function ShareItineraryView({
   days,
   isLoggedIn,
   shareToken,
-  heroImageUrl,
+  heroImageUrl: _heroImageUrl, // kept in props for server-component compat, unused
 }: {
   days: DayData[];
   isLoggedIn: boolean;
   shareToken: string;
-  heroImageUrl: string | null;
+  heroImageUrl?: string | null;
 }) {
-  const [viewMode, setViewMode] = useState<"day" | "category">("day");
+  const [openDay, setOpenDay] = useState(-1);
+  const [savedSet, setSavedSet] = useState<Set<string>>(new Set());
+  const [savingSet, setSavingSet] = useState<Set<string>>(new Set());
+  const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number } | null>(null);
+  const [leftHeight, setLeftHeight] = useState<number | null>(null);
+  const leftPanelRef = useRef<HTMLDivElement>(null);
 
-  const allItems = days.flatMap((d) => d.items);
+  useEffect(() => {
+    if (!leftPanelRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) setLeftHeight(entry.contentRect.height);
+    });
+    ro.observe(leftPanelRef.current);
+    return () => ro.disconnect();
+  }, []);
 
-  const categoryGroups = CATEGORY_ORDER.reduce<Record<Category, SerializableItem[]>>(
-    (acc, cat) => { acc[cat] = []; return acc; },
-    {} as Record<Category, SerializableItem[]>
-  );
-  for (const item of allItems) {
-    categoryGroups[getCategory(item.tag, item.title)].push(item);
+  const destinationCity = days[0]?.city ?? null;
+  const allMarkers = buildAllMarkers(days);
+  const activeMarkers = openDay >= 0 && days[openDay]
+    ? buildDayMarkers(days[openDay])
+    : allMarkers;
+
+  const mapCenter = ((): [number, number] => {
+    const pts = days.flatMap(d => d.items).filter(i => i.lat != null && i.lng != null);
+    if (pts.length > 0) {
+      const avgLat = pts.reduce((s, p) => s + p.lat!, 0) / pts.length;
+      const avgLng = pts.reduce((s, p) => s + p.lng!, 0) / pts.length;
+      return [avgLng, avgLat];
+    }
+    return getDestinationCoords(destinationCity, null);
+  })();
+
+  const relatedTrips = RELATED_TRIPS_BY_DEST[destinationCity ?? ""] ?? [];
+
+  async function handleFlokk(item: SerializableItem) {
+    const itemId = item.id;
+    if (savedSet.has(itemId) || savingSet.has(itemId)) return;
+    if (!isLoggedIn) {
+      window.location.href = `/sign-up?redirect_url=${encodeURIComponent(`/share/${shareToken}`)}`;
+      return;
+    }
+    setSavingSet(prev => new Set(prev).add(itemId));
+    try {
+      const res = await fetch("/api/saves/from-share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: item.title,
+          city: item.destinationCity,
+          lat: item.lat,
+          lng: item.lng,
+          placePhotoUrl: item.imageUrl ?? null,
+          websiteUrl: item.websiteUrl ?? null,
+        }),
+      });
+      if (res.ok) setSavedSet(prev => new Set(prev).add(itemId));
+    } finally {
+      setSavingSet(prev => { const n = new Set(prev); n.delete(itemId); return n; });
+    }
   }
 
   return (
-    <section style={{ marginTop: "28px" }}>
-      {/* Day / Category toggle */}
-      <div className="flex gap-2 mb-6">
-        <button
-          onClick={() => setViewMode("day")}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-            viewMode === "day"
-              ? "bg-[#1B3A5C] text-white"
-              : "bg-stone-100 text-stone-500 hover:bg-stone-200"
-          }`}
-        >
-          By day
-        </button>
-        <button
-          onClick={() => setViewMode("category")}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-            viewMode === "category"
-              ? "bg-[#1B3A5C] text-white"
-              : "bg-stone-100 text-stone-500 hover:bg-stone-200"
-          }`}
-        >
-          By category
-        </button>
+    <section style={{ marginTop: "20px" }}>
+
+      {/* Two-column layout: accordion left, map right */}
+      <div className="flex flex-col md:flex-row" style={{ gap: "24px", alignItems: "flex-start" }}>
+
+        {/* Left panel: day accordion */}
+        <div ref={leftPanelRef} className="w-full md:w-[58%]" style={{ minWidth: 0 }}>
+          <div style={{ borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", overflow: "hidden", backgroundColor: "#fff" }}>
+            {days.map((day, i) => {
+              const isOpen = openDay === i;
+              return (
+                <div key={day.index} style={{ borderBottom: i < days.length - 1 ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
+
+                  {/* Header row — click to expand/collapse */}
+                  <div
+                    onClick={() => setOpenDay(isOpen ? -1 : i)}
+                    style={{ display: "flex", alignItems: "center", padding: "13px 16px", cursor: "pointer", gap: "10px", userSelect: "none" }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: 0, overflow: "hidden" }}>
+                      <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", whiteSpace: "nowrap" }}>{day.label}</span>
+                      {!isOpen && day.items.length > 0 && (
+                        <div style={{ display: "flex", gap: "4px", overflow: "hidden", minWidth: 0 }}>
+                          {day.items.slice(0, 2).map((item) => (
+                            <span
+                              key={item.id}
+                              style={{ fontSize: "11px", background: "rgba(0,0,0,0.06)", color: "#666", borderRadius: "999px", padding: "2px 8px", whiteSpace: "nowrap" }}
+                            >
+                              {item.title.length > 18 ? item.title.slice(0, 18) + "…" : item.title}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {!isOpen && day.items.length === 0 && (
+                        <span style={{ fontSize: "12px", color: "#bbb", fontStyle: "italic" }}>No activities</span>
+                      )}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                      <span style={{ fontSize: "13px", color: "#717171" }}>{day.items.length} stop{day.items.length !== 1 ? "s" : ""}</span>
+                      <ChevronDown
+                        size={16}
+                        style={{ color: "#717171", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s ease" }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Expandable body */}
+                  <div style={{ maxHeight: isOpen ? "2000px" : "0", overflow: isOpen ? "visible" : "hidden", transition: "max-height 0.3s ease" }}>
+                    <div style={{ padding: "4px 16px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {day.items.map((item, idx) => {
+                        const saved = savedSet.has(item.id);
+                        const saving = savingSet.has(item.id);
+                        return (
+                          <div
+                            key={item.id}
+                            style={{ display: "flex", gap: "10px", alignItems: "flex-start", borderRadius: "10px", padding: "8px", margin: "-8px" }}
+                            className="hover:bg-black/[0.02]"
+                          >
+                            {/* Thumbnail or numbered placeholder */}
+                            {item.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={item.imageUrl}
+                                alt=""
+                                style={{ width: "56px", height: "56px", borderRadius: "8px", flexShrink: 0, objectFit: "cover" }}
+                              />
+                            ) : (
+                              <div style={{ width: "40px", height: "40px", borderRadius: "8px", flexShrink: 0, backgroundColor: "rgba(196,102,74,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <span style={{ fontSize: "14px", fontWeight: 800, color: "#C4664A" }}>{idx + 1}</span>
+                              </div>
+                            )}
+
+                            {/* Content */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", lineHeight: 1.2 }}>{item.title}</p>
+
+                              {item.notes && (
+                                <p style={{ fontSize: "12px", color: "#717171", marginTop: "2px", lineHeight: 1.4 }}>{item.notes}</p>
+                              )}
+
+                              {item.tag && (
+                                <div style={{ display: "flex", gap: "6px", marginTop: "5px" }}>
+                                  <span style={{ backgroundColor: "rgba(0,0,0,0.05)", color: "#666", fontSize: "11px", padding: "2px 8px", borderRadius: "999px" }}>
+                                    {item.tag}
+                                  </span>
+                                </div>
+                              )}
+
+                              {item.rating && (
+                                <p style={{ fontSize: "12px", color: "#C4664A", marginTop: "4px" }}>
+                                  {"★".repeat(Math.min(5, item.rating.rating))}
+                                  {item.rating.notes && (
+                                    <span style={{ color: "#717171", fontStyle: "italic", marginLeft: "6px" }}>{item.rating.notes}</span>
+                                  )}
+                                </p>
+                              )}
+
+                              {/* Action row */}
+                              <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
+                                {item.saveable && (
+                                  <button
+                                    onClick={() => handleFlokk(item)}
+                                    disabled={saved || saving}
+                                    style={{ display: "flex", alignItems: "center", gap: "4px", backgroundColor: saved ? "rgba(74,124,89,0.1)" : "transparent", border: `1.5px solid ${saved ? "rgba(74,124,89,0.3)" : "#C4664A"}`, borderRadius: "999px", padding: "4px 10px", fontSize: "12px", fontWeight: 600, color: saved ? "#4a7c59" : "#C4664A", cursor: saved ? "default" : "pointer" }}
+                                  >
+                                    {saved ? <BookmarkCheck size={11} /> : <Bookmark size={11} />}
+                                    {saving ? "Flokking…" : saved ? "Flokked" : "Flokk It"}
+                                  </button>
+                                )}
+                                {item.lat != null && item.lng != null && (
+                                  <button
+                                    onClick={() => setFlyTarget({ lat: item.lat!, lng: item.lng! })}
+                                    style={{ display: "flex", alignItems: "center", gap: "3px", background: "none", border: "none", padding: 0, fontSize: "12px", fontWeight: 600, color: "#C4664A", cursor: "pointer" }}
+                                  >
+                                    <MapPin size={11} />
+                                    Map
+                                  </button>
+                                )}
+                                {item.websiteUrl && (
+                                  <a
+                                    href={item.websiteUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "12px", fontWeight: 600, color: "#1B3A5C", textDecoration: "none" }}
+                                  >
+                                    <ExternalLink size={11} />
+                                    Visit site
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right panel: map — stacks below on mobile, sticky sidebar on desktop */}
+        <div className="w-full md:w-[42%]" style={{ position: "sticky", top: "60px", height: leftHeight ? `${leftHeight}px` : "300px", minHeight: "260px", maxHeight: "600px" }}>
+          <CommunityTripMap
+            allMarkers={activeMarkers}
+            center={mapCenter}
+            flyTarget={flyTarget}
+            onFlyTargetConsumed={() => setFlyTarget(null)}
+          />
+        </div>
+
       </div>
 
-      {viewMode === "day" ? (
-        /* ── Day view ── */
-        <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
-          {days.map((day, dayIdx) => (
-            <div key={day.index}>
-              {/* Day header */}
-              <div
-                className="border-b border-stone-200 pb-2 mb-4"
-                style={{ marginTop: dayIdx === 0 ? 0 : "32px" }}
+      {/* More trips families like yours loved */}
+      {relatedTrips.length > 0 && (
+        <div style={{ paddingTop: "28px", paddingBottom: "8px", borderTop: "1px solid #F0F0F0", marginTop: "32px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+            <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a" }}>More trips families like yours loved</p>
+            <Link href="/discover" style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none", display: "flex", alignItems: "center", gap: "2px" }}>
+              See all <ChevronRight size={13} />
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4" style={{ gap: "12px" }}>
+            {relatedTrips.map((trip) => (
+              <Link
+                key={`${trip.city}-${trip.country}`}
+                href="/discover"
+                style={{ textDecoration: "none", display: "block" }}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h2 className="text-lg font-bold text-[#1B3A5C]">{day.label}</h2>
-                    {day.city && (
-                      <p className="text-xs uppercase tracking-widest text-stone-400 mt-0.5">
-                        {day.city}
-                      </p>
-                    )}
+                <div style={{ height: "160px", borderRadius: "14px", overflow: "hidden", position: "relative", backgroundImage: `url('${trip.img}')`, backgroundSize: "cover", backgroundPosition: "center" }}>
+                  <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.72) 100%)" }} />
+                  <div style={{ position: "absolute", bottom: "10px", left: "10px", right: "10px", zIndex: 2, pointerEvents: "none" }}>
+                    <p style={{ fontSize: "13px", fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>{trip.city}</p>
+                    <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.75)", marginTop: "2px" }}>{trip.country}</p>
                   </div>
-                  <SaveDayButton
-                    isLoggedIn={isLoggedIn}
-                    currentPath={`/share/${shareToken}`}
-                    items={day.saveItems}
-                  />
+                  <div style={{ position: "absolute", top: "8px", left: "8px", zIndex: 2, display: "flex", gap: "4px", flexWrap: "wrap", pointerEvents: "none" }}>
+                    {trip.tags.map((tag) => (
+                      <span key={tag} style={{ fontSize: "10px", fontWeight: 700, backgroundColor: "rgba(0,0,0,0.45)", color: "#fff", borderRadius: "999px", padding: "2px 7px", backdropFilter: "blur(4px)" }}>
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
-
-              <div className="space-y-4 w-full">
-                {day.items.map((item) => (
-                  <ShareActivityCard
-                    key={item.id}
-                    item={item}
-                    isLoggedIn={isLoggedIn}
-                    heroImageUrl={heroImageUrl}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        /* ── Category view ── */
-        <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
-          {CATEGORY_ORDER.filter((cat) => categoryGroups[cat].length > 0).map((cat) => (
-            <div key={cat}>
-              <h2 className="text-lg font-bold text-[#1B3A5C] mb-3">{cat}</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {categoryGroups[cat].map((item) => (
-                  <ShareActivityCard
-                    key={item.id}
-                    item={item}
-                    isLoggedIn={isLoggedIn}
-                    heroImageUrl={heroImageUrl}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
+              </Link>
+            ))}
+          </div>
         </div>
       )}
+
     </section>
   );
 }

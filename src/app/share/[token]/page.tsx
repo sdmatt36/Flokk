@@ -412,7 +412,7 @@ export default async function SharePage({
         </div>
       </div>
 
-      <div style={{ maxWidth: "640px", margin: "0 auto", padding: "0 16px" }}>
+      <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "0 24px" }}>
 
         {/* ── Day-by-day itinerary (client component handles day/category toggle) ── */}
         {daysData.length > 0 && (
