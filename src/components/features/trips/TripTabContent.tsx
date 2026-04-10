@@ -5314,7 +5314,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [postTripCaptureComplete, setPostTripCaptureComplete] = useState(initialPostTripCaptureComplete);
   const [showPostTripModal, setShowPostTripModal] = useState(false);
   useEffect(() => {
-    if (tripStatus === "COMPLETED" && !initialPostTripCaptureComplete) {
+    if (tripStatus === "COMPLETED" && !initialPostTripCaptureStarted) {
       const t = setTimeout(() => setShowPostTripModal(true), 1000);
       return () => clearTimeout(t);
     }
@@ -6456,7 +6456,13 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       {/* ── Post-trip capture modal ── */}
       {showPostTripModal && createPortal(
         <div
-          onClick={() => setShowPostTripModal(false)}
+          onClick={async () => {
+            setShowPostTripModal(false);
+            if (tripId) {
+              await fetch(`/api/trips/${tripId}/post-trip-status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postTripCaptureStarted: true }) });
+              setPostTripCaptureStarted(true);
+            }
+          }}
           style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
         >
           <div
@@ -6483,7 +6489,13 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                 Share how it went
               </button>
               <button
-                onClick={() => setShowPostTripModal(false)}
+                onClick={async () => {
+                  setShowPostTripModal(false);
+                  if (tripId) {
+                    await fetch(`/api/trips/${tripId}/post-trip-status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postTripCaptureStarted: true }) });
+                    setPostTripCaptureStarted(true);
+                  }
+                }}
                 style={{ padding: "13px 20px", backgroundColor: "transparent", color: "#717171", border: "none", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
               >
                 Maybe later
