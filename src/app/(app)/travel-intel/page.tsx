@@ -585,7 +585,7 @@ export default function TravelIntelPage() {
     currentPage * ITEMS_PER_PAGE
   );
 
-  const isEmpty = !loading && filteredCommunity.length === 0;
+  const isEmpty = !loading && filteredCommunity.length === 0 && filteredFlokk.length === 0;
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#FFFFFF", paddingBottom: "96px" }}>
