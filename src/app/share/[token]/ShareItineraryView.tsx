@@ -7,16 +7,27 @@ import { SaveDayButton, type SaveableItem } from "./SaveDayButton";
 const CATEGORY_ORDER = ["Lodging", "Food", "Culture", "Kids", "Outdoor", "Shopping", "Transportation", "Other"] as const;
 type Category = (typeof CATEGORY_ORDER)[number];
 
-function getCategory(tag: string | null): Category {
-  if (!tag) return "Other";
-  const t = tag.toLowerCase();
-  if (t === "stay") return "Lodging";
-  if (t === "food" || t.includes("food") || t.includes("restaurant") || t.includes("cafe") || t.includes("dining")) return "Food";
-  if (t === "culture" || t.includes("culture") || t.includes("museum") || t.includes("art") || t.includes("temple")) return "Culture";
-  if (t === "kids" || t.includes("kid") || t.includes("child") || t.includes("family")) return "Kids";
-  if (t === "outdoor" || t.includes("outdoor") || t.includes("park") || t.includes("hike") || t.includes("beach") || t.includes("nature")) return "Outdoor";
-  if (t === "shopping" || t.includes("shop") || t.includes("market")) return "Shopping";
-  if (t === "flt" || t === "rail" || t === "transportation" || t.includes("transport") || t.includes("flight") || t.includes("train")) return "Transportation";
+function getCategory(tag: string | null, title?: string | null): Category {
+  const check = (s: string): Category | null => {
+    const t = s.toLowerCase().trim();
+    if (t === "stay" || t === "lodging" || t.includes("hotel") || t.includes("hostel") || t.includes("accommodation")) return "Lodging";
+    if (t === "food" || t.includes("food") || t.includes("restaurant") || t.includes("restaurants") || t.includes("cafe") || t.includes("dining")) return "Food";
+    if (t === "culture" || t.includes("culture") || t.includes("museum") || t.includes("art") || t.includes("temple") || t.includes("shrine") || t.includes("gallery")) return "Culture";
+    if (t === "kids" || t === "family" || t.includes("kid") || t.includes("child") || t.includes("family")) return "Kids";
+    if (t === "outdoor" || t === "outdoors" || t.includes("outdoor") || t.includes("park") || t.includes("hike") || t.includes("beach") || t.includes("nature") || t.includes("garden")) return "Outdoor";
+    if (t === "shopping" || t.includes("shop") || t.includes("market") || t.includes("mall")) return "Shopping";
+    if (t === "flt" || t === "rail" || t === "transportation" || t.includes("transport") || t.includes("flight") || t.includes("train") || t.includes("transit")) return "Transportation";
+    return null;
+  };
+
+  if (tag) {
+    const result = check(tag);
+    if (result) return result;
+  }
+  if (title) {
+    const result = check(title);
+    if (result) return result;
+  }
   return "Other";
 }
 
@@ -48,7 +59,7 @@ export function ShareItineraryView({
     {} as Record<Category, SerializableItem[]>
   );
   for (const item of allItems) {
-    categoryGroups[getCategory(item.tag)].push(item);
+    categoryGroups[getCategory(item.tag, item.title)].push(item);
   }
 
   return (
