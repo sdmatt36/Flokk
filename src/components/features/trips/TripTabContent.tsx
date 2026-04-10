@@ -526,6 +526,7 @@ type SavedDisplayItem = {
   isLodging?: boolean;
   lodgingDates?: { checkin: string | null; checkout: string | null };
   categoryTags?: string[];
+  source?: string;
 };
 
 
@@ -885,6 +886,84 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
 
 const SAVED_FILTER_PILLS = ["All", "Culture", "Food", "Kids", "Lodging", "Outdoor", "Shopping", "Transportation", "Unorganized"];
 
+function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDelete }: {
+  item: SavedDisplayItem;
+  onAddToItinerary: () => void;
+  onLearnMore: () => void;
+  assignedDay?: number;
+  onDelete?: () => void;
+}) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const hasImg = !!item.img && !imgFailed;
+  const categoryTag = item.categoryTags?.[0] ?? null;
+
+  return (
+    <div
+      onClick={onLearnMore}
+      style={{ cursor: "pointer", position: "relative", backgroundColor: "#FAFAFA", borderRadius: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", overflow: "hidden" }}
+    >
+      {/* Delete button */}
+      {onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="absolute top-2 right-2 z-10 bg-white/90 backdrop-blur-sm rounded-full shadow-sm border border-gray-100"
+          style={{ padding: "5px", lineHeight: 0, cursor: "pointer" }}
+        >
+          <Trash2 size={13} style={{ color: "#9ca3af" }} />
+        </button>
+      )}
+
+      {/* Image */}
+      {hasImg ? (
+        <div style={{ height: "160px", backgroundImage: `url(${item.img})`, backgroundSize: "cover", backgroundPosition: "center", position: "relative" }}>
+          <img src={item.img} alt="" onError={() => setImgFailed(true)} style={{ display: "none" }} />
+          {item.source && (
+            <div style={{ position: "absolute", bottom: "6px", left: "8px", backgroundColor: "rgba(0,0,0,0.6)", color: "#fff", fontSize: "10px", padding: "2px 8px", borderRadius: "20px" }}>
+              {item.source}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ height: "160px", backgroundColor: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ fontSize: "13px", color: "#94a3b8" }}>{categoryTag ?? "Saved place"}</span>
+        </div>
+      )}
+
+      {/* Card body */}
+      <div style={{ padding: "12px" }}>
+        <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "4px" }}>{item.title}</p>
+        {categoryTag && (
+          <p style={{ fontSize: "12px", color: "#717171", marginBottom: "8px" }}>{categoryTag}</p>
+        )}
+        <div onClick={(e) => e.stopPropagation()}>
+          {assignedDay !== undefined ? (
+            <span style={{ fontSize: "11px", fontWeight: 600, color: "#4a7c59" }}>✓ Day {assignedDay + 1}</span>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onAddToItinerary(); }}
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "12px", color: "#C4664A", fontWeight: 600, fontFamily: "inherit" }}
+            >
+              + Add to itinerary
+            </button>
+          )}
+          {item.websiteUrl && (
+            <a
+              href={item.websiteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              style={{ display: "block", fontSize: "12px", color: "#C4664A", marginTop: "4px" }}
+            >
+              Visit site →
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Real saved items helpers ──────────────────────────────────────────────────
 
 type ApiSavedItem = {
@@ -902,6 +981,12 @@ type ApiSavedItem = {
   extractedCheckout: string | null;
   isBooked: boolean;
   dayIndex?: number | null;
+};
+
+const SAVED_SOURCE_LABEL: Record<string, string> = {
+  INSTAGRAM: "Instagram", TIKTOK: "TikTok", GOOGLE_MAPS: "Google Maps",
+  MANUAL: "Manually added", IN_APP: "In-app", EMAIL_IMPORT: "Email",
+  PHOTO_IMPORT: "Photo", FROM_SHARE: "Flokk share",
 };
 
 function inferSavedCategory(item: ApiSavedItem): string {
@@ -947,6 +1032,7 @@ function apiToDisplayItem(item: ApiSavedItem): SavedDisplayItem {
     isLodging,
     lodgingDates: { checkin: item.extractedCheckin, checkout: item.extractedCheckout },
     categoryTags: item.categoryTags,
+    source: SAVED_SOURCE_LABEL[item.sourceType] ?? undefined,
   };
 }
 
@@ -1161,17 +1247,20 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
         <div style={{ textAlign: "center", padding: "32px 24px", color: "#717171", fontSize: "14px" }}>
           No saves match this filter.
         </div>
-      ) : (() => {
-        const all = [...displayedLeft, ...displayedRight];
-        const col1 = all.filter((_, i) => i % 2 === 0);
-        const col2 = all.filter((_, i) => i % 2 !== 0);
-        return (
-          <div className="tab-card-grid">
-            <div>{col1.map(renderSection)}</div>
-            <div>{col2.map(renderSection)}</div>
-          </div>
-        );
-      })()}
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {[...displayedLeft, ...displayedRight].flatMap(s => s.items).map(item => (
+            <SavedGridCard
+              key={item.title + item.detail}
+              item={item}
+              onAddToItinerary={() => handleAddToItinerary(item)}
+              onLearnMore={() => handleLearnMore(item)}
+              assignedDay={assignedDays[item.title]}
+              onDelete={() => handleDeleteSave(item)}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Drop a link button */}
       {tripIdProp && (
