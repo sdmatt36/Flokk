@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 
-interface SaveableItem {
+export interface SaveableItem {
   id: string;
   title: string;
   lat: number | null;
@@ -23,7 +23,6 @@ export function SaveDayButton({ items, isLoggedIn, currentPath }: SaveDayButtonP
   if (items.length === 0) return null;
 
   async function handleSaveDay() {
-    console.log("[SaveDayButton] clicked, isLoggedIn:", isLoggedIn, "items:", items.length);
     if (!isLoggedIn) {
       window.location.href = `/sign-up?redirect_url=${encodeURIComponent(currentPath)}`;
       return;
@@ -32,7 +31,6 @@ export function SaveDayButton({ items, isLoggedIn, currentPath }: SaveDayButtonP
     let count = 0;
     for (const item of items) {
       try {
-        console.log("[SaveDayButton] saving:", item.title);
         const res = await fetch("/api/saves/from-share", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -45,7 +43,6 @@ export function SaveDayButton({ items, isLoggedIn, currentPath }: SaveDayButtonP
           }),
         });
         const data = await res.json();
-        console.log("[SaveDayButton] response for", item.title, ":", data);
         if (data.saved) count++;
       } catch (err) {
         console.error("[SaveDayButton] fetch error for", item.title, ":", err);
@@ -58,26 +55,25 @@ export function SaveDayButton({ items, isLoggedIn, currentPath }: SaveDayButtonP
   return (
     <button
       onClick={handleSaveDay}
-      disabled={state === "saving"}
+      disabled={state === "saving" || state === "done"}
       style={{
         fontSize: "12px",
         fontWeight: 600,
-        color: state === "done" ? "#1B3A5C" : state === "saving" ? "#999" : "#C4664A",
-        background: "none",
-        border: "1px solid",
-        borderColor: state === "done" ? "#1B3A5C" : state === "saving" ? "#DDD" : "#C4664A",
+        color: state === "done" ? "#fff" : state === "saving" ? "#fff" : "#fff",
+        background: state === "done" ? "#6B8F71" : state === "saving" ? "#D0956E" : "#C4664A",
+        border: "none",
         borderRadius: "20px",
-        padding: "4px 12px",
-        cursor: state === "saving" ? "default" : "pointer",
+        padding: "4px 14px",
+        cursor: state === "saving" || state === "done" ? "default" : "pointer",
         whiteSpace: "nowrap",
         flexShrink: 0,
       }}
     >
       {state === "done"
-        ? `${savedCount} ${savedCount === 1 ? "place" : "places"} saved`
+        ? `Flokked ${savedCount > 0 ? `(${savedCount})` : ""}`
         : state === "saving"
-        ? "Saving..."
-        : `Save day (${items.length})`}
+        ? "Flokking..."
+        : "Flokk It"}
     </button>
   );
 }

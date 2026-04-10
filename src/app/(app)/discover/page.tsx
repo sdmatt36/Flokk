@@ -728,7 +728,7 @@ export default function DiscoverPage() {
                     <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
                       {act.websiteUrl && (
                         <a href={act.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#1B3A5C", textDecoration: "underline", textAlign: "center" }}>
-                          Flokk It →
+                          Visit site →
                         </a>
                       )}
                       <button
@@ -747,7 +747,7 @@ export default function DiscoverPage() {
                           transition: "all 0.15s",
                         }}
                       >
-                        {savedActivities.has(act.id) ? "Saved ✓" : "+ Save"}
+                        {savedActivities.has(act.id) ? "Saved ✓" : "Flokk It"}
                       </button>
                     </div>
                   </div>

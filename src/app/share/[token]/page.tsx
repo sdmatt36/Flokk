@@ -3,8 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { getTripCoverImage, getItemImage } from "@/lib/destination-images";
 import { SharePageBottomBar } from "./SharePageBottomBar";
-import { ShareActivityCard, type SerializableItem } from "./ShareActivityCard";
-import { SaveDayButton } from "./SaveDayButton";
+import { ShareItineraryView, type DayData } from "./ShareItineraryView";
 
 export const dynamic = "force-dynamic";
 
@@ -66,9 +65,6 @@ const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
   ACTIVITY: { bg: "#F5F5F5", color: "#888" },
 };
 
-function starString(rating: number): string {
-  return "★".repeat(Math.max(0, Math.min(5, rating))) + "☆".repeat(Math.max(0, 5 - rating));
-}
 
 export default async function SharePage({
   params,
@@ -219,6 +215,144 @@ export default async function SharePage({
       .map((r) => [r.manualActivityId!, r])
   );
 
+  // ── Build DayData[] for ShareItineraryView (client component) ───────────
+  const daysData: DayData[] = allDayIndices.map((di) => {
+    const dayItems = dayItemsByDay[di] ?? [];
+
+    const serializableItems = dayItems.map((entry) => {
+      if (entry.kind === "save") {
+        const s = entry.data;
+        return {
+          id: `save_${s.id}`,
+          kind: "save" as const,
+          title: s.rawTitle ?? "(no title)",
+          subtitle: s.startTime ?? null,
+          tag: s.categoryTags[0] ?? null,
+          tagBg: "#F5F5F5",
+          tagColor: "#888",
+          notes: s.rawDescription ? s.rawDescription.slice(0, 200) : null,
+          imageUrl: s.placePhotoUrl ?? s.mediaThumbnailUrl ?? null,
+          rating: null,
+          lat: s.lat ?? null,
+          lng: s.lng ?? null,
+          destinationCity: trip.destinationCity,
+          saveable: true,
+          websiteUrl: s.websiteUrl ?? null,
+        };
+      }
+      if (entry.kind === "itinerary") {
+        const it = entry.data;
+        const displayTitle = it.type === "LODGING" ? it.title.replace(/^check-in:\s*/i, "") : it.title;
+        const route =
+          it.type === "FLIGHT" || it.type === "TRAIN"
+            ? it.fromAirport && it.toAirport
+              ? `${it.fromAirport} → ${it.toAirport}`
+              : it.fromCity && it.toCity
+              ? `${it.fromCity} → ${it.toCity}`
+              : null
+            : null;
+        const times =
+          it.departureTime && it.arrivalTime
+            ? `${it.departureTime} – ${it.arrivalTime}`
+            : it.departureTime || it.arrivalTime || null;
+        const tc = TYPE_COLORS[it.type] ?? TYPE_COLORS.ACTIVITY;
+        const ratingData = ratingsByItemId.get(it.id);
+        const subtitle =
+          it.type === "FLIGHT" || it.type === "TRAIN"
+            ? times
+            : it.type === "LODGING"
+            ? it.address ?? null
+            : [times, it.address].filter(Boolean).join(" · ") || null;
+        return {
+          id: `itin_${it.id}`,
+          kind: "itinerary" as const,
+          title: (it.type === "FLIGHT" || it.type === "TRAIN") && route ? route : displayTitle,
+          subtitle,
+          tag: TYPE_LABEL[it.type] ?? "ACT",
+          tagBg: tc.bg,
+          tagColor: tc.color,
+          notes: (it.type === "FLIGHT" || it.type === "TRAIN") && route ? displayTitle : null,
+          imageUrl: getItemImage(displayTitle, null, null, it.type, trip.destinationCity, trip.destinationCountry),
+          rating: ratingData
+            ? { rating: ratingData.rating, notes: ratingData.notes ?? null, wouldReturn: ratingData.wouldReturn ?? null }
+            : null,
+          lat: it.latitude ?? null,
+          lng: it.longitude ?? null,
+          destinationCity: trip.destinationCity,
+          saveable: it.type === "ACTIVITY",
+          websiteUrl: null,
+        };
+      }
+      // manual
+      const ma = entry.data;
+      const ratingData = ratingsByManualId.get(ma.id);
+      return {
+        id: `manual_${ma.id}`,
+        kind: "itinerary" as const,
+        title: ma.title,
+        subtitle: [ma.time, ma.address].filter(Boolean).join(" · ") || null,
+        tag: "ACT",
+        tagBg: "#F5F5F5",
+        tagColor: "#888",
+        notes: ma.notes ?? null,
+        imageUrl: getItemImage(ma.title, null, null, null, trip.destinationCity, trip.destinationCountry),
+        rating: ratingData
+          ? { rating: ratingData.rating, notes: ratingData.notes ?? null, wouldReturn: ratingData.wouldReturn ?? null }
+          : null,
+        lat: ma.lat ?? null,
+        lng: ma.lng ?? null,
+        destinationCity: trip.destinationCity,
+        saveable: true,
+        websiteUrl: null,
+      };
+    });
+
+    const saveItems = dayItems
+      .map((entry) => {
+        if (entry.kind === "save") {
+          const s = entry.data;
+          return {
+            id: `save_${s.id}`,
+            title: s.rawTitle ?? "",
+            lat: s.lat ?? null,
+            lng: s.lng ?? null,
+            imageUrl: s.placePhotoUrl ?? s.mediaThumbnailUrl ?? null,
+            destinationCity: trip.destinationCity,
+          };
+        }
+        if (entry.kind === "itinerary") {
+          const it = entry.data;
+          if (it.type !== "ACTIVITY") return null;
+          return {
+            id: it.id,
+            title: it.title,
+            lat: it.latitude ?? null,
+            lng: it.longitude ?? null,
+            imageUrl: null,
+            destinationCity: trip.destinationCity,
+          };
+        }
+        const ma = entry.data;
+        return {
+          id: ma.id,
+          title: ma.title,
+          lat: ma.lat ?? null,
+          lng: ma.lng ?? null,
+          imageUrl: null,
+          destinationCity: trip.destinationCity,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
+
+    return {
+      index: di,
+      label: dayLabel(di),
+      city: trip.destinationCity,
+      items: serializableItems,
+      saveItems,
+    };
+  });
+
   // ── SECTION 3: Nearby saved places (proximity-filtered photo grid) ────────
   const validItinCoords = trip.itineraryItems.filter(
     (it) =>
@@ -280,177 +414,14 @@ export default async function SharePage({
 
       <div style={{ maxWidth: "640px", margin: "0 auto", padding: "0 16px" }}>
 
-        {/* ── Day-by-day itinerary ── */}
-        {allDayIndices.length > 0 && (
-          <section style={{ marginTop: "28px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
-              {allDayIndices.map((di) => {
-                const dayItems = dayItemsByDay[di] ?? [];
-                return (
-                  <div key={di}>
-                    {/* Day header with extending line */}
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
-                      <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "17px", fontWeight: 700, color: "#1B3A5C", whiteSpace: "nowrap", margin: 0 }}>
-                        {dayLabel(di)}
-                      </h2>
-                      <div style={{ flex: 1, height: "1px", backgroundColor: "#E5E5E5" }} />
-                      <SaveDayButton
-                        isLoggedIn={!!userId}
-                        currentPath={`/share/${trip.shareToken}`}
-                        items={dayItems
-                          .map((entry) => {
-                            if (entry.kind === "save") {
-                              const s = entry.data;
-                              return {
-                                id: `save_${s.id}`,
-                                title: s.rawTitle ?? "",
-                                lat: s.lat ?? null,
-                                lng: s.lng ?? null,
-                                imageUrl: s.placePhotoUrl ?? s.mediaThumbnailUrl ?? null,
-                                destinationCity: trip.destinationCity,
-                              };
-                            }
-                            if (entry.kind === "itinerary") {
-                              const it = entry.data;
-                              if (it.type !== "ACTIVITY") return null;
-                              return {
-                                id: it.id,
-                                title: it.title,
-                                lat: it.latitude ?? null,
-                                lng: it.longitude ?? null,
-                                imageUrl: null,
-                                destinationCity: trip.destinationCity,
-                              };
-                            }
-                            if (entry.kind === "manual") {
-                              const ma = entry.data;
-                              return {
-                                id: ma.id,
-                                title: ma.title,
-                                lat: ma.lat ?? null,
-                                lng: ma.lng ?? null,
-                                imageUrl: null,
-                                destinationCity: trip.destinationCity,
-                              };
-                            }
-                            return null;
-                          })
-                          .filter((x): x is NonNullable<typeof x> => x !== null)
-                        }
-                      />
-                    </div>
-
-                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                      {dayItems.map((entry) => {
-                        let item: SerializableItem;
-
-                        if (entry.kind === "save") {
-                          const s = entry.data;
-                          item = {
-                            id: `save_${s.id}`,
-                            kind: "save",
-                            title: s.rawTitle ?? "(no title)",
-                            subtitle: s.startTime ?? null,
-                            tag: s.categoryTags[0] ?? null,
-                            tagBg: "#F5F5F5",
-                            tagColor: "#888",
-                            notes: s.rawDescription ? s.rawDescription.slice(0, 200) : null,
-                            imageUrl: s.placePhotoUrl ?? s.mediaThumbnailUrl,
-                            rating: null,
-                            lat: s.lat ?? null,
-                            lng: s.lng ?? null,
-                            destinationCity: trip.destinationCity,
-                            saveable: true,
-                            websiteUrl: s.websiteUrl ?? null,
-                          };
-                        } else if (entry.kind === "itinerary") {
-                          const it = entry.data;
-                          const displayTitle = it.type === "LODGING"
-                            ? it.title.replace(/^check-in:\s*/i, "")
-                            : it.title;
-                          const route =
-                            it.type === "FLIGHT" || it.type === "TRAIN"
-                              ? it.fromAirport && it.toAirport
-                                ? `${it.fromAirport} → ${it.toAirport}`
-                                : it.fromCity && it.toCity
-                                ? `${it.fromCity} → ${it.toCity}`
-                                : null
-                              : null;
-                          const times = it.departureTime && it.arrivalTime
-                            ? `${it.departureTime} – ${it.arrivalTime}`
-                            : it.departureTime || it.arrivalTime || null;
-                          const tc = TYPE_COLORS[it.type] ?? TYPE_COLORS.ACTIVITY;
-                          const ratingData = ratingsByItemId.get(it.id);
-
-                          const subtitle =
-                            it.type === "FLIGHT" || it.type === "TRAIN"
-                              ? times
-                              : it.type === "LODGING"
-                              ? it.address ?? null
-                              : [times, it.address].filter(Boolean).join(" · ") || null;
-
-                          item = {
-                            id: `itin_${it.id}`,
-                            kind: "itinerary",
-                            title: (it.type === "FLIGHT" || it.type === "TRAIN") && route ? route : displayTitle,
-                            subtitle,
-                            tag: TYPE_LABEL[it.type] ?? "ACT",
-                            tagBg: tc.bg,
-                            tagColor: tc.color,
-                            notes: (it.type === "FLIGHT" || it.type === "TRAIN") && route ? displayTitle : null,
-                            imageUrl: getItemImage(displayTitle, null, null, it.type, trip.destinationCity, trip.destinationCountry),
-                            rating: ratingData ? {
-                              rating: ratingData.rating,
-                              notes: ratingData.notes ?? null,
-                              wouldReturn: ratingData.wouldReturn ?? null,
-                            } : null,
-                            lat: it.latitude ?? null,
-                            lng: it.longitude ?? null,
-                            destinationCity: trip.destinationCity,
-                            saveable: it.type === "ACTIVITY",
-                            websiteUrl: null,
-                          };
-                        } else {
-                          const ma = entry.data;
-                          const ratingData = ratingsByManualId.get(ma.id);
-                          item = {
-                            id: `manual_${ma.id}`,
-                            kind: "itinerary",
-                            title: ma.title,
-                            subtitle: [ma.time, ma.address].filter(Boolean).join(" · ") || null,
-                            tag: "ACT",
-                            tagBg: "#F5F5F5",
-                            tagColor: "#888",
-                            notes: ma.notes ?? null,
-                            imageUrl: getItemImage(ma.title, null, null, null, trip.destinationCity, trip.destinationCountry),
-                            rating: ratingData ? {
-                              rating: ratingData.rating,
-                              notes: ratingData.notes ?? null,
-                              wouldReturn: ratingData.wouldReturn ?? null,
-                            } : null,
-                            lat: ma.lat ?? null,
-                            lng: ma.lng ?? null,
-                            destinationCity: trip.destinationCity,
-                            saveable: true,
-                            websiteUrl: null,
-                          };
-                        }
-
-                        return (
-                          <ShareActivityCard
-                            key={item.id}
-                            item={item}
-                            isLoggedIn={isLoggedIn}
-                            heroImageUrl={heroImg}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+        {/* ── Day-by-day itinerary (client component handles day/category toggle) ── */}
+        {daysData.length > 0 && (
+          <ShareItineraryView
+            days={daysData}
+            isLoggedIn={isLoggedIn}
+            shareToken={token}
+            heroImageUrl={heroImg}
+          />
         )}
 
         {/* ── Nearby saved places (photo grid, 3+ only) ── */}

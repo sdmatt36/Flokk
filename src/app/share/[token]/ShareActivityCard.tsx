@@ -31,11 +31,12 @@ export function ShareActivityCard({
   isLoggedIn: boolean;
   heroImageUrl?: string | null;
 }) {
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "duplicate" | "error">("idle");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "duplicate">("idle");
   const [imgFailed, setImgFailed] = useState(false);
   const pathname = usePathname();
 
   const imgSrc = item.imageUrl ?? heroImageUrl ?? null;
+  const hasImage = !!imgSrc && !imgFailed;
 
   async function handleSave() {
     if (!isLoggedIn) {
@@ -70,121 +71,134 @@ export function ShareActivityCard({
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border-l-4 border-[#C4664A] p-4 mb-3 flex gap-3 items-start">
-      {(imgSrc && !imgFailed) ? (
-        <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={imgSrc}
-            alt={item.title}
-            className="w-full h-full object-cover"
-            onError={() => setImgFailed(true)}
-          />
-        </div>
+    <div className="rounded-xl overflow-hidden shadow-sm bg-white mb-4 border border-stone-100">
+      {/* Full-width image */}
+      {hasImage ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imgSrc!}
+          alt={item.title}
+          className="w-full h-48 object-cover"
+          onError={() => setImgFailed(true)}
+        />
       ) : (
-        <div className="w-16 h-16 rounded-lg bg-[#F5EDE8] flex-shrink-0 flex items-center justify-center">
-          <span className="text-[#C4664A] text-xs font-medium">
-            {item.tag ?? "ACT"}
-          </span>
+        <div className="w-full h-48 bg-stone-100 flex items-center justify-center">
+          {item.tag && (
+            <span
+              style={{ backgroundColor: item.tagBg, color: item.tagColor }}
+              className="text-xs font-bold px-2 py-1 rounded"
+            >
+              {item.tag.toUpperCase()}
+            </span>
+          )}
         </div>
       )}
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start gap-2 mb-1">
-          <div className="flex-1 min-w-0">
-            {item.tag && (
-              <span
-                style={{ backgroundColor: item.tagBg, color: item.tagColor }}
-                className="inline-block text-[9px] font-black rounded px-1 py-0.5 tracking-wide mb-1"
-              >
-                {item.tag.toUpperCase()}
-              </span>
-            )}
-            <p className="text-sm font-bold text-[#1B3A5C] leading-snug m-0">
-              {item.title}
-            </p>
-            {item.subtitle && (
-              <p className="text-xs text-[#888] mt-0.5 m-0">{item.subtitle}</p>
-            )}
-            {item.websiteUrl && (
-              <a
-                href={item.websiteUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-sm text-[#C4664A] mt-1"
-              >
-                <ExternalLink size={14} />
-                Visit site
-              </a>
-            )}
-          </div>
+      {/* Card body */}
+      <div className="p-4">
+        {/* Tag pill (only when image is shown — visual context already in placeholder otherwise) */}
+        {hasImage && item.tag && (
+          <span
+            style={{ backgroundColor: item.tagBg, color: item.tagColor }}
+            className="inline-block text-[9px] font-black rounded px-1 py-0.5 tracking-wide mb-2"
+          >
+            {item.tag.toUpperCase()}
+          </span>
+        )}
+
+        {/* Name */}
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="font-semibold text-[#1B3A5C] text-base leading-snug">
+            {item.title}
+          </h3>
+          {item.rating && (
+            <span className="text-[#C4664A] text-sm whitespace-nowrap flex-shrink-0">
+              {"★".repeat(Math.max(0, Math.min(5, item.rating.rating)))}
+            </span>
+          )}
         </div>
 
+        {/* Subtitle */}
+        {item.subtitle && (
+          <p className="text-xs text-stone-400 mt-0.5">{item.subtitle}</p>
+        )}
+
+        {/* Would return label */}
+        {item.rating?.wouldReturn !== null && item.rating?.wouldReturn !== undefined && (
+          <p
+            className="text-xs mt-0.5 font-medium"
+            style={{ color: item.rating.wouldReturn ? "#6B8F71" : "#AAAAAA" }}
+          >
+            {item.rating.wouldReturn ? "Would return" : "Wouldn't return"}
+          </p>
+        )}
+
+        {/* Description / notes */}
         {item.notes && (
-          <div className="mt-2">
-            <p
-              className="text-xs text-[#888] italic leading-snug m-0"
-              style={{
-                overflow: "hidden",
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical",
-              } as React.CSSProperties}
-            >
-              {item.notes}
-            </p>
-          </div>
+          <p
+            className="text-sm text-stone-500 mt-2"
+            style={{
+              overflow: "hidden",
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+            } as React.CSSProperties}
+          >
+            {item.notes}
+          </p>
         )}
 
-        {item.rating && (
-          <div className="mt-2 pt-2 border-t border-[#F0F0F0]">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-[#C4664A] tracking-wide">
-                {"★".repeat(Math.max(0, Math.min(5, item.rating.rating)))}
-                {"☆".repeat(Math.max(0, 5 - item.rating.rating))}
-              </span>
-              {item.rating.wouldReturn !== null && (
-                <span
-                  className="text-[11px] font-semibold"
-                  style={{ color: item.rating.wouldReturn ? "#6B8F71" : "#AAAAAA" }}
-                >
-                  {item.rating.wouldReturn ? "Would return" : "Wouldn't return"}
-                </span>
-              )}
-            </div>
-            {item.rating.notes && (
-              <p className="text-xs text-[#666] italic mt-1 leading-snug m-0">
-                {item.rating.notes}
-              </p>
-            )}
-          </div>
+        {/* Rating notes */}
+        {item.rating?.notes && (
+          <p
+            className="text-xs text-stone-400 italic mt-1"
+            style={{
+              overflow: "hidden",
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+            } as React.CSSProperties}
+          >
+            {item.rating.notes}
+          </p>
         )}
 
+        {/* Visit site link */}
+        {item.websiteUrl && (
+          <a
+            href={item.websiteUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 text-sm text-[#C4664A] mt-2"
+          >
+            <ExternalLink size={14} />
+            Visit site
+          </a>
+        )}
+
+        {/* Flokk It save button */}
         {item.saveable && (
-          <div className="mt-3 flex justify-end">
+          <div className="mt-3">
             <button
               onClick={handleSave}
               disabled={saveState === "saving" || saveState === "saved" || saveState === "duplicate"}
+              className="w-full font-medium py-2.5 px-4 rounded-lg text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed text-white"
               style={{
-                fontSize: "12px",
-                border: saveState === "saved" || saveState === "duplicate" ? "none" : "1px solid #C4664A",
-                color: saveState === "saved" ? "#6B8F71" : saveState === "duplicate" ? "#AAAAAA" : "#C4664A",
-                backgroundColor: "transparent",
-                padding: "5px 12px",
-                borderRadius: "999px",
-                cursor: saveState === "saving" || saveState === "saved" || saveState === "duplicate" ? "default" : "pointer",
-                fontFamily: "inherit",
-                fontWeight: 600,
-                transition: "all 0.15s",
+                backgroundColor:
+                  saveState === "saved"
+                    ? "#6B8F71"
+                    : saveState === "duplicate"
+                    ? "#AAAAAA"
+                    : "#C4664A",
               }}
             >
               {saveState === "saved"
-                ? "Saved to your library"
+                ? "Flokked"
                 : saveState === "duplicate"
                 ? "Already saved"
                 : saveState === "saving"
-                ? "Saving..."
-                : "Save"}
+                ? "Flokking..."
+                : "Flokk It"}
             </button>
           </div>
         )}
