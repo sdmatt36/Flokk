@@ -255,6 +255,7 @@ model Trip {
   shareToken                String?           @unique
   postTripCaptureStarted    Boolean           @default(false)
   postTripCaptureComplete   Boolean           @default(false)
+  postTripModalVisitCount   Int               @default(0)
   placeRatings              PlaceRating[]
 }
 

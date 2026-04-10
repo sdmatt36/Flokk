@@ -5008,17 +5008,20 @@ const STAR_LABELS: Record<number, string> = {
 
 const EXCLUDE_SAVE_TAGS = /flight|airfare|airline|lodging|accommodation|hotel|transportation/i;
 
-function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, shareToken, onComplete, onNavigateToItinerary }: {
+function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, shareToken, onComplete, onNavigateToItinerary, onDoneCapturing }: {
   tripId: string;
   destinationCity?: string | null;
   postTripCaptureComplete: boolean;
   shareToken?: string;
   onComplete: () => void;
   onNavigateToItinerary: () => void;
+  onDoneCapturing: () => void;
 }) {
   const [items, setItems] = useState<HowWasItItem[]>([]);
   const [done, setDone] = useState(postTripCaptureComplete);
   const [submitting, setSubmitting] = useState(false);
+  const [existingRatingsCount, setExistingRatingsCount] = useState(0);
+  const [capturedToast, setCapturedToast] = useState<string | null>(null);
   const [spurName, setSpurName] = useState("");
   const [spurType, setSpurType] = useState("Activity");
   const [spurTip, setSpurTip] = useState("");
@@ -5042,6 +5045,7 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, sha
     ]).then(([itinData, savesData, ratingData, manualData]) => {
       const itinItems: { id: string; title?: string | null; type?: string }[] = Array.isArray(itinData) ? itinData : ((itinData as { items?: unknown[] }).items ?? []);
       const existingRatings: { itineraryItemId?: string; manualActivityId?: string }[] = ratingData.ratings ?? [];
+      setExistingRatingsCount(existingRatings.length);
       const ratedItinIds = new Set<string>(existingRatings.map(r => r.itineraryItemId).filter(Boolean) as string[]);
       const ratedManualIds = new Set<string>(existingRatings.map(r => r.manualActivityId).filter(Boolean) as string[]);
 
@@ -5118,15 +5122,38 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, sha
         }),
       })
     ));
-    await fetch(`/api/trips/${tripId}/post-trip-status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ postTripCaptureComplete: true }),
-    });
+    const totalRatings = existingRatingsCount + toSubmit.length;
+    if (totalRatings >= 3) {
+      await fetch(`/api/trips/${tripId}/post-trip-status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postTripCaptureStarted: true, postTripCaptureComplete: true }),
+      });
+      setCapturedToast(`Amazing — your ratings are now helping other families plan their trip${destinationCity ? ` to ${destinationCity}` : ""}.`);
+      setTimeout(() => setCapturedToast(null), 5000);
+      onDoneCapturing();
+    } else {
+      await fetch(`/api/trips/${tripId}/post-trip-status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postTripCaptureComplete: true }),
+      });
+    }
     setDone(true);
     onComplete();
     setSubmitting(false);
     setTimeout(() => onNavigateToItinerary(), 2000);
+  }
+
+  async function handleDoneCapturing() {
+    await fetch(`/api/trips/${tripId}/post-trip-status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ postTripCaptureStarted: true }),
+    });
+    setCapturedToast("Trip captured. Thanks for contributing to Flokk.");
+    setTimeout(() => setCapturedToast(null), 4000);
+    onDoneCapturing();
   }
 
   async function handleAddSpur() {
@@ -5295,6 +5322,24 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, sha
         {submitting ? "Saving..." : "All done — share my ratings"}
       </button>
 
+      <div style={{ marginTop: "32px", paddingTop: "24px", borderTop: "1px solid #e7e5e4", textAlign: "center" }}>
+        <p style={{ fontSize: "13px", color: "#a8a29e", marginBottom: "12px" }}>
+          Finished capturing your memories from this trip?
+        </p>
+        <button
+          onClick={handleDoneCapturing}
+          style={{ fontSize: "13px", color: "#a8a29e", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", fontFamily: "inherit" }}
+        >
+          I&apos;m done capturing this trip
+        </button>
+      </div>
+
+      {capturedToast && (
+        <div style={{ position: "fixed", bottom: "96px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#1B3A5C", color: "#fff", padding: "12px 20px", borderRadius: "12px", fontSize: "14px", fontWeight: 500, zIndex: 9999, maxWidth: "320px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}>
+          {capturedToast}
+        </div>
+      )}
+
     </div>
   );
 }
@@ -5308,15 +5353,28 @@ type SavedRec = {
   tags: string;
 };
 
-export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true, shareToken, tripStatus, initialPostTripCaptureStarted = false, initialPostTripCaptureComplete = false }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean; shareToken?: string; tripStatus?: string; initialPostTripCaptureStarted?: boolean; initialPostTripCaptureComplete?: boolean }) {
+export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true, shareToken, tripStatus, initialPostTripCaptureStarted = false, initialPostTripCaptureComplete = false, initialPostTripModalVisitCount = 0 }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean; shareToken?: string; tripStatus?: string; initialPostTripCaptureStarted?: boolean; initialPostTripCaptureComplete?: boolean; initialPostTripModalVisitCount?: number }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [postTripCaptureStarted, setPostTripCaptureStarted] = useState(initialPostTripCaptureStarted);
   const [postTripCaptureComplete, setPostTripCaptureComplete] = useState(initialPostTripCaptureComplete);
   const [showPostTripModal, setShowPostTripModal] = useState(false);
+  const [showPostTripBanner, setShowPostTripBanner] = useState(false);
   useEffect(() => {
     if (tripStatus === "COMPLETED" && !initialPostTripCaptureStarted) {
-      const t = setTimeout(() => setShowPostTripModal(true), 1000);
-      return () => clearTimeout(t);
+      const newCount = initialPostTripModalVisitCount + 1;
+      if (tripId) {
+        fetch(`/api/trips/${tripId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ postTripModalVisitCount: newCount }),
+        });
+      }
+      if (initialPostTripModalVisitCount === 0) {
+        const t = setTimeout(() => setShowPostTripModal(true), 1000);
+        return () => clearTimeout(t);
+      } else {
+        setShowPostTripBanner(true);
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -5550,6 +5608,27 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
 
   return (
     <div style={{ padding: "0 24px", maxWidth: "900px", margin: "0 auto" }}>
+
+      {/* Post-trip banner — shown on repeat visits until capture started */}
+      {tripStatus === "COMPLETED" && !postTripCaptureStarted && showPostTripBanner && (
+        <div style={{ backgroundColor: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "12px", padding: "12px 16px", marginBottom: "16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: "13px", fontWeight: 600, color: "#92400E", marginBottom: "2px" }}>
+              You have unrated activities from {destinationCity ?? "your trip"}
+            </p>
+            <p style={{ fontSize: "11px", color: "#B45309" }}>
+              Your ratings help families planning this destination.
+            </p>
+          </div>
+          <button
+            onClick={() => { setShowPostTripBanner(false); setTab("howwasit"); }}
+            style={{ fontSize: "12px", backgroundColor: "#C4664A", color: "#fff", padding: "6px 14px", borderRadius: "8px", fontWeight: 600, border: "none", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
+          >
+            Rate now
+          </button>
+        </div>
+      )}
+
       {/* Tab bar + actions — single row */}
       <div
         style={{
@@ -6338,6 +6417,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           shareToken={shareToken}
           onComplete={() => setPostTripCaptureComplete(true)}
           onNavigateToItinerary={() => setTab("itinerary")}
+          onDoneCapturing={() => setPostTripCaptureStarted(true)}
         />
       )}
 
@@ -6456,13 +6536,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       {/* ── Post-trip capture modal ── */}
       {showPostTripModal && createPortal(
         <div
-          onClick={async () => {
-            setShowPostTripModal(false);
-            if (tripId) {
-              await fetch(`/api/trips/${tripId}/post-trip-status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postTripCaptureStarted: true }) });
-              setPostTripCaptureStarted(true);
-            }
-          }}
+          onClick={() => setShowPostTripModal(false)}
           style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
         >
           <div
@@ -6470,37 +6544,32 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
             style={{ backgroundColor: "#fff", borderRadius: "16px", boxShadow: "0 20px 60px rgba(0,0,0,0.2)", width: "100%", maxWidth: "440px", padding: "32px" }}
           >
             <p style={{ fontSize: "22px", fontWeight: 700, color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "12px", lineHeight: 1.3 }}>
-              Welcome back{destinationCity ? ` from ${destinationCity}` : ""}
+              You&apos;re back{destinationCity ? ` from ${destinationCity}` : ""}!
             </p>
             <p style={{ fontSize: "14px", color: "#717171", marginBottom: "28px", lineHeight: 1.6 }}>
-              How did it go? Rate what you experienced — it takes 2 minutes and helps other families plan.
+              How was it? Your ratings help other families find the best spots.
             </p>
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button
-                onClick={async () => {
-                  if (!tripId) return;
-                  await fetch(`/api/trips/${tripId}/post-trip-status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postTripCaptureStarted: true }) });
-                  setPostTripCaptureStarted(true);
-                  setShowPostTripModal(false);
-                  setTab("howwasit");
-                }}
-                style={{ flex: 1, padding: "13px", backgroundColor: "#C4664A", color: "#fff", border: "none", borderRadius: "10px", fontSize: "14px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
-              >
-                Share how it went
-              </button>
-              <button
-                onClick={async () => {
-                  setShowPostTripModal(false);
-                  if (tripId) {
-                    await fetch(`/api/trips/${tripId}/post-trip-status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postTripCaptureStarted: true }) });
-                    setPostTripCaptureStarted(true);
-                  }
-                }}
-                style={{ padding: "13px 20px", backgroundColor: "transparent", color: "#717171", border: "none", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
-              >
-                Maybe later
-              </button>
-            </div>
+            <button
+              onClick={async () => {
+                if (!tripId) return;
+                await fetch(`/api/trips/${tripId}/post-trip-status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ postTripCaptureStarted: true }) });
+                setPostTripCaptureStarted(true);
+                setShowPostTripModal(false);
+                setTab("howwasit");
+              }}
+              style={{ width: "100%", padding: "14px", backgroundColor: "#C4664A", color: "#fff", border: "none", borderRadius: "10px", fontSize: "14px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", marginBottom: "12px" }}
+            >
+              Share how it went
+            </button>
+            <button
+              onClick={() => setShowPostTripModal(false)}
+              style={{ display: "block", width: "100%", padding: "8px", backgroundColor: "transparent", color: "#AAAAAA", border: "none", fontSize: "13px", cursor: "pointer", fontFamily: "inherit", textAlign: "center" }}
+            >
+              Maybe later
+            </button>
+            <p style={{ fontSize: "11px", color: "#BBBBBB", textAlign: "center", marginTop: "12px", lineHeight: 1.5 }}>
+              Your ratings earn you Pioneer status and help build the Flokk community library.
+            </p>
           </div>
         </div>,
         document.body

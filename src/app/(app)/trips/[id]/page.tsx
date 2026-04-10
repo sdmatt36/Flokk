@@ -251,6 +251,7 @@ export default async function TripDetailPage({
           tripStatus={trip.status}
           initialPostTripCaptureStarted={trip.postTripCaptureStarted}
           initialPostTripCaptureComplete={trip.postTripCaptureComplete}
+          initialPostTripModalVisitCount={trip.postTripModalVisitCount ?? 0}
         />
       )}
 
