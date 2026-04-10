@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { usePathname } from "next/navigation";
+import { ExternalLink } from "lucide-react";
 
 export type SerializableItem = {
   id: string;
@@ -18,6 +19,7 @@ export type SerializableItem = {
   lng: number | null;
   destinationCity: string | null;
   saveable: boolean;
+  websiteUrl: string | null;
 };
 
 export function ShareActivityCard({
@@ -51,7 +53,7 @@ export function ShareActivityCard({
           lat: item.lat,
           lng: item.lng,
           placePhotoUrl: item.imageUrl ?? null,
-          websiteUrl: null,
+          websiteUrl: item.websiteUrl,
         }),
       });
       const data = await res.json() as { saved?: boolean; duplicate?: boolean };
@@ -103,6 +105,17 @@ export function ShareActivityCard({
             </p>
             {item.subtitle && (
               <p className="text-xs text-[#888] mt-0.5 m-0">{item.subtitle}</p>
+            )}
+            {item.websiteUrl && (
+              <a
+                href={item.websiteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-sm text-[#C4664A] mt-1"
+              >
+                <ExternalLink size={14} />
+                Visit site
+              </a>
             )}
           </div>
         </div>

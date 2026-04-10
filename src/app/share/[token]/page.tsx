@@ -361,6 +361,7 @@ export default async function SharePage({
                             lng: s.lng ?? null,
                             destinationCity: trip.destinationCity,
                             saveable: true,
+                            websiteUrl: s.websiteUrl ?? null,
                           };
                         } else if (entry.kind === "itinerary") {
                           const it = entry.data;
@@ -407,6 +408,7 @@ export default async function SharePage({
                             lng: it.longitude ?? null,
                             destinationCity: trip.destinationCity,
                             saveable: it.type === "ACTIVITY",
+                            websiteUrl: null,
                           };
                         } else {
                           const ma = entry.data;
@@ -430,6 +432,7 @@ export default async function SharePage({
                             lng: ma.lng ?? null,
                             destinationCity: trip.destinationCity,
                             saveable: true,
+                            websiteUrl: null,
                           };
                         }
 

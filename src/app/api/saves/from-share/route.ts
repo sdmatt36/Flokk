@@ -3,6 +3,33 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 
+function inferCategoryTagFromTitle(title: string): string[] {
+  const t = title.toLowerCase();
+  if (t.includes("restaurant") || t.includes("cafe") || t.includes("coffee") ||
+      t.includes("bar") || t.includes("food") || t.includes("dining") ||
+      t.includes("lunch") || t.includes("dinner") || t.includes("breakfast") ||
+      t.includes("bistro") || t.includes("eatery") || t.includes("ramen") ||
+      t.includes("sushi") || t.includes("pizza") || t.includes("bbq")) return ["food"];
+  if (t.includes("hotel") || t.includes("hostel") || t.includes("lodging") ||
+      t.includes("accommodation") || t.includes("resort") || t.includes("airbnb") ||
+      t.includes("inn") || t.includes("ryokan") || t.includes("bnb")) return ["lodging"];
+  if (t.includes("kid") || t.includes("child") || t.includes("family") ||
+      t.includes("playground") || t.includes("zoo") || t.includes("aquarium") ||
+      t.includes("theme park")) return ["kids"];
+  if (t.includes("park") || t.includes("hike") || t.includes("trail") ||
+      t.includes("beach") || t.includes("outdoor") || t.includes("nature") ||
+      t.includes("mountain") || t.includes("garden")) return ["outdoor"];
+  if (t.includes("shop") || t.includes("market") || t.includes("mall") ||
+      t.includes("store") || t.includes("boutique")) return ["shopping"];
+  if (t.includes("flight") || t.includes("train") || t.includes("bus") ||
+      t.includes("transport") || t.includes("transit") || t.includes("airport")) return ["transportation"];
+  if (t.includes("museum") || t.includes("gallery") || t.includes("temple") ||
+      t.includes("palace") || t.includes("monument") || t.includes("historic") ||
+      t.includes("shrine") || t.includes("castle") || t.includes("theater") ||
+      t.includes("theatre") || t.includes("art")) return ["culture"];
+  return [];
+}
+
 export async function POST(request: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -51,7 +78,7 @@ export async function POST(request: Request) {
       sourceType: "IN_APP",
       status: "UNORGANIZED",
       extractionStatus: "ENRICHED",
-      categoryTags: [],
+      categoryTags: inferCategoryTagFromTitle(body.title.trim()),
     },
   });
 
