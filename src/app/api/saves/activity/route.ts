@@ -18,13 +18,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Complete onboarding first" }, { status: 400 });
     }
 
-    // Look up the source item — must belong to a PUBLIC trip
+    // Look up the source item — must belong to a PUBLIC trip (or have no trip at all)
     const source = await db.savedItem.findUnique({
       where: { id: sourceItemId },
       include: { trip: true },
     });
-    if (!source || source.trip?.privacy !== "PUBLIC") {
+    if (!source) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
+    }
+    // Items with tripId: null are from-share items not owned by any trip — allow them.
+    // Items belonging to a trip must come from a PUBLIC trip to prevent scraping private trips.
+    if (source.tripId !== null && source.trip?.privacy !== "PUBLIC") {
+      return NextResponse.json({ error: "Item not found" }, { status: 403 });
     }
 
     const savedItem = await db.savedItem.create({
