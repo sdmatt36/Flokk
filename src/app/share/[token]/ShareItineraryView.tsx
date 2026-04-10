@@ -218,7 +218,7 @@ export function ShareItineraryView({
                             disabled={allSaved}
                             style={{ fontSize: "11px", fontWeight: 700, color: allSaved ? "#4a7c59" : "#fff", backgroundColor: allSaved ? "rgba(74,124,89,0.1)" : "#C4664A", border: allSaved ? "1px solid rgba(74,124,89,0.3)" : "none", borderRadius: "999px", padding: "3px 10px", cursor: allSaved ? "default" : "pointer", whiteSpace: "nowrap" }}
                           >
-                            {allSaved ? "Stolen!" : "Steal this day"}
+                            {allSaved ? "Flokked!" : "Steal this day"}
                           </button>
                         );
                       })()}

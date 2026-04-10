@@ -269,16 +269,38 @@ export default function DiscoverPage() {
       const placeholderImageMap = new Map<string, string | null>(
         placeholders.map((p: DiscoverActivity) => [normalize(p.title), p.imageUrl])
       );
-      // For real activities missing an imageUrl, fall back to the matching placeholder's image
-      const enrichedReal: DiscoverActivity[] = real.map((a: DiscoverActivity) => ({
-        ...a,
-        imageUrl: a.imageUrl ?? placeholderImageMap.get(normalize(a.title)) ?? null,
-      }));
+      // For real activities missing an imageUrl: exact title match first, then partial word match
+      const enrichedReal: DiscoverActivity[] = real.map((a: DiscoverActivity) => {
+        if (a.imageUrl) return a;
+        const exactMatch = placeholderImageMap.get(normalize(a.title));
+        if (exactMatch) return { ...a, imageUrl: exactMatch };
+        // Partial word match: find a placeholder whose significant words appear in the activity title
+        const actNorm = normalize(a.title);
+        let partialImage: string | null = null;
+        for (const [pTitle, pImg] of placeholderImageMap.entries()) {
+          const words = pTitle.split(/\s+/).filter(w => w.length > 3);
+          if (words.length > 0 && words.some(w => actNorm.includes(w))) {
+            partialImage = pImg ?? null;
+            break;
+          }
+        }
+        return { ...a, imageUrl: partialImage };
+      });
       const realTitles = new Set(enrichedReal.map((a: DiscoverActivity) => normalize(a.title)));
       const dedupedPlaceholders = placeholders.filter(
         (p: DiscoverActivity) => !realTitles.has(normalize(p.title))
       );
-      const all: DiscoverActivity[] = [...enrichedReal, ...dedupedPlaceholders];
+      // Shuffle + cap at 3 per city for the default picks view
+      const combined: DiscoverActivity[] = [...enrichedReal, ...dedupedPlaceholders];
+      const shuffled = combined.sort(() => Math.random() - 0.5);
+      const cityCount = new Map<string, number>();
+      const all: DiscoverActivity[] = shuffled.filter((a) => {
+        const key = (a.city ?? "").toLowerCase();
+        const count = cityCount.get(key) ?? 0;
+        if (count >= 3) return false;
+        cityCount.set(key, count + 1);
+        return true;
+      });
       allActivitiesRef.current = all;
       setActivityResults(all);
     }).catch(() => {});

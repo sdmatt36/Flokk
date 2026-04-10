@@ -658,6 +658,12 @@ export function CommunityTripView({
     }
   }
 
+  async function handleStealDay(dayItems: ActivityItem[]) {
+    for (const item of dayItems) {
+      await handleSaveActivity(item.id);
+    }
+  }
+
   const TABS = ["itinerary", "recommended"] as const;
   const TAB_LABELS = { itinerary: "Itinerary", recommended: "Recommended" };
 
@@ -729,6 +735,18 @@ export function CommunityTripView({
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
                           <span style={{ fontSize: "13px", color: "#717171" }}>{day.items.length} stop{day.items.length !== 1 ? "s" : ""}</span>
+                          {!isOwner && day.items.length > 0 && (() => {
+                            const allSaved = day.items.every(it => savedSet.has(it.id));
+                            return (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleStealDay(day.items); }}
+                                disabled={allSaved}
+                                style={{ fontSize: "11px", fontWeight: 700, color: allSaved ? "#4a7c59" : "#fff", backgroundColor: allSaved ? "rgba(74,124,89,0.1)" : "#C4664A", border: allSaved ? "1px solid rgba(74,124,89,0.3)" : "none", borderRadius: "999px", padding: "3px 10px", cursor: allSaved ? "default" : "pointer", whiteSpace: "nowrap" }}
+                              >
+                                {allSaved ? "Flokked!" : "Steal this day"}
+                              </button>
+                            );
+                          })()}
                           <ChevronDown size={16} style={{ color: "#717171", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s ease" }} />
                         </div>
                       </div>
