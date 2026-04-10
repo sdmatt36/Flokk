@@ -514,6 +514,8 @@ export default function TravelIntelPage() {
   const [items, setItems] = useState<GuideItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSubmit, setShowSubmit] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 9;
   const searchRef = useRef<HTMLDivElement>(null);
 
   // Fetch content
@@ -556,12 +558,14 @@ export default function TravelIntelPage() {
     setSearchCity(value);
     setShowSugg(false);
     setSuggestions([]);
+    setCurrentPage(1);
   }
 
   function clearSearch() {
     setSearchInput("");
     setSearchCity("");
     setSuggestions([]);
+    setCurrentPage(1);
     setShowSugg(false);
   }
 
@@ -574,6 +578,12 @@ export default function TravelIntelPage() {
     list.filter((i) => matchesFilter(i, activeFilter) && (!activeTopic || i.tags.includes(activeTopic)));
   const filteredCommunity = applyFilters(communityItems);
   const filteredFlokk = applyFilters(flokkItems);
+
+  const totalPages = Math.ceil(filteredCommunity.length / ITEMS_PER_PAGE);
+  const paginatedCommunity = filteredCommunity.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const isEmpty = !loading && filteredCommunity.length === 0;
 
@@ -646,7 +656,7 @@ export default function TravelIntelPage() {
             return (
               <button
                 key={f}
-                onClick={() => setActiveFilter(f)}
+                onClick={() => { setActiveFilter(f); setCurrentPage(1); }}
                 style={{ padding: "7px 18px", borderRadius: "999px", border: `1.5px solid ${active ? "#C4664A" : "#E0E0E0"}`, backgroundColor: active ? "#C4664A" : "#fff", color: active ? "#fff" : "#717171", fontSize: "13px", fontWeight: active ? 700 : 500, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
               >
                 {f}
@@ -658,7 +668,7 @@ export default function TravelIntelPage() {
         {/* ── Filter pills — topics ── */}
         <div style={{ display: "flex", gap: "6px", marginBottom: "28px", flexWrap: "wrap" }}>
           <button
-            onClick={() => setActiveTopic(null)}
+            onClick={() => { setActiveTopic(null); setCurrentPage(1); }}
             style={{ padding: "5px 14px", borderRadius: "999px", border: `1.5px solid ${activeTopic === null ? "#1B3A5C" : "#E0E0E0"}`, backgroundColor: activeTopic === null ? "#1B3A5C" : "#fff", color: activeTopic === null ? "#fff" : "#717171", fontSize: "12px", fontWeight: activeTopic === null ? 700 : 500, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
           >
             All Topics
@@ -668,7 +678,7 @@ export default function TravelIntelPage() {
             return (
               <button
                 key={tag}
-                onClick={() => setActiveTopic(active ? null : tag)}
+                onClick={() => { setActiveTopic(active ? null : tag); setCurrentPage(1); }}
                 style={{ padding: "5px 14px", borderRadius: "999px", border: `1.5px solid ${active ? "#1B3A5C" : "#E0E0E0"}`, backgroundColor: active ? "#1B3A5C" : "#fff", color: active ? "#fff" : "#717171", fontSize: "12px", fontWeight: active ? 700 : 500, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
               >
                 {tag}
@@ -705,11 +715,47 @@ export default function TravelIntelPage() {
 
         {/* ── Community content grid ── */}
         {!loading && filteredCommunity.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
-            {filteredCommunity.map((item) => (
-              <GuideCard key={item.id} item={item} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
+              {paginatedCommunity.map((item) => (
+                <GuideCard key={item.id} item={item} />
+              ))}
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-10">
+                <button
+                  onClick={() => { setCurrentPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 text-sm font-medium text-stone-500 hover:text-[#1B3A5C] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  Previous
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <button
+                    key={page}
+                    onClick={() => { setCurrentPage(page); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                    className={`w-9 h-9 rounded-full text-sm font-medium transition-colors ${
+                      currentPage === page
+                        ? "bg-[#1B3A5C] text-white"
+                        : "text-stone-500 hover:text-[#1B3A5C] hover:bg-stone-100"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+
+                <button
+                  onClick={() => { setCurrentPage(p => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                  disabled={currentPage === totalPages}
+                  className="px-4 py-2 text-sm font-medium text-stone-500 hover:text-[#1B3A5C] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         {/* ── From Flokk section ── */}
