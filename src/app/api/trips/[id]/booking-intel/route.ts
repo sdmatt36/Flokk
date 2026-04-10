@@ -113,6 +113,7 @@ export async function GET(
       flights: { select: { id: true, type: true, status: true } },
       savedItems: { select: { categoryTags: true, isBooked: true } },
       manualActivities: { select: { status: true } },
+      itineraryItems: { select: { type: true } },
       keyInfo: { select: { label: true, value: true } },
       documents: { select: { label: true } },
     },
@@ -127,7 +128,7 @@ export async function GET(
   if (daysUntilEnd < -1 || daysAway > WINDOW_DAYS) return NextResponse.json({ show: false });
 
   const items: IntelItem[] = [];
-  const { destinationCity, destinationCountry, flights, savedItems, manualActivities, keyInfo, documents } = trip;
+  const { destinationCity, destinationCountry, flights, savedItems, manualActivities, itineraryItems, keyInfo, documents } = trip;
 
   // ── Flights ────────────────────────────────────────────────────────────────
   const bookedFlights = flights.filter((f) => f.status === "booked");
@@ -173,12 +174,15 @@ export async function GET(
   const allLodging = savedItems.filter((s) => s.categoryTags.some((t) => HOTEL_RE.test(t)));
   const bookedLodging = allLodging.filter((s) => s.isBooked);
   const unconfirmedLodging = allLodging.filter((s) => !s.isBooked);
-  if (bookedLodging.length > 0) {
+  // Email-imported hotel bookings live in ItineraryItem with type LODGING
+  const itineraryLodging = itineraryItems.filter((i) => HOTEL_RE.test(i.type));
+  const totalBookedLodging = bookedLodging.length + itineraryLodging.length;
+  if (totalBookedLodging > 0) {
     items.push({
       id: "hotel",
       category: "hotel",
       title: "Hotel / accommodation",
-      reason: `${bookedLodging.length} place${bookedLodging.length > 1 ? "s" : ""} confirmed.`,
+      reason: `${totalBookedLodging} place${totalBookedLodging > 1 ? "s" : ""} confirmed.`,
       status: "booked",
       urgency: "when ready",
       bookingUrl: null,
