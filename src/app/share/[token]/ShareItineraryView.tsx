@@ -11,10 +11,44 @@ function getCategory(tag: string | null, title?: string | null): Category {
   const check = (s: string): Category | null => {
     const t = s.toLowerCase().trim();
     if (t === "stay" || t === "lodging" || t.includes("hotel") || t.includes("hostel") || t.includes("accommodation")) return "Lodging";
-    if (t === "food" || t.includes("food") || t.includes("restaurant") || t.includes("restaurants") || t.includes("cafe") || t.includes("dining")) return "Food";
-    if (t === "culture" || t.includes("culture") || t.includes("museum") || t.includes("art") || t.includes("temple") || t.includes("shrine") || t.includes("gallery")) return "Culture";
-    if (t === "kids" || t === "family" || t.includes("kid") || t.includes("child") || t.includes("family")) return "Kids";
-    if (t === "outdoor" || t === "outdoors" || t.includes("outdoor") || t.includes("park") || t.includes("hike") || t.includes("beach") || t.includes("nature") || t.includes("garden")) return "Outdoor";
+    if (
+      t === "food" || t.includes("food") || t.includes("restaurant") || t.includes("restaurants") ||
+      t.includes("cafe") || t.includes("dining") || t.includes("lunch") || t.includes("dinner") ||
+      t.includes("breakfast") || t.includes("brunch") || t.includes("taco") || t.includes("burger") ||
+      t.includes("bbq") || t.includes("grill") || t.includes("bistro") || t.includes("brasserie") ||
+      t.includes("tavern") || t.includes("pub") || t.includes("eatery") || t.includes("sushi") ||
+      t.includes("ramen") || t.includes("noodle") || t.includes("pizza") || t.includes("bakery") ||
+      t.includes("bakers") || t.includes("patisserie") || t.includes("snack") || t.includes("buffet") ||
+      t.includes("steakhouse") || t.includes("seafood") || t.includes("izakaya") || t.includes("yakitori") ||
+      t.includes("hotpot") || t.includes("dim sum") || t.includes("curry") || t.includes("deli") ||
+      t.includes("sandwich") || t.includes("mipo") || t.includes("sam ryan")
+    ) return "Food";
+    if (
+      t === "culture" || t.includes("culture") || t.includes("museum") || t.includes("art") ||
+      t.includes("temple") || t.includes("shrine") || t.includes("gallery") || t.includes("village") ||
+      t.includes("district") || t.includes("hanok") || t.includes("dmz") || t.includes("insider") ||
+      t.includes("tour") || t.includes("cathedral") || t.includes("church") || t.includes("castle") ||
+      t.includes("fortress") || t.includes("tower") || t.includes("ruins") || t.includes("heritage") ||
+      t.includes("traditional") || t.includes("folk") || t.includes("cultural") || t.includes("exhibition") ||
+      t.includes("cemetery") || t.includes("memorial") || t.includes("statue") || t.includes("landmark") ||
+      t.includes("viewpoint") || t.includes("observatory") || t.includes("lookout") || t.includes("panorama")
+    ) return "Culture";
+    if (
+      t === "kids" || t === "family" || t.includes("kid") || t.includes("child") || t.includes("family") ||
+      t.includes("lego") || t.includes("science") || t.includes("discovery") || t.includes("wonder") ||
+      t.includes("adventure") || t.includes("trampoline") || t.includes("bowling") || t.includes("arcade") ||
+      t.includes("laser tag") || t.includes("escape room") || t.includes("water park") ||
+      t.includes("safari") || t.includes("farm") || t.includes("petting")
+    ) return "Kids";
+    if (
+      t === "outdoor" || t === "outdoors" || t.includes("outdoor") || t.includes("park") ||
+      t.includes("hike") || t.includes("beach") || t.includes("nature") || t.includes("garden") ||
+      t.includes("cable car") || t.includes("sky cab") || t.includes("gondola") || t.includes("chairlift") ||
+      t.includes("tram") || t.includes("river") || t.includes("lake") || t.includes("waterfall") ||
+      t.includes("forest") || t.includes("botanical") || t.includes("national park") || t.includes("coast") ||
+      t.includes("cliff") || t.includes("valley") || t.includes("island") || t.includes("sunrise") ||
+      t.includes("sunset") || t.includes("scenic") || t.includes("namsam") || t.includes("namsan")
+    ) return "Outdoor";
     if (t === "shopping" || t.includes("shop") || t.includes("market") || t.includes("mall")) return "Shopping";
     if (t === "flt" || t === "rail" || t === "transportation" || t.includes("transport") || t.includes("flight") || t.includes("train") || t.includes("transit")) return "Transportation";
     return null;
@@ -134,7 +168,7 @@ export function ShareItineraryView({
           {CATEGORY_ORDER.filter((cat) => categoryGroups[cat].length > 0).map((cat) => (
             <div key={cat}>
               <h2 className="text-lg font-bold text-[#1B3A5C] mb-3">{cat}</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {categoryGroups[cat].map((item) => (
                   <ShareActivityCard
                     key={item.id}
