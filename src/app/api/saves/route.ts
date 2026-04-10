@@ -258,8 +258,8 @@ export async function GET(request: Request) {
           { AND: [{ lat: null }, { rawTitle: { contains: "flight", mode: "insensitive" } }] },
           { AND: [{ lat: null }, { rawTitle: { contains: "airline", mode: "insensitive" } }] },
           { AND: [{ lat: null }, { rawTitle: { contains: "airfare", mode: "insensitive" } }] },
-          // 3. Source URL matches Google Flights
-          { sourceUrl: { contains: "/travel/flights", mode: "insensitive" } },
+          // 3. Source URL matches Google Flights (guard against null — NULL ILIKE propagates and excludes rows)
+          { AND: [{ sourceUrl: { not: null } }, { sourceUrl: { contains: "/travel/flights", mode: "insensitive" } }] },
         ],
       },
       orderBy: { savedAt: "desc" },
