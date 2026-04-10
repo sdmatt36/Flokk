@@ -5629,56 +5629,69 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         </div>
       )}
 
-      {/* Tab bar + actions — single row */}
+      {/* Action buttons row — above tab bar so tabs get full width */}
+      {tripId && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "6px", marginBottom: "8px" }}>
+          <button
+            onClick={() => setDropLinkOpen(true)}
+            style={{
+              display: "flex", alignItems: "center", gap: "4px",
+              padding: "6px 14px",
+              backgroundColor: "#C4664A", color: "#fff",
+              border: "none", borderRadius: "20px",
+              fontSize: "12px", fontWeight: 700, cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <Plus size={13} /> Save Link
+          </button>
+          {shareToken && tripId && (
+            <ShareTripButton
+              shareToken={shareToken}
+              tripId={tripId}
+              tripTitle={tripTitle ?? "this trip"}
+            />
+          )}
+          <button
+            onClick={() => {
+              setEditStartDate(tripStartDate ? new Date(tripStartDate + (tripStartDate.includes('T') ? '' : 'T12:00:00')).toISOString().split('T')[0] : '');
+              setEditEndDate(tripEndDate ? new Date(tripEndDate + (tripEndDate.includes('T') ? '' : 'T12:00:00')).toISOString().split('T')[0] : '');
+              setShowTripSettings(true);
+            }}
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "center",
+              width: "30px", height: "30px",
+              backgroundColor: "transparent", color: "#AAAAAA",
+              border: "1.5px solid #EEEEEE", borderRadius: "50%",
+              cursor: "pointer", flexShrink: 0,
+            }}
+            title="Trip settings"
+          >
+            <Settings size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* Tab bar — full width, horizontally scrollable on mobile */}
       <div
+        className="hide-scrollbar"
         style={{
           display: "flex",
-          alignItems: "center",
+          overflowX: "auto",
+          WebkitOverflowScrolling: "touch" as const,
+          scrollbarWidth: "none" as const,
+          msOverflowStyle: "none" as const,
           borderBottom: "1px solid rgba(0,0,0,0.08)",
           marginBottom: "20px",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            flex: 1,
-            overflowX: "auto",
-            WebkitOverflowScrolling: "touch" as const,
-            scrollbarWidth: "none" as const,
-            msOverflowStyle: "none" as const,
-          }}
-        >
-          {(["Saved", "Itinerary", "Recommended", "Packing", "Notes", "Vault"] as const).map((label) => {
-            const key = label.toLowerCase() as Tab;
-            const active = tab === key;
-            return (
-              <button
-                key={label}
-                onClick={() => setTab(key)}
-                style={{
-                  flexShrink: 0,
-                  paddingTop: "10px",
-                  paddingBottom: "12px",
-                  paddingLeft: "16px",
-                  paddingRight: "16px",
-                  fontSize: "14px",
-                  fontWeight: active ? 700 : 500,
-                  color: active ? "#C4664A" : "#717171",
-                  backgroundColor: "transparent",
-                  border: "none",
-                  borderBottom: active ? "2.5px solid #C4664A" : "2.5px solid transparent",
-                  marginBottom: "-1px",
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {label}
-              </button>
-            );
-          })}
-          {tripStatus === "COMPLETED" && !postTripCaptureComplete && (
+        {(["Saved", "Itinerary", "Recommended", "Packing", "Notes", "Vault"] as const).map((label) => {
+          const key = label.toLowerCase() as Tab;
+          const active = tab === key;
+          return (
             <button
-              onClick={() => setTab("howwasit")}
+              key={label}
+              onClick={() => setTab(key)}
               style={{
                 flexShrink: 0,
                 paddingTop: "10px",
@@ -5686,60 +5699,42 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                 paddingLeft: "16px",
                 paddingRight: "16px",
                 fontSize: "14px",
-                fontWeight: tab === "howwasit" ? 700 : 500,
-                color: tab === "howwasit" ? "#C4664A" : "#717171",
+                fontWeight: active ? 700 : 500,
+                color: active ? "#C4664A" : "#717171",
                 backgroundColor: "transparent",
                 border: "none",
-                borderBottom: tab === "howwasit" ? "2.5px solid #C4664A" : "2.5px solid transparent",
+                borderBottom: active ? "2.5px solid #C4664A" : "2.5px solid transparent",
                 marginBottom: "-1px",
                 cursor: "pointer",
                 whiteSpace: "nowrap",
               }}
             >
-              How was it?{!postTripCaptureComplete && <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#D97706", display: "inline-block", marginLeft: "6px", verticalAlign: "middle" }} />}
+              {label}
             </button>
-          )}
-        </div>
-        {tripId && (
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "12px", flexShrink: 0 }}>
-            <button
-              onClick={() => setDropLinkOpen(true)}
-              style={{
-                display: "flex", alignItems: "center", gap: "4px",
-                padding: "6px 14px",
-                backgroundColor: "#C4664A", color: "#fff",
-                border: "none", borderRadius: "20px",
-                fontSize: "12px", fontWeight: 700, cursor: "pointer",
-                whiteSpace: "nowrap",
-              }}
-            >
-              <Plus size={13} /> Save Link
-            </button>
-            {shareToken && tripId && (
-              <ShareTripButton
-                shareToken={shareToken}
-                tripId={tripId}
-                tripTitle={tripTitle ?? "this trip"}
-              />
-            )}
-            <button
-              onClick={() => {
-                setEditStartDate(tripStartDate ? new Date(tripStartDate + (tripStartDate.includes('T') ? '' : 'T12:00:00')).toISOString().split('T')[0] : '');
-                setEditEndDate(tripEndDate ? new Date(tripEndDate + (tripEndDate.includes('T') ? '' : 'T12:00:00')).toISOString().split('T')[0] : '');
-                setShowTripSettings(true);
-              }}
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center",
-                width: "30px", height: "30px",
-                backgroundColor: "transparent", color: "#AAAAAA",
-                border: "1.5px solid #EEEEEE", borderRadius: "50%",
-                cursor: "pointer", flexShrink: 0,
-              }}
-              title="Trip settings"
-            >
-              <Settings size={14} />
-            </button>
-          </div>
+          );
+        })}
+        {tripStatus === "COMPLETED" && !postTripCaptureComplete && (
+          <button
+            onClick={() => setTab("howwasit")}
+            style={{
+              flexShrink: 0,
+              paddingTop: "10px",
+              paddingBottom: "12px",
+              paddingLeft: "16px",
+              paddingRight: "16px",
+              fontSize: "14px",
+              fontWeight: tab === "howwasit" ? 700 : 500,
+              color: tab === "howwasit" ? "#C4664A" : "#717171",
+              backgroundColor: "transparent",
+              border: "none",
+              borderBottom: tab === "howwasit" ? "2.5px solid #C4664A" : "2.5px solid transparent",
+              marginBottom: "-1px",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            How was it?{!postTripCaptureComplete && <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#D97706", display: "inline-block", marginLeft: "6px", verticalAlign: "middle" }} />}
+          </button>
         )}
       </div>
 
