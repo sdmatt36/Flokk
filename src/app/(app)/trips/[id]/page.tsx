@@ -109,7 +109,7 @@ export default async function TripDetailPage({
 
   const viewerMembers = (profile.members ?? []).map((m) => ({
     role: m.role as "ADULT" | "CHILD",
-    name: m.name,
+    name: m.name ?? '',
     birthDate: m.birthDate ? m.birthDate.toISOString() : null,
   }));
 
