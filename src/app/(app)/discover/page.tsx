@@ -290,17 +290,9 @@ export default function DiscoverPage() {
       const dedupedPlaceholders = placeholders.filter(
         (p: DiscoverActivity) => !realTitles.has(normalize(p.title))
       );
-      // Shuffle + cap at 3 per city for the default picks view
+      // Shuffle for random city mix on default view
       const combined: DiscoverActivity[] = [...enrichedReal, ...dedupedPlaceholders];
-      const shuffled = combined.sort(() => Math.random() - 0.5);
-      const cityCount = new Map<string, number>();
-      const all: DiscoverActivity[] = shuffled.filter((a) => {
-        const key = (a.city ?? "").toLowerCase();
-        const count = cityCount.get(key) ?? 0;
-        if (count >= 3) return false;
-        cityCount.set(key, count + 1);
-        return true;
-      });
+      const all: DiscoverActivity[] = combined.sort(() => Math.random() - 0.5);
       allActivitiesRef.current = all;
       setActivityResults(all);
     }).catch(() => {});
@@ -396,24 +388,37 @@ export default function DiscoverPage() {
     } catch {}
   };
 
-  const filteredPicks = activityResults.filter(a => {
-    const matchesSearch =
-      !picksSearch ||
-      a.title.toLowerCase().includes(picksSearch.toLowerCase()) ||
-      (a.city ?? "").toLowerCase().includes(picksSearch.toLowerCase());
+  const filteredPicks = (() => {
+    const cityCount = new Map<string, number>();
+    return activityResults.filter(a => {
+      const matchesSearch =
+        !picksSearch ||
+        a.title.toLowerCase().includes(picksSearch.toLowerCase()) ||
+        (a.city ?? "").toLowerCase().includes(picksSearch.toLowerCase());
 
-    const matchesFilter = (() => {
-      if (picksFilter === "All") return true;
-      const rule = PICKS_TYPE_MAP[picksFilter];
-      if (!rule) return true;
-      const titleLower = a.title.toLowerCase();
-      const matchesType = rule.types.includes(a.type ?? "");
-      const matchesKeyword = rule.keywords.some(k => titleLower.includes(k));
-      return matchesType || matchesKeyword;
-    })();
+      const matchesFilter = (() => {
+        if (picksFilter === "All") return true;
+        const rule = PICKS_TYPE_MAP[picksFilter];
+        if (!rule) return true;
+        const titleLower = a.title.toLowerCase();
+        const matchesType = rule.types.includes(a.type ?? "");
+        const matchesKeyword = rule.keywords.some(k => titleLower.includes(k));
+        return matchesType || matchesKeyword;
+      })();
 
-    return matchesSearch && matchesFilter;
-  });
+      if (!matchesSearch || !matchesFilter) return false;
+
+      // When no search active, cap at 3 per city for a mixed default view
+      if (!picksSearch) {
+        const key = (a.city ?? "").toLowerCase();
+        const count = cityCount.get(key) ?? 0;
+        if (count >= 3) return false;
+        cityCount.set(key, count + 1);
+      }
+
+      return true;
+    });
+  })();
 
   const displayedPicks = showAllPicks ? filteredPicks : filteredPicks.slice(0, 6);
 
