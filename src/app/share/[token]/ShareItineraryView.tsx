@@ -123,7 +123,7 @@ export function ShareItineraryView({
           {CATEGORY_ORDER.filter((cat) => categoryGroups[cat].length > 0).map((cat) => (
             <div key={cat}>
               <h2 className="text-lg font-bold text-[#1B3A5C] mb-3">{cat}</h2>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {categoryGroups[cat].map((item) => (
                   <ShareActivityCard
                     key={item.id}

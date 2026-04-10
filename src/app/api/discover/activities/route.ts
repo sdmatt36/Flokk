@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
         LEFT JOIN "PlaceRating" pr ON pr."manualActivityId" = ma.id
         WHERE t."endDate" IS NOT NULL
           AND t."endDate" < NOW()
-          AND t."isPublic" = true
+
           AND (pr.rating IS NULL OR pr.rating >= 3)
 
         UNION ALL
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
         LEFT JOIN "PlaceRating" pr ON pr."itineraryItemId" = ii.id
         WHERE t."endDate" IS NOT NULL
           AND t."endDate" < NOW()
-          AND t."isPublic" = true
+
           AND ii.type NOT IN ('FLIGHT', 'TRAIN', 'LODGING', 'TRANSIT')
           AND (pr.rating IS NULL OR pr.rating >= 3)
       ),
@@ -151,7 +151,7 @@ export async function GET(req: NextRequest) {
         LEFT JOIN "PlaceRating" pr ON pr."manualActivityId" = ma.id
         WHERE t."endDate" IS NOT NULL
           AND t."endDate" < NOW()
-          AND t."isPublic" = true
+
           AND (pr.rating IS NULL OR pr.rating >= 3)
 
         UNION ALL
@@ -179,7 +179,7 @@ export async function GET(req: NextRequest) {
         LEFT JOIN "PlaceRating" pr ON pr."itineraryItemId" = ii.id
         WHERE t."endDate" IS NOT NULL
           AND t."endDate" < NOW()
-          AND t."isPublic" = true
+
           AND ii.type NOT IN ('FLIGHT', 'TRAIN', 'LODGING', 'TRANSIT')
           AND (pr.rating IS NULL OR pr.rating >= 3)
       ),

@@ -35,7 +35,9 @@ export function ShareActivityCard({
   const [imgFailed, setImgFailed] = useState(false);
   const pathname = usePathname();
 
-  const imgSrc = item.imageUrl ?? heroImageUrl ?? null;
+  // Use only the item's own image — do not fall back to heroImageUrl (trip cover photo)
+  // Items without a specific photo get the clean stone-100 placeholder
+  const imgSrc = item.imageUrl ?? null;
   const hasImage = !!imgSrc && !imgFailed;
 
   async function handleSave() {

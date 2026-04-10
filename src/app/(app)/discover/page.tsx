@@ -737,14 +737,15 @@ export default function DiscoverPage() {
                         style={{
                           fontSize: "12px",
                           fontWeight: 700,
-                          border: `1.5px solid ${savedActivities.has(act.id) ? "#D0D0D0" : "#C4664A"}`,
-                          color: savedActivities.has(act.id) ? "#AAAAAA" : "#C4664A",
-                          backgroundColor: "transparent",
+                          border: "none",
+                          color: "#fff",
+                          backgroundColor: savedActivities.has(act.id) ? "#AAAAAA" : "#C4664A",
                           borderRadius: "8px",
                           padding: "8px",
                           cursor: savedActivities.has(act.id) ? "default" : "pointer",
                           fontFamily: "inherit",
                           transition: "all 0.15s",
+                          width: "100%",
                         }}
                       >
                         {savedActivities.has(act.id) ? "Saved ✓" : "Flokk It"}

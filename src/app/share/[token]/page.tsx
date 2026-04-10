@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
-import { getTripCoverImage, getItemImage } from "@/lib/destination-images";
+import { getTripCoverImage } from "@/lib/destination-images";
 import { SharePageBottomBar } from "./SharePageBottomBar";
 import { ShareItineraryView, type DayData } from "./ShareItineraryView";
 
@@ -272,7 +272,7 @@ export default async function SharePage({
           tagBg: tc.bg,
           tagColor: tc.color,
           notes: (it.type === "FLIGHT" || it.type === "TRAIN") && route ? displayTitle : null,
-          imageUrl: getItemImage(displayTitle, null, null, it.type, trip.destinationCity, trip.destinationCountry),
+          imageUrl: null, // ItineraryItem has no image field in schema
           rating: ratingData
             ? { rating: ratingData.rating, notes: ratingData.notes ?? null, wouldReturn: ratingData.wouldReturn ?? null }
             : null,
@@ -295,7 +295,7 @@ export default async function SharePage({
         tagBg: "#F5F5F5",
         tagColor: "#888",
         notes: ma.notes ?? null,
-        imageUrl: getItemImage(ma.title, null, null, null, trip.destinationCity, trip.destinationCountry),
+        imageUrl: ma.imageUrl ?? null, // ManualActivity.imageUrl from schema
         rating: ratingData
           ? { rating: ratingData.rating, notes: ratingData.notes ?? null, wouldReturn: ratingData.wouldReturn ?? null }
           : null,
