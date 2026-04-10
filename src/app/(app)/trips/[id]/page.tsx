@@ -51,16 +51,6 @@ export default async function TripDetailPage({
   const initialTab: Tab = validTabs.includes(sp.tab as Tab) ? (sp.tab as Tab) : "saved";
 
   const { userId } = await auth();
-  if (!userId) redirect("/sign-in");
-
-  const profileId = await resolveProfileId(userId);
-  if (!profileId) redirect("/onboarding");
-
-  const profile = await db.familyProfile.findUnique({
-    where: { id: profileId },
-    include: { members: true },
-  });
-  if (!profile) redirect("/onboarding");
 
   const trip = await db.trip.findUnique({
     where: { id },
@@ -72,15 +62,28 @@ export default async function TripDetailPage({
 
   if (!trip) notFound();
 
+  // Unauthenticated: send to share page if public, otherwise sign-in
+  if (!userId) {
+    if (trip.privacy === "PUBLIC" && trip.shareToken) {
+      redirect(`/share/${trip.shareToken}`);
+    }
+    redirect("/sign-in");
+  }
+
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) redirect("/onboarding");
+
+  const profile = await db.familyProfile.findUnique({
+    where: { id: profileId },
+    include: { members: true },
+  });
+  if (!profile) redirect("/onboarding");
+
   const isOwner = trip.familyProfileId === profile.id;
   const isCommunity = !isOwner && trip.privacy === "PUBLIC";
 
   // Block non-owners from non-public trips
   if (!isOwner && !isCommunity) notFound();
-  // Community viewers get the canonical share page experience
-  if (isCommunity && trip.shareToken) {
-    redirect(`/share/${trip.shareToken}`);
-  }
 
   const dateRange = formatDateRange(trip.startDate, trip.endDate);
   const days = tripDays(trip.startDate, trip.endDate);
