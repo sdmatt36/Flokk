@@ -266,6 +266,16 @@ export default function DiscoverPage() {
     Promise.all([realFetch, placeholderFetch]).then(([real, placeholders]) => {
       const normalize = (s: string) => s.toLowerCase().trim();
       const GENERIC_WORDS = new Set(["park", "lake", "city", "town", "old", "new", "market", "street", "road", "hill", "bay", "port", "bridge", "walk", "tour", "food", "museum", "temple", "shrine", "garden", "beach", "island"]);
+      const REGIONS: string[][] = [
+        ["kyoto", "nara", "osaka", "kobe"],
+        ["seoul", "busan"],
+      ];
+      const sameRegion = (cityA: string, cityB: string): boolean => {
+        const a = normalize(cityA);
+        const b = normalize(cityB);
+        if (a === b) return true;
+        return REGIONS.some(r => r.some(c => a.includes(c)) && r.some(c => b.includes(c)));
+      };
       // Build a map of placeholder imageUrls keyed by normalized title; also store city for city-scoped matching
       const placeholderImageMap = new Map<string, string | null>(
         placeholders.map((p: DiscoverActivity) => [normalize(p.title), p.imageUrl])
@@ -285,7 +295,7 @@ export default function DiscoverPage() {
         const actCity = normalize(a.city ?? "");
         let partialImage: string | null = null;
         for (const pe of placeholderEntries) {
-          if (pe.city !== actCity) continue;
+          if (!sameRegion(actCity, pe.city)) continue;
           const words = pe.title.split(/\s+/).filter(w => w.length > 3 && !GENERIC_WORDS.has(w));
           if (words.length > 0 && words.some(w => actNorm.includes(w))) {
             partialImage = pe.img ?? null;
