@@ -265,22 +265,30 @@ export default function DiscoverPage() {
 
     Promise.all([realFetch, placeholderFetch]).then(([real, placeholders]) => {
       const normalize = (s: string) => s.toLowerCase().trim();
-      // Build a map of placeholder imageUrls keyed by normalized title
+      const GENERIC_WORDS = new Set(["park", "lake", "city", "town", "old", "new", "market", "street", "road", "hill", "bay", "port", "bridge", "walk", "tour", "food", "museum", "temple", "shrine", "garden", "beach", "island"]);
+      // Build a map of placeholder imageUrls keyed by normalized title; also store city for city-scoped matching
       const placeholderImageMap = new Map<string, string | null>(
         placeholders.map((p: DiscoverActivity) => [normalize(p.title), p.imageUrl])
       );
-      // For real activities missing an imageUrl: exact title match first, then partial word match
+      const placeholderEntries = (placeholders as DiscoverActivity[]).map(p => ({
+        title: normalize(p.title),
+        city: normalize(p.city ?? ""),
+        img: p.imageUrl,
+      }));
+      // For real activities missing an imageUrl: exact title match first, then city-scoped partial word match
       const enrichedReal: DiscoverActivity[] = real.map((a: DiscoverActivity) => {
         if (a.imageUrl) return a;
         const exactMatch = placeholderImageMap.get(normalize(a.title));
         if (exactMatch) return { ...a, imageUrl: exactMatch };
-        // Partial word match: find a placeholder whose significant words appear in the activity title
+        // Partial word match — city must match, and generic words are excluded
         const actNorm = normalize(a.title);
+        const actCity = normalize(a.city ?? "");
         let partialImage: string | null = null;
-        for (const [pTitle, pImg] of placeholderImageMap.entries()) {
-          const words = pTitle.split(/\s+/).filter(w => w.length > 3);
+        for (const pe of placeholderEntries) {
+          if (pe.city !== actCity) continue;
+          const words = pe.title.split(/\s+/).filter(w => w.length > 3 && !GENERIC_WORDS.has(w));
           if (words.length > 0 && words.some(w => actNorm.includes(w))) {
-            partialImage = pImg ?? null;
+            partialImage = pe.img ?? null;
             break;
           }
         }
