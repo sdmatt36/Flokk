@@ -24,6 +24,7 @@ export async function POST(
     },
     include: {
       itineraryItems: { orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }] },
+      manualActivities: { orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }] },
       familyProfile: { include: { members: true } },
     },
   });
@@ -40,12 +41,36 @@ export async function POST(
   const fmt = (d: Date | null | undefined) =>
     d ? d.toISOString().split("T")[0] : "unknown";
 
-  // Group itinerary items by dayIndex
-  const byDay = new Map<number, typeof trip.itineraryItems>();
-  for (const item of trip.itineraryItems) {
-    const d = item.dayIndex ?? 0;
-    if (!byDay.has(d)) byDay.set(d, []);
-    byDay.get(d)!.push(item);
+  // Normalise both item types into a common shape for grouping
+  type ReviewItem = { title: string; type: string; time: string; sortOrder: number; dayIndex: number };
+
+  const allItems: ReviewItem[] = [
+    ...trip.itineraryItems.map(it => ({
+      title: it.title,
+      type: it.type,
+      time: it.departureTime ?? it.arrivalTime ?? "unscheduled",
+      sortOrder: it.sortOrder,
+      dayIndex: it.dayIndex ?? 0,
+    })),
+    ...trip.manualActivities.map(ma => ({
+      title: ma.title,
+      type: ma.type ?? "ACTIVITY",
+      time: ma.time ?? "unscheduled",
+      sortOrder: ma.sortOrder,
+      dayIndex: ma.dayIndex ?? 0,
+    })),
+  ];
+
+  // Group by dayIndex (0-based)
+  const byDay = new Map<number, ReviewItem[]>();
+  for (const item of allItems) {
+    if (!byDay.has(item.dayIndex)) byDay.set(item.dayIndex, []);
+    byDay.get(item.dayIndex)!.push(item);
+  }
+
+  // Sort items within each day by sortOrder
+  for (const items of byDay.values()) {
+    items.sort((a, b) => a.sortOrder - b.sortOrder);
   }
 
   // Compute actual calendar dates for each dayIndex
@@ -59,10 +84,9 @@ export async function POST(
 
   const dayStrings: string[] = [];
   for (const [dayIndex, items] of [...byDay.entries()].sort((a, b) => a[0] - b[0])) {
-    const itemLines = items.map(it => {
-      const time = it.departureTime ?? it.arrivalTime ?? "unscheduled";
-      return `  - ${it.title} | type: ${it.type} | time: ${time} | sortOrder: ${it.sortOrder}`;
-    });
+    const itemLines = items.map(it =>
+      `  - ${it.title} | type: ${it.type} | time: ${it.time} | sortOrder: ${it.sortOrder}`
+    );
     dayStrings.push(`Day ${dayIndex + 1} — ${dayDate(dayIndex)}:\n${itemLines.join("\n")}`);
   }
 
