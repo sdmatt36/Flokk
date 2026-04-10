@@ -692,7 +692,7 @@ export default function DiscoverPage() {
                     {act.imageUrl ? (
                       <img src={act.imageUrl} alt={act.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                     ) : (
-                      <span style={{ fontSize: "40px", color: "rgba(27,58,92,0.15)" }}>★</span>
+                      <div style={{ width: "100%", height: "100%", backgroundColor: "#F5F5F4" }} />
                     )}
                     {act.rating !== null && (
                       <span style={{ position: "absolute", top: "10px", right: "10px", backgroundColor: "rgba(255,255,255,0.92)", color: "#1B3A5C", fontSize: "11px", padding: "3px 8px", borderRadius: "999px" }}>

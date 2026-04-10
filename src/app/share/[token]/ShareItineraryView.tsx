@@ -104,7 +104,7 @@ export function ShareItineraryView({
                 </div>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+              <div className="space-y-4 w-full">
                 {day.items.map((item) => (
                   <ShareActivityCard
                     key={item.id}

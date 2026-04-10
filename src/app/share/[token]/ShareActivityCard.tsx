@@ -73,7 +73,7 @@ export function ShareActivityCard({
   }
 
   return (
-    <div className="rounded-xl overflow-hidden shadow-sm bg-white mb-4 border border-stone-100">
+    <div className="rounded-xl overflow-hidden shadow-sm bg-white border border-stone-100 w-full">
       {/* Full-width image */}
       {hasImage ? (
         // eslint-disable-next-line @next/next/no-img-element
