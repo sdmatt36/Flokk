@@ -670,9 +670,9 @@ export function CommunityTripView({
         </p>
         <button
           onClick={() => setShowCloneModal(true)}
-          style={{ flexShrink: 0, backgroundColor: "#C4664A", color: "#fff", border: "none", borderRadius: "999px", padding: "9px 18px", fontSize: "13px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+          style={{ flexShrink: 0, backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "999px", padding: "9px 18px", fontSize: "13px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
         >
-          + Add to my trips
+          Steal This Itinerary
         </button>
       </div>
 
@@ -785,10 +785,10 @@ export function CommunityTripView({
                                                 <button
                                                   onClick={(e) => { e.stopPropagation(); handleSaveActivity(item.id); }}
                                                   disabled={saved || saving}
-                                                  style={{ display: "flex", alignItems: "center", gap: "4px", backgroundColor: saved ? "rgba(74,124,89,0.1)" : "transparent", border: `1.5px solid ${saved ? "rgba(74,124,89,0.3)" : "#C4664A"}`, borderRadius: "999px", padding: "4px 10px", fontSize: "12px", fontWeight: 600, color: saved ? "#4a7c59" : "#C4664A", cursor: saved ? "default" : "pointer" }}
+                                                  style={{ display: "flex", alignItems: "center", gap: "4px", backgroundColor: saved ? "rgba(74,124,89,0.1)" : "#C4664A", border: saved ? "1.5px solid rgba(74,124,89,0.3)" : "none", borderRadius: "999px", padding: "4px 10px", fontSize: "12px", fontWeight: 600, color: saved ? "#4a7c59" : "#fff", cursor: saved ? "default" : "pointer" }}
                                                 >
                                                   {saved ? <BookmarkCheck size={11} /> : <Bookmark size={11} />}
-                                                  {saving ? "Saving…" : saved ? "Saved" : "Save"}
+                                                  {saving ? "Flokking…" : saved ? "Flokked" : "Flokk It"}
                                                 </button>
                                                 {item.lat != null && item.lng != null && (
                                                   <button
@@ -855,10 +855,10 @@ export function CommunityTripView({
                                         <button
                                           onClick={(e) => { e.stopPropagation(); handleSaveActivity(item.id); }}
                                           disabled={saved || saving}
-                                          style={{ display: "flex", alignItems: "center", gap: "4px", backgroundColor: saved ? "rgba(74,124,89,0.1)" : "transparent", border: `1.5px solid ${saved ? "rgba(74,124,89,0.3)" : "#C4664A"}`, borderRadius: "999px", padding: "4px 10px", fontSize: "12px", fontWeight: 600, color: saved ? "#4a7c59" : "#C4664A", cursor: saved ? "default" : "pointer" }}
+                                          style={{ display: "flex", alignItems: "center", gap: "4px", backgroundColor: saved ? "rgba(74,124,89,0.1)" : "#C4664A", border: saved ? "1.5px solid rgba(74,124,89,0.3)" : "none", borderRadius: "999px", padding: "4px 10px", fontSize: "12px", fontWeight: 600, color: saved ? "#4a7c59" : "#fff", cursor: saved ? "default" : "pointer" }}
                                         >
                                           {saved ? <BookmarkCheck size={11} /> : <Bookmark size={11} />}
-                                          {saving ? "Saving…" : saved ? "Saved" : "Save"}
+                                          {saving ? "Flokking…" : saved ? "Flokked" : "Flokk It"}
                                         </button>
                                         {item.lat != null && item.lng != null && (
                                           <button

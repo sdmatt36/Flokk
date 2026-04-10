@@ -116,6 +116,34 @@ export function ShareItineraryView({
 
   const relatedTrips = RELATED_TRIPS_BY_DEST[destinationCity ?? ""] ?? [];
 
+  async function handleStealDay(day: DayData) {
+    if (!isLoggedIn) {
+      window.location.href = `/sign-up?redirect_url=${encodeURIComponent(`/share/${shareToken}`)}`;
+      return;
+    }
+    for (const item of day.items) {
+      if (savedSet.has(item.id) || savingSet.has(item.id)) continue;
+      setSavingSet(prev => new Set(prev).add(item.id));
+      try {
+        const res = await fetch("/api/saves/from-share", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: item.title,
+            city: item.destinationCity,
+            lat: item.lat,
+            lng: item.lng,
+            placePhotoUrl: item.imageUrl ?? null,
+            websiteUrl: item.websiteUrl ?? null,
+          }),
+        });
+        if (res.ok) setSavedSet(prev => new Set(prev).add(item.id));
+      } finally {
+        setSavingSet(prev => { const n = new Set(prev); n.delete(item.id); return n; });
+      }
+    }
+  }
+
   async function handleFlokk(item: SerializableItem) {
     const itemId = item.id;
     if (savedSet.has(itemId) || savingSet.has(itemId)) return;
@@ -182,6 +210,18 @@ export function ShareItineraryView({
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
                       <span style={{ fontSize: "13px", color: "#717171" }}>{day.items.length} stop{day.items.length !== 1 ? "s" : ""}</span>
+                      {day.items.length > 0 && (() => {
+                        const allSaved = day.items.every(it => savedSet.has(it.id));
+                        return (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleStealDay(day); }}
+                            disabled={allSaved}
+                            style={{ fontSize: "11px", fontWeight: 700, color: allSaved ? "#4a7c59" : "#fff", backgroundColor: allSaved ? "rgba(74,124,89,0.1)" : "#C4664A", border: allSaved ? "1px solid rgba(74,124,89,0.3)" : "none", borderRadius: "999px", padding: "3px 10px", cursor: allSaved ? "default" : "pointer", whiteSpace: "nowrap" }}
+                          >
+                            {allSaved ? "Stolen!" : "Steal this day"}
+                          </button>
+                        );
+                      })()}
                       <ChevronDown
                         size={16}
                         style={{ color: "#717171", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s ease" }}
