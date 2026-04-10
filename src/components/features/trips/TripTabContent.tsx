@@ -4511,12 +4511,46 @@ type FallbackItem = {
   lng: number | null;
 };
 
+function calcAgeFromIso(birthDateIso: string): number {
+  const today = new Date();
+  const birth = new Date(birthDateIso);
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+
+function buildFamilyContextString(members: { role: "ADULT" | "CHILD"; birthDate: string | null }[]): string {
+  const adults = members.filter(m => m.role === "ADULT").length;
+  const children = members.filter(m => m.role === "CHILD");
+  const kidAges = children
+    .map(m => (m.birthDate ? calcAgeFromIso(m.birthDate) : null))
+    .filter((a): a is number => a !== null)
+    .sort((a, b) => b - a);
+
+  const adultStr = adults > 0 ? `${adults} adult${adults > 1 ? "s" : ""}` : "";
+  const kidCount = children.length;
+  let kidStr = "";
+  if (kidCount > 0) {
+    kidStr = `${kidCount} kid${kidCount > 1 ? "s" : ""}`;
+    if (kidAges.length > 0) {
+      const ageList = kidAges.length === 1
+        ? `age ${kidAges[0]}`
+        : `ages ${kidAges.slice(0, -1).join(", ")} & ${kidAges[kidAges.length - 1]}`;
+      kidStr += ` (${ageList})`;
+    }
+  }
+
+  return [adultStr, kidStr].filter(Boolean).join(" + ");
+}
+
 function RecommendedContent({
   tripId,
   tripStartDate,
   tripEndDate,
   destinationCity,
   destinationCountry,
+  members,
   onViewOnMap,
   onSaved,
   onRefreshItinerary,
@@ -4526,6 +4560,7 @@ function RecommendedContent({
   tripEndDate?: string | null;
   destinationCity?: string | null;
   destinationCountry?: string | null;
+  members?: { role: "ADULT" | "CHILD"; birthDate: string | null }[];
   onViewOnMap: (lat: number, lng: number) => void;
   onSaved: (rec: SavedRec) => void;
   onRefreshItinerary?: () => void;
@@ -4674,7 +4709,9 @@ function RecommendedContent({
       {/* Family context bar */}
       <div style={{ background: "rgba(196,102,74,0.08)", borderLeft: "3px solid #C4664A", padding: "12px 16px", marginBottom: "24px", borderRadius: "0 8px 8px 0" }}>
         <span style={{ fontSize: "12px", color: "#717171" }}>
-          Showing recommendations for 2 adults + 2 kids (ages 7 &amp; 4) · Street Food, Outdoor, Culture interests · Mid-range budget
+          {members && members.length > 0
+            ? `Showing recommendations for ${buildFamilyContextString(members)}`
+            : "Showing recommendations for your family"}
         </span>
       </div>
 
@@ -5353,7 +5390,7 @@ type SavedRec = {
   tags: string;
 };
 
-export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true, shareToken, tripStatus, initialPostTripCaptureStarted = false, initialPostTripCaptureComplete = false, initialPostTripModalVisitCount = 0 }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean; shareToken?: string; tripStatus?: string; initialPostTripCaptureStarted?: boolean; initialPostTripCaptureComplete?: boolean; initialPostTripModalVisitCount?: number }) {
+export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true, shareToken, tripStatus, initialPostTripCaptureStarted = false, initialPostTripCaptureComplete = false, initialPostTripModalVisitCount = 0, viewerMembers }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean; shareToken?: string; tripStatus?: string; initialPostTripCaptureStarted?: boolean; initialPostTripCaptureComplete?: boolean; initialPostTripModalVisitCount?: number; viewerMembers?: { role: "ADULT" | "CHILD"; name: string; birthDate: string | null }[] }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [postTripCaptureStarted, setPostTripCaptureStarted] = useState(initialPostTripCaptureStarted);
   const [postTripCaptureComplete, setPostTripCaptureComplete] = useState(initialPostTripCaptureComplete);
@@ -6423,6 +6460,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           tripEndDate={tripEndDate}
           destinationCity={destinationCity}
           destinationCountry={destinationCountry}
+          members={viewerMembers}
           onViewOnMap={(lat, lng) => { setTab("itinerary"); setFlyTarget({ lat, lng }); }}
           onSaved={() => {}}
           onRefreshItinerary={() => setItineraryVersion(v => v + 1)}

@@ -252,6 +252,7 @@ export default async function TripDetailPage({
           initialPostTripCaptureStarted={trip.postTripCaptureStarted}
           initialPostTripCaptureComplete={trip.postTripCaptureComplete}
           initialPostTripModalVisitCount={trip.postTripModalVisitCount ?? 0}
+          viewerMembers={viewerMembers}
         />
       )}
 
