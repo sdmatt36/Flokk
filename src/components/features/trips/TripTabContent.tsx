@@ -5488,6 +5488,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [isAnonymous, setIsAnonymous] = useState<boolean>(initialIsAnonymous);
   const [anonymousSaved, setAnonymousSaved] = useState(false);
   const [showTripSettings, setShowTripSettings] = useState(false);
+  const [editTripTitle, setEditTripTitle] = useState('');
   const [editStartDate, setEditStartDate] = useState('');
   const [editEndDate, setEditEndDate] = useState('');
   const [dateSaving, setDateSaving] = useState(false);
@@ -5744,6 +5745,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           )}
           <button
             onClick={() => {
+              setEditTripTitle(tripTitle ?? '');
               setEditStartDate(tripStartDate ? new Date(tripStartDate + (tripStartDate.includes('T') ? '' : 'T12:00:00')).toISOString().split('T')[0] : '');
               setEditEndDate(tripEndDate ? new Date(tripEndDate + (tripEndDate.includes('T') ? '' : 'T12:00:00')).toISOString().split('T')[0] : '');
               setShowTripSettings(true);
@@ -6801,6 +6803,15 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
 
             <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "20px" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <label style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.07em" }}>Trip Name</label>
+                <input
+                  type="text"
+                  value={editTripTitle}
+                  onChange={e => setEditTripTitle(e.target.value)}
+                  style={{ width: "100%", border: "1.5px solid #E5E5E5", borderRadius: "10px", padding: "10px 12px", fontSize: "14px", color: "#1B3A5C", outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                 <label style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.07em" }}>Start Date</label>
                 <input
                   type="date"
@@ -6820,13 +6831,14 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               </div>
               <button
                 onClick={async () => {
-                  if (!tripId) return;
+                  if (!tripId || !editTripTitle.trim()) return;
                   setDateSaving(true);
                   try {
                     await fetch(`/api/trips/${tripId}`, {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
+                        title: editTripTitle.trim(),
                         startDate: editStartDate ? new Date(editStartDate + 'T12:00:00').toISOString() : undefined,
                         endDate: editEndDate ? new Date(editEndDate + 'T12:00:00').toISOString() : undefined,
                       }),
@@ -6837,7 +6849,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                     setDateSaving(false);
                   }
                 }}
-                disabled={dateSaving}
+                disabled={dateSaving || !editTripTitle.trim()}
                 style={{ width: "100%", padding: "13px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: 700, cursor: dateSaving ? "default" : "pointer", fontFamily: "inherit", opacity: dateSaving ? 0.7 : 1 }}
               >
                 {dateSaving ? "Saving…" : "Save dates"}
