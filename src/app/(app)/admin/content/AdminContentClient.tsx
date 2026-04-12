@@ -10,6 +10,7 @@ type ContentItem = {
   destination?: string | null;
   contentType?: string | null;
   ageGroup?: string | null;
+  tags?: string[];
   status: string;
   submittedAt: string;
   publicationDate?: string | null;
@@ -203,7 +204,7 @@ export function AdminContentClient() {
       contentType: item.contentType ?? "",
       destination: item.destination ?? "",
       ageGroup: item.ageGroup ?? "",
-      tags: "",
+      tags: (item.tags ?? []).join(", "),
       description: "",
     });
   }
