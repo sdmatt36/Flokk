@@ -21,7 +21,7 @@ type ContentItem = {
   itemType: "article" | "video";
 };
 
-const ADMIN_TOPIC_TAGS = ["Packing", "Disney", "Budget", "Food", "Adventure", "Beach", "Culture", "Safety", "Flights", "Hotels", "Theme Parks", "Road Trips", "Cruises"] as const;
+const ADMIN_TOPIC_TAGS = ["Packing", "Disney", "Family", "Budget", "Food", "Adventure", "Beach", "Culture", "Safety", "Flights", "Hotels", "Theme Parks", "Road Trips", "Cruises"] as const;
 
 const APPROVAL_CHECKLIST = [
   "Relevant to family travel planning",
