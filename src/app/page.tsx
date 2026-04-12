@@ -9,7 +9,7 @@ const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700"] });
 
 export default async function LandingPage() {
   const { userId } = await auth();
-  if (userId) redirect("/dashboard");
+  if (userId) redirect("/home");
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#FFFFFF", overflowX: "hidden", maxWidth: "100vw" }}>
