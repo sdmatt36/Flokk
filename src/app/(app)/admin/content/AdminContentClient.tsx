@@ -11,6 +11,8 @@ type ContentItem = {
   contentType?: string | null;
   ageGroup?: string | null;
   tags?: string[];
+  description?: string | null;
+  excerpt?: string | null;
   status: string;
   submittedAt: string;
   publicationDate?: string | null;
@@ -207,7 +209,7 @@ export function AdminContentClient() {
       destination: item.destination ?? "",
       ageGroup: item.ageGroup ?? "",
       tags: item.tags ?? [],
-      description: "",
+      description: item.itemType === "video" ? (item.description ?? "") : (item.excerpt ?? ""),
     });
   }
 
