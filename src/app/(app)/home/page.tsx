@@ -1,4 +1,4 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
@@ -180,7 +180,9 @@ export default async function HomePage() {
   }).slice(0, 6);
 
   const greeting = getGreeting();
-  const rawName = profile.familyName || "there";
+  const clerk = await clerkClient();
+  const clerkUser = await clerk.users.getUser(userId);
+  const rawName = clerkUser.firstName ?? clerkUser.fullName?.split(" ")[0] ?? profile.familyName ?? "there";
   const displayName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
   const today = new Date();
   const futureTrips = profile.trips.filter((t) => t.startDate && t.startDate > today);
