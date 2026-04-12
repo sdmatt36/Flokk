@@ -575,7 +575,7 @@ export default function TravelIntelPage() {
 
   // Apply type + topic filters (AND logic)
   const applyFilters = (list: GuideItem[]) =>
-    list.filter((i) => matchesFilter(i, activeFilter) && (!activeTopic || i.tags.includes(activeTopic)));
+    list.filter((i) => matchesFilter(i, activeFilter) && (!activeTopic || i.tags.some(t => t.toLowerCase().includes(activeTopic.toLowerCase()))));
   const filteredCommunity = applyFilters(communityItems);
   const filteredFlokk = applyFilters(flokkItems);
 
