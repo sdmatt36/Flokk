@@ -5803,7 +5803,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
             </button>
           );
         })}
-        {tripStatus === "COMPLETED" && !postTripCaptureComplete && (
+        {tripStatus === "COMPLETED" && (
           <button
             onClick={() => setTab("howwasit")}
             style={{
