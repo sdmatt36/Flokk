@@ -7,6 +7,10 @@
     {
       "path": "/api/cron/trip-lifecycle",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/enrich-manual-activities",
+      "schedule": "0 3 * * *"
     }
   ]
 }
