@@ -5033,6 +5033,7 @@ type HowWasItItem = {
   notes: string;
   wouldReturn: boolean | null;
   alreadySaved: boolean;
+  ratingId?: string;
 };
 
 const STAR_LABELS: Record<number, string> = {
@@ -5065,6 +5066,8 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, sha
   const [spurSaving, setSpurSaving] = useState(false);
   const [spurSaved, setSpurSaved] = useState(false);
   const [hasShared, setHasShared] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
 
   async function handleShareTrip() {
     if (!shareToken) return;
@@ -5081,10 +5084,11 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, sha
       fetch(`/api/trips/${tripId}/activities`).then(r => r.ok ? r.json() : []),
     ]).then(([itinData, savesData, ratingData, manualData]) => {
       const itinItems: { id: string; title?: string | null; type?: string }[] = Array.isArray(itinData) ? itinData : ((itinData as { items?: unknown[] }).items ?? []);
-      const existingRatings: { itineraryItemId?: string; manualActivityId?: string }[] = ratingData.ratings ?? [];
+      type ExistingRating = { id: string; rating: number; notes: string | null; wouldReturn: boolean | null; itineraryItemId?: string | null; manualActivityId?: string | null };
+      const existingRatings: ExistingRating[] = ratingData.ratings ?? [];
       setExistingRatingsCount(existingRatings.length);
-      const ratedItinIds = new Set<string>(existingRatings.map(r => r.itineraryItemId).filter(Boolean) as string[]);
-      const ratedManualIds = new Set<string>(existingRatings.map(r => r.manualActivityId).filter(Boolean) as string[]);
+      const ratingByItinId = new Map<string, ExistingRating>(existingRatings.filter(r => r.itineraryItemId).map(r => [r.itineraryItemId!, r]));
+      const ratingByManualId = new Map<string, ExistingRating>(existingRatings.filter(r => r.manualActivityId).map(r => [r.manualActivityId!, r]));
 
       // LODGING: exclude check-out items; strip "Check-in: " prefix from title
       // ACTIVITY: include all
@@ -5093,16 +5097,20 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, sha
           (it.type === "ACTIVITY") ||
           (it.type === "LODGING" && !it.title?.toLowerCase().startsWith("check-out"))
         )
-        .map(it => ({
-          id: it.id,
-          title: (it.title?.replace(/^check-in:\s*/i, "") ?? it.title ?? "Untitled").trim(),
-          type: it.type ?? "",
-          itemKind: "itinerary" as const,
-          rating: 0,
-          notes: "",
-          wouldReturn: null,
-          alreadySaved: ratedItinIds.has(it.id),
-        }));
+        .map(it => {
+          const existing = ratingByItinId.get(it.id);
+          return {
+            id: it.id,
+            title: (it.title?.replace(/^check-in:\s*/i, "") ?? it.title ?? "Untitled").trim(),
+            type: it.type ?? "",
+            itemKind: "itinerary" as const,
+            rating: existing?.rating ?? 0,
+            notes: existing?.notes ?? "",
+            wouldReturn: existing?.wouldReturn ?? null,
+            alreadySaved: !!existing,
+            ratingId: existing?.id,
+          };
+        });
 
       // SavedItems assigned to trip — exclude flight/lodging/transportation tags
       const saveItems: HowWasItItem[] = ((savesData.saves ?? []) as { id: string; rawTitle?: string | null; categoryTags?: string[] }[])
@@ -5125,16 +5133,20 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, sha
       ]);
       const manualItems: HowWasItItem[] = ((manualData as { id: string; title: string }[]) ?? [])
         .filter(m => !existingTitles.has(m.title.toLowerCase()))
-        .map(m => ({
-          id: m.id,
-          title: m.title,
-          type: "ACTIVITY",
-          itemKind: "manual" as const,
-          rating: 0,
-          notes: "",
-          wouldReturn: null,
-          alreadySaved: ratedManualIds.has(m.id),
-        }));
+        .map(m => {
+          const existing = ratingByManualId.get(m.id);
+          return {
+            id: m.id,
+            title: m.title,
+            type: "ACTIVITY",
+            itemKind: "manual" as const,
+            rating: existing?.rating ?? 0,
+            notes: existing?.notes ?? "",
+            wouldReturn: existing?.wouldReturn ?? null,
+            alreadySaved: !!existing,
+            ratingId: existing?.id,
+          };
+        });
 
       setItems([...itinRated, ...saveItems, ...manualItems]);
     });
@@ -5191,6 +5203,22 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, sha
     setCapturedToast("Trip captured. Thanks for contributing to Flokk.");
     setTimeout(() => setCapturedToast(null), 4000);
     onDoneCapturing();
+  }
+
+  async function handleSaveEdit(item: HowWasItItem) {
+    if (!item.ratingId) return;
+    setEditSaving(true);
+    await fetch(`/api/trips/${tripId}/ratings/${item.ratingId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rating: item.rating,
+        notes: item.notes || undefined,
+        wouldReturn: item.wouldReturn ?? undefined,
+      }),
+    });
+    setEditingItemId(null);
+    setEditSaving(false);
   }
 
   async function handleAddSpur() {
@@ -5278,8 +5306,16 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, sha
             <p style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "8px" }}>
               {item.title}
             </p>
-            {item.alreadySaved ? (
-              <p style={{ fontSize: "12px", color: "#6B8F71", fontWeight: 600 }}>Rated</p>
+            {item.alreadySaved && editingItemId !== item.id ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <p style={{ fontSize: "12px", color: "#6B8F71", fontWeight: 600, margin: 0 }}>Rated</p>
+                <button
+                  onClick={() => setEditingItemId(item.id)}
+                  style={{ fontSize: "12px", color: "#717171", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0, fontFamily: "inherit" }}
+                >
+                  Edit
+                </button>
+              </div>
             ) : (
               <>
                 <p style={{ fontSize: "13px", color: item.rating > 0 ? "#C4664A" : "#9ca3af", marginBottom: "8px", fontWeight: item.rating > 0 ? 600 : 400 }}>
@@ -5308,6 +5344,23 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, sha
                   })}
                   <span style={{ fontSize: "12px", color: "#bbb", alignSelf: "center", marginLeft: "4px" }}>Would you go back?</span>
                 </div>
+                {item.alreadySaved && (
+                  <div style={{ marginTop: "12px", display: "flex", gap: "8px" }}>
+                    <button
+                      onClick={() => handleSaveEdit(item)}
+                      disabled={editSaving}
+                      style={{ padding: "8px 16px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      {editSaving ? "Saving..." : "Save changes"}
+                    </button>
+                    <button
+                      onClick={() => setEditingItemId(null)}
+                      style={{ padding: "8px 16px", backgroundColor: "#fff", color: "#717171", border: "1px solid #e5e7eb", borderRadius: "8px", fontSize: "13px", cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>
