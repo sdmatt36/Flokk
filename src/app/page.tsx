@@ -1,11 +1,16 @@
 import Link from "next/link";
 import { Show, UserButton, SignInButton, SignUpButton } from "@clerk/nextjs";
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 import { Playfair_Display } from "next/font/google";
 import { SiteFooter } from "@/components/ui/SiteFooter";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700"] });
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const { userId } = await auth();
+  if (userId) redirect("/dashboard");
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#FFFFFF", overflowX: "hidden", maxWidth: "100vw" }}>
 
