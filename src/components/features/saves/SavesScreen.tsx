@@ -455,6 +455,13 @@ export function SavesScreen() {
   const [placeResults, setPlaceResults] = useState<PlaceResult[]>([]);
   const [identifying, setIdentifying] = useState(false);
   const placeSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [manualName, setManualName] = useState("");
+  const [manualCategory, setManualCategory] = useState("Food");
+  const [manualCity, setManualCity] = useState("");
+  const [manualNotes, setManualNotes] = useState("");
+  const [manualWebsite, setManualWebsite] = useState("");
+  const [manualSubmitting, setManualSubmitting] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -530,6 +537,37 @@ export function SavesScreen() {
 
   const handleItemDeleted = (deletedId: string) => {
     setSaves((prev) => prev.filter((s) => s.id !== deletedId));
+  };
+
+  const handleManualSave = async () => {
+    if (!manualName.trim()) return;
+    setManualSubmitting(true);
+    try {
+      const res = await fetch("/api/saves", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceType: "MANUAL",
+          title: manualName.trim(),
+          category: manualCategory || null,
+          city: manualCity.trim() || null,
+          notes: manualNotes.trim() || null,
+          website: manualWebsite.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.savedItem) {
+        setSaves((prev) => [mapApiItem({ ...data.savedItem, trip: null, needsPlaceConfirmation: false }), ...prev]);
+        setShowManualModal(false);
+        setManualName("");
+        setManualCategory("Food");
+        setManualCity("");
+        setManualNotes("");
+        setManualWebsite("");
+      }
+    } finally {
+      setManualSubmitting(false);
+    }
   };
 
   // Card matching: search + category filter (ignores assigned/unassigned axis)
@@ -843,6 +881,33 @@ Your saved places, all in one spot
         </div>
       )}
 
+      {/* Add Activity pill button */}
+      <button
+        onClick={() => setShowManualModal(true)}
+        title="Add activity manually"
+        style={{
+          position: "fixed",
+          bottom: 96,
+          right: 92,
+          height: 40,
+          paddingLeft: 16,
+          paddingRight: 16,
+          borderRadius: 20,
+          backgroundColor: "#fff",
+          border: "1.5px solid #1B3A5C",
+          color: "#1B3A5C",
+          fontFamily: "Inter, sans-serif",
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+          zIndex: 90,
+        }}
+      >
+        + Add Activity
+      </button>
+
       {/* FAB */}
       <button
         onClick={() => setShowFabModal(true)}
@@ -869,6 +934,94 @@ Your saved places, all in one spot
       >
         <Plus size={24} style={{ color: "#fff" }} />
       </button>
+
+      {/* Manual Activity Modal */}
+      {showManualModal && (
+        <div
+          onClick={() => setShowManualModal(false)}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: "#fff", borderRadius: 12, padding: 24, width: "100%", maxWidth: 420, display: "flex", flexDirection: "column", gap: 16 }}
+          >
+            <h2 style={{ fontFamily: "Playfair Display, serif", fontSize: 20, fontWeight: 700, color: "#1B3A5C", margin: 0 }}>Add Activity</h2>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#717171", textTransform: "uppercase", letterSpacing: "0.05em" }}>Name *</label>
+              <input
+                type="text"
+                placeholder="e.g. TeamLab Planets"
+                value={manualName}
+                onChange={(e) => setManualName(e.target.value)}
+                style={{ border: "1px solid #E8E8E8", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "#0A1628", outline: "none", fontFamily: "Inter, sans-serif" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#717171", textTransform: "uppercase", letterSpacing: "0.05em" }}>Category</label>
+              <select
+                value={manualCategory}
+                onChange={(e) => setManualCategory(e.target.value)}
+                style={{ border: "1px solid #E8E8E8", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "#0A1628", outline: "none", fontFamily: "Inter, sans-serif", backgroundColor: "#fff" }}
+              >
+                {["Culture", "Food", "Kids", "Lodging", "Outdoor", "Shopping", "Transportation"].map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#717171", textTransform: "uppercase", letterSpacing: "0.05em" }}>City</label>
+              <input
+                type="text"
+                placeholder="e.g. Tokyo"
+                value={manualCity}
+                onChange={(e) => setManualCity(e.target.value)}
+                style={{ border: "1px solid #E8E8E8", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "#0A1628", outline: "none", fontFamily: "Inter, sans-serif" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#717171", textTransform: "uppercase", letterSpacing: "0.05em" }}>Notes</label>
+              <textarea
+                placeholder="Any notes..."
+                value={manualNotes}
+                onChange={(e) => setManualNotes(e.target.value)}
+                rows={3}
+                style={{ border: "1px solid #E8E8E8", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "#0A1628", outline: "none", fontFamily: "Inter, sans-serif", resize: "vertical" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: "#717171", textTransform: "uppercase", letterSpacing: "0.05em" }}>Website</label>
+              <input
+                type="url"
+                placeholder="https://"
+                value={manualWebsite}
+                onChange={(e) => setManualWebsite(e.target.value)}
+                style={{ border: "1px solid #E8E8E8", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "#0A1628", outline: "none", fontFamily: "Inter, sans-serif" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
+              <button
+                onClick={() => setShowManualModal(false)}
+                style={{ flex: 1, padding: "12px 0", borderRadius: 8, border: "1px solid #E8E8E8", backgroundColor: "#fff", color: "#717171", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleManualSave}
+                disabled={!manualName.trim() || manualSubmitting}
+                style={{ flex: 1, padding: "12px 0", borderRadius: 8, border: "none", backgroundColor: manualName.trim() ? "#C4664A" : "#E8E8E8", color: manualName.trim() ? "#fff" : "#aaa", fontSize: 14, fontWeight: 600, cursor: manualName.trim() ? "pointer" : "default", fontFamily: "Inter, sans-serif" }}
+              >
+                {manualSubmitting ? "Saving..." : "Save Activity"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

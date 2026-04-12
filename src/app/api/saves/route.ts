@@ -32,6 +32,15 @@ import { getVenueImage } from "@/lib/destination-images";
 import { sendTransactional } from "@/lib/loops";
 import { enrichSavedItem } from "@/lib/enrich-save";
 
+const ManualSaveSchema = z.object({
+  sourceType: z.literal("MANUAL"),
+  title: z.string().min(1),
+  category: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  website: z.string().optional().nullable(),
+});
+
 const SaveSchema = z.object({
   url: z.string().url(),
   tripId: z.string().optional(),
@@ -63,6 +72,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await request.json();
+
+    // Manual activity save — no URL required
+    if (body.sourceType === "MANUAL") {
+      const parsed = ManualSaveSchema.parse(body);
+      const profileId = await resolveProfileId(userId);
+      if (!profileId) return NextResponse.json({ error: "Complete onboarding first" }, { status: 400 });
+      const saveProfile = await db.familyProfile.findUnique({ where: { id: profileId } });
+      if (!saveProfile) return NextResponse.json({ error: "Complete onboarding first" }, { status: 400 });
+      const savedItem = await db.savedItem.create({
+        data: {
+          familyProfileId: saveProfile.id,
+          sourceType: "MANUAL",
+          rawTitle: parsed.title,
+          destinationCity: parsed.city?.trim() || null,
+          categoryTags: parsed.category ? [parsed.category] : [],
+          userNote: parsed.notes?.trim() || null,
+          websiteUrl: parsed.website?.trim() || null,
+          extractionStatus: "ENRICHED",
+          status: "UNORGANIZED",
+        },
+      });
+      return NextResponse.json({ savedItem });
+    }
+
     const { url, tripId, title, description, thumbnailUrl, tags, lat, lng, dayIndex, extractedCheckin, extractedCheckout, userRating, userNote } = SaveSchema.parse(body);
 
     const profileId = await resolveProfileId(userId);
