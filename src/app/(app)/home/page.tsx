@@ -24,9 +24,9 @@ const CARD_GRADIENT = "linear-gradient(to bottom, transparent 0%, transparent 30
 function getGreeting() {
   const hour = new Date().getUTCHours() + 9;
   const h = hour % 24;
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
+  if (h < 12) return "Good morning,";
+  if (h < 18) return "Good afternoon,";
+  return "Good evening,";
 }
 
 function formatDateRange(start: Date | null, end: Date | null) {
