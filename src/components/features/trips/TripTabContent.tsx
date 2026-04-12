@@ -5237,17 +5237,15 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, sha
     setTimeout(() => setSpurSaved(false), 3000);
   }
 
-  if (done) {
-    return (
-      <div style={{ maxWidth: "560px", padding: "32px 0", textAlign: "center" }}>
-        <p style={{ fontSize: "20px", fontWeight: 700, color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "8px" }}>Your ratings are in.</p>
-        <p style={{ fontSize: "14px", color: "#717171" }}>Other Flokkers planning {destinationCity ? `${destinationCity} ` : ""}will thank you.</p>
-      </div>
-    );
-  }
-
   return (
     <div style={{ maxWidth: "560px" }}>
+
+      {done && (
+        <div style={{ textAlign: "center", padding: "16px 0 24px", borderBottom: "1px solid #eee", marginBottom: "24px" }}>
+          <p style={{ fontWeight: 700, fontSize: "18px", color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "4px" }}>Your ratings are in.</p>
+          <p style={{ color: "#717171", fontSize: "14px", marginTop: "4px" }}>Other Flokkers planning {destinationCity ? `${destinationCity} ` : ""}will thank you.</p>
+        </div>
+      )}
 
       {/* Share nudge — only before ratings are submitted */}
       {shareToken && !hasShared && (
@@ -5404,13 +5402,15 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, sha
       </div>
 
       {/* Section 3 — All done */}
-      <button
-        onClick={handleSubmitAll}
-        disabled={submitting}
-        style={{ width: "100%", padding: "14px", backgroundColor: submitting ? "#999" : "#1B3A5C", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: 700, cursor: submitting ? "default" : "pointer", fontFamily: "inherit" }}
-      >
-        {submitting ? "Saving..." : "All done — share my ratings"}
-      </button>
+      {!done && (
+        <button
+          onClick={handleSubmitAll}
+          disabled={submitting}
+          style={{ width: "100%", padding: "14px", backgroundColor: submitting ? "#999" : "#1B3A5C", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: 700, cursor: submitting ? "default" : "pointer", fontFamily: "inherit" }}
+        >
+          {submitting ? "Saving..." : "All done — share my ratings"}
+        </button>
+      )}
 
       <div style={{ marginTop: "32px", paddingTop: "24px", borderTop: "1px solid #e7e5e4", textAlign: "center" }}>
         <p style={{ fontSize: "13px", color: "#a8a29e", marginBottom: "12px" }}>
