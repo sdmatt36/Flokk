@@ -38,7 +38,19 @@ function generateDayPills(startDate: string | null, endDate: string | null): { d
   });
 }
 
-const CATEGORY_OPTIONS = ["Culture", "Food", "Kids", "Lodging", "Outdoor", "Shopping", "Transportation"];
+const CATEGORY_OPTIONS = [
+  { value: "food", label: "Food & Drink" },
+  { value: "culture", label: "Culture" },
+  { value: "experiences", label: "Experiences" },
+  { value: "lodging", label: "Lodging" },
+  { value: "adventure", label: "Adventure" },
+  { value: "nature", label: "Nature" },
+  { value: "shopping", label: "Shopping" },
+  { value: "entertainment", label: "Entertainment" },
+  { value: "wellness", label: "Wellness" },
+  { value: "nightlife", label: "Nightlife" },
+  { value: "other", label: "Other" },
+];
 
 export function DropLinkModal({
   trips,
@@ -215,7 +227,7 @@ export function DropLinkModal({
     extracted?.source === "Hotels.com" ||
     extracted?.source === "Expedia" ||
     extracted?.tags?.includes("Lodging") ||
-    selectedCategory === "Lodging" ||
+    selectedCategory === "lodging" ||
     selectedCategory?.toLowerCase().includes("lodg") ||
     selectedCategory?.toLowerCase().includes("hotel");
 
@@ -634,8 +646,8 @@ export function DropLinkModal({
               }}
             >
               <option value="">No category</option>
-              {CATEGORY_OPTIONS.map(opt => (
-                <option key={opt} value={opt}>{opt}</option>
+              {CATEGORY_OPTIONS.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
               ))}
             </select>
           </div>

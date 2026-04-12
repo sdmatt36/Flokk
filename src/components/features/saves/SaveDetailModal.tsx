@@ -82,7 +82,7 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-const ALL_CATEGORY_TAGS = ["Culture", "Food", "Kids", "Lodging", "Outdoor", "Shopping", "Transportation"];
+const ALL_CATEGORY_TAGS = ["Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other"];
 
 export function SaveDetailModal({
   itemId,

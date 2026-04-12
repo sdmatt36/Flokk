@@ -884,7 +884,7 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
   );
 }
 
-const SAVED_FILTER_PILLS = ["All", "Culture", "Food", "Kids", "Lodging", "Outdoor", "Shopping", "Transportation", "Unorganized"];
+const SAVED_FILTER_PILLS = ["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other", "Unorganized"];
 
 function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDelete }: {
   item: SavedDisplayItem;

@@ -41,7 +41,7 @@ type PlaceResult = {
   photos?: { photo_reference: string }[];
 };
 
-const FILTER_PILLS = ["All", "Culture", "Food", "Kids", "Lodging", "Outdoor", "Shopping", "Transportation", "Unorganized"];
+const FILTER_PILLS = ["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other", "Unorganized"];
 
 type ApiItem = {
   id: string;
@@ -457,7 +457,7 @@ export function SavesScreen() {
   const placeSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showManualModal, setShowManualModal] = useState(false);
   const [manualName, setManualName] = useState("");
-  const [manualCategory, setManualCategory] = useState("Food");
+  const [manualCategory, setManualCategory] = useState("food");
   const [manualCity, setManualCity] = useState("");
   const [manualNotes, setManualNotes] = useState("");
   const [manualWebsite, setManualWebsite] = useState("");
@@ -560,7 +560,7 @@ export function SavesScreen() {
         setSaves((prev) => [mapApiItem({ ...data.savedItem, trip: null, needsPlaceConfirmation: false }), ...prev]);
         setShowManualModal(false);
         setManualName("");
-        setManualCategory("Food");
+        setManualCategory("food");
         setManualCity("");
         setManualNotes("");
         setManualWebsite("");
@@ -965,8 +965,20 @@ Your saved places, all in one spot
                 onChange={(e) => setManualCategory(e.target.value)}
                 style={{ border: "1px solid #E8E8E8", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "#0A1628", outline: "none", fontFamily: "Inter, sans-serif", backgroundColor: "#fff" }}
               >
-                {["Culture", "Food", "Kids", "Lodging", "Outdoor", "Shopping", "Transportation"].map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
+                {[
+                  { value: "food", label: "Food & Drink" },
+                  { value: "culture", label: "Culture" },
+                  { value: "experiences", label: "Experiences" },
+                  { value: "lodging", label: "Lodging" },
+                  { value: "adventure", label: "Adventure" },
+                  { value: "nature", label: "Nature" },
+                  { value: "shopping", label: "Shopping" },
+                  { value: "entertainment", label: "Entertainment" },
+                  { value: "wellness", label: "Wellness" },
+                  { value: "nightlife", label: "Nightlife" },
+                  { value: "other", label: "Other" },
+                ].map(({ value, label }) => (
+                  <option key={value} value={value}>{label}</option>
                 ))}
               </select>
             </div>
