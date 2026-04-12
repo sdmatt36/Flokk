@@ -21,6 +21,8 @@ type ContentItem = {
   itemType: "article" | "video";
 };
 
+const ADMIN_TOPIC_TAGS = ["Packing", "Disney", "Budget", "Food", "Adventure", "Beach", "Culture", "Safety", "Flights", "Hotels", "Theme Parks", "Road Trips", "Cruises"] as const;
+
 const APPROVAL_CHECKLIST = [
   "Relevant to family travel planning",
   "Real experience — not generic or AI-written",
@@ -30,7 +32,7 @@ const APPROVAL_CHECKLIST = [
   "Content is reasonably current (post-2020)",
 ];
 
-type EditFields = { title: string; url: string; contentType: string; destination: string; ageGroup: string; tags: string; description: string };
+type EditFields = { title: string; url: string; contentType: string; destination: string; ageGroup: string; tags: string[]; description: string };
 
 function BetaInviteForm() {
   const [email, setEmail] = useState("");
@@ -133,7 +135,7 @@ export function AdminContentClient() {
   const [isActing, setIsActing] = useState(false);
   const [checklist, setChecklist] = useState<Record<string, boolean>>({});
   const [editingItem, setEditingItem] = useState<ContentItem | null>(null);
-  const [editFields, setEditFields] = useState<EditFields>({ title: "", url: "", contentType: "", destination: "", ageGroup: "", tags: "", description: "" });
+  const [editFields, setEditFields] = useState<EditFields>({ title: "", url: "", contentType: "", destination: "", ageGroup: "", tags: [], description: "" });
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   useEffect(() => {
@@ -204,7 +206,7 @@ export function AdminContentClient() {
       contentType: item.contentType ?? "",
       destination: item.destination ?? "",
       ageGroup: item.ageGroup ?? "",
-      tags: (item.tags ?? []).join(", "),
+      tags: item.tags ?? [],
       description: "",
     });
   }
@@ -213,7 +215,6 @@ export function AdminContentClient() {
     if (!editingItem) return;
     setIsSavingEdit(true);
     try {
-      const tagsArr = editFields.tags.split(",").map(t => t.trim()).filter(Boolean);
       const res = await fetch(`/api/admin/content/${editingItem.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -225,7 +226,7 @@ export function AdminContentClient() {
           contentType: editFields.contentType,
           destination: editFields.destination,
           ageGroup: editFields.ageGroup,
-          tags: tagsArr.length > 0 ? tagsArr : undefined,
+          tags: editFields.tags.length > 0 ? editFields.tags : undefined,
           description: editFields.description || undefined,
         }),
       });
@@ -572,26 +573,49 @@ export function AdminContentClient() {
               <button onClick={() => setEditingItem(null)} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#999", lineHeight: 1 }}>×</button>
             </div>
 
-            {([ ["title", "Title", "text"], ["url", "URL", "url"], ["contentType", "Content Type", "text"], ["destination", "Destination", "text"], ["ageGroup", "Age Group", "text"], ["tags", "Topic Tags (comma-separated)", "text"], ["description", "Description", "textarea"] ] as [keyof EditFields, string, string][]).map(([field, label, type]) => (
+            {([ ["title", "Title", "text"], ["url", "URL", "url"], ["contentType", "Content Type", "text"], ["destination", "Destination", "text"], ["ageGroup", "Age Group", "text"], ["description", "Description", "textarea"] ] as [keyof EditFields, string, string][]).map(([field, label, type]) => (
               <div key={field} style={{ marginBottom: "14px" }}>
                 <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "5px" }}>{label}</label>
                 {type === "textarea" ? (
                   <textarea
                     rows={3}
-                    value={editFields[field]}
+                    value={editFields[field] as string}
                     onChange={e => setEditFields(prev => ({ ...prev, [field]: e.target.value }))}
                     style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "13px", color: "#1a1a1a", outline: "none", boxSizing: "border-box", resize: "vertical", fontFamily: "inherit" }}
                   />
                 ) : (
                   <input
                     type={type}
-                    value={editFields[field]}
+                    value={editFields[field] as string}
                     onChange={e => setEditFields(prev => ({ ...prev, [field]: e.target.value }))}
                     style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "13px", color: "#1a1a1a", outline: "none", boxSizing: "border-box", backgroundColor: "#fff" }}
                   />
                 )}
               </div>
             ))}
+
+            {/* Topic tag pills */}
+            <div style={{ marginBottom: "14px" }}>
+              <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "8px" }}>Topic Tags</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                {ADMIN_TOPIC_TAGS.map((tag) => {
+                  const active = editFields.tags.includes(tag);
+                  return (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => setEditFields(prev => ({
+                        ...prev,
+                        tags: active ? prev.tags.filter(t => t !== tag) : [...prev.tags, tag],
+                      }))}
+                      style={{ padding: "5px 12px", borderRadius: "999px", border: "1.5px solid", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", borderColor: active ? "#1B3A5C" : "#E8E8E8", backgroundColor: active ? "#1B3A5C" : "#fff", color: active ? "#fff" : "#717171" }}
+                    >
+                      {tag}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
             <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
               <button onClick={() => setEditingItem(null)} style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", backgroundColor: "#fff", color: "#717171", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>Cancel</button>
