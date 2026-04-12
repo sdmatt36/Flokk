@@ -24,7 +24,7 @@ export default async function TripsPage({
       trips: {
         orderBy: { startDate: "asc" },
         include: {
-          _count: { select: { savedItems: true, packingItems: true, manualActivities: true, itineraryItems: true } },
+          _count: { select: { savedItems: true, packingItems: true, manualActivities: true, itineraryItems: { where: { type: { notIn: ['FLIGHT', 'TRAIN'] } } } } },
           savedItems: { select: { dayIndex: true }, where: { dayIndex: { not: null } } },
           manualActivities: { select: { dayIndex: true, status: true }, where: { dayIndex: { not: null } } },
           itineraryItems: { select: { type: true } },

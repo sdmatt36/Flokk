@@ -56,7 +56,7 @@ export default async function TripDetailPage({
     where: { id },
     include: {
       savedItems: { orderBy: [{ dayIndex: "asc" }, { savedAt: "asc" }] },
-      _count: { select: { manualActivities: true, itineraryItems: true } },
+      _count: { select: { manualActivities: true, itineraryItems: { where: { type: { notIn: ['FLIGHT', 'TRAIN'] } } } } },
     },
   });
 
