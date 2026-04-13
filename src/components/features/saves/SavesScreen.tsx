@@ -58,6 +58,7 @@ type ApiItem = {
   dayIndex: number | null;
   trip: { id: string; title: string } | null;
   needsPlaceConfirmation: boolean;
+  userRating?: number | null;
 };
 
 const SOURCE_LABEL_MAP: Record<string, string> = {
@@ -86,6 +87,7 @@ function mapApiItem(item: ApiItem): Save {
     distance: null,
     img: getItemImage(item.rawTitle, item.placePhotoUrl, item.mediaThumbnailUrl, item.categoryTags[0] ?? null, item.destinationCity, item.destinationCountry),
     needsPlaceConfirmation: item.needsPlaceConfirmation ?? false,
+    userRating: item.userRating ?? undefined,
   };
 }
 
