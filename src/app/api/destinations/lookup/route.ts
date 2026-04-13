@@ -72,7 +72,6 @@ export async function GET(req: NextRequest) {
           if (adminArea) region = adminArea.long_name;
         } catch { /* region stays empty on error */ }
 
-        console.log('[lookup] description:', p.description, '| region:', region);
         return {
           placeId: p.place_id,
           cityName,

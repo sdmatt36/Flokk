@@ -100,9 +100,7 @@ export async function POST(request: Request) {
       let manualEnrichedPhotoUrl: string | null = null;
       let manualEnrichedWebsite: string | null = null;
       const needsEnrichment = !savedItem.placePhotoUrl || savedItem.placePhotoUrl === "";
-      console.log('[enrich-guard] placePhotoUrl:', savedItem.placePhotoUrl, '| needsEnrichment:', needsEnrichment);
       if (needsEnrichment) {
-        console.log('[enrich] attempting enrichment for:', parsed.title, parsed.city);
         const enriched = await enrichWithPlaces(parsed.title, parsed.city?.trim() ?? "");
         const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string } = {};
         if (enriched.imageUrl) { placesUpdate.placePhotoUrl = enriched.imageUrl; manualEnrichedPhotoUrl = enriched.imageUrl; }
@@ -113,7 +111,6 @@ export async function POST(request: Request) {
       }
 
       // Auto-assign to matching trip by destination city, region, or country
-      console.log('[saves-match] city:', parsed.city, '| region:', parsed.region, '| country:', parsed.country);
       let matchedTrip: { id: string; title: string; destinationCity: string | null } | null = null;
       const locationTerms = [parsed.city, parsed.region, parsed.country].filter((t): t is string => !!t?.trim());
       if (locationTerms.length > 0) {
