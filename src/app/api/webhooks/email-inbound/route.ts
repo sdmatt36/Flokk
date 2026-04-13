@@ -418,6 +418,7 @@ Field notes:
             sourceType: 'EMAIL_IMPORT',
             sourceUrl: rawUrl,
             rawTitle: rawUrl,
+            categoryTags: [],
             status: 'UNORGANIZED',
             extractionStatus: 'ENRICHED',
             tripId: null,

@@ -376,7 +376,7 @@ export async function GET(request: Request) {
         // Exclude flight-tagged saves — flights live in ItineraryItem, not SavedItem
         NOT: [
           // 1. Explicit flight tags (case-sensitive match)
-          { categoryTags: { hasSome: ["flight", "airfare", "airline", "airflight", "flights", "Flight", "Airline", "Airfare"] } },
+          { AND: [{ categoryTags: { not: null } }, { categoryTags: { hasSome: ["flight", "airfare", "airline", "airflight", "flights", "Flight", "Airline", "Airfare"] } }] },
           // 2. Items with no coordinates whose rawTitle contains flight keywords
           //    (coordinate check avoids excluding places with "flight" in their name)
           { AND: [{ lat: null }, { rawTitle: { contains: "flight", mode: "insensitive" } }] },
