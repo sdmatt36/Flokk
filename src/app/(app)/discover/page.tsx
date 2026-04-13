@@ -286,7 +286,22 @@ export default function DiscoverPage() {
         );
         setUserSavedKeys(keys);
       })
-      .catch(() => {});
+      .catch((err) => { console.error('[discover] Failed to fetch user saves for isSaved check:', err); });
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/community/rate")
+      .then(r => r.json())
+      .then(d => {
+        const map = new Map<string, number>();
+        for (const item of (d.ratings ?? [])) {
+          if (item.placeName && item.rating) {
+            map.set((item.placeName as string).toLowerCase().trim(), item.rating as number);
+          }
+        }
+        setCommunityRatedItems(map);
+      })
+      .catch((err) => { console.error('[discover] Failed to fetch community ratings:', err); });
   }, []);
 
   useEffect(() => {
@@ -816,12 +831,12 @@ export default function DiscoverPage() {
                       <p style={{ fontSize: "11px", color: "#CCCCCC", marginBottom: "4px" }}>1 family rated this</p>
                     ) : null}
                     {/* Personal rating */}
-                    {communityRatedItems.has(act.id) && (
+                    {communityRatedItems.has(act.title.toLowerCase().trim()) && (
                       <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
                         <span style={{ fontSize: "11px", color: "#AAAAAA" }}>You rated:</span>
                         <div style={{ display: "flex", gap: "1px" }}>
                           {[1, 2, 3, 4, 5].map(i => (
-                            <span key={i} style={{ color: i <= (communityRatedItems.get(act.id) ?? 0) ? "#f59e0b" : "#d1d5db", fontSize: "13px" }}>★</span>
+                            <span key={i} style={{ color: i <= (communityRatedItems.get(act.title.toLowerCase().trim()) ?? 0) ? "#f59e0b" : "#d1d5db", fontSize: "13px" }}>★</span>
                           ))}
                         </div>
                       </div>
@@ -840,7 +855,7 @@ export default function DiscoverPage() {
                         </a>
                       )}
                       {/* Rate it — only for users who have this place saved */}
-                      {isSaved && !communityRatedItems.has(act.id) && (
+                      {isSaved && !communityRatedItems.has(act.title.toLowerCase().trim()) && (
                         <button
                           onClick={() => { setCommunityRatingModal({ id: act.id, title: act.title, city: act.city }); setCommunityRatingValue(0); setCommunityRatingNotes(""); }}
                           style={{ background: "none", border: "none", padding: "0 0 2px", fontSize: "11px", color: "#AAAAAA", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
@@ -1122,7 +1137,7 @@ export default function DiscoverPage() {
                     }),
                   });
                   if (res.ok) {
-                    setCommunityRatedItems((prev) => new Map(prev).set(communityRatingModal.id, communityRatingValue));
+                    setCommunityRatedItems((prev) => new Map(prev).set(communityRatingModal.title.toLowerCase().trim(), communityRatingValue));
                     setCommunityRatingModal(null);
                     setCommunityRatingToast("Rating saved!");
                     setTimeout(() => setCommunityRatingToast(null), 3000);

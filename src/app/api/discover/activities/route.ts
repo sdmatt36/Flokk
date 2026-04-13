@@ -149,8 +149,6 @@ export async function GET(req: NextRequest) {
         WHERE t."endDate" IS NOT NULL
           AND t."endDate" < NOW()
 
-          AND pr.rating IS NOT NULL AND pr.rating >= 3
-
         UNION ALL
 
         SELECT
@@ -178,7 +176,6 @@ export async function GET(req: NextRequest) {
           AND t."endDate" < NOW()
 
           AND ii.type NOT IN ('FLIGHT', 'TRAIN', 'LODGING', 'TRANSIT')
-          AND pr.rating IS NOT NULL AND pr.rating >= 3
       ),
       aggregated AS (
         SELECT

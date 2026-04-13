@@ -3,6 +3,22 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 
+export async function GET() {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ ratings: [] });
+
+  const ratings = await db.placeRating.findMany({
+    where: { familyProfileId: profileId },
+    select: { id: true, placeName: true, rating: true, destinationCity: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return NextResponse.json({ ratings });
+}
+
 export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
