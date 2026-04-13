@@ -136,34 +136,50 @@ interface DiscoverActivity {
   source: "manual" | "itinerary" | "placeholder";
 }
 
-const PICKS_TYPE_MAP: Record<string, { types: string[]; keywords: string[] }> = {
-  Restaurants: {
+const PICKS_CATEGORY_MAP: Record<string, { types: string[]; keywords: string[] }> = {
+  "Food & Drink": {
     types: ["FOOD"],
-    keywords: ["restaurant", "cafe", "food", "eat", "lunch", "dinner", "breakfast", "bbq", "burger", "taco", "bakery", "bar", "chicken", "korean bbq"],
+    keywords: ["restaurant", "cafe", "coffee", "food", "eat", "lunch", "dinner", "breakfast", "bbq", "burger", "taco", "bakery", "bar", "chicken", "korean bbq", "ramen", "sushi", "pizza", "bistro", "brasserie"],
   },
-  Culture: {
+  "Culture": {
     types: ["CULTURE"],
-    keywords: ["temple", "shrine", "palace", "museum", "gallery", "village", "historic", "cathedral", "monument", "tower", "hanok", "dmz"],
+    keywords: ["temple", "shrine", "palace", "museum", "gallery", "village", "historic", "cathedral", "monument", "tower", "hanok", "dmz", "heritage"],
   },
-  Outdoors: {
-    types: ["OUTDOOR"],
-    keywords: ["beach", "park", "hike", "trail", "garden", "mountain", "waterfall", "grove", "nature", "walk", "district", "crossing", "cable car"],
+  "Experiences": {
+    types: ["ACTIVITY", "FAMILY"],
+    keywords: ["teamlab", "experience", "tour", "workshop", "class", "show", "performance", "kids", "children", "family", "zoo", "aquarium", "amusement", "borderless"],
   },
-  "Kids & Family": {
-    types: ["FAMILY"],
-    keywords: ["kids", "children", "family", "zoo", "aquarium", "playground", "amusement", "borderless", "teamlab", "cable car", "sky cab", "park", "grand children"],
-  },
-  Shopping: {
-    types: ["SHOPPING"],
-    keywords: ["market", "mall", "shop", "boutique", "street", "takeshita", "boqueria", "chatuchak", "coex", "myeongdong"],
-  },
-  Hotels: {
+  "Lodging": {
     types: ["LODGING"],
     keywords: ["hotel", "hostel", "inn", "resort", "accommodation", "stay", "moxy", "check-in"],
   },
-  Sports: {
+  "Adventure": {
+    types: [],
+    keywords: ["hike", "trail", "climb", "surf", "ski", "kayak", "bike", "cycle", "trek", "dive", "bungee", "rafting", "adventure"],
+  },
+  "Nature": {
+    types: ["OUTDOOR"],
+    keywords: ["beach", "park", "garden", "mountain", "waterfall", "grove", "nature", "walk", "lake", "river", "forest", "canyon", "cliff", "island"],
+  },
+  "Shopping": {
+    types: ["SHOPPING"],
+    keywords: ["market", "mall", "shop", "boutique", "street", "takeshita", "boqueria", "chatuchak", "coex", "myeongdong"],
+  },
+  "Entertainment": {
     types: ["SPORT"],
-    keywords: ["game", "stadium", "arena", "match", "baseball", "football", "soccer", "basketball", "cricket", "rugby", "tennis", "golf", "surf", "twins", "giants", "lotte"],
+    keywords: ["game", "stadium", "arena", "match", "baseball", "football", "soccer", "basketball", "cricket", "rugby", "tennis", "golf", "cable car", "sky cab", "observation", "crossing"],
+  },
+  "Wellness": {
+    types: [],
+    keywords: ["spa", "wellness", "yoga", "massage", "onsen", "hot spring", "bath", "sauna", "retreat"],
+  },
+  "Nightlife": {
+    types: [],
+    keywords: ["nightlife", "club", "cocktail", "lounge", "pub", "disco"],
+  },
+  "Other": {
+    types: [],
+    keywords: [],
   },
 };
 
@@ -251,6 +267,12 @@ export default function DiscoverPage() {
   const [picksFilter, setPicksFilter]         = useState("All");
   const [picksSearch, setPicksSearch]         = useState("");
   const [showAllPicks, setShowAllPicks]       = useState(false);
+  const [communityRatingModal, setCommunityRatingModal] = useState<{ id: string; title: string; city: string | null } | null>(null);
+  const [communityRatingValue, setCommunityRatingValue] = useState(0);
+  const [communityRatingNotes, setCommunityRatingNotes] = useState("");
+  const [communityRatingSubmitting, setCommunityRatingSubmitting] = useState(false);
+  const [communityRatedItems, setCommunityRatedItems] = useState<Map<string, number>>(new Map());
+  const [communityRatingToast, setCommunityRatingToast] = useState<string | null>(null);
 
   useEffect(() => {
     const realFetch = fetch("/api/discover/activities")
@@ -415,12 +437,12 @@ export default function DiscoverPage() {
         (a.city ?? "").toLowerCase().includes(picksSearch.toLowerCase());
 
       const matchesFilter = (() => {
-        if (picksFilter === "All") return true;
-        const rule = PICKS_TYPE_MAP[picksFilter];
+        if (picksFilter === "All" || picksFilter === "Other") return true;
+        const rule = PICKS_CATEGORY_MAP[picksFilter];
         if (!rule) return true;
         const titleLower = a.title.toLowerCase();
-        const matchesType = rule.types.includes(a.type ?? "");
-        const matchesKeyword = rule.keywords.some(k => titleLower.includes(k));
+        const matchesType = rule.types.length > 0 && rule.types.includes(a.type ?? "");
+        const matchesKeyword = rule.keywords.length > 0 && rule.keywords.some(k => titleLower.includes(k));
         return matchesType || matchesKeyword;
       })();
 
@@ -709,7 +731,7 @@ export default function DiscoverPage() {
           </div>
 
           <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "28px", scrollbarWidth: "none", msOverflowStyle: "none" }} className="hide-scrollbar">
-            {["All", "Restaurants", "Culture", "Outdoors", "Kids & Family", "Shopping", "Hotels", "Sports"].map((f) => (
+            {["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other"].map((f) => (
               <button
                 key={f}
                 onClick={() => { setPicksFilter(f); setShowAllPicks(false); }}
@@ -749,19 +771,9 @@ export default function DiscoverPage() {
                     ) : (
                       <div style={{ width: "100%", height: "100%", backgroundColor: "#F5F5F4" }} />
                     )}
-                    {act.rating !== null && (
-                      <span style={{ position: "absolute", top: "10px", right: "10px", backgroundColor: "rgba(255,255,255,0.92)", color: "#1B3A5C", fontSize: "11px", padding: "3px 8px", borderRadius: "999px" }}>
-                        {"★".repeat(act.rating)}{"☆".repeat(5 - act.rating)}
-                      </span>
-                    )}
                     {act.rating !== null && act.rating >= 3 && (
                       <span className="absolute bottom-3 left-3 bg-[#C4664A] text-white text-xs px-2 py-1 rounded-full font-medium">
                         Flokk Approved
-                      </span>
-                    )}
-                    {(act.visitorCount ?? 0) >= 2 && (
-                      <span className="absolute bottom-3 right-3 bg-[#1B3A5C] text-white text-xs px-2 py-1 rounded-full font-medium">
-                        {act.visitorCount} Flokkers visited
                       </span>
                     )}
                   </div>
@@ -771,20 +783,45 @@ export default function DiscoverPage() {
                     {act.ratingNotes && (
                       <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "6px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{act.ratingNotes}</p>
                     )}
+                    {/* Community rating */}
+                    {act.rating !== null && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                        <span style={{ color: "#f59e0b", fontSize: "13px", letterSpacing: "1px" }}>
+                          {"★".repeat(act.rating)}{"☆".repeat(5 - act.rating)}
+                        </span>
+                        <span style={{ fontSize: "11px", color: "#AAAAAA" }}>
+                          {act.rating}/5
+                          {(act.visitorCount ?? 0) >= 2 ? ` · ${act.visitorCount} families` : ""}
+                        </span>
+                      </div>
+                    )}
+                    {/* Personal rating */}
+                    {communityRatedItems.has(act.id) && (
+                      <p style={{ fontSize: "11px", color: "#16a34a", fontWeight: 600, marginBottom: "4px" }}>
+                        You rated: {"★".repeat(communityRatedItems.get(act.id)!)}{"☆".repeat(5 - communityRatedItems.get(act.id)!)}
+                      </p>
+                    )}
                     <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "10px" }}>
                       {act.source === "placeholder"
                         ? "Flokk Pick"
-                        : (act.visitorCount ?? 0) >= 2
-                          ? `${act.visitorCount} Flokk families visited`
-                          : act.isAnonymous || !act.familyName
-                            ? "A Real Flokker"
-                            : `${act.familyName} Family`}
+                        : act.isAnonymous || !act.familyName
+                          ? "A Real Flokker"
+                          : `${act.familyName} Family`}
                     </p>
                     <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
                       {act.websiteUrl && (
                         <a href={act.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#1B3A5C", textDecoration: "underline", textAlign: "center" }}>
                           Visit site →
                         </a>
+                      )}
+                      {/* Rate it */}
+                      {!communityRatedItems.has(act.id) && (
+                        <button
+                          onClick={() => { setCommunityRatingModal({ id: act.id, title: act.title, city: act.city }); setCommunityRatingValue(0); setCommunityRatingNotes(""); }}
+                          style={{ fontSize: "12px", fontWeight: 500, border: "1px solid #d1d5db", color: "#717171", backgroundColor: "#fff", borderRadius: "8px", padding: "6px 8px", cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s", width: "100%" }}
+                        >
+                          ★ Rate it
+                        </button>
                       )}
                       <button
                         onClick={() => handlePickSave(act)}
@@ -1001,6 +1038,93 @@ export default function DiscoverPage() {
               </p>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Community rating modal ── */}
+      {communityRatingModal && (
+        <div
+          onClick={() => setCommunityRatingModal(null)}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: "#fff", borderRadius: "16px", padding: "24px", width: "100%", maxWidth: "360px", display: "flex", flexDirection: "column", gap: "16px" }}
+          >
+            <h2 style={{ fontFamily: "Playfair Display, serif", fontSize: 18, fontWeight: 700, color: "#1B3A5C", margin: 0, lineHeight: 1.3 }}>
+              {communityRatingModal.title.length > 40 ? communityRatingModal.title.slice(0, 40) + "…" : communityRatingModal.title}
+            </h2>
+
+            {/* Star selector */}
+            <div style={{ display: "flex", gap: "8px" }}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  type="button"
+                  onClick={() => setCommunityRatingValue(star)}
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "28px", color: star <= communityRatingValue ? "#f59e0b" : "#d1d5db", lineHeight: 1 }}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+
+            {/* Notes */}
+            <textarea
+              placeholder="What did you think?"
+              value={communityRatingNotes}
+              onChange={(e) => setCommunityRatingNotes(e.target.value)}
+              rows={3}
+              style={{ border: "1px solid #E8E8E8", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "#0A1628", outline: "none", fontFamily: "Inter, sans-serif", resize: "vertical" }}
+            />
+
+            {/* Save button */}
+            <button
+              disabled={communityRatingValue === 0 || communityRatingSubmitting}
+              onClick={async () => {
+                if (communityRatingValue === 0) return;
+                setCommunityRatingSubmitting(true);
+                try {
+                  const res = await fetch("/api/community/rate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      placeName: communityRatingModal.title,
+                      destinationCity: communityRatingModal.city ?? undefined,
+                      rating: communityRatingValue,
+                      notes: communityRatingNotes.trim() || undefined,
+                    }),
+                  });
+                  if (res.ok) {
+                    setCommunityRatedItems((prev) => new Map(prev).set(communityRatingModal.id, communityRatingValue));
+                    setCommunityRatingModal(null);
+                    setCommunityRatingToast("Rating saved!");
+                    setTimeout(() => setCommunityRatingToast(null), 3000);
+                  }
+                } finally {
+                  setCommunityRatingSubmitting(false);
+                }
+              }}
+              style={{ padding: "12px 0", borderRadius: 8, border: "none", backgroundColor: communityRatingValue > 0 ? "#C4664A" : "#E8E8E8", color: communityRatingValue > 0 ? "#fff" : "#aaa", fontSize: 14, fontWeight: 600, cursor: communityRatingValue > 0 ? "pointer" : "default", fontFamily: "Inter, sans-serif" }}
+            >
+              {communityRatingSubmitting ? "Saving…" : "Save rating"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCommunityRatingModal(null)}
+              style={{ background: "none", border: "none", padding: 0, fontSize: "13px", color: "#717171", cursor: "pointer", fontFamily: "Inter, sans-serif", textAlign: "center" }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Rating toast ── */}
+      {communityRatingToast && (
+        <div style={{ position: "fixed", bottom: "80px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#1B3A5C", color: "#fff", padding: "10px 20px", borderRadius: "999px", fontSize: "13px", fontWeight: 600, zIndex: 200, pointerEvents: "none" }}>
+          {communityRatingToast}
         </div>
       )}
 
