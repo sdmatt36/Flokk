@@ -797,9 +797,14 @@ export default function DiscoverPage() {
                     )}
                     {/* Personal rating */}
                     {communityRatedItems.has(act.id) && (
-                      <p style={{ fontSize: "11px", color: "#16a34a", fontWeight: 600, marginBottom: "4px" }}>
-                        You rated: {"★".repeat(communityRatedItems.get(act.id)!)}{"☆".repeat(5 - communityRatedItems.get(act.id)!)}
-                      </p>
+                      <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
+                        <span style={{ fontSize: "11px", color: "#AAAAAA" }}>You rated:</span>
+                        <div style={{ display: "flex", gap: "1px" }}>
+                          {[1, 2, 3, 4, 5].map(i => (
+                            <span key={i} style={{ color: i <= (communityRatedItems.get(act.id) ?? 0) ? "#f59e0b" : "#d1d5db", fontSize: "13px" }}>★</span>
+                          ))}
+                        </div>
+                      </div>
                     )}
                     <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "10px" }}>
                       {act.source === "placeholder"
@@ -818,7 +823,7 @@ export default function DiscoverPage() {
                       {!communityRatedItems.has(act.id) && (
                         <button
                           onClick={() => { setCommunityRatingModal({ id: act.id, title: act.title, city: act.city }); setCommunityRatingValue(0); setCommunityRatingNotes(""); }}
-                          style={{ fontSize: "12px", fontWeight: 500, border: "1px solid #d1d5db", color: "#717171", backgroundColor: "#fff", borderRadius: "8px", padding: "6px 8px", cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s", width: "100%" }}
+                          style={{ background: "none", border: "none", padding: "0 0 2px", fontSize: "11px", color: "#AAAAAA", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
                         >
                           ★ Rate it
                         </button>

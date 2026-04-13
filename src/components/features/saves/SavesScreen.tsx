@@ -106,8 +106,14 @@ type SaveCardProps = {
 };
 
 function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId }: SaveCardProps) {
-  const visibleTags = save.tags.slice(0, 3);
-  const extraTags = save.tags.length - visibleTags.length;
+  const filteredTags = save.tags.filter(t => {
+    if (t.toLowerCase() === "other" && save.tags.some(t2 =>
+      !["other", "vg", "vgn"].includes(t2.toLowerCase()) && t2.toLowerCase() !== t.toLowerCase()
+    )) return false;
+    return true;
+  });
+  const visibleTags = filteredTags.slice(0, 3);
+  const extraTags = filteredTags.length - visibleTags.length;
   const isDropdownOpen = openDropdown === save.id;
   const [deleting, setDeleting] = useState(false);
 
@@ -408,10 +414,11 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
         {!save.tags.some(t => t.toLowerCase() === "lodging") && onRateClick && (
           <div style={{ marginTop: "8px" }}>
             {ratedItemId === save.id || save.userRating ? (
-              <span style={{ fontSize: "11px", color: "#16a34a", fontWeight: 600 }}>
-                ★ Rated {save.userRating ?? ""}
-                {save.userRating ? "/5" : ""}
-              </span>
+              <div style={{ display: "flex", gap: "2px" }}>
+                {[1, 2, 3, 4, 5].map(i => (
+                  <span key={i} style={{ color: i <= (save.userRating ?? 0) ? "#f59e0b" : "#d1d5db", fontSize: "14px" }}>★</span>
+                ))}
+              </div>
             ) : (
               <button
                 onClick={(e) => { e.stopPropagation(); onRateClick(save.id, save.title); }}
