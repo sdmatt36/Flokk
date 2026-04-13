@@ -37,6 +37,8 @@ const ManualSaveSchema = z.object({
   title: z.string().min(1),
   category: z.string().optional().nullable(),
   city: z.string().optional().nullable(),
+  region: z.string().optional().nullable(),
+  country: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   website: z.string().optional().nullable(),
 });
@@ -93,15 +95,17 @@ export async function POST(request: Request) {
           status: "UNORGANIZED",
         },
       });
-      // Auto-assign to matching trip by destination city
+      // Auto-assign to matching trip by destination city, region, or country
       let matchedTrip: { id: string; title: string; destinationCity: string | null } | null = null;
-      const savedCity = (parsed.city?.trim() ?? "").toLowerCase();
-      if (savedCity) {
+      const locationTerms = [parsed.city, parsed.region, parsed.country].filter((t): t is string => !!t?.trim());
+      if (locationTerms.length > 0) {
         matchedTrip = await db.trip.findFirst({
           where: {
             familyProfileId: saveProfile.id,
             status: { notIn: ["COMPLETED"] },
-            destinationCity: { contains: savedCity, mode: "insensitive" },
+            OR: locationTerms.map((term) => ({
+              destinationCity: { contains: term.trim(), mode: "insensitive" as const },
+            })),
           },
           orderBy: { startDate: "asc" },
           select: { id: true, title: true, destinationCity: true },

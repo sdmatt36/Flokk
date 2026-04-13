@@ -459,6 +459,13 @@ export function SavesScreen() {
   const [manualName, setManualName] = useState("");
   const [manualCategory, setManualCategory] = useState("food");
   const [manualCity, setManualCity] = useState("");
+  const [manualRegion, setManualRegion] = useState("");
+  const [manualCountry, setManualCountry] = useState("");
+  const [manualCityQuery, setManualCityQuery] = useState("");
+  const [manualCitySuggestions, setManualCitySuggestions] = useState<{ placeId: string; cityName: string; countryName: string; description?: string }[]>([]);
+  const [manualCityShowDropdown, setManualCityShowDropdown] = useState(false);
+  const manualCityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const manualCityDropdownRef = useRef<HTMLDivElement>(null);
   const [manualNotes, setManualNotes] = useState("");
   const [manualWebsite, setManualWebsite] = useState("");
   const [manualSubmitting, setManualSubmitting] = useState(false);
@@ -474,6 +481,46 @@ export function SavesScreen() {
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
+
+  // Dismiss city dropdown on outside click
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (manualCityDropdownRef.current && !manualCityDropdownRef.current.contains(e.target as Node)) {
+        setManualCityShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  // City autocomplete debounce
+  useEffect(() => {
+    if (manualCityDebounceRef.current) clearTimeout(manualCityDebounceRef.current);
+    if (manualCityQuery.length < 2) {
+      setManualCitySuggestions([]);
+      setManualCityShowDropdown(false);
+      return;
+    }
+    manualCityDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/destinations/lookup?q=${encodeURIComponent(manualCityQuery)}`);
+        const data = await res.json();
+        setManualCitySuggestions(Array.isArray(data) ? data : []);
+        setManualCityShowDropdown(true);
+      } catch {
+        setManualCitySuggestions([]);
+      }
+    }, 400);
+    return () => { if (manualCityDebounceRef.current) clearTimeout(manualCityDebounceRef.current); };
+  }, [manualCityQuery]);
+
+  function selectManualCity(cityName: string, countryName: string) {
+    setManualCity(cityName);
+    setManualCountry(countryName);
+    setManualCityQuery(cityName);
+    setManualCitySuggestions([]);
+    setManualCityShowDropdown(false);
+  }
 
   const unorganizedCount = saves.filter((s) => s.assigned === null).length;
 
@@ -552,6 +599,8 @@ export function SavesScreen() {
           title: manualName.trim(),
           category: manualCategory || null,
           city: manualCity.trim() || null,
+          region: manualRegion.trim() || null,
+          country: manualCountry.trim() || null,
           notes: manualNotes.trim() || null,
           website: manualWebsite.trim() || null,
         }),
@@ -564,6 +613,9 @@ export function SavesScreen() {
         setManualName("");
         setManualCategory("food");
         setManualCity("");
+        setManualRegion("");
+        setManualCountry("");
+        setManualCityQuery("");
         setManualNotes("");
         setManualWebsite("");
         const toastMsg = data.matchedTrip
@@ -996,15 +1048,32 @@ Your saved places, all in one spot
               </select>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, position: "relative" }} ref={manualCityDropdownRef}>
               <label style={{ fontSize: 12, fontWeight: 600, color: "#717171", textTransform: "uppercase", letterSpacing: "0.05em" }}>City</label>
               <input
                 type="text"
                 placeholder="e.g. Tokyo"
-                value={manualCity}
-                onChange={(e) => setManualCity(e.target.value)}
+                value={manualCityQuery}
+                onChange={(e) => { setManualCityQuery(e.target.value); setManualCity(e.target.value); setManualRegion(""); setManualCountry(""); }}
+                onFocus={() => { if (manualCitySuggestions.length > 0) setManualCityShowDropdown(true); }}
                 style={{ border: "1px solid #E8E8E8", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "#0A1628", outline: "none", fontFamily: "Inter, sans-serif" }}
               />
+              {manualCityShowDropdown && manualCitySuggestions.length > 0 && (
+                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 100, background: "#fff", border: "1px solid #E8E8E8", borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.1)", overflow: "hidden", marginTop: 4 }}>
+                  {manualCitySuggestions.map((s) => (
+                    <div
+                      key={s.placeId}
+                      onMouseDown={() => selectManualCity(s.cityName, s.countryName)}
+                      style={{ padding: "10px 12px", fontSize: 14, color: "#0A1628", cursor: "pointer", borderBottom: "1px solid #F5F5F5", fontFamily: "Inter, sans-serif" }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#F9F5F3"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#fff"; }}
+                    >
+                      <span style={{ fontWeight: 600 }}>{s.cityName}</span>
+                      {s.countryName && <span style={{ color: "#717171", marginLeft: 6 }}>{s.countryName}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
