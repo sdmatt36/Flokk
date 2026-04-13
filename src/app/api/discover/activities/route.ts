@@ -55,8 +55,6 @@ export async function GET(req: NextRequest) {
         JOIN "Trip" t ON t.id = ma."tripId"
         JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
         LEFT JOIN "PlaceRating" pr ON pr."manualActivityId" = ma.id
-        WHERE t."endDate" IS NOT NULL
-          AND t."endDate" < NOW()
 
         UNION ALL
 
@@ -81,10 +79,7 @@ export async function GET(req: NextRequest) {
         JOIN "Trip" t ON t.id = ii."tripId"
         JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
         LEFT JOIN "PlaceRating" pr ON pr."itineraryItemId" = ii.id
-        WHERE t."endDate" IS NOT NULL
-          AND t."endDate" < NOW()
-
-          AND ii.type NOT IN ('FLIGHT', 'TRAIN', 'LODGING', 'TRANSIT')
+        WHERE ii.type NOT IN ('FLIGHT', 'TRAIN', 'LODGING', 'TRANSIT')
       ),
       aggregated AS (
         SELECT
@@ -146,8 +141,6 @@ export async function GET(req: NextRequest) {
         JOIN "Trip" t ON t.id = ma."tripId"
         JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
         LEFT JOIN "PlaceRating" pr ON pr."manualActivityId" = ma.id
-        WHERE t."endDate" IS NOT NULL
-          AND t."endDate" < NOW()
 
         UNION ALL
 
@@ -172,10 +165,7 @@ export async function GET(req: NextRequest) {
         JOIN "Trip" t ON t.id = ii."tripId"
         JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
         LEFT JOIN "PlaceRating" pr ON pr."itineraryItemId" = ii.id
-        WHERE t."endDate" IS NOT NULL
-          AND t."endDate" < NOW()
-
-          AND ii.type NOT IN ('FLIGHT', 'TRAIN', 'LODGING', 'TRANSIT')
+        WHERE ii.type NOT IN ('FLIGHT', 'TRAIN', 'LODGING', 'TRANSIT')
       ),
       aggregated AS (
         SELECT
