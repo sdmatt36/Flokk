@@ -52,6 +52,11 @@ export async function POST(req: Request) {
 
   const destinationCity = sourceTrip.destinationCity ?? "New";
 
+  // Only carry dates forward if they are in the future — past dates are not useful to the new owner
+  const now = new Date();
+  const startDate = sourceTrip.startDate && sourceTrip.startDate > now ? sourceTrip.startDate : null;
+  const endDate = sourceTrip.endDate && sourceTrip.endDate > now ? sourceTrip.endDate : null;
+
   // Create new trip for this user
   const newTrip = await db.trip.create({
     data: {
@@ -59,8 +64,8 @@ export async function POST(req: Request) {
       title: `${destinationCity} Trip`,
       destinationCity: sourceTrip.destinationCity,
       destinationCountry: sourceTrip.destinationCountry,
-      startDate: sourceTrip.startDate ?? null,
-      endDate: sourceTrip.endDate ?? null,
+      startDate,
+      endDate,
       status: "PLANNING",
       shareToken: generateToken(),
       isPublic: false,
