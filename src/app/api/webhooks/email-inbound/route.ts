@@ -429,20 +429,43 @@ Field notes:
         try {
           const pageRes = await fetch(rawUrl, {
             headers: { 'User-Agent': 'Mozilla/5.0' },
-            signal: AbortSignal.timeout(5000)
+            signal: AbortSignal.timeout(5000),
+            redirect: 'follow'
           })
-          const html = await pageRes.text()
-          const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
-          if (titleMatch?.[1]) {
-            const pageTitle = titleMatch[1].trim().slice(0, 200)
+          const finalUrl = pageRes.url
+          console.log('[trips-save] final URL after redirect:', finalUrl)
+
+          let pageTitle: string | null = null
+
+          // Try extracting place name from Google Maps URL
+          // Format: /maps/place/Place+Name/@coords or /maps/place/Place+Name/data=...
+          const mapsMatch = finalUrl.match(/\/maps\/place\/([^/@?]+)/)
+          if (mapsMatch?.[1]) {
+            pageTitle = decodeURIComponent(mapsMatch[1].replace(/\+/g, ' ')).trim()
+            console.log('[trips-save] extracted from Maps URL:', pageTitle)
+          }
+
+          // Fallback: try <title> tag from HTML
+          if (!pageTitle) {
+            const html = await pageRes.text()
+            const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
+            if (titleMatch?.[1]) {
+              pageTitle = titleMatch[1]
+                .replace(/\s*[-|].*$/, '') // strip " - Google Maps" suffix
+                .trim()
+                .slice(0, 200)
+              console.log('[trips-save] extracted from title tag:', pageTitle)
+            }
+          }
+
+          if (pageTitle) {
             await db.savedItem.update({
               where: { id: savedItem.id },
               data: { rawTitle: pageTitle }
             })
-            console.log('[trips-save] title extracted:', pageTitle)
           }
         } catch (e) {
-          console.log('[trips-save] title extraction failed, keeping URL as title')
+          console.log('[trips-save] title extraction failed:', e)
         }
         try {
           const enriched = await enrichWithPlaces(rawUrl, '');
