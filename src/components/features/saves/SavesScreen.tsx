@@ -41,7 +41,7 @@ type PlaceResult = {
   photos?: { photo_reference: string }[];
 };
 
-const FILTER_PILLS = ["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other", "Vegetarian", "Vegan", "Unorganized"];
+const FILTER_PILLS = ["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other", "Unorganized"];
 
 type ApiItem = {
   id: string;
@@ -460,6 +460,7 @@ export function SavesScreen() {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
+  const [dietaryFilter, setDietaryFilter] = useState<string | null>(null);
   const [saves, setSaves] = useState<Save[]>([]);
   const [availableTrips, setAvailableTrips] = useState<{ id: string; title: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -669,14 +670,16 @@ export function SavesScreen() {
     const matchesCategory =
       activeFilter === "All" || activeFilter === "Unorganized"
         ? true
-        : activeFilter === "Vegetarian"
-        ? s.tags.includes("VG") || s.tags.includes("VGN")
-        : activeFilter === "Vegan"
-        ? s.tags.includes("VGN")
         : (CATEGORY_ALIASES[activeFilter] ?? [activeFilter]).some(alias =>
             s.tags.some(t => t.toLowerCase() === alias.toLowerCase())
           );
-    return matchesSearch && matchesCategory;
+    const matchesDietary =
+      dietaryFilter === "Vegetarian"
+        ? s.tags.includes("VG") || s.tags.includes("VGN")
+        : dietaryFilter === "Vegan"
+        ? s.tags.includes("VGN")
+        : true;
+    return matchesSearch && matchesCategory && matchesDietary;
   };
 
   // Trip section: hidden when "Unorganized" filter active
@@ -770,7 +773,7 @@ Your saved places, all in one spot
             return (
               <button
                 key={pill}
-                onClick={(e) => { e.stopPropagation(); setActiveFilter(pill); }}
+                onClick={(e) => { e.stopPropagation(); setActiveFilter(pill); if (pill !== "Food & Drink") setDietaryFilter(null); }}
                 style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: "5px", padding: "7px 16px", borderRadius: "999px", fontSize: "13px", fontWeight: isActive ? 600 : 400, color: isActive ? "#fff" : "#717171", backgroundColor: isActive ? "#C4664A" : "#fff", border: isActive ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease" }}
               >
                 {pill}
@@ -783,6 +786,29 @@ Your saved places, all in one spot
             );
           })}
         </div>
+
+        {activeFilter === "Food & Drink" && (
+          <div style={{ display: 'flex', gap: '8px', marginTop: '-16px', marginBottom: '24px' }}>
+            {["All Food", "Vegetarian", "Vegan"].map(sub => (
+              <button
+                key={sub}
+                onClick={() => setDietaryFilter(sub === "All Food" ? null : sub)}
+                style={{
+                  padding: '4px 12px',
+                  borderRadius: '999px',
+                  border: '1px solid',
+                  fontSize: '13px',
+                  background: (sub === "All Food" ? dietaryFilter === null : dietaryFilter === sub) ? '#16a34a' : 'white',
+                  color: (sub === "All Food" ? dietaryFilter === null : dietaryFilter === sub) ? 'white' : '#16a34a',
+                  borderColor: '#16a34a',
+                  cursor: 'pointer',
+                }}
+              >
+                {sub}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* SECTIONS */}
         {loading && (
