@@ -51,30 +51,37 @@ export async function GET(req: NextRequest) {
       return true;
     });
 
-    const mapped: DestinationSuggestion[] = unique.map((p) => {
-      const terms = p.terms ?? [];
-      const cityName = terms[0]?.value ?? p.structured_formatting.main_text;
-      const countryName = terms[terms.length - 1]?.value ?? "";
-      // Region: middle terms if 3+, else parse from secondary_text (e.g. "Scotland, UK" → "Scotland")
-      let region = "";
-      if (terms.length >= 3) {
-        region = terms.slice(1, terms.length - 1).map(t => t.value).join(", ");
-      } else {
-        const secondary = p.structured_formatting.secondary_text ?? "";
-        const parts = secondary.split(", ");
-        if (parts.length >= 2) {
-          region = parts.slice(0, -1).join(", ");
-        }
-      }
-      console.log('[lookup] description:', p.description, '| terms:', JSON.stringify(terms), '| region:', region);
-      return {
-        placeId: p.place_id,
-        cityName,
-        countryName,
-        region,
-        description: p.description,
-      };
-    });
+    // Fetch address_components per result to get administrative_area_level_1 (e.g. "Scotland")
+    const mapped: DestinationSuggestion[] = await Promise.all(
+      unique.slice(0, 6).map(async (p) => {
+        const terms = p.terms ?? [];
+        const cityName = terms[0]?.value ?? p.structured_formatting.main_text;
+        const countryName = terms[terms.length - 1]?.value ?? "";
+
+        let region = "";
+        try {
+          const detailRes = await fetch(
+            `https://maps.googleapis.com/maps/api/place/details/json?place_id=${p.place_id}&fields=address_components&key=${GOOGLE_API_KEY}`
+          );
+          const detailData = await detailRes.json() as {
+            result?: { address_components?: Array<{ long_name: string; types: string[] }> };
+          };
+          const adminArea = detailData.result?.address_components?.find(
+            (c) => c.types.includes("administrative_area_level_1")
+          );
+          if (adminArea) region = adminArea.long_name;
+        } catch { /* region stays empty on error */ }
+
+        console.log('[lookup] description:', p.description, '| region:', region);
+        return {
+          placeId: p.place_id,
+          cityName,
+          countryName,
+          region,
+          description: p.description,
+        };
+      })
+    );
 
     // Sort non-US results first when the query resembles a well-known international city
     const hasInternationalMatch = mapped.some((s) => s.countryName !== "United States");

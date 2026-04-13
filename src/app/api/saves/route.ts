@@ -99,7 +99,9 @@ export async function POST(request: Request) {
       // Enrich with Google Places photo at save time (synchronous — result in same response)
       let manualEnrichedPhotoUrl: string | null = null;
       let manualEnrichedWebsite: string | null = null;
-      if (!savedItem.placePhotoUrl) {
+      const needsEnrichment = !savedItem.placePhotoUrl || savedItem.placePhotoUrl === "";
+      console.log('[enrich-guard] placePhotoUrl:', savedItem.placePhotoUrl, '| needsEnrichment:', needsEnrichment);
+      if (needsEnrichment) {
         console.log('[enrich] attempting enrichment for:', parsed.title, parsed.city);
         const enriched = await enrichWithPlaces(parsed.title, parsed.city?.trim() ?? "");
         const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string } = {};
