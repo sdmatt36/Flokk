@@ -55,7 +55,18 @@ export async function GET(req: NextRequest) {
       const terms = p.terms ?? [];
       const cityName = terms[0]?.value ?? p.structured_formatting.main_text;
       const countryName = terms[terms.length - 1]?.value ?? "";
-      const region = terms.length >= 3 ? terms.slice(1, terms.length - 1).map(t => t.value).join(", ") : "";
+      // Region: middle terms if 3+, else parse from secondary_text (e.g. "Scotland, UK" → "Scotland")
+      let region = "";
+      if (terms.length >= 3) {
+        region = terms.slice(1, terms.length - 1).map(t => t.value).join(", ");
+      } else {
+        const secondary = p.structured_formatting.secondary_text ?? "";
+        const parts = secondary.split(", ");
+        if (parts.length >= 2) {
+          region = parts.slice(0, -1).join(", ");
+        }
+      }
+      console.log('[lookup] description:', p.description, '| terms:', JSON.stringify(terms), '| region:', region);
       return {
         placeId: p.place_id,
         cityName,

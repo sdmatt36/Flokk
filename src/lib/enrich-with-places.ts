@@ -9,6 +9,7 @@ export async function enrichWithPlaces(
   name: string,
   city: string
 ): Promise<{ imageUrl: string | null; website: string | null }> {
+  console.log('[enrich-util] called with name:', name, 'city:', city);
   if (!GOOGLE_MAPS_API_KEY || !name.trim()) return { imageUrl: null, website: null };
 
   try {

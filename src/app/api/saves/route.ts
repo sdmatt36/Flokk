@@ -100,6 +100,7 @@ export async function POST(request: Request) {
       let manualEnrichedPhotoUrl: string | null = null;
       let manualEnrichedWebsite: string | null = null;
       if (!savedItem.placePhotoUrl) {
+        console.log('[enrich] attempting enrichment for:', parsed.title, parsed.city);
         const enriched = await enrichWithPlaces(parsed.title, parsed.city?.trim() ?? "");
         const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string } = {};
         if (enriched.imageUrl) { placesUpdate.placePhotoUrl = enriched.imageUrl; manualEnrichedPhotoUrl = enriched.imageUrl; }
