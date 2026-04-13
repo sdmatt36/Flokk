@@ -486,6 +486,8 @@ export function SavesScreen() {
   const manualCityDropdownRef = useRef<HTMLDivElement>(null);
   const [manualNotes, setManualNotes] = useState("");
   const [manualWebsite, setManualWebsite] = useState("");
+  const [manualIsVegetarian, setManualIsVegetarian] = useState(false);
+  const [manualIsVegan, setManualIsVegan] = useState(false);
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [savedToast, setSavedToast] = useState<string | null>(null);
 
@@ -610,6 +612,10 @@ export function SavesScreen() {
     if (!manualName.trim()) return;
     setManualSubmitting(true);
     try {
+      const dietaryTags: string[] = [];
+      if (manualIsVegan) { dietaryTags.push("VGN"); dietaryTags.push("VG"); }
+      else if (manualIsVegetarian) { dietaryTags.push("VG"); }
+
       const res = await fetch("/api/saves", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -622,6 +628,7 @@ export function SavesScreen() {
           country: manualCountry.trim() || null,
           notes: manualNotes.trim() || null,
           website: manualWebsite.trim() || null,
+          tags: dietaryTags.length > 0 ? dietaryTags : undefined,
         }),
       });
       const data = await res.json();
@@ -637,6 +644,8 @@ export function SavesScreen() {
         setManualCityQuery("");
         setManualNotes("");
         setManualWebsite("");
+        setManualIsVegetarian(false);
+        setManualIsVegan(false);
         const toastMsg = data.matchedTrip
           ? `Saved and added to ${data.matchedTrip.title}`
           : "Activity saved";
@@ -1151,6 +1160,32 @@ Your saved places, all in one spot
               />
             </div>
 
+            {manualCategory === "food" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <label style={{ fontSize: 11, fontWeight: 600, color: "#666", letterSpacing: "0.05em", textTransform: "uppercase" }}>Dietary</label>
+                <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !manualIsVegetarian;
+                      setManualIsVegetarian(next);
+                      if (!next) setManualIsVegan(false);
+                    }}
+                    style={{ padding: "6px 14px", borderRadius: "999px", border: "1px solid #16a34a", background: manualIsVegetarian ? "#16a34a" : "white", color: manualIsVegetarian ? "white" : "#16a34a", fontSize: "13px", cursor: "pointer" }}
+                  >Vegetarian</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !manualIsVegan;
+                      setManualIsVegan(next);
+                      if (next) setManualIsVegetarian(true);
+                    }}
+                    style={{ padding: "6px 14px", borderRadius: "999px", border: "1px solid #16a34a", background: manualIsVegan ? "#16a34a" : "white", color: manualIsVegan ? "white" : "#16a34a", fontSize: "13px", cursor: "pointer" }}
+                  >Vegan</button>
+                </div>
+              </div>
+            )}
+
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: "#717171", textTransform: "uppercase", letterSpacing: "0.05em" }}>Website</label>
               <input
@@ -1164,7 +1199,7 @@ Your saved places, all in one spot
 
             <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
               <button
-                onClick={() => setShowManualModal(false)}
+                onClick={() => { setShowManualModal(false); setManualIsVegetarian(false); setManualIsVegan(false); }}
                 style={{ flex: 1, padding: "12px 0", borderRadius: 8, border: "1px solid #E8E8E8", backgroundColor: "#fff", color: "#717171", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}
               >
                 Cancel
