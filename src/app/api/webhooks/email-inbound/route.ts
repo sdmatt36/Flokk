@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
+import { enrichWithPlaces } from "@/lib/enrich-with-places";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -264,6 +265,7 @@ export async function POST(req: NextRequest) {
       text    = String(payload.text    ?? "");
     }
 
+    console.log('[email-inbound] body length:', (text || html || '').length);
     console.log("[email-inbound] from:", from, "| to:", to, "| subject:", subject);
 
     // ── GYG pre-extraction — pull activity name from subject before Claude runs ─
@@ -406,6 +408,38 @@ Field notes:
 
     if (!extracted || (extracted.confidence as number) < 0.5) {
       console.log("[email-inbound] low confidence:", extracted?.confidence);
+      const urlMatch = (text || html || '').match(/https?:\/\/[^\s<>"]+/);
+      if (urlMatch) {
+        const rawUrl = urlMatch[0].replace(/[.,;!?)]+$/, '');
+        console.log('[trips-save] URL detected:', rawUrl);
+        const savedItem = await db.savedItem.create({
+          data: {
+            familyProfileId: familyProfile.id,
+            sourceType: 'EMAIL_IMPORT',
+            sourceUrl: rawUrl,
+            rawTitle: rawUrl,
+            status: 'UNORGANIZED',
+            extractionStatus: 'PENDING',
+            tripId: null,
+            destinationCity: null,
+          },
+        });
+        console.log('[trips-save] SavedItem created:', savedItem.id);
+        try {
+          const enriched = await enrichWithPlaces(rawUrl, '');
+          const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string } = {};
+          if (enriched.imageUrl) placesUpdate.placePhotoUrl = enriched.imageUrl;
+          if (enriched.website) placesUpdate.websiteUrl = enriched.website;
+          if (Object.keys(placesUpdate).length > 0) {
+            await db.savedItem.update({ where: { id: savedItem.id }, data: placesUpdate });
+          }
+          console.log('[trips-save] enrichment complete for', savedItem.id);
+        } catch (e) {
+          console.error('[trips-save] enrichment failed:', e);
+        }
+      } else {
+        console.log('[trips-save] no URL found in low-confidence email, skipping');
+      }
       return NextResponse.json({ received: true, status: "low_confidence" });
     }
 
