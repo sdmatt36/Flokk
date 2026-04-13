@@ -827,7 +827,7 @@ model PackingItem {
 model PlaceRating {
   id              String        @id @default(cuid())
   familyProfileId String
-  tripId          String
+  tripId          String?
   itineraryItemId  String?
   manualActivityId String?
   placeName        String
@@ -841,5 +841,5 @@ model PlaceRating {
   kidsRating      Int?
   createdAt       DateTime      @default(now())
   familyProfile   FamilyProfile @relation(fields: [familyProfileId], references: [id])
-  trip            Trip          @relation(fields: [tripId], references: [id])
+  trip            Trip?         @relation(fields: [tripId], references: [id])
 }
