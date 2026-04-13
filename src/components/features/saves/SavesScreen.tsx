@@ -462,6 +462,7 @@ export function SavesScreen() {
   const [manualNotes, setManualNotes] = useState("");
   const [manualWebsite, setManualWebsite] = useState("");
   const [manualSubmitting, setManualSubmitting] = useState(false);
+  const [savedToast, setSavedToast] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -557,13 +558,19 @@ export function SavesScreen() {
       });
       const data = await res.json();
       if (res.ok && data.savedItem) {
-        setSaves((prev) => [mapApiItem({ ...data.savedItem, trip: null, needsPlaceConfirmation: false }), ...prev]);
+        const tripForItem = data.matchedTrip ? { id: data.matchedTrip.id, title: data.matchedTrip.title } : null;
+        setSaves((prev) => [mapApiItem({ ...data.savedItem, trip: tripForItem, needsPlaceConfirmation: false }), ...prev]);
         setShowManualModal(false);
         setManualName("");
         setManualCategory("food");
         setManualCity("");
         setManualNotes("");
         setManualWebsite("");
+        const toastMsg = data.matchedTrip
+          ? `Saved and added to ${data.matchedTrip.title}`
+          : "Activity saved";
+        setSavedToast(toastMsg);
+        setTimeout(() => setSavedToast(null), 3500);
       }
     } finally {
       setManualSubmitting(false);
@@ -934,6 +941,12 @@ Your saved places, all in one spot
       >
         <Plus size={24} style={{ color: "#fff" }} />
       </button>
+
+      {savedToast && (
+        <div style={{ position: "fixed", bottom: 96, left: "50%", transform: "translateX(-50%)", backgroundColor: "#1B3A5C", color: "#fff", padding: "12px 20px", borderRadius: "12px", fontSize: "14px", fontWeight: 500, zIndex: 9999, whiteSpace: "nowrap", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}>
+          {savedToast}
+        </div>
+      )}
 
       {/* Manual Activity Modal */}
       {showManualModal && (

@@ -93,7 +93,27 @@ export async function POST(request: Request) {
           status: "UNORGANIZED",
         },
       });
-      return NextResponse.json({ savedItem });
+      // Auto-assign to matching trip by destination city
+      let matchedTrip: { id: string; title: string; destinationCity: string | null } | null = null;
+      const savedCity = (parsed.city?.trim() ?? "").toLowerCase();
+      if (savedCity) {
+        matchedTrip = await db.trip.findFirst({
+          where: {
+            familyProfileId: saveProfile.id,
+            status: { notIn: ["COMPLETED"] },
+            destinationCity: { contains: savedCity, mode: "insensitive" },
+          },
+          orderBy: { startDate: "asc" },
+          select: { id: true, title: true, destinationCity: true },
+        });
+        if (matchedTrip) {
+          await db.savedItem.update({
+            where: { id: savedItem.id },
+            data: { tripId: matchedTrip.id, status: "TRIP_ASSIGNED" },
+          });
+        }
+      }
+      return NextResponse.json({ savedItem: { ...savedItem, tripId: matchedTrip?.id ?? null }, matchedTrip: matchedTrip ?? null });
     }
 
     const { url, tripId, title, description, thumbnailUrl, tags, lat, lng, dayIndex, extractedCheckin, extractedCheckout, userRating, userNote } = SaveSchema.parse(body);
@@ -194,6 +214,29 @@ export async function POST(request: Request) {
         .catch((e) => console.error("[enrich] failed:", e));
     }
 
+    // Auto-assign to matching trip by destination city (only when not already assigned)
+    let matchedTrip: { id: string; title: string; destinationCity: string | null } | null = null;
+    if (!tripId) {
+      const savedCity = (savedItem.destinationCity ?? "").toLowerCase().trim();
+      if (savedCity) {
+        matchedTrip = await db.trip.findFirst({
+          where: {
+            familyProfileId: saveProfile.id,
+            status: { notIn: ["COMPLETED"] },
+            destinationCity: { contains: savedCity, mode: "insensitive" },
+          },
+          orderBy: { startDate: "asc" },
+          select: { id: true, title: true, destinationCity: true },
+        });
+        if (matchedTrip) {
+          await db.savedItem.update({
+            where: { id: savedItem.id },
+            data: { tripId: matchedTrip.id, status: "TRIP_ASSIGNED" },
+          });
+        }
+      }
+    }
+
     // Loops: fire first-save if this is their first saved item
     try {
       const saveCount = await db.savedItem.count({ where: { familyProfileId: saveProfile.id } });
@@ -210,7 +253,7 @@ export async function POST(request: Request) {
       console.error("[loops] first-save trigger failed:", e);
     }
 
-    return NextResponse.json({ savedItem });
+    return NextResponse.json({ savedItem: { ...savedItem, tripId: matchedTrip?.id ?? savedItem.tripId }, matchedTrip: matchedTrip ?? null });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
