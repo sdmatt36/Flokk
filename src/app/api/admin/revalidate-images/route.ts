@@ -1,3 +1,4 @@
+// v2
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { nameSimilar } from "@/lib/enrich-with-places";
