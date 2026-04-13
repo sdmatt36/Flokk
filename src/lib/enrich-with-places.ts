@@ -5,7 +5,7 @@
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? "";
 
-function nameSimilar(a: string, b: string): boolean {
+export function nameSimilar(a: string, b: string): boolean {
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, ' ').trim()
   const wordsA = new Set(norm(a).split(' ').filter(w => w.length > 2))
   const wordsB = norm(b).split(' ').filter(w => w.length > 2)
