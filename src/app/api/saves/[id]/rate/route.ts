@@ -37,5 +37,10 @@ export async function POST(
     },
   });
 
+  await db.savedItem.update({
+    where: { id },
+    data: { userRating: body.rating },
+  });
+
   return NextResponse.json({ success: true, rating: newRating });
 }
