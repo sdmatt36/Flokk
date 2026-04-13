@@ -427,6 +427,24 @@ Field notes:
         });
         console.log('[trips-save] SavedItem created:', savedItem.id);
         try {
+          const pageRes = await fetch(rawUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            signal: AbortSignal.timeout(5000)
+          })
+          const html = await pageRes.text()
+          const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i)
+          if (titleMatch?.[1]) {
+            const pageTitle = titleMatch[1].trim().slice(0, 200)
+            await db.savedItem.update({
+              where: { id: savedItem.id },
+              data: { rawTitle: pageTitle }
+            })
+            console.log('[trips-save] title extracted:', pageTitle)
+          }
+        } catch (e) {
+          console.log('[trips-save] title extraction failed, keeping URL as title')
+        }
+        try {
           const enriched = await enrichWithPlaces(rawUrl, '');
           const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string } = {};
           if (enriched.imageUrl) placesUpdate.placePhotoUrl = enriched.imageUrl;
