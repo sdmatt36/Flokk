@@ -12,7 +12,6 @@ import {
   Bookmark,
   Plus,
   X,
-  Plane,
   Trash2,
 } from "lucide-react";
 
@@ -438,7 +437,7 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
 // ─── SectionHeader ────────────────────────────────────────────────────────────
 
 function SectionHeader({ icon, title, badge, count, action }: {
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
   title: string;
   badge?: string;
   count: number;
@@ -875,7 +874,6 @@ Your saved places, all in one spot
           return (
             <div key={tripName} style={{ marginBottom: "32px" }}>
               <SectionHeader
-                icon={<Plane size={16} style={{ color: "#C4664A" }} />}
                 title={tripName}
                 badge={TRIP_FLAGS[tripName]}
                 count={cards.length}
