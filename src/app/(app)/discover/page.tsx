@@ -273,6 +273,21 @@ export default function DiscoverPage() {
   const [communityRatingSubmitting, setCommunityRatingSubmitting] = useState(false);
   const [communityRatedItems, setCommunityRatedItems] = useState<Map<string, number>>(new Map());
   const [communityRatingToast, setCommunityRatingToast] = useState<string | null>(null);
+  const [userSavedKeys, setUserSavedKeys] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetch("/api/saves")
+      .then(r => r.json())
+      .then(d => {
+        const keys = new Set<string>(
+          (d.saves ?? []).map((s: { rawTitle: string | null; destinationCity: string | null }) =>
+            `${(s.rawTitle ?? "").toLowerCase().trim()}|${(s.destinationCity ?? "").toLowerCase().trim()}`
+          )
+        );
+        setUserSavedKeys(keys);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const realFetch = fetch("/api/discover/activities")
@@ -763,7 +778,11 @@ export default function DiscoverPage() {
           ) : (
             <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
-              {displayedPicks.map((act) => (
+              {displayedPicks.map((act) => {
+                const isSaved = userSavedKeys.has(
+                  `${act.title.toLowerCase().trim()}|${(act.city ?? "").toLowerCase().trim()}`
+                );
+                return (
                 <div key={act.id} style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column" }}>
                   <div style={{ height: "160px", backgroundColor: "#1B3A5C1A", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
                     {act.imageUrl ? (
@@ -784,17 +803,18 @@ export default function DiscoverPage() {
                       <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "6px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{act.ratingNotes}</p>
                     )}
                     {/* Community rating */}
-                    {act.rating !== null && (
+                    {act.rating !== null && (act.visitorCount ?? 0) >= 2 ? (
                       <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
                         <span style={{ color: "#f59e0b", fontSize: "13px", letterSpacing: "1px" }}>
                           {"★".repeat(act.rating)}{"☆".repeat(5 - act.rating)}
                         </span>
                         <span style={{ fontSize: "11px", color: "#AAAAAA" }}>
-                          {act.rating}/5
-                          {(act.visitorCount ?? 0) >= 2 ? ` · ${act.visitorCount} families` : ""}
+                          {act.visitorCount} families rated this
                         </span>
                       </div>
-                    )}
+                    ) : (act.visitorCount ?? 0) === 1 ? (
+                      <p style={{ fontSize: "11px", color: "#CCCCCC", marginBottom: "4px" }}>1 family rated this</p>
+                    ) : null}
                     {/* Personal rating */}
                     {communityRatedItems.has(act.id) && (
                       <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
@@ -819,8 +839,8 @@ export default function DiscoverPage() {
                           Visit site →
                         </a>
                       )}
-                      {/* Rate it */}
-                      {!communityRatedItems.has(act.id) && (
+                      {/* Rate it — only for users who have this place saved */}
+                      {isSaved && !communityRatedItems.has(act.id) && (
                         <button
                           onClick={() => { setCommunityRatingModal({ id: act.id, title: act.title, city: act.city }); setCommunityRatingValue(0); setCommunityRatingNotes(""); }}
                           style={{ background: "none", border: "none", padding: "0 0 2px", fontSize: "11px", color: "#AAAAAA", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
@@ -850,7 +870,8 @@ export default function DiscoverPage() {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
             {filteredPicks.length > 6 && !showAllPicks && (
               <div style={{ textAlign: "center", marginTop: "32px" }}>

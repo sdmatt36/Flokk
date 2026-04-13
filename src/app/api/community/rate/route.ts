@@ -24,6 +24,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "placeName is required" }, { status: 400 });
   }
 
+  // Server-side guard: only allow rating places the user has saved
+  const matchingSave = await db.savedItem.findFirst({
+    where: {
+      familyProfileId: profileId,
+      rawTitle: { contains: body.placeName.trim(), mode: "insensitive" },
+      ...(body.destinationCity?.trim()
+        ? { destinationCity: { contains: body.destinationCity.trim(), mode: "insensitive" } }
+        : {}),
+    },
+    select: { id: true },
+  });
+  if (!matchingSave) {
+    return NextResponse.json(
+      { error: "You can only rate places you have saved" },
+      { status: 403 }
+    );
+  }
+
   const newRating = await db.placeRating.create({
     data: {
       familyProfileId: profileId,
