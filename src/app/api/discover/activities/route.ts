@@ -19,7 +19,7 @@ export type DiscoverActivity = {
   familyName: string | null;
   isAnonymous: boolean;
   visitorCount: number;
-  source: "manual" | "itinerary";
+  source: "manual" | "itinerary" | "saved";
 };
 
 export async function GET(req: NextRequest) {
@@ -80,6 +80,30 @@ export async function GET(req: NextRequest) {
         JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
         LEFT JOIN "PlaceRating" pr ON pr."itineraryItemId" = ii.id
         WHERE ii.type NOT IN ('FLIGHT', 'TRAIN', 'LODGING', 'TRANSIT')
+
+        UNION ALL
+
+        SELECT
+          pr.id,
+          COALESCE(si."rawTitle", pr."placeName") AS title,
+          'ACTIVITY'::text AS type,
+          si."destinationCity" AS city,
+          pr.rating,
+          pr.notes AS "ratingNotes",
+          pr."wouldReturn",
+          si."websiteUrl" AS "websiteUrl",
+          si."placePhotoUrl" AS "imageUrl",
+          si."tripId" AS "tripId",
+          NULL::text AS "shareToken",
+          fp."familyName",
+          false::boolean AS "isAnonymous",
+          fp.id AS "profileId",
+          'saved' AS source,
+          pr."createdAt"
+        FROM "PlaceRating" pr
+        JOIN "SavedItem" si ON si.id = pr."savedItemId"
+        JOIN "FamilyProfile" fp ON fp.id = pr."familyProfileId"
+        WHERE pr."savedItemId" IS NOT NULL
       ),
       aggregated AS (
         SELECT
@@ -166,6 +190,30 @@ export async function GET(req: NextRequest) {
         JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
         LEFT JOIN "PlaceRating" pr ON pr."itineraryItemId" = ii.id
         WHERE ii.type NOT IN ('FLIGHT', 'TRAIN', 'LODGING', 'TRANSIT')
+
+        UNION ALL
+
+        SELECT
+          pr.id,
+          COALESCE(si."rawTitle", pr."placeName") AS title,
+          'ACTIVITY'::text AS type,
+          si."destinationCity" AS city,
+          pr.rating,
+          pr.notes AS "ratingNotes",
+          pr."wouldReturn",
+          si."websiteUrl" AS "websiteUrl",
+          si."placePhotoUrl" AS "imageUrl",
+          si."tripId" AS "tripId",
+          NULL::text AS "shareToken",
+          fp."familyName",
+          false::boolean AS "isAnonymous",
+          fp.id AS "profileId",
+          'saved' AS source,
+          pr."createdAt"
+        FROM "PlaceRating" pr
+        JOIN "SavedItem" si ON si.id = pr."savedItemId"
+        JOIN "FamilyProfile" fp ON fp.id = pr."familyProfileId"
+        WHERE pr."savedItemId" IS NOT NULL
       ),
       aggregated AS (
         SELECT
