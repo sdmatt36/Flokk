@@ -326,6 +326,7 @@ model SavedItem {
   sortOrder                Int       @default(0)
   startTime                String?
   needsPlaceConfirmation   Boolean   @default(false)
+  ratings                  PlaceRating[]
 }
 
 enum SourceType {
@@ -830,6 +831,7 @@ model PlaceRating {
   tripId          String?
   itineraryItemId  String?
   manualActivityId String?
+  savedItemId      String?
   placeName        String
   placeType       String
   destinationCity String?
@@ -842,4 +844,5 @@ model PlaceRating {
   createdAt       DateTime      @default(now())
   familyProfile   FamilyProfile @relation(fields: [familyProfileId], references: [id])
   trip            Trip?         @relation(fields: [tripId], references: [id])
+  savedItem        SavedItem?    @relation(fields: [savedItemId], references: [id])
 }

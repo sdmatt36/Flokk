@@ -31,6 +31,7 @@ export async function POST(req: Request) {
     destinationCity?: string;
     rating: number;
     notes?: string;
+    savedItemId?: string;
   };
 
   if (!body.rating || body.rating < 1 || body.rating > 5) {
@@ -67,6 +68,7 @@ export async function POST(req: Request) {
       destinationCity: body.destinationCity?.trim() ?? "",
       rating: body.rating,
       notes: body.notes ?? null,
+      savedItemId: body.savedItemId ?? null,
     },
   });
 

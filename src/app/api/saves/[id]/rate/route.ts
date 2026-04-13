@@ -34,6 +34,7 @@ export async function POST(
       destinationCity: savedItem.destinationCity ?? "",
       rating: body.rating,
       notes: body.notes ?? null,
+      savedItemId: id,
     },
   });
 
