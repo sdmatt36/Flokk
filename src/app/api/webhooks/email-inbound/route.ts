@@ -1093,7 +1093,14 @@ Field notes:
         });
         console.log('[email-inbound] created SavedItem instead:', savedItem.id, placeTitle);
         try {
-          await enrichWithPlaces(placeTitle, placeCity ?? '');
+          const enriched = await enrichWithPlaces(placeTitle, placeCity ?? '');
+          if (enriched?.imageUrl) {
+            await db.savedItem.update({
+              where: { id: savedItem.id },
+              data: { placePhotoUrl: enriched.imageUrl }
+            });
+            console.log('[email-inbound] image enriched:', enriched.imageUrl);
+          }
         } catch (e) {
           console.error('[email-inbound] enrichment failed:', e);
         }
