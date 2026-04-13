@@ -304,9 +304,9 @@ export default function DiscoverPage() {
         }
         return { ...a, imageUrl: partialImage };
       });
-      const realTitles = new Set(enrichedReal.map((a: DiscoverActivity) => normalize(a.title)));
+      const realKeys = new Set(enrichedReal.map((a: DiscoverActivity) => `${normalize(a.title)}|${normalize(a.city ?? "")}`));
       const dedupedPlaceholders = placeholders.filter(
-        (p: DiscoverActivity) => !realTitles.has(normalize(p.title))
+        (p: DiscoverActivity) => !realKeys.has(`${normalize(p.title)}|${normalize(p.city ?? "")}`)
       );
       // Shuffle for random city mix on default view
       const combined: DiscoverActivity[] = [...enrichedReal, ...dedupedPlaceholders];
