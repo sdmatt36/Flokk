@@ -83,7 +83,7 @@ function mapApiItem(item: ApiItem): Save {
     tripId: item.tripId ?? null,
     dayIndex: item.dayIndex ?? null,
     distance: null,
-    img: getItemImage(item.rawTitle, item.placePhotoUrl, item.mediaThumbnailUrl, item.categoryTags[0] ?? null, item.destinationCity, item.destinationCountry),
+    img: item.placePhotoUrl ?? item.mediaThumbnailUrl ?? null,
     needsPlaceConfirmation: item.needsPlaceConfirmation ?? false,
     userRating: item.userRating ?? undefined,
   };
