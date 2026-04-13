@@ -193,6 +193,7 @@ export function SaveDetailModal({
 
   const tags = localTags;
   const gradient = getGradient(tags);
+  const isFoodItem = tags.some(t => t.toLowerCase().includes("food"));
   const location = [item?.destinationCity, item?.destinationCountry].filter(Boolean).join(", ");
 
   function cleanDesc(desc: string): string {
@@ -340,6 +341,52 @@ export function SaveDetailModal({
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* Dietary tags — only shown for food items */}
+            {isFoodItem && (
+              <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+                {([{ value: "VG", label: "Vegetarian" }, { value: "VGN", label: "Vegan" }] as { value: string; label: string }[]).map(({ value, label }) => {
+                  const isVeg = value === "VG";
+                  const active = isVeg
+                    ? localTags.includes("VG") || localTags.includes("VGN")
+                    : localTags.includes("VGN");
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => {
+                        if (isVeg) {
+                          if (active) {
+                            setLocalTags(prev => prev.filter(t => t !== "VG" && t !== "VGN"));
+                          } else {
+                            setLocalTags(prev => [...prev.filter(t => t !== "VG"), "VG"]);
+                          }
+                        } else {
+                          if (active) {
+                            setLocalTags(prev => prev.filter(t => t !== "VGN"));
+                          } else {
+                            setLocalTags(prev => [...prev.filter(t => t !== "VG" && t !== "VGN"), "VG", "VGN"]);
+                          }
+                        }
+                      }}
+                      style={{
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        padding: "5px 14px",
+                        borderRadius: "999px",
+                        border: "1.5px solid",
+                        borderColor: active ? "#16a34a" : "#D0D0D0",
+                        backgroundColor: active ? "#16a34a" : "#fff",
+                        color: active ? "#fff" : "#666",
+                        cursor: "pointer",
+                        transition: "all 0.12s ease",
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
             )}
 

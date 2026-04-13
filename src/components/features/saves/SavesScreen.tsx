@@ -41,7 +41,7 @@ type PlaceResult = {
   photos?: { photo_reference: string }[];
 };
 
-const FILTER_PILLS = ["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other", "Unorganized"];
+const FILTER_PILLS = ["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other", "Vegetarian", "Vegan", "Unorganized"];
 
 type ApiItem = {
   id: string;
@@ -174,6 +174,23 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
           >
             {save.source}
           </div>
+          {(save.tags.includes("VGN") || save.tags.includes("VG")) && (
+            <div
+              style={{
+                position: "absolute",
+                bottom: "6px",
+                right: "8px",
+                backgroundColor: "#16a34a",
+                color: "#fff",
+                fontSize: "10px",
+                fontWeight: 700,
+                padding: "2px 8px",
+                borderRadius: "20px",
+              }}
+            >
+              {save.tags.includes("VGN") ? "VGN" : "VG"}
+            </div>
+          )}
         </div>
       ) : (
         <div
@@ -638,6 +655,10 @@ export function SavesScreen() {
     const matchesCategory =
       activeFilter === "All" || activeFilter === "Unorganized"
         ? true
+        : activeFilter === "Vegetarian"
+        ? s.tags.includes("VG") || s.tags.includes("VGN")
+        : activeFilter === "Vegan"
+        ? s.tags.includes("VGN")
         : s.tags.some((t) => t.toLowerCase().includes(activeFilter.toLowerCase()));
     return matchesSearch && matchesCategory;
   };
