@@ -59,6 +59,8 @@ export async function POST(req: Request) {
       title: `${destinationCity} Trip`,
       destinationCity: sourceTrip.destinationCity,
       destinationCountry: sourceTrip.destinationCountry,
+      startDate: sourceTrip.startDate ?? null,
+      endDate: sourceTrip.endDate ?? null,
       status: "PLANNING",
       shareToken: generateToken(),
       isPublic: false,
