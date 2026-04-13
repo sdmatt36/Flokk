@@ -1799,7 +1799,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         return 1440 + (timeToMin(it.departureTime) ?? 0);
       }
       if (it.type === "LODGING") {
-        if (it.title.toLowerCase().includes("check-out")) return timeToMin(it.departureTime) ?? 720;
+        // check-out defaults to 1020 (5pm) so it sorts after check-in's default of 900 (3pm)
+        if (it.title.toLowerCase().includes("check-out")) return timeToMin(it.departureTime) ?? 1020;
         return timeToMin(it.departureTime) ?? 900;
       }
       if (it.type === "TRAIN") return timeToMin(it.departureTime) ?? 660;
@@ -1909,12 +1910,19 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         itineraryItem: it,
       })),
     // Primary sort: sortOrder (preserves manual drag-and-drop order).
-    // Tiebreaker: semantic time key so untimed items with equal sortOrder
-    // still appear in the correct clock position (e.g. LODGING at 15:00).
+    // Secondary: semantic time key so untimed items appear in correct clock position.
+    // Tertiary: lodging semantic weight so CHECK_IN (20) always precedes CHECK_OUT (80)
+    // when both items have the same explicit time.
     ].sort((a, b) => {
       const so = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
       if (so !== 0) return so;
-      return toSortKey(a) - toSortKey(b);
+      const sk = toSortKey(a) - toSortKey(b);
+      if (sk !== 0) return sk;
+      const lodgingW = (item: UnifiedDayItem) =>
+        item.itemType === "itinerary" && item.itineraryItem?.type === "LODGING"
+          ? (item.itineraryItem.title.toLowerCase().includes("check-out") ? 80 : 20)
+          : 50;
+      return lodgingW(a) - lodgingW(b);
     });
   }
 
