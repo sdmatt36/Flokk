@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { classifyActivityType } from "@/lib/activity-intelligence";
+import { enrichWithPlaces } from "@/lib/enrich-with-places";
 
 // Returns the city the traveler is in on a given date by looking at the most recent
 // LODGING check-in on or before that day. Falls back to trip destinationCity.
@@ -133,6 +134,20 @@ export async function POST(
     },
   });
 
+  // Enrich with Google Places photo at save time (synchronous — result in same response)
+  let activityEnrichedImageUrl: string | null = null;
+  let activityEnrichedWebsite: string | null = null;
+  if (!activity.imageUrl) {
+    const activityCity = [trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", ");
+    const enriched = await enrichWithPlaces(activity.title, activityCity);
+    const placesUpdate: { imageUrl?: string; website?: string } = {};
+    if (enriched.imageUrl) { placesUpdate.imageUrl = enriched.imageUrl; activityEnrichedImageUrl = enriched.imageUrl; }
+    if (enriched.website && !activity.website) { placesUpdate.website = enriched.website; activityEnrichedWebsite = enriched.website; }
+    if (Object.keys(placesUpdate).length > 0) {
+      await db.manualActivity.update({ where: { id: activity.id }, data: placesUpdate });
+    }
+  }
+
   // Classify activity type (fire-and-forget)
   classifyActivityType(activity.title, activity.venueName, activity.address)
     .then((type) => {
@@ -158,5 +173,9 @@ export async function POST(
     }
   }
 
-  return NextResponse.json(activity, { status: 201 });
+  return NextResponse.json({
+    ...activity,
+    imageUrl: activityEnrichedImageUrl ?? activity.imageUrl,
+    website: activityEnrichedWebsite ?? activity.website,
+  }, { status: 201 });
 }

@@ -31,6 +31,7 @@ import type { SourceType } from "@prisma/client";
 import { getVenueImage } from "@/lib/destination-images";
 import { sendTransactional } from "@/lib/loops";
 import { enrichSavedItem } from "@/lib/enrich-save";
+import { enrichWithPlaces } from "@/lib/enrich-with-places";
 
 const ManualSaveSchema = z.object({
   sourceType: z.literal("MANUAL"),
@@ -95,6 +96,19 @@ export async function POST(request: Request) {
           status: "UNORGANIZED",
         },
       });
+      // Enrich with Google Places photo at save time (synchronous — result in same response)
+      let manualEnrichedPhotoUrl: string | null = null;
+      let manualEnrichedWebsite: string | null = null;
+      if (!savedItem.placePhotoUrl) {
+        const enriched = await enrichWithPlaces(parsed.title, parsed.city?.trim() ?? "");
+        const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string } = {};
+        if (enriched.imageUrl) { placesUpdate.placePhotoUrl = enriched.imageUrl; manualEnrichedPhotoUrl = enriched.imageUrl; }
+        if (enriched.website && !savedItem.websiteUrl) { placesUpdate.websiteUrl = enriched.website; manualEnrichedWebsite = enriched.website; }
+        if (Object.keys(placesUpdate).length > 0) {
+          await db.savedItem.update({ where: { id: savedItem.id }, data: placesUpdate });
+        }
+      }
+
       // Auto-assign to matching trip by destination city, region, or country
       let matchedTrip: { id: string; title: string; destinationCity: string | null } | null = null;
       const locationTerms = [parsed.city, parsed.region, parsed.country].filter((t): t is string => !!t?.trim());
@@ -117,7 +131,15 @@ export async function POST(request: Request) {
           });
         }
       }
-      return NextResponse.json({ savedItem: { ...savedItem, tripId: matchedTrip?.id ?? null }, matchedTrip: matchedTrip ?? null });
+      return NextResponse.json({
+        savedItem: {
+          ...savedItem,
+          placePhotoUrl: manualEnrichedPhotoUrl ?? savedItem.placePhotoUrl,
+          websiteUrl: manualEnrichedWebsite ?? savedItem.websiteUrl,
+          tripId: matchedTrip?.id ?? null,
+        },
+        matchedTrip: matchedTrip ?? null,
+      });
     }
 
     const { url, tripId, title, description, thumbnailUrl, tags, lat, lng, dayIndex, extractedCheckin, extractedCheckout, userRating, userNote } = SaveSchema.parse(body);
@@ -212,6 +234,19 @@ export async function POST(request: Request) {
       },
     });
 
+    // Enrich with Google Places photo at save time (synchronous — result in same response)
+    let urlEnrichedPhotoUrl: string | null = null;
+    let urlEnrichedWebsite: string | null = null;
+    if (rawTitle && !savedItem.placePhotoUrl) {
+      const enriched = await enrichWithPlaces(rawTitle, "");
+      const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string } = {};
+      if (enriched.imageUrl) { placesUpdate.placePhotoUrl = enriched.imageUrl; urlEnrichedPhotoUrl = enriched.imageUrl; }
+      if (enriched.website && !savedItem.websiteUrl) { placesUpdate.websiteUrl = enriched.website; urlEnrichedWebsite = enriched.website; }
+      if (Object.keys(placesUpdate).length > 0) {
+        await db.savedItem.update({ where: { id: savedItem.id }, data: placesUpdate });
+      }
+    }
+
     // Fire enrichment directly — no Inngest
     if (!lat && !lng) {
       enrichSavedItem(savedItem.id)
@@ -257,7 +292,15 @@ export async function POST(request: Request) {
       console.error("[loops] first-save trigger failed:", e);
     }
 
-    return NextResponse.json({ savedItem: { ...savedItem, tripId: matchedTrip?.id ?? savedItem.tripId }, matchedTrip: matchedTrip ?? null });
+    return NextResponse.json({
+      savedItem: {
+        ...savedItem,
+        placePhotoUrl: urlEnrichedPhotoUrl ?? savedItem.placePhotoUrl,
+        websiteUrl: urlEnrichedWebsite ?? savedItem.websiteUrl,
+        tripId: matchedTrip?.id ?? savedItem.tripId,
+      },
+      matchedTrip: matchedTrip ?? null,
+    });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
