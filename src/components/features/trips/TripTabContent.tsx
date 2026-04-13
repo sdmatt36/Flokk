@@ -5463,7 +5463,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         const t = setTimeout(() => setShowPostTripModal(true), 1000);
         return () => clearTimeout(t);
       } else {
-        setShowPostTripBanner(true);
+        if (!initialPostTripCaptureComplete) setShowPostTripBanner(true);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -5701,7 +5701,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
     <div style={{ padding: "0 24px", maxWidth: "900px", margin: "0 auto" }}>
 
       {/* Post-trip banner — shown on repeat visits until capture started */}
-      {tripStatus === "COMPLETED" && !postTripCaptureStarted && showPostTripBanner && (
+      {tripStatus === "COMPLETED" && !postTripCaptureStarted && !postTripCaptureComplete && showPostTripBanner && (
         <div style={{ backgroundColor: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: "12px", padding: "12px 16px", marginBottom: "16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
           <div style={{ minWidth: 0 }}>
             <p style={{ fontSize: "13px", fontWeight: 600, color: "#92400E", marginBottom: "2px" }}>
