@@ -11,7 +11,6 @@ import {
   Navigation,
   Bookmark,
   Plus,
-  Calendar,
   X,
   Plane,
   Trash2,
@@ -316,7 +315,6 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
               onClick={(e) => { e.stopPropagation(); onTripClick(save.assigned!); }}
               style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}
             >
-              <Calendar size={11} style={{ color: "#C4664A", flexShrink: 0 }} />
               <span style={{ fontSize: "11px", color: "#C4664A", fontWeight: 500 }}>
                 {save.assigned}
               </span>
