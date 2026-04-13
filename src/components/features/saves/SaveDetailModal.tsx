@@ -193,7 +193,7 @@ export function SaveDetailModal({
 
   const tags = localTags;
   const gradient = getGradient(tags);
-  const isFoodItem = tags.some(t => t.toLowerCase().includes("food"));
+  const isFoodItem = tags.some(t => ["food", "food & drink"].includes(t.toLowerCase()));
   const location = [item?.destinationCity, item?.destinationCountry].filter(Boolean).join(", ");
 
   function cleanDesc(desc: string): string {

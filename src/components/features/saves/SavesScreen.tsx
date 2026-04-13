@@ -647,6 +647,20 @@ export function SavesScreen() {
     }
   };
 
+  const CATEGORY_ALIASES: Record<string, string[]> = {
+    "Food & Drink": ["food", "food & drink"],
+    "Culture": ["culture"],
+    "Experiences": ["experiences", "activity"],
+    "Lodging": ["lodging"],
+    "Adventure": ["adventure"],
+    "Nature": ["nature", "outdoor"],
+    "Shopping": ["shopping"],
+    "Entertainment": ["entertainment"],
+    "Wellness": ["wellness"],
+    "Nightlife": ["nightlife"],
+    "Other": ["other"],
+  };
+
   // Card matching: search + category filter (ignores assigned/unassigned axis)
   const matchesFilter = (s: Save): boolean => {
     const matchesSearch =
@@ -659,7 +673,9 @@ export function SavesScreen() {
         ? s.tags.includes("VG") || s.tags.includes("VGN")
         : activeFilter === "Vegan"
         ? s.tags.includes("VGN")
-        : s.tags.some((t) => t.toLowerCase().includes(activeFilter.toLowerCase()));
+        : (CATEGORY_ALIASES[activeFilter] ?? [activeFilter]).some(alias =>
+            s.tags.some(t => t.toLowerCase() === alias.toLowerCase())
+          );
     return matchesSearch && matchesCategory;
   };
 
