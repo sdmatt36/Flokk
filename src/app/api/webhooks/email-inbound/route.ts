@@ -419,7 +419,7 @@ Field notes:
             sourceUrl: rawUrl,
             rawTitle: rawUrl,
             status: 'UNORGANIZED',
-            extractionStatus: 'PENDING',
+            extractionStatus: 'ENRICHED',
             tripId: null,
             destinationCity: null,
           },
