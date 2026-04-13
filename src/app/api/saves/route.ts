@@ -110,6 +110,7 @@ export async function POST(request: Request) {
       }
 
       // Auto-assign to matching trip by destination city, region, or country
+      console.log('[saves-match] city:', parsed.city, '| region:', parsed.region, '| country:', parsed.country);
       let matchedTrip: { id: string; title: string; destinationCity: string | null } | null = null;
       const locationTerms = [parsed.city, parsed.region, parsed.country].filter((t): t is string => !!t?.trim());
       if (locationTerms.length > 0) {

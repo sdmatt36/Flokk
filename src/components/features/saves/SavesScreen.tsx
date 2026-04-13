@@ -515,6 +515,7 @@ export function SavesScreen() {
   }, [manualCityQuery]);
 
   function selectManualCity(cityName: string, countryName: string, region: string) {
+    console.log('[autocomplete-select] cityName:', cityName, '| region:', region, '| countryName:', countryName);
     setManualCity(cityName);
     setManualRegion(region);
     setManualCountry(countryName);
