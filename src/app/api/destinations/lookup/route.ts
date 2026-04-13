@@ -7,6 +7,7 @@ export type DestinationSuggestion = {
   placeId: string;
   cityName: string;
   countryName: string;
+  region: string;
   description: string;
 };
 
@@ -54,10 +55,12 @@ export async function GET(req: NextRequest) {
       const terms = p.terms ?? [];
       const cityName = terms[0]?.value ?? p.structured_formatting.main_text;
       const countryName = terms[terms.length - 1]?.value ?? "";
+      const region = terms.length >= 3 ? terms.slice(1, terms.length - 1).map(t => t.value).join(", ") : "";
       return {
         placeId: p.place_id,
         cityName,
         countryName,
+        region,
         description: p.description,
       };
     });

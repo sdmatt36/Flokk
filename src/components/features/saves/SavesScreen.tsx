@@ -462,7 +462,7 @@ export function SavesScreen() {
   const [manualRegion, setManualRegion] = useState("");
   const [manualCountry, setManualCountry] = useState("");
   const [manualCityQuery, setManualCityQuery] = useState("");
-  const [manualCitySuggestions, setManualCitySuggestions] = useState<{ placeId: string; cityName: string; countryName: string; description?: string }[]>([]);
+  const [manualCitySuggestions, setManualCitySuggestions] = useState<{ placeId: string; cityName: string; countryName: string; region: string; description?: string }[]>([]);
   const [manualCityShowDropdown, setManualCityShowDropdown] = useState(false);
   const manualCityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const manualCityDropdownRef = useRef<HTMLDivElement>(null);
@@ -514,10 +514,11 @@ export function SavesScreen() {
     return () => { if (manualCityDebounceRef.current) clearTimeout(manualCityDebounceRef.current); };
   }, [manualCityQuery]);
 
-  function selectManualCity(cityName: string, countryName: string) {
+  function selectManualCity(cityName: string, countryName: string, region: string) {
     setManualCity(cityName);
+    setManualRegion(region);
     setManualCountry(countryName);
-    setManualCityQuery(cityName);
+    setManualCityQuery(countryName ? `${cityName}, ${countryName}` : cityName);
     setManualCitySuggestions([]);
     setManualCityShowDropdown(false);
   }
@@ -1063,7 +1064,7 @@ Your saved places, all in one spot
                   {manualCitySuggestions.map((s) => (
                     <div
                       key={s.placeId}
-                      onMouseDown={() => selectManualCity(s.cityName, s.countryName)}
+                      onMouseDown={() => selectManualCity(s.cityName, s.countryName, s.region ?? "")}
                       style={{ padding: "10px 12px", fontSize: 14, color: "#0A1628", cursor: "pointer", borderBottom: "1px solid #F5F5F5", fontFamily: "Inter, sans-serif" }}
                       onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#F9F5F3"; }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#fff"; }}
