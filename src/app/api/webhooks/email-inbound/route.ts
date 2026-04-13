@@ -1071,6 +1071,35 @@ Field notes:
       const itemTitle = (extracted.activityName as string | null) ?? gygActivityHint ?? (extracted.vendorName as string | null) ?? subject;
       const itemTypeStr = (extracted.type as string | null) ?? "OTHER";
 
+      const isConfirmedBooking = !!(extracted.confirmationCode || extracted.checkIn || extracted.totalCost);
+      if (!isConfirmedBooking && (extracted.confidence as number) < 0.8) {
+        console.log('[email-inbound] non-booking low confidence, routing to SavedItem');
+        const placeTitle = (extracted.vendorName as string | null) ?? (extracted.activityName as string | null) ?? subject;
+        const placeCity = (extracted.city as string | null) ?? null;
+        const urlMatchForSave = (text || html || '').match(/https?:\/\/[^\s<>"]+/);
+        const sourceUrlForSave = urlMatchForSave ? urlMatchForSave[0].replace(/[.,;!?)]+$/, '') : null;
+        const savedItem = await db.savedItem.create({
+          data: {
+            familyProfileId: familyProfile.id,
+            sourceType: 'EMAIL_IMPORT',
+            sourceUrl: sourceUrlForSave,
+            rawTitle: placeTitle,
+            categoryTags: [],
+            status: 'UNORGANIZED',
+            extractionStatus: 'ENRICHED',
+            tripId: null,
+            destinationCity: placeCity,
+          }
+        });
+        console.log('[email-inbound] created SavedItem instead:', savedItem.id, placeTitle);
+        try {
+          await enrichWithPlaces(placeTitle, placeCity ?? '');
+        } catch (e) {
+          console.error('[email-inbound] enrichment failed:', e);
+        }
+        return NextResponse.json({ status: 'saved_as_place' });
+      }
+
       const catchAllConf = (extracted.confirmationCode as string | null) ?? null;
       const catchAllType = itemTypeStr.toUpperCase();
       const existingCatchAll = catchAllConf ? await db.itineraryItem.findFirst({
