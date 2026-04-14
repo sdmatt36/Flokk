@@ -54,7 +54,7 @@ export async function PATCH(
     updateData.tripId = body.tripId;
     updateData.status = "TRIP_ASSIGNED";
   } else if (body.tripId === null) {
-    updateData.tripId = null;
+    updateData.trip = { disconnect: true };
     updateData.status = "SAVED";
   }
   if (typeof body.userRating === "number") updateData.userRating = body.userRating;
