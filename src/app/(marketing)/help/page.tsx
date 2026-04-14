@@ -12,20 +12,40 @@ const CATEGORIES: Category[] = [
     title: "Saving content",
     articles: [
       {
-        title: "How to save a link from Instagram",
-        copy: "Open Instagram and find the post you want to save. Tap the share icon (the arrow at the bottom of the post). Select 'Copy Link' from the share sheet. Open Flokk, tap '+ Save Link' on any trip, paste the link and tap Extract. Flokk automatically pulls the title, photo, and location from the post.",
+        title: "Save from Social (Instagram, TikTok, Facebook, YouTube)",
+        copy: "Instagram: Tap the share icon on any post, reel, or story and select Copy Link. Open Flokk and tap + Save Link, paste the link and save — Flokk extracts the place name, location, and category automatically. TikTok: Tap Share → Copy Link on any video. Open Flokk, tap + Save Link, paste and save. Flokk reads the caption and audio to identify the place. Facebook: Tap the three dots on any post → Copy Link. Open Flokk, tap + Save Link, paste and save. Restaurant pages and event pages work best. YouTube: Tap Share → Copy Link on any travel video. Open Flokk, tap + Save Link, paste and save. Flokk extracts the destination from the title and description.",
       },
       {
-        title: "Saving from TikTok",
-        copy: "On TikTok, tap the Share button on any video. Select 'Copy Link'. Open Flokk and tap '+ Save Link', paste the link. Flokk extracts the destination and activity from the video content automatically.",
+        title: "Save from Google Maps or Apple Maps",
+        copy: "Google Maps: Find a place and tap Share on the place page. Forward the link to trips@flokktravel.com — Flokk creates a save and sends you a confirmation. Or paste the link directly into Flokk's + Save Link. Both share.google short links and full Google Maps URLs work. Apple Maps: Find a place, tap it, scroll down and tap Share. Forward to trips@flokktravel.com or paste into Flokk's Save Link flow.",
       },
       {
-        title: "Using the iOS share sheet",
-        copy: "On iPhone, when viewing any website, tap the Share button in Safari. Scroll down and tap 'Copy' or find Flokk if installed. Paste the URL into Flokk's Save Link modal. This works for any website — hotels, restaurants, attractions, anything with a URL.",
+        title: "Save Lodging (Airbnb, Booking.com, Hotels.com)",
+        copy: "Copy the listing URL from your browser or tap Share in the app. Forward to trips@flokktravel.com or paste into Flokk's + Save Link. Flokk saves the property name, location, and image. Tip: Once you book, forward your booking confirmation email to trips@flokktravel.com — Flokk will auto-file it into your itinerary with the confirmation code, dates, and property details.",
       },
       {
-        title: "What happens to a link when you save it",
-        copy: "When you save a link, Flokk's AI extracts the name, description, location, category, and photo automatically. It then geocodes the location so it appears on your trip map. The original source URL is always preserved so you can visit it anytime.",
+        title: "Save a Restaurant or Activity",
+        copy: "Find the restaurant, tour, or activity on any website — Google Search, Yelp, Tabelog, Viator, GetYourGuide, or a restaurant's own site. Copy the URL and either paste into Flokk's + Save Link or forward to trips@flokktravel.com. Flokk extracts the name, city, and photo automatically. If you have a trip for that city, the save is assigned to it automatically.",
+      },
+      {
+        title: "Save from Notes, iMessage, or WhatsApp",
+        copy: "Notes app: If your note contains a URL, tap and hold the link → Share → Mail → send to trips@flokktravel.com. For plain text recommendations, compose an email to trips@flokktravel.com and paste the text — Flokk extracts what it can. iMessage: Tap and hold a message with a link → Forward → send to trips@flokktravel.com. WhatsApp: Tap and hold a message → Share → send to trips@flokktravel.com. Tip: A message like 'try Nobu in London, amazing omakase' will extract the place and city and assign it to your London trip automatically.",
+      },
+      {
+        title: "Forward a Booking Confirmation to trips@flokktravel.com",
+        copy: "Forward any travel confirmation email to trips@flokktravel.com and Flokk automatically files it into the right trip. Supported: flight confirmations (any airline, Google Flights, Expedia), hotel confirmations (Booking.com, Hotels.com, Airbnb, any hotel), tour and activity confirmations (GetYourGuide, Viator, Klook), restaurant reservations (OpenTable, Resy). How: Open your confirmation email, forward to trips@flokktravel.com, and Flokk reads the dates, location, and booking reference. It files into the correct trip based on destination and dates. You'll receive a confirmation reply within seconds.",
+      },
+      {
+        title: "Save Anything by Email — trips@flokktravel.com",
+        copy: "The fastest way to save anything to Flokk from any device is to forward it to trips@flokktravel.com. Send any URL, booking confirmation, Google Maps link, Airbnb listing, or forwarded recommendation. Flokk extracts the place name, city, category, and photo — and if you have a trip for that destination, assigns it automatically. You'll receive a confirmation email with a link to your save or trip. Send from the email address linked to your Flokk account. One save per email gives the cleanest results.",
+      },
+      {
+        title: "What Happens When You Save",
+        copy: "Every time you save a link or forward an email, Flokk automatically: extracts the place name and city from the page content, finds the best photo from Google Places or the original page, tags the save with a category (Food & Drink, Culture, Lodging, Outdoor, and more), geocodes the location so it appears on your trip map, assigns it to a matching trip if you have one for that city or country, and sends a confirmation if you saved via trips@. The original source URL is always preserved.",
+      },
+      {
+        title: "Using the iOS Share Sheet (Coming Soon)",
+        copy: "The Flokk iOS app will add Flokk as an option in your iPhone's native share sheet. Once available, saving from Instagram, TikTok, Google Maps, Safari, or any app will be as simple as tapping Share → Flokk. Until the app launches, the fastest alternative is to copy any link and forward it to trips@flokktravel.com — the result is identical. Join the waitlist for early access at flokktravel.com.",
       },
     ],
   },
@@ -51,6 +71,10 @@ const CATEGORIES: Category[] = [
       {
         title: "How to import your booking confirmations",
         copy: "Flokk can automatically read your booking confirmation emails and file them into the right trip — flights, hotels, and trains all supported.\n\nHow it works:\n1. Forward your confirmation email to trips@flokktravel.com\n2. Send it from an email address linked to your Flokk account\n3. Flokk reads the confirmation, extracts the details, and adds them to your trip automatically\n\nTo link an email address, go to Profile → Approved Sender Emails and add the address you book with. You will receive a short verification email to confirm it.\n\nWhat gets imported: Flights (airline, route, times, confirmation code, passengers), Hotels (property name, check-in and check-out dates, confirmation code, total cost), Trains (route, departure and arrival times, confirmation code).\n\nSupported platforms: Booking.com, Expedia, Airbnb, most major airlines, Rail.Ninja, and any standard booking confirmation email.\n\nTips: Forward the original confirmation not a screenshot. If a booking does not import check that your sending address is verified in Profile. One email per forward.",
+      },
+      {
+        title: "How saves are automatically assigned to trips",
+        copy: "When you save a place, Flokk checks whether you have an upcoming or active trip matching that destination. If your save is in London and you have a London trip, it's assigned automatically. Matching works by city first, then country. If multiple trips match, Flokk picks the one with the nearest start date. If no trip matches, the save goes to Unorganized — you can assign it manually from the save card or the save detail view. This works for all saves: in-app, URL drops, and emails forwarded to trips@flokktravel.com.",
       },
     ],
   },
