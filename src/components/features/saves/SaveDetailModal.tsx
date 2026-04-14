@@ -144,7 +144,7 @@ export function SaveDetailModal({
         setLocalTags(tags);
         initialTags.current = tags;
       });
-    fetch("/api/trips?includeCompleted=true")
+    fetch("/api/trips?status=ALL")
       .then(r => r.json())
       .then(data => setTrips(data.trips ?? []));
   }, [itemId]);

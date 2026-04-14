@@ -14,7 +14,9 @@ export async function GET(request: Request) {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: { "Cache-Control": "no-store" } });
   const { searchParams } = new URL(request.url);
   const statusFilter = searchParams.get("status");
-  const statusWhere = statusFilter
+  const statusWhere = statusFilter?.toUpperCase() === "ALL"
+    ? {}
+    : statusFilter
     ? { status: statusFilter.toUpperCase() }
     : { status: { in: ["PLANNING", "ACTIVE"] } };
   const profileId = await resolveProfileId(userId);
