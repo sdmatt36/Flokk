@@ -163,5 +163,39 @@ The whole process takes about four seconds.
 We built it this way because inspiration is perishable. You will not remember that restaurant in six months. You will not find it in your Instagram saved folder when you need it. But if it is in Flokk, searchable and organized by destination, it is there exactly when you need it.
 
 Save it when you see it. Use it when you need it. That is the whole idea.`
+  },
+  {
+    slug: "steal-this-itinerary",
+    title: "Your Friend Went to Japan Last Spring. You Just Can't Get the Itinerary Out of Them.",
+    category: "PRODUCT",
+    date: "April 2026",
+    readTime: "5 min read",
+    color: "#f0f4f8",
+    excerpt: "The information exists. Your friend lived it. They just have no way to get it to you without it becoming a homework assignment.",
+    content: `You know the conversation.
+
+You find out a family you are close with just got back from exactly the trip you are planning. Same kids, roughly the same ages, roughly the same budget, roughly the same tolerance for how much walking a nine-year-old will accept before someone starts crying. You message them immediately. "We are thinking about doing Kyoto in the fall -- can you send me what you did?"
+
+They say absolutely. They are thrilled you asked. They had the best time.
+
+And then life happens.
+
+Two weeks later you send a follow-up. They send back a voice memo in three parts and a screenshot of a Google Maps list that has 40 pins and no context. Your spouse tries to reconstruct it into something usable. You get about halfway through before you give up and open TripAdvisor, where you are now reading reviews from strangers who have nothing in common with you, whose kids are either grown or nonexistent, who rated a restaurant four stars but spent two sentences complaining about the noise -- which, for a family with young children, is actually your entire vibe.
+
+This is the part that has always driven us crazy.
+
+The information exists. Your friend lived it. They have strong opinions about which ryokan was actually worth it, which train pass you do not need, which temple the kids genuinely loved versus which one they trudged through while everyone quietly wished they were at the hotel pool. That knowledge is sitting right there in their head, or scattered across their camera roll, or buried in a group chat from the trip itself. And it is genuinely more useful to you than anything an algorithm is going to surface.
+
+But there is no way to get at it without making it someone's homework assignment.
+
+That is what Flokk's itinerary sharing is built around. When a family plans a trip in Flokk, the whole thing is already structured. The days, the places, the order, the context. And when they are ready to share it, they can make that itinerary public with one tap. Not a dump of 40 unsorted pins. Not a voice memo. The actual trip, organized the way they lived it, available to anyone who wants to steal it.
+
+And steal is the right word. We are not being precious about it. The whole point is that someone who just got back from a week in Hokkaido with a seven and a ten year old has done the research, made the calls, learned what they wished they had known before they left. That is a document worth having. You should absolutely take it, drop it into your own trip, adjust what does not fit, and go.
+
+We call it the itinerary. Travel Instagram calls it an aesthetic. TripAdvisor calls it a review. None of those things are the same as a family you trust saying here is exactly what we did, here is where we ate, here is the one thing we almost skipped that ended up being the highlight of the trip.
+
+That is what lives in Flokk now. Real itineraries, from real families, for the rest of us who are planning the same kinds of trips and just need someone to go first.
+
+Your friend meant to send it to you. Now they already did.`
   }
 ]
