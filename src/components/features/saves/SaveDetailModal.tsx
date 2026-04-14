@@ -298,9 +298,9 @@ export function SaveDetailModal({
             {/* Tags + source */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "6px", alignItems: "center" }}>
               {tags.length > 0 ? tags.map(tag => (
-                <span key={tag} style={{ fontSize: "11px", fontWeight: 600, background: "rgba(0,0,0,0.06)", color: "#555", borderRadius: "999px", padding: "3px 10px" }}>
+                <button key={tag} onClick={() => toggleTag(tag)} style={{ fontSize: "11px", fontWeight: 600, background: "#C4664A", color: "#fff", borderRadius: "999px", padding: "3px 10px", border: "none", cursor: "pointer" }}>
                   {tag}
-                </span>
+                </button>
               )) : (
                 <span style={{ fontSize: "12px", color: "#aaa" }}>No tags yet</span>
               )}
