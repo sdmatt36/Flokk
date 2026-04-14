@@ -55,6 +55,7 @@ function getLocation(item: RecentSaveItem): string {
 
 export function RecentSavesCards({ items, onDelete }: { items: RecentSaveItem[]; onDelete?: (id: string) => void }) {
   const [modalItemId, setModalItemId] = useState<string | null>(null);
+  const [assignedTrips, setAssignedTrips] = useState<Record<string, string>>({});
 
   return (
     <>
@@ -104,6 +105,13 @@ export function RecentSavesCards({ items, onDelete }: { items: RecentSaveItem[];
                       </span>
                     ))}
                   </div>
+                  {assignedTrips[item.id] && (
+                    <div style={{ marginTop: "6px" }}>
+                      <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: "#C4664A", color: "#fff", borderRadius: "999px", padding: "2px 8px" }}>
+                        {assignedTrips[item.id]}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -112,7 +120,11 @@ export function RecentSavesCards({ items, onDelete }: { items: RecentSaveItem[];
       </div>
 
       {modalItemId && (
-        <SaveDetailModal itemId={modalItemId} onClose={() => setModalItemId(null)} />
+        <SaveDetailModal
+          itemId={modalItemId}
+          onClose={() => setModalItemId(null)}
+          onAssigned={(itemId, trip) => setAssignedTrips(prev => ({ ...prev, [itemId]: trip.title }))}
+        />
       )}
     </>
   );
