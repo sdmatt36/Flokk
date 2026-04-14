@@ -59,7 +59,7 @@ export function RecentSavesCards({ items, onDelete }: { items: RecentSaveItem[];
 
   return (
     <>
-      <div className="grid grid-cols-3 md:grid-cols-3 sm:grid-cols-1" style={{ gap: "16px", alignItems: "stretch" }}>
+      <div className="grid grid-cols-3 md:grid-cols-3 sm:grid-cols-1" style={{ gap: "16px", display: "grid", alignItems: "stretch" }}>
         {items.map((item) => {
           const tags = item.categoryTags ?? [];
           const loc = getLocation(item);
@@ -70,7 +70,7 @@ export function RecentSavesCards({ items, onDelete }: { items: RecentSaveItem[];
               onClick={() => setModalItemId(item.id)}
               style={{ cursor: "pointer", textDecoration: "none", height: "100%" }}
             >
-              <div style={{ backgroundColor: "#FAFAFA", borderRadius: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", overflow: "hidden", position: "relative", display: "flex", flexDirection: "column" }}>
+              <div style={{ backgroundColor: "#FAFAFA", borderRadius: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", overflow: "hidden", position: "relative", display: "flex", flexDirection: "column", height: "100%" }}>
                 <div style={{
                     height: "130px",
                     backgroundImage: `url(${imgSrc})`,
