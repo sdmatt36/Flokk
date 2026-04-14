@@ -16,8 +16,8 @@ export function nameSimilar(a: string, b: string): boolean {
 export async function enrichWithPlaces(
   name: string,
   city: string
-): Promise<{ imageUrl: string | null; website: string | null }> {
-  if (!GOOGLE_MAPS_API_KEY || !name.trim()) return { imageUrl: null, website: null };
+): Promise<{ imageUrl: string | null; website: string | null; city: string | null }> {
+  if (!GOOGLE_MAPS_API_KEY || !name.trim()) return { imageUrl: null, website: null, city: null };
 
   try {
     const query = [name.trim(), city.trim()].filter(Boolean).join(" ");
@@ -28,26 +28,37 @@ export async function enrichWithPlaces(
     );
     const searchData = await searchRes.json() as { results?: { place_id: string }[] };
     const placeId = searchData.results?.[0]?.place_id;
-    if (!placeId) return { imageUrl: null, website: null };
+    if (!placeId) return { imageUrl: null, website: null, city: null };
 
-    // Step 2: Place details → name + website + photo_reference
+    // Step 2: Place details → name + website + photo_reference + address_components
     const detailsRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,website,photos&key=${GOOGLE_MAPS_API_KEY}`
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,website,photos,address_components&key=${GOOGLE_MAPS_API_KEY}`
     );
     const detailsData = await detailsRes.json() as {
-      result?: { name?: string; website?: string; photos?: { photo_reference: string }[] };
+      result?: {
+        name?: string;
+        website?: string;
+        photos?: { photo_reference: string }[];
+        address_components?: { long_name: string; types: string[] }[];
+      };
     };
     const result = detailsData.result;
-    if (!result) return { imageUrl: null, website: null };
+    if (!result) return { imageUrl: null, website: null, city: null };
 
     const website = result.website ?? null;
     const photoRef = result.photos?.[0]?.photo_reference ?? null;
+
+    // Extract city from address_components: locality → administrative_area_level_1 fallback
+    const addressComponents = result.address_components ?? [];
+    const locality = addressComponents.find(c => c.types.includes("locality"));
+    const adminArea = addressComponents.find(c => c.types.includes("administrative_area_level_1"));
+    const extractedCity = locality?.long_name ?? adminArea?.long_name ?? null;
 
     // Step 3: Validate Places result name matches searched name before using image
     const placesName = result.name ?? "";
     if (placesName && !nameSimilar(name, placesName)) {
       console.log('[enrich] Places name mismatch, skipping image:', placesName);
-      return { imageUrl: null, website };
+      return { imageUrl: null, website, city: extractedCity };
     }
 
     // Step 4: Follow photo redirect to get CDN URL
@@ -63,8 +74,8 @@ export async function enrichWithPlaces(
       }
     }
 
-    return { imageUrl, website };
+    return { imageUrl, website, city: extractedCity };
   } catch {
-    return { imageUrl: null, website: null };
+    return { imageUrl: null, website: null, city: null };
   }
 }

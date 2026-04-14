@@ -532,25 +532,26 @@ Field notes:
         } catch (e) {
           console.log('[trips-save] title extraction failed:', e)
         }
+        let urlSaveCity: string | null = null;
         try {
           const enriched = await enrichWithPlaces(rawUrl, '');
-          const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string } = {};
+          const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string; destinationCity?: string } = {};
           if (enriched.imageUrl) placesUpdate.placePhotoUrl = enriched.imageUrl;
           if (enriched.website) placesUpdate.websiteUrl = enriched.website;
+          if (enriched.city) { placesUpdate.destinationCity = enriched.city; urlSaveCity = enriched.city; }
           if (Object.keys(placesUpdate).length > 0) {
             await db.savedItem.update({ where: { id: savedItem.id }, data: placesUpdate });
           }
-          console.log('[trips-save] enrichment complete for', savedItem.id);
+          console.log('[trips-save] enrichment complete for', savedItem.id, '| city:', urlSaveCity);
         } catch (e) {
           console.error('[trips-save] enrichment failed:', e);
         }
         // Re-read latest rawTitle (may have been updated by title extraction)
         const latestItem = await db.savedItem.findUnique({ where: { id: savedItem.id }, select: { rawTitle: true } });
         const confirmTitle = latestItem?.rawTitle ?? rawUrl;
-        // URL saves have no destinationCity — findMatchingTrip returns null immediately
         let urlBranchTrip: { id: string; title: string } | null = null;
         try {
-          urlBranchTrip = await findMatchingTrip(familyProfile.id, null);
+          urlBranchTrip = await findMatchingTrip(familyProfile.id, urlSaveCity);
           if (urlBranchTrip) {
             await db.savedItem.update({ where: { id: savedItem.id }, data: { tripId: urlBranchTrip.id } });
             console.log('[trips-save] auto-assigned to trip:', urlBranchTrip.id);
@@ -563,7 +564,7 @@ Field notes:
             from: "Flokk <trips@flokktravel.com>",
             to: senderEmail,
             subject: `Saved to Flokk: ${confirmTitle}`,
-            html: buildSaveConfirmationEmail(confirmTitle, null, urlBranchTrip),
+            html: buildSaveConfirmationEmail(confirmTitle, urlSaveCity, urlBranchTrip),
           });
         } catch (e) {
           console.error('[trips-save] confirmation email failed:', e);
