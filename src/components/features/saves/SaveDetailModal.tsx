@@ -423,7 +423,7 @@ export function SaveDetailModal({
             })()}
 
             {/* Trip assignment */}
-            <div style={{ position: "relative", marginBottom: "16px" }}>
+            <div onClick={e => e.stopPropagation()} style={{ position: "relative", marginBottom: "16px" }}>
               <button
                 onClick={() => setBodyDropdownOpen(o => !o)}
                 style={{ width: "100%", padding: "12px 14px", borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "none", cursor: "pointer", fontFamily: "inherit" }}
