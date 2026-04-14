@@ -30,6 +30,8 @@ type Save = {
   img: string | null;
   needsPlaceConfirmation: boolean;
   userRating?: number | null;
+  destinationCity: string | null;
+  destinationCountry: string | null;
 };
 
 type PlaceResult = {
@@ -86,6 +88,8 @@ function mapApiItem(item: ApiItem): Save {
     img: getItemImage(item.rawTitle, item.placePhotoUrl, item.mediaThumbnailUrl, item.categoryTags[0] ?? null, item.destinationCity, item.destinationCountry),
     needsPlaceConfirmation: item.needsPlaceConfirmation ?? false,
     userRating: item.userRating ?? undefined,
+    destinationCity: item.destinationCity ?? null,
+    destinationCountry: item.destinationCountry ?? null,
   };
 }
 
@@ -492,7 +496,7 @@ export function SavesScreen() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [dietaryFilter, setDietaryFilter] = useState<string | null>(null);
   const [saves, setSaves] = useState<Save[]>([]);
-  const [availableTrips, setAvailableTrips] = useState<{ id: string; title: string }[]>([]);
+  const [availableTrips, setAvailableTrips] = useState<{ id: string; title: string; destinationCity: string | null; destinationCountry: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [showFabModal, setShowFabModal] = useState(false);
@@ -708,9 +712,11 @@ export function SavesScreen() {
 
   // Card matching: search + category filter (ignores assigned/unassigned axis)
   const matchesFilter = (s: Save): boolean => {
+    const searchLower = search.toLowerCase();
     const matchesSearch =
-      s.title.toLowerCase().includes(search.toLowerCase()) ||
-      s.location.toLowerCase().includes(search.toLowerCase());
+      s.title.toLowerCase().includes(searchLower) ||
+      s.location.toLowerCase().includes(searchLower) ||
+      (s.assigned?.toLowerCase().includes(searchLower) ?? false);
     const matchesCategory =
       activeFilter === "All" || activeFilter === "Unorganized"
         ? true
@@ -786,10 +792,21 @@ Your saved places, all in one spot
           </div>
         </div>
 
-        {/* ACTIVE TRIP BANNER — only shown when the user has a trip */}
-        {availableTrips.length > 0 && (() => {
+        {/* ACTIVE TRIP BANNER — only shown when there are relevant unorganized saves for the active trip */}
+        {(() => {
+          if (availableTrips.length === 0) return null;
           const activeTrip = availableTrips[0];
-          const unassignedCount = saves.filter((s) => s.assigned === null).length;
+          const tripCity = activeTrip.destinationCity?.toLowerCase() ?? "";
+          const tripCountry = activeTrip.destinationCountry?.toLowerCase() ?? "";
+          const relevantUnassigned = saves.filter((s) => {
+            if (s.assigned !== null) return false;
+            const saveCity = s.destinationCity?.toLowerCase() ?? "";
+            const saveCountry = s.destinationCountry?.toLowerCase() ?? "";
+            return (tripCity && saveCity && saveCity.includes(tripCity)) ||
+                   (tripCountry && saveCountry && saveCountry.includes(tripCountry));
+          });
+          if (relevantUnassigned.length === 0) return null;
+          const unassignedCount = relevantUnassigned.length;
           return (
             <div style={{ backgroundColor: "rgba(196,102,74,0.08)", borderLeft: "3px solid #C4664A", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -801,11 +818,9 @@ Your saved places, all in one spot
                   Review now →
                 </button>
               </div>
-              {unassignedCount > 0 && (
-                <p style={{ fontSize: "12px", color: "#717171", marginTop: "4px", marginLeft: "20px" }}>
-                  You have {unassignedCount} unorganized {unassignedCount === 1 ? "save" : "saves"} — review them for this trip?
-                </p>
-              )}
+              <p style={{ fontSize: "12px", color: "#717171", marginTop: "4px", marginLeft: "20px" }}>
+                You have {unassignedCount} unorganized {unassignedCount === 1 ? "save" : "saves"} — review them for this trip?
+              </p>
             </div>
           );
         })()}
