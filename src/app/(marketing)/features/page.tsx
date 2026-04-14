@@ -20,9 +20,9 @@ const MORE_FEATURES = [
     description: "Save from any iOS app — Instagram, Safari, Maps — with a single tap from the native share sheet.",
   },
   {
-    title: "Google Maps pin import",
-    teaser: "Coming soon.",
-    description: "Import your saved Google Maps lists directly into Flokk. Your years of saved pins, finally organized.",
+    title: "Booking Portal",
+    teaser: "Book flights, hotels, and rental cars — coming soon.",
+    description: "Book directly on Flokk and your confirmation files automatically into your trip. No forwarding emails.",
   },
   {
     title: "Flokker Profiles",
