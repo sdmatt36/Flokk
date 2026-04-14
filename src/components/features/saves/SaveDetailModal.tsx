@@ -435,7 +435,7 @@ export function SaveDetailModal({
                 }
               </button>
               {bodyDropdownOpen && (
-                <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, backgroundColor: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.15)", overflow: "hidden", zIndex: 10, maxHeight: "200px", overflowY: "auto" }}>
+                <div style={{ marginTop: "4px", backgroundColor: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.15)", overflow: "hidden", maxHeight: "200px", overflowY: "auto" }}>
                   <button
                     onClick={async () => {
                       setBodyDropdownOpen(false);
