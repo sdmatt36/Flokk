@@ -110,7 +110,6 @@ export function SaveDetailModal({
   const [noteSaved, setNoteSaved] = useState(false);
   const [startTime, setStartTime] = useState<string>("");
   const [mounted, setMounted] = useState(false);
-  const [tripDropdownOpen, setTripDropdownOpen] = useState(false);
   const [assignedTrip, setAssignedTrip] = useState<{ id: string; title: string } | null>(null);
   const [isBooked, setIsBooked] = useState(false);
   const [localTags, setLocalTags] = useState<string[]>([]);
@@ -167,7 +166,6 @@ export function SaveDetailModal({
   }
 
   async function handleAssignTrip(trip: Trip) {
-    setTripDropdownOpen(false);
     setBodyDropdownOpen(false);
     try {
       await fetch(`/api/saves/${itemId}`, {
@@ -426,26 +424,18 @@ export function SaveDetailModal({
 
             {/* Trip assignment */}
             <div style={{ position: "relative", marginBottom: "16px" }}>
-              <div style={{ padding: "12px 14px", borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                {assignedTrip ? (
-                  <>
-                    <span style={{ fontSize: "13px", color: "#555" }}>Added to trip</span>
-                    <Link href={`/trips/${assignedTrip.id}`} onClick={handleClose} style={{ fontSize: "13px", fontWeight: 700, color: "#C4664A", textDecoration: "none" }}>
-                      {assignedTrip.title} →
-                    </Link>
-                  </>
-                ) : (
-                  <button
-                    onClick={() => setBodyDropdownOpen(o => !o)}
-                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
-                  >
-                    <span style={{ fontSize: "13px", color: "#555" }}>Add to a trip</span>
-                    <ChevronDown size={13} style={{ color: "#999" }} />
-                  </button>
-                )}
-              </div>
+              <button
+                onClick={() => setBodyDropdownOpen(o => !o)}
+                style={{ width: "100%", padding: "12px 14px", borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between", background: "none", cursor: "pointer", fontFamily: "inherit" }}
+              >
+                <span style={{ fontSize: "13px", color: "#555" }}>{assignedTrip ? "Added to trip" : "Add to a trip"}</span>
+                {assignedTrip
+                  ? <span style={{ fontSize: "13px", fontWeight: 700, color: "#C4664A" }}>{assignedTrip.title} →</span>
+                  : <ChevronDown size={13} style={{ color: "#999" }} />
+                }
+              </button>
               {bodyDropdownOpen && (
-                <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, backgroundColor: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.15)", overflow: "hidden", zIndex: 10, maxHeight: "240px", overflowY: "auto" }}>
+                <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, backgroundColor: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.15)", overflow: "hidden", zIndex: 10, maxHeight: "200px", overflowY: "auto" }}>
                   <button
                     onClick={async () => {
                       setBodyDropdownOpen(false);
@@ -457,7 +447,7 @@ export function SaveDetailModal({
                     }}
                     style={{ width: "100%", padding: "12px 16px", textAlign: "left", background: "none", border: "none", borderBottom: "1px solid rgba(0,0,0,0.06)", fontSize: "14px", color: "#999", cursor: "pointer", fontWeight: 500 }}
                   >
-                    {assignedTrip ? "Remove trip assignment" : "No trip / Keep unassigned"}
+                    No trip / Keep unassigned
                   </button>
                   {trips.map(trip => (
                     <button
@@ -665,57 +655,6 @@ export function SaveDetailModal({
                 </button>
               )}
 
-              {/* Add/Change trip */}
-              <div style={{ position: "relative" }}>
-                <button
-                  onClick={() => setTripDropdownOpen(o => !o)}
-                  style={{
-                    width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "5px",
-                    padding: "11px", borderRadius: "999px", backgroundColor: item.affiliateUrl || item.websiteUrl || item.sourceUrl ? "transparent" : "#C4664A",
-                    border: item.affiliateUrl || item.websiteUrl || item.sourceUrl ? "1.5px solid #E0E0E0" : "none",
-                    fontSize: "13px", fontWeight: 700, color: item.affiliateUrl || item.websiteUrl || item.sourceUrl ? "#555" : "#fff", cursor: "pointer",
-                  }}
-                >
-                  {assignedTrip ? "Change trip" : "Add to trip"}
-                  <ChevronDown size={13} />
-                </button>
-                {tripDropdownOpen && (
-                  <div style={{
-                    position: "absolute", bottom: "calc(100% + 6px)", left: 0, right: 0,
-                    backgroundColor: "#fff", borderRadius: "12px",
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-                    overflow: "hidden", zIndex: 10, maxHeight: "240px", overflowY: "auto",
-                  }}>
-                    <button
-                      onClick={async () => {
-                        setTripDropdownOpen(false);
-                        try {
-                          await fetch(`/api/saves/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tripId: null }) });
-                          setAssignedTrip(null);
-                          onAssigned?.(itemId, { id: "", title: "" });
-                        } catch { /* silent */ }
-                      }}
-                      style={{ width: "100%", padding: "12px 16px", textAlign: "left", background: "none", border: "none", borderBottom: "1px solid rgba(0,0,0,0.06)", fontSize: "14px", color: "#999", cursor: "pointer", fontWeight: 500 }}
-                    >
-                      {assignedTrip ? "Remove trip assignment" : "No trip / Keep unassigned"}
-                    </button>
-                    {trips.map(trip => (
-                      <button
-                        key={trip.id}
-                        onClick={() => handleAssignTrip(trip)}
-                        style={{
-                          width: "100%", padding: "12px 16px", textAlign: "left",
-                          background: "none", border: "none", borderBottom: "1px solid rgba(0,0,0,0.06)",
-                          fontSize: "14px", color: "#1a1a1a", cursor: "pointer",
-                          fontWeight: 500,
-                        }}
-                      >
-                        {trip.title}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
             </div>
 
           </div>
