@@ -445,22 +445,20 @@ export function SaveDetailModal({
                 )}
               </div>
               {bodyDropdownOpen && (
-                <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, backgroundColor: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.15)", overflow: "hidden", zIndex: 10 }}>
-                  {assignedTrip && (
-                    <button
-                      onClick={async () => {
-                        setBodyDropdownOpen(false);
-                        try {
-                          await fetch(`/api/saves/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tripId: null }) });
-                          setAssignedTrip(null);
-                          onAssigned?.(itemId, { id: "", title: "" });
-                        } catch { /* silent */ }
-                      }}
-                      style={{ width: "100%", padding: "12px 16px", textAlign: "left", background: "none", border: "none", borderBottom: "1px solid rgba(0,0,0,0.06)", fontSize: "14px", color: "#999", cursor: "pointer", fontWeight: 500 }}
-                    >
-                      No trip assigned
-                    </button>
-                  )}
+                <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, backgroundColor: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.15)", overflow: "hidden", zIndex: 10, maxHeight: "240px", overflowY: "auto" }}>
+                  <button
+                    onClick={async () => {
+                      setBodyDropdownOpen(false);
+                      try {
+                        await fetch(`/api/saves/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tripId: null }) });
+                        setAssignedTrip(null);
+                        onAssigned?.(itemId, { id: "", title: "" });
+                      } catch { /* silent */ }
+                    }}
+                    style={{ width: "100%", padding: "12px 16px", textAlign: "left", background: "none", border: "none", borderBottom: "1px solid rgba(0,0,0,0.06)", fontSize: "14px", color: "#999", cursor: "pointer", fontWeight: 500 }}
+                  >
+                    {assignedTrip ? "Remove trip assignment" : "No trip / Keep unassigned"}
+                  </button>
                   {trips.map(trip => (
                     <button
                       key={trip.id}
@@ -686,23 +684,21 @@ export function SaveDetailModal({
                     position: "absolute", bottom: "calc(100% + 6px)", left: 0, right: 0,
                     backgroundColor: "#fff", borderRadius: "12px",
                     boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-                    overflow: "hidden", zIndex: 10,
+                    overflow: "hidden", zIndex: 10, maxHeight: "240px", overflowY: "auto",
                   }}>
-                    {assignedTrip && (
-                      <button
-                        onClick={async () => {
-                          setTripDropdownOpen(false);
-                          try {
-                            await fetch(`/api/saves/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tripId: null }) });
-                            setAssignedTrip(null);
-                            onAssigned?.(itemId, { id: "", title: "" });
-                          } catch { /* silent */ }
-                        }}
-                        style={{ width: "100%", padding: "12px 16px", textAlign: "left", background: "none", border: "none", borderBottom: "1px solid rgba(0,0,0,0.06)", fontSize: "14px", color: "#999", cursor: "pointer", fontWeight: 500 }}
-                      >
-                        No trip assigned
-                      </button>
-                    )}
+                    <button
+                      onClick={async () => {
+                        setTripDropdownOpen(false);
+                        try {
+                          await fetch(`/api/saves/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tripId: null }) });
+                          setAssignedTrip(null);
+                          onAssigned?.(itemId, { id: "", title: "" });
+                        } catch { /* silent */ }
+                      }}
+                      style={{ width: "100%", padding: "12px 16px", textAlign: "left", background: "none", border: "none", borderBottom: "1px solid rgba(0,0,0,0.06)", fontSize: "14px", color: "#999", cursor: "pointer", fontWeight: 500 }}
+                    >
+                      {assignedTrip ? "Remove trip assignment" : "No trip / Keep unassigned"}
+                    </button>
                     {trips.map(trip => (
                       <button
                         key={trip.id}
