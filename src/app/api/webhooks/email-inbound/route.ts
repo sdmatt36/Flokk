@@ -1195,6 +1195,30 @@ Field notes:
       const existingCatchAll = catchAllConf ? await db.itineraryItem.findFirst({
         where: { tripId: resolvedTripId, confirmationCode: catchAllConf, type: catchAllType },
       }) : null;
+
+      // Title-based dedup for null-code items: extract first 3 significant words, require all to match
+      if (!catchAllConf && !existingCatchAll) {
+        const titleWords = itemTitle
+          .toLowerCase()
+          .replace(/[^a-z0-9\s]/g, ' ')
+          .split(/\s+/)
+          .filter((w: string) => w.length > 2)
+          .slice(0, 3);
+        if (titleWords.length > 0) {
+          const existingByTitle = await db.itineraryItem.findFirst({
+            where: {
+              tripId: resolvedTripId,
+              AND: titleWords.map((word: string) => ({ title: { contains: word, mode: 'insensitive' as const } })),
+            },
+            select: { id: true, title: true },
+          });
+          if (existingByTitle) {
+            console.log(`[dedup] skipped title match: "${itemTitle}" ~ "${existingByTitle.title}"`);
+            return NextResponse.json({ received: true, skipped: 'title_duplicate' });
+          }
+        }
+      }
+
       const item = existingCatchAll
         ? await db.itineraryItem.update({
             where: { id: existingCatchAll.id },
