@@ -1,7 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { Resend } from "resend";
 import { db } from "@/lib/db";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+function buildSaveConfirmationEmail(title: string, city: string | null): string {
+  const cityLine = city
+    ? `<p style="margin:0 0 8px;font-size:14px;color:#4A5568;">${city}</p>`
+    : "";
+  return `
+    <div style="font-family:'Inter',sans-serif;background:#ffffff;padding:40px 32px;max-width:560px;margin:0 auto;">
+      <h1 style="font-family:'Playfair Display',Georgia,serif;color:#1B3A5C;font-size:24px;margin:0 0 8px;">Saved to Flokk</h1>
+      <h2 style="font-family:'Inter',sans-serif;color:#0A1628;font-size:18px;font-weight:600;margin:0 0 4px;">${title}</h2>
+      ${cityLine}
+      <hr style="border:none;border-top:1px solid #E2E8F0;margin:24px 0;" />
+      <a href="https://www.flokktravel.com/saves"
+         style="display:inline-block;background:#C4664A;color:#ffffff;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:6px;">
+        View your saves &rarr;
+      </a>
+      <p style="margin:32px 0 0;font-size:12px;color:#A0AEC0;">Flokk &middot; trips@flokktravel.com</p>
+    </div>
+  `.trim();
+}
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -478,6 +500,19 @@ Field notes:
           console.log('[trips-save] enrichment complete for', savedItem.id);
         } catch (e) {
           console.error('[trips-save] enrichment failed:', e);
+        }
+        // Re-read latest rawTitle (may have been updated by title extraction)
+        const latestItem = await db.savedItem.findUnique({ where: { id: savedItem.id }, select: { rawTitle: true } });
+        const confirmTitle = latestItem?.rawTitle ?? rawUrl;
+        try {
+          await resend.emails.send({
+            from: "Flokk <trips@flokktravel.com>",
+            to: senderEmail,
+            subject: `Saved to Flokk: ${confirmTitle}`,
+            html: buildSaveConfirmationEmail(confirmTitle, null),
+          });
+        } catch (e) {
+          console.error('[trips-save] confirmation email failed:', e);
         }
       } else {
         console.log('[trips-save] no URL found in low-confidence email, skipping');
@@ -1103,6 +1138,16 @@ Field notes:
           }
         } catch (e) {
           console.error('[email-inbound] enrichment failed:', e);
+        }
+        try {
+          await resend.emails.send({
+            from: "Flokk <trips@flokktravel.com>",
+            to: senderEmail,
+            subject: `Saved to Flokk: ${placeTitle}`,
+            html: buildSaveConfirmationEmail(placeTitle, placeCity),
+          });
+        } catch (e) {
+          console.error('[email-inbound] confirmation email failed:', e);
         }
         return NextResponse.json({ status: 'saved_as_place' });
       }
