@@ -68,7 +68,7 @@ export function RecentSavesCards({ items, onDelete }: { items: RecentSaveItem[];
             <div
               key={item.id}
               onClick={() => setModalItemId(item.id)}
-              style={{ cursor: "pointer", textDecoration: "none" }}
+              style={{ cursor: "pointer", textDecoration: "none", height: "100%" }}
             >
               <div style={{ backgroundColor: "#FAFAFA", borderRadius: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", overflow: "hidden", position: "relative", display: "flex", flexDirection: "column" }}>
                 <div style={{
