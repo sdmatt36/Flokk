@@ -53,7 +53,11 @@ export async function PATCH(
   if (typeof body.tripId === "string") {
     updateData.tripId = body.tripId;
     updateData.status = "TRIP_ASSIGNED";
+  } else if (body.tripId === null) {
+    updateData.tripId = null;
+    updateData.status = "SAVED";
   }
+  if (typeof body.userRating === "number") updateData.userRating = body.userRating;
   if (Array.isArray(body.categoryTags)) updateData.categoryTags = body.categoryTags;
   if (typeof body.startTime === "string" || body.startTime === null) updateData.startTime = body.startTime ?? null;
   if (typeof body.extractedCheckin === "string" || body.extractedCheckin === null) updateData.extractedCheckin = body.extractedCheckin ?? null;
