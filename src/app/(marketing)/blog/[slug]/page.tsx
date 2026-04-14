@@ -45,6 +45,10 @@ function renderContent(content: string) {
   });
 }
 
+export async function generateStaticParams() {
+  return POSTS.map((post) => ({ slug: post.slug }));
+}
+
 export default function BlogPostPage({ params }: { params: { slug: string } }) {
   const post = POSTS.find((p) => p.slug === params.slug);
   if (!post) notFound();
@@ -64,6 +68,14 @@ export default function BlogPostPage({ params }: { params: { slug: string } }) {
           </Link>
         </div>
       </div>
+
+      {/* Hero image */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={post.heroImage}
+        alt={post.title}
+        style={{ width: "100%", maxHeight: "400px", objectFit: "cover", display: "block" }}
+      />
 
       {/* Article */}
       <article style={{ backgroundColor: "#fff", padding: "64px 24px 96px" }}>

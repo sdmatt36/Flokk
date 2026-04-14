@@ -6,19 +6,6 @@ import { POSTS } from "./posts";
 
 const CATEGORIES = ["All", "Product", "Travel", "Family", "Tips"];
 
-const CATEGORY_BG: Record<string, string> = {
-  PRODUCT: "rgba(196,102,74,0.08)",
-  TRAVEL: "rgba(14,165,233,0.08)",
-  TIPS: "rgba(245,158,11,0.08)",
-  FAMILY: "rgba(34,197,94,0.08)",
-};
-
-const CATEGORY_TEXT: Record<string, string> = {
-  PRODUCT: "#C4664A",
-  TRAVEL: "#0284c7",
-  TIPS: "#d97706",
-  FAMILY: "#15803d",
-};
 
 export default function BlogPage() {
   const [activeCategory, setActiveCategory] = useState("All");
@@ -86,9 +73,8 @@ export default function BlogPage() {
                     <span style={{ fontSize: "13px", color: "#999" }}>{filtered[0].readTime}</span>
                   </div>
                 </div>
-                <div style={{ backgroundColor: filtered[0].color, borderRadius: "16px", height: "240px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: CATEGORY_TEXT[filtered[0].category] ?? "#717171", opacity: 0.6 }}>{filtered[0].category}</span>
-                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={filtered[0].heroImage} alt={filtered[0].title} style={{ borderRadius: "16px", height: "240px", width: "100%", objectFit: "cover" }} />
               </div>
             </Link>
           )}
@@ -98,9 +84,8 @@ export default function BlogPage() {
             {filtered.slice(1).map((post) => (
               <Link key={post.slug} href={`/blog/${post.slug}`} style={{ textDecoration: "none" }}>
                 <div style={{ border: "1px solid #F0F0F0", borderRadius: "16px", overflow: "hidden", height: "100%" }}>
-                  <div style={{ backgroundColor: post.color, height: "160px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: CATEGORY_TEXT[post.category] ?? "#717171", opacity: 0.6 }}>{post.category}</span>
-                  </div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={post.heroImage} alt={post.title} style={{ width: "100%", height: "160px", objectFit: "cover" }} />
                   <div style={{ padding: "24px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
                       <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "rgba(27,58,92,0.08)", color: "#1B3A5C", padding: "3px 8px", borderRadius: "999px" }}>{post.category}</span>

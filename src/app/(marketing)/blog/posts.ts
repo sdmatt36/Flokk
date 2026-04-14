@@ -7,6 +7,7 @@ export interface BlogPost {
   excerpt: string
   content: string
   color: string
+  heroImage: string
 }
 
 export const POSTS: BlogPost[] = [
@@ -17,6 +18,7 @@ export const POSTS: BlogPost[] = [
     date: "April 2026",
     readTime: "5 min read",
     color: "#f0f4f8",
+    heroImage: "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800",
     excerpt: "Every family has a system. Ours was a Google Sheet with 11 tabs and a column called Matt's Ideas. Here is why that stopped working.",
     content: `I have a confession. Before Flokk existed, our family travel planning system was a Google Sheet with 11 tabs, color-coded rows, and a dedicated column for "Matt's Ideas" that my wife, Jody, and I reviewed every so often.
 
@@ -49,6 +51,7 @@ We built it because we kept losing the good stuff. Because the open browser tabs
     date: "February 2026",
     readTime: "8 min read",
     color: "#f0f7f4",
+    heroImage: "https://images.unsplash.com/photo-1480796927426-f609979314bd?w=800",
     excerpt: "Japan is the best family travel destination on the planet right now. But it is not a trip you want to wing. Here is what actually worked for our family.",
     content: `We are spending the better part of 6 months living in Kamakura, Japan, with our kids, and the number one thing people asked us when they found out was some version of: "Is Japan actually doable with young kids?"
 
@@ -87,6 +90,7 @@ Japan with kids is not a compromise trip where the adults give things up so the 
     date: "February 2026",
     readTime: "4 min read",
     color: "#fdf6f0",
+    heroImage: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800",
     excerpt: "One small habit -- saving links as you find them, not when you need them -- changes everything about how you plan.",
     content: `I used to plan trips the way most people do. Get excited when we decide to go and quick rapid fire search and save some options. Then life gets in the way. Completely ignore it until about six weeks before departure, then spend three consecutive weekends in a panic trying to reconstruct six months of half-remembered recommendations while my wife sent me links I immediately lost.
 
@@ -113,6 +117,7 @@ The families who have the best trips are not the ones who research the hardest i
     date: "January 2026",
     readTime: "6 min read",
     color: "#f5f0f7",
+    heroImage: "https://images.unsplash.com/photo-1475503572774-15a45e5d60b9?w=800",
     excerpt: "Building anticipation is half the value of a family trip. These are the tools and tricks that work for us.",
     content: `The worst thing you can do before a family trip is keep it a surprise until the morning of departure. The second worst thing is announce it six weeks out with full details and then field the question "are we there yet" on a daily basis for a month and a half before you even get to the airport.
 
@@ -145,6 +150,7 @@ The goal is not to manufacture excitement. Kids are already excited about trips.
     date: "January 2026",
     readTime: "3 min read",
     color: "#fff8f0",
+    heroImage: "https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=800",
     excerpt: "You save it to Instagram. Two months later you cannot find it. Here is what happens instead when you share it into Flokk.",
     content: `You are scrolling Instagram on a Sunday morning and someone on your feed posts a video from a rooftop restaurant in Lisbon. The light is perfect, the food looks incredible, and you think "we are going to Portugal next year, I need to remember this place."
 
@@ -171,6 +177,7 @@ Save it when you see it. Use it when you need it. That is the whole idea.`
     date: "April 2026",
     readTime: "5 min read",
     color: "#f0f4f8",
+    heroImage: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=800",
     excerpt: "The information exists. Your friend lived it. They just have no way to get it to you without it becoming a homework assignment.",
     content: `You know the conversation.
 
