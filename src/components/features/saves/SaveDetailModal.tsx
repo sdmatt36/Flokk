@@ -25,6 +25,7 @@ type SaveItem = {
   isBooked: boolean;
   startTime: string | null;
   trip: { id: string; title: string } | null;
+  userRating: number | null;
 };
 
 type Trip = { id: string; title: string };
@@ -91,6 +92,7 @@ export function SaveDetailModal({
   onMarkedBooked,
   onRemoveFromDay,
   onTimeSet,
+  onAssigned,
 }: {
   itemId: string;
   onClose: () => void;
@@ -98,6 +100,7 @@ export function SaveDetailModal({
   onMarkedBooked?: (itemId: string) => void;
   onRemoveFromDay?: () => void;
   onTimeSet?: (itemId: string, time: string | null) => void;
+  onAssigned?: (itemId: string, trip: { id: string; title: string }) => void;
 }) {
   const [item, setItem] = useState<SaveItem | null>(null);
   const [interestKeys, setInterestKeys] = useState<string[]>([]);
@@ -113,6 +116,8 @@ export function SaveDetailModal({
   const [localTags, setLocalTags] = useState<string[]>([]);
   const [editingTags, setEditingTags] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [bodyDropdownOpen, setBodyDropdownOpen] = useState(false);
+  const [userRating, setUserRating] = useState<number | null>(null);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialNotes = useRef("");
   const initialTags = useRef<string[]>([]);
@@ -133,12 +138,13 @@ export function SaveDetailModal({
         setAssignedTrip(data.item?.trip ?? null);
         setIsBooked(data.item?.isBooked ?? false);
         setStartTime(data.item?.startTime ?? "");
+        setUserRating(data.item?.userRating ?? null);
         initialNotes.current = data.item?.notes ?? "";
         const tags = data.item?.categoryTags ?? [];
         setLocalTags(tags);
         initialTags.current = tags;
       });
-    fetch("/api/trips")
+    fetch("/api/trips?includeCompleted=true")
       .then(r => r.json())
       .then(data => setTrips(data.trips ?? []));
   }, [itemId]);
@@ -162,13 +168,15 @@ export function SaveDetailModal({
 
   async function handleAssignTrip(trip: Trip) {
     setTripDropdownOpen(false);
+    setBodyDropdownOpen(false);
     try {
-      await fetch(`/api/saves/activity`, {
-        method: "POST",
+      await fetch(`/api/saves/${itemId}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceItemId: itemId, targetTripId: trip.id }),
+        body: JSON.stringify({ tripId: trip.id }),
       });
       setAssignedTrip(trip);
+      onAssigned?.(itemId, trip);
     } catch { /* silent */ }
   }
 
@@ -417,17 +425,64 @@ export function SaveDetailModal({
             })()}
 
             {/* Trip assignment */}
-            <div style={{ marginBottom: "16px", padding: "12px 14px", borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              {assignedTrip ? (
-                <>
-                  <span style={{ fontSize: "13px", color: "#555" }}>Added to trip</span>
-                  <Link href={`/trips/${assignedTrip.id}`} onClick={handleClose} style={{ fontSize: "13px", fontWeight: 700, color: "#C4664A", textDecoration: "none" }}>
-                    {assignedTrip.title} →
-                  </Link>
-                </>
-              ) : (
-                <span style={{ fontSize: "13px", color: "#999" }}>Not assigned to a trip yet</span>
+            <div style={{ position: "relative", marginBottom: "16px" }}>
+              <div style={{ padding: "12px 14px", borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                {assignedTrip ? (
+                  <>
+                    <span style={{ fontSize: "13px", color: "#555" }}>Added to trip</span>
+                    <Link href={`/trips/${assignedTrip.id}`} onClick={handleClose} style={{ fontSize: "13px", fontWeight: 700, color: "#C4664A", textDecoration: "none" }}>
+                      {assignedTrip.title} →
+                    </Link>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setBodyDropdownOpen(o => !o)}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+                  >
+                    <span style={{ fontSize: "13px", color: "#555" }}>Add to a trip</span>
+                    <ChevronDown size={13} style={{ color: "#999" }} />
+                  </button>
+                )}
+              </div>
+              {bodyDropdownOpen && trips.length > 0 && (
+                <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, backgroundColor: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.15)", overflow: "hidden", zIndex: 10 }}>
+                  {trips.map(trip => (
+                    <button
+                      key={trip.id}
+                      onClick={() => handleAssignTrip(trip)}
+                      style={{ width: "100%", padding: "12px 16px", textAlign: "left", background: "none", border: "none", borderBottom: "1px solid rgba(0,0,0,0.06)", fontSize: "14px", color: "#1a1a1a", cursor: "pointer", fontWeight: 500 }}
+                    >
+                      {trip.title}
+                    </button>
+                  ))}
+                </div>
               )}
+            </div>
+
+            {/* Rating */}
+            <div style={{ marginBottom: "16px" }}>
+              <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a", marginBottom: "8px" }}>Rate this place</p>
+              <div style={{ display: "flex", gap: "4px" }}>
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button
+                    key={star}
+                    onClick={async () => {
+                      const newRating = userRating === star ? null : star;
+                      setUserRating(newRating);
+                      try {
+                        await fetch(`/api/saves/${itemId}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ userRating: newRating }),
+                        });
+                      } catch { /* silent */ }
+                    }}
+                    style={{ background: "none", border: "none", cursor: "pointer", fontSize: "24px", color: star <= (userRating ?? 0) ? "#C4664A" : "#D0D0D0", padding: "0 2px", lineHeight: 1, fontFamily: "inherit" }}
+                  >
+                    ★
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Notes */}
