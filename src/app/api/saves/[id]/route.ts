@@ -54,7 +54,7 @@ export async function PATCH(
     updateData.status = "TRIP_ASSIGNED";
   } else if (body.tripId === null) {
     updateData.tripId = null;
-    updateData.status = "SAVED";
+    updateData.status = "UNORGANIZED";
   }
   if (typeof body.websiteUrl === "string" || body.websiteUrl === null) updateData.websiteUrl = body.websiteUrl ?? null;
   if (typeof body.dayIndex === "number" || body.dayIndex === null) updateData.dayIndex = body.dayIndex;
