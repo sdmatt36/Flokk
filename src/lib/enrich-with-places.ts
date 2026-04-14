@@ -48,11 +48,14 @@ export async function enrichWithPlaces(
     const website = result.website ?? null;
     const photoRef = result.photos?.[0]?.photo_reference ?? null;
 
-    // Extract city from address_components: locality → administrative_area_level_1 fallback
+    // Extract city from address_components: locality → postal_town → admin_area_level_2 → admin_area_level_1
+    // postal_town is used in UK addresses where locality is absent (e.g. London boroughs)
     const addressComponents = result.address_components ?? [];
     const locality = addressComponents.find(c => c.types.includes("locality"));
-    const adminArea = addressComponents.find(c => c.types.includes("administrative_area_level_1"));
-    const extractedCity = locality?.long_name ?? adminArea?.long_name ?? null;
+    const postalTown = addressComponents.find(c => c.types.includes("postal_town"));
+    const adminArea2 = addressComponents.find(c => c.types.includes("administrative_area_level_2"));
+    const adminArea1 = addressComponents.find(c => c.types.includes("administrative_area_level_1"));
+    const extractedCity = locality?.long_name ?? postalTown?.long_name ?? adminArea2?.long_name ?? adminArea1?.long_name ?? null;
 
     // Step 3: Validate Places result name matches searched name before using image
     const placesName = result.name ?? "";
