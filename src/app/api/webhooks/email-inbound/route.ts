@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { Resend } from "resend";
 import { db } from "@/lib/db";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
+import { findMatchingTrip } from "@/lib/find-matching-trip";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -39,34 +40,6 @@ function buildSaveConfirmationEmail(
   `.trim();
 }
 
-async function findMatchingTrip(
-  familyProfileId: string,
-  destinationCity: string | null
-): Promise<{ id: string; title: string } | null> {
-  if (!destinationCity) return null;
-  try {
-    const trips = await db.trip.findMany({
-      where: {
-        familyProfileId,
-        destinationCity: { equals: destinationCity, mode: "insensitive" },
-        status: { not: "COMPLETED" },
-      },
-      select: { id: true, title: true, startDate: true },
-    });
-    if (trips.length === 0) return null;
-    if (trips.length === 1) return { id: trips[0].id, title: trips[0].title };
-    const today = new Date();
-    trips.sort((tripA, tripB) => {
-      const distA = tripA.startDate ? Math.abs(new Date(tripA.startDate).getTime() - today.getTime()) : Infinity;
-      const distB = tripB.startDate ? Math.abs(new Date(tripB.startDate).getTime() - today.getTime()) : Infinity;
-      return distA - distB;
-    });
-    return { id: trips[0].id, title: trips[0].title };
-  } catch (e) {
-    console.error("[email-inbound] findMatchingTrip failed:", e);
-    return null;
-  }
-}
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;

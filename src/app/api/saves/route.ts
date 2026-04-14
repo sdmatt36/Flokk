@@ -32,6 +32,7 @@ import { getVenueImage } from "@/lib/destination-images";
 import { sendTransactional } from "@/lib/loops";
 import { enrichSavedItem } from "@/lib/enrich-save";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
+import { findMatchingTrip } from "@/lib/find-matching-trip";
 
 const ManualSaveSchema = z.object({
   sourceType: z.literal("MANUAL"),
@@ -110,27 +111,18 @@ export async function POST(request: Request) {
         }
       }
 
-      // Auto-assign to matching trip by destination city, region, or country
+      // Auto-assign to matching trip: exact city match first, then country fallback
       let matchedTrip: { id: string; title: string; destinationCity: string | null } | null = null;
-      const locationTerms = [parsed.city, parsed.region, parsed.country].filter((t): t is string => !!t?.trim());
-      if (locationTerms.length > 0) {
-        matchedTrip = await db.trip.findFirst({
-          where: {
-            familyProfileId: saveProfile.id,
-            status: { notIn: ["COMPLETED"] },
-            OR: locationTerms.map((term) => ({
-              destinationCity: { contains: term.trim(), mode: "insensitive" as const },
-            })),
-          },
-          orderBy: { startDate: "asc" },
-          select: { id: true, title: true, destinationCity: true },
-        });
+      try {
+        matchedTrip = await findMatchingTrip(saveProfile.id, parsed.city ?? null, parsed.country ?? null);
         if (matchedTrip) {
           await db.savedItem.update({
             where: { id: savedItem.id },
             data: { tripId: matchedTrip.id, status: "TRIP_ASSIGNED" },
           });
         }
+      } catch (e) {
+        console.error("[saves] manual trip match failed:", e);
       }
       return NextResponse.json({
         savedItem: {
@@ -254,26 +246,19 @@ export async function POST(request: Request) {
         .catch((e) => console.error("[enrich] failed:", e));
     }
 
-    // Auto-assign to matching trip by destination city (only when not already assigned)
+    // Auto-assign to matching trip: exact city match first, then country fallback (only when not already assigned)
     let matchedTrip: { id: string; title: string; destinationCity: string | null } | null = null;
     if (!tripId) {
-      const savedCity = (savedItem.destinationCity ?? "").toLowerCase().trim();
-      if (savedCity) {
-        matchedTrip = await db.trip.findFirst({
-          where: {
-            familyProfileId: saveProfile.id,
-            status: { notIn: ["COMPLETED"] },
-            destinationCity: { contains: savedCity, mode: "insensitive" },
-          },
-          orderBy: { startDate: "asc" },
-          select: { id: true, title: true, destinationCity: true },
-        });
+      try {
+        matchedTrip = await findMatchingTrip(saveProfile.id, savedItem.destinationCity ?? null, null);
         if (matchedTrip) {
           await db.savedItem.update({
             where: { id: savedItem.id },
             data: { tripId: matchedTrip.id, status: "TRIP_ASSIGNED" },
           });
         }
+      } catch (e) {
+        console.error("[saves] url trip match failed:", e);
       }
     }
 
