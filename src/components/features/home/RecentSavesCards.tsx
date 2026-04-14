@@ -58,7 +58,7 @@ export function RecentSavesCards({ items, onDelete }: { items: RecentSaveItem[];
 
   return (
     <>
-      <div className="grid grid-cols-3 md:grid-cols-3 sm:grid-cols-1" style={{ gap: "16px" }}>
+      <div className="grid grid-cols-3 md:grid-cols-3 sm:grid-cols-1" style={{ gap: "16px", alignItems: "start" }}>
         {items.map((item) => {
           const tags = item.categoryTags ?? [];
           const loc = getLocation(item);
@@ -69,7 +69,7 @@ export function RecentSavesCards({ items, onDelete }: { items: RecentSaveItem[];
               onClick={() => setModalItemId(item.id)}
               style={{ cursor: "pointer", textDecoration: "none" }}
             >
-              <div style={{ backgroundColor: "#FAFAFA", borderRadius: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", overflow: "hidden", position: "relative" }}>
+              <div style={{ backgroundColor: "#FAFAFA", borderRadius: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", overflow: "hidden", position: "relative", display: "flex", flexDirection: "column" }}>
                 <div style={{
                     height: "130px",
                     backgroundImage: `url(${imgSrc})`,
@@ -85,7 +85,7 @@ export function RecentSavesCards({ items, onDelete }: { items: RecentSaveItem[];
                     <Trash2 size={13} style={{ color: "#fff" }} />
                   </button>
                 )}
-                <div style={{ padding: "12px" }}>
+                <div style={{ padding: "12px", flex: 1 }}>
                   <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "2px", lineHeight: 1.3, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" }}>
                     {item.rawTitle?.startsWith("http")
                       ? (item.destinationCity ? `Place in ${item.destinationCity}` : "Saved place")
