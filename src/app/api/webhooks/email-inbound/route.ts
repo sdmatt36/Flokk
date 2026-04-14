@@ -6,23 +6,66 @@ import { enrichWithPlaces } from "@/lib/enrich-with-places";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-function buildSaveConfirmationEmail(title: string, city: string | null): string {
+function buildSaveConfirmationEmail(
+  title: string,
+  city: string | null,
+  matchedTrip?: { id: string; title: string } | null
+): string {
   const cityLine = city
     ? `<p style="margin:0 0 8px;font-size:14px;color:#4A5568;">${city}</p>`
     : "";
+  const tripLine = matchedTrip
+    ? `<p style="margin:0 0 16px;font-size:14px;color:#4A5568;">Added to <strong>${matchedTrip.title}</strong></p>`
+    : "";
+  const button = matchedTrip
+    ? `<a href="https://www.flokktravel.com/trips/${matchedTrip.id}"
+         style="display:inline-block;background:#C4664A;color:#ffffff;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:6px;">
+        View trip &rarr;
+      </a>`
+    : `<a href="https://www.flokktravel.com/saves"
+         style="display:inline-block;background:#C4664A;color:#ffffff;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:6px;">
+        View your saves &rarr;
+      </a>`;
   return `
     <div style="font-family:'Inter',sans-serif;background:#ffffff;padding:40px 32px;max-width:560px;margin:0 auto;">
       <h1 style="font-family:'Playfair Display',Georgia,serif;color:#1B3A5C;font-size:24px;margin:0 0 8px;">Saved to Flokk</h1>
       <h2 style="font-family:'Inter',sans-serif;color:#0A1628;font-size:18px;font-weight:600;margin:0 0 4px;">${title}</h2>
       ${cityLine}
+      ${tripLine}
       <hr style="border:none;border-top:1px solid #E2E8F0;margin:24px 0;" />
-      <a href="https://www.flokktravel.com/saves"
-         style="display:inline-block;background:#C4664A;color:#ffffff;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:6px;">
-        View your saves &rarr;
-      </a>
+      ${button}
       <p style="margin:32px 0 0;font-size:12px;color:#A0AEC0;">Flokk &middot; trips@flokktravel.com</p>
     </div>
   `.trim();
+}
+
+async function findMatchingTrip(
+  familyProfileId: string,
+  destinationCity: string | null
+): Promise<{ id: string; title: string } | null> {
+  if (!destinationCity) return null;
+  try {
+    const trips = await db.trip.findMany({
+      where: {
+        familyProfileId,
+        destinationCity: { equals: destinationCity, mode: "insensitive" },
+        status: { not: "COMPLETED" },
+      },
+      select: { id: true, title: true, startDate: true },
+    });
+    if (trips.length === 0) return null;
+    if (trips.length === 1) return { id: trips[0].id, title: trips[0].title };
+    const today = new Date();
+    trips.sort((tripA, tripB) => {
+      const distA = tripA.startDate ? Math.abs(new Date(tripA.startDate).getTime() - today.getTime()) : Infinity;
+      const distB = tripB.startDate ? Math.abs(new Date(tripB.startDate).getTime() - today.getTime()) : Infinity;
+      return distA - distB;
+    });
+    return { id: trips[0].id, title: trips[0].title };
+  } catch (e) {
+    console.error("[email-inbound] findMatchingTrip failed:", e);
+    return null;
+  }
 }
 
 export const dynamic = "force-dynamic";
@@ -504,12 +547,23 @@ Field notes:
         // Re-read latest rawTitle (may have been updated by title extraction)
         const latestItem = await db.savedItem.findUnique({ where: { id: savedItem.id }, select: { rawTitle: true } });
         const confirmTitle = latestItem?.rawTitle ?? rawUrl;
+        // URL saves have no destinationCity — findMatchingTrip returns null immediately
+        let urlBranchTrip: { id: string; title: string } | null = null;
+        try {
+          urlBranchTrip = await findMatchingTrip(familyProfile.id, null);
+          if (urlBranchTrip) {
+            await db.savedItem.update({ where: { id: savedItem.id }, data: { tripId: urlBranchTrip.id } });
+            console.log('[trips-save] auto-assigned to trip:', urlBranchTrip.id);
+          }
+        } catch (e) {
+          console.error('[trips-save] trip match/assign failed:', e);
+        }
         try {
           await resend.emails.send({
             from: "Flokk <trips@flokktravel.com>",
             to: senderEmail,
             subject: `Saved to Flokk: ${confirmTitle}`,
-            html: buildSaveConfirmationEmail(confirmTitle, null),
+            html: buildSaveConfirmationEmail(confirmTitle, null, urlBranchTrip),
           });
         } catch (e) {
           console.error('[trips-save] confirmation email failed:', e);
@@ -1139,12 +1193,22 @@ Field notes:
         } catch (e) {
           console.error('[email-inbound] enrichment failed:', e);
         }
+        let nonBookingTrip: { id: string; title: string } | null = null;
+        try {
+          nonBookingTrip = await findMatchingTrip(familyProfile.id, placeCity);
+          if (nonBookingTrip) {
+            await db.savedItem.update({ where: { id: savedItem.id }, data: { tripId: nonBookingTrip.id } });
+            console.log('[email-inbound] auto-assigned to trip:', nonBookingTrip.id);
+          }
+        } catch (e) {
+          console.error('[email-inbound] trip match/assign failed:', e);
+        }
         try {
           await resend.emails.send({
             from: "Flokk <trips@flokktravel.com>",
             to: senderEmail,
             subject: `Saved to Flokk: ${placeTitle}`,
-            html: buildSaveConfirmationEmail(placeTitle, placeCity),
+            html: buildSaveConfirmationEmail(placeTitle, placeCity, nonBookingTrip),
           });
         } catch (e) {
           console.error('[email-inbound] confirmation email failed:', e);
