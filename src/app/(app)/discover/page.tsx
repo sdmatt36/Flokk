@@ -274,6 +274,7 @@ export default function DiscoverPage() {
   const [communityRatedItems, setCommunityRatedItems] = useState<Map<string, number>>(new Map());
   const [communityRatingToast, setCommunityRatingToast] = useState<string | null>(null);
   const [userSavedKeys, setUserSavedKeys] = useState<Set<string>>(new Set());
+  const [selectedActivity, setSelectedActivity] = useState<DiscoverActivity | null>(null);
 
   useEffect(() => {
     fetch("/api/saves")
@@ -798,7 +799,7 @@ export default function DiscoverPage() {
                   `${act.title.toLowerCase().trim()}|${(act.city ?? "").toLowerCase().trim()}`
                 );
                 return (
-                <div key={act.id} style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column" }}>
+                <div key={act.id} onClick={() => setSelectedActivity(act)} style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", cursor: "pointer" }}>
                   <div style={{ height: "160px", backgroundColor: "#1B3A5C1A", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
                     {act.imageUrl ? (
                       <img src={act.imageUrl} alt={act.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
@@ -850,21 +851,21 @@ export default function DiscoverPage() {
                     </p>
                     <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
                       {act.websiteUrl && (
-                        <a href={act.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#1B3A5C", textDecoration: "underline", textAlign: "center" }}>
+                        <a href={act.websiteUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: "12px", color: "#1B3A5C", textDecoration: "underline", textAlign: "center" }}>
                           Visit site →
                         </a>
                       )}
                       {/* Rate it — only for users who have this place saved */}
                       {isSaved && !communityRatedItems.has(act.title.toLowerCase().trim()) && (
                         <button
-                          onClick={() => { setCommunityRatingModal({ id: act.id, title: act.title, city: act.city }); setCommunityRatingValue(0); setCommunityRatingNotes(""); }}
+                          onClick={(e) => { e.stopPropagation(); setCommunityRatingModal({ id: act.id, title: act.title, city: act.city }); setCommunityRatingValue(0); setCommunityRatingNotes(""); }}
                           style={{ background: "none", border: "none", padding: "0 0 2px", fontSize: "11px", color: "#AAAAAA", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
                         >
                           ★ Rate it
                         </button>
                       )}
                       <button
-                        onClick={() => handlePickSave(act)}
+                        onClick={(e) => { e.stopPropagation(); handlePickSave(act); }}
                         disabled={savedActivities.has(act.id)}
                         style={{
                           fontSize: "12px",
@@ -1158,6 +1159,80 @@ export default function DiscoverPage() {
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Activity detail modal ── */}
+      {selectedActivity && (
+        <div
+          onClick={() => setSelectedActivity(null)}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: "#fff", borderRadius: "20px", width: "100%", maxWidth: "440px", overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "90vh" }}
+          >
+            {/* Image */}
+            {selectedActivity.imageUrl && (
+              <div style={{ height: "220px", flexShrink: 0, position: "relative", overflow: "hidden" }}>
+                <img src={selectedActivity.imageUrl} alt={selectedActivity.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                {selectedActivity.rating !== null && selectedActivity.rating >= 3 && (
+                  <span style={{ position: "absolute", bottom: "12px", left: "12px", backgroundColor: "#C4664A", color: "#fff", fontSize: "11px", fontWeight: 700, padding: "4px 10px", borderRadius: "999px" }}>
+                    Flokk Approved
+                  </span>
+                )}
+              </div>
+            )}
+            {/* Body */}
+            <div style={{ padding: "20px 20px 24px", overflowY: "auto", flex: 1, position: "relative" }}>
+              {/* Close button */}
+              <button
+                onClick={() => setSelectedActivity(null)}
+                style={{ position: "absolute", top: "16px", right: "16px", background: "none", border: "none", cursor: "pointer", color: "#999", fontSize: "22px", lineHeight: 1, padding: "0 0 0 12px" }}
+              >
+                <X size={20} />
+              </button>
+              <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "4px" }}>{selectedActivity.city ?? ""}</p>
+              <p style={{ fontSize: "18px", fontWeight: 700, color: "#1B3A5C", marginBottom: "10px", lineHeight: 1.3, paddingRight: "32px" }}>{selectedActivity.title}</p>
+              {selectedActivity.ratingNotes && (
+                <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.6, marginBottom: "12px" }}>{selectedActivity.ratingNotes}</p>
+              )}
+              {selectedActivity.rating !== null && (selectedActivity.visitorCount ?? 0) >= 2 && (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+                  <span style={{ color: "#f59e0b", fontSize: "16px", letterSpacing: "1px" }}>
+                    {"★".repeat(selectedActivity.rating)}{"☆".repeat(5 - selectedActivity.rating)}
+                  </span>
+                  <span style={{ fontSize: "12px", color: "#AAAAAA" }}>{selectedActivity.visitorCount} families rated this</span>
+                </div>
+              )}
+              <p style={{ fontSize: "12px", color: "#AAAAAA", marginBottom: "20px" }}>
+                {selectedActivity.source === "placeholder"
+                  ? "Flokk Pick"
+                  : selectedActivity.isAnonymous || !selectedActivity.familyName
+                    ? "A Real Flokker"
+                    : `${selectedActivity.familyName} Family`}
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {selectedActivity.websiteUrl && (
+                  <a
+                    href={selectedActivity.websiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: "block", padding: "11px", borderRadius: "10px", border: "2px solid #1B3A5C", backgroundColor: "transparent", color: "#1B3A5C", fontSize: "13px", fontWeight: 700, textAlign: "center", textDecoration: "none", fontFamily: "inherit" }}
+                  >
+                    Visit site →
+                  </a>
+                )}
+                <button
+                  onClick={() => { handlePickSave(selectedActivity); setSelectedActivity(null); }}
+                  disabled={savedActivities.has(selectedActivity.id)}
+                  style={{ padding: "11px", borderRadius: "10px", border: "none", backgroundColor: savedActivities.has(selectedActivity.id) ? "#AAAAAA" : "#C4664A", color: "#fff", fontSize: "13px", fontWeight: 700, cursor: savedActivities.has(selectedActivity.id) ? "default" : "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
+                >
+                  {savedActivities.has(selectedActivity.id) ? "Saved ✓" : "Flokk It"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
