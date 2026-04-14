@@ -313,15 +313,10 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
 
         {/* Assignment row */}
         <div style={{ position: "relative" }}>
-          {save.assigned ? (
-            <div
-              onClick={(e) => { e.stopPropagation(); onTripClick(save.assigned!); }}
-              style={{ display: "flex", alignItems: "center", gap: "4px", cursor: "pointer" }}
-            >
-              <span style={{ fontSize: "11px", color: "#C4664A", fontWeight: 500 }}>
-                {save.assigned}
-              </span>
-            </div>
+          {save.tripId ? (
+            <span style={{ display: "inline-block", fontSize: "11px", fontWeight: 600, color: "#fff", backgroundColor: "#C4664A", borderRadius: "999px", padding: "2px 8px" }}>
+              {save.assigned ?? "Trip assigned"}
+            </span>
           ) : (
             <button
               onClick={(e) => {
@@ -628,7 +623,7 @@ export function SavesScreen() {
   const assignTrip = (id: string, tripTitle: string) => {
     if (tripTitle === "+ Create new trip") { setOpenDropdown(null); return; }
     const trip = availableTrips.find(t => t.title === tripTitle);
-    setSaves((prev) => prev.map((s) => (s.id === id ? { ...s, assigned: tripTitle } : s)));
+    setSaves((prev) => prev.map((s) => (s.id === id ? { ...s, assigned: tripTitle, tripId: trip?.id ?? s.tripId } : s)));
     setOpenDropdown(null);
     if (trip) {
       fetch(`/api/saves/${id}`, {
