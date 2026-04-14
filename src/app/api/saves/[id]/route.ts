@@ -47,18 +47,18 @@ export async function PATCH(
   const updateData: Record<string, unknown> = {};
   if (typeof body.rawTitle === "string") updateData.rawTitle = body.rawTitle;
   if (typeof body.notes === "string") updateData.notes = body.notes;
-  if (typeof body.websiteUrl === "string" || body.websiteUrl === null) updateData.websiteUrl = body.websiteUrl ?? null;
-  if (typeof body.dayIndex === "number" || body.dayIndex === null) updateData.dayIndex = body.dayIndex;
-  if (typeof body.sortOrder === "number") updateData.sortOrder = body.sortOrder;
+  if (typeof body.userRating === "number") updateData.userRating = body.userRating;
+  if (Array.isArray(body.categoryTags)) updateData.categoryTags = body.categoryTags;
   if (typeof body.tripId === "string") {
     updateData.tripId = body.tripId;
     updateData.status = "TRIP_ASSIGNED";
   } else if (body.tripId === null) {
-    updateData.trip = { disconnect: true };
+    updateData.tripId = null;
     updateData.status = "SAVED";
   }
-  if (typeof body.userRating === "number") updateData.userRating = body.userRating;
-  if (Array.isArray(body.categoryTags)) updateData.categoryTags = body.categoryTags;
+  if (typeof body.websiteUrl === "string" || body.websiteUrl === null) updateData.websiteUrl = body.websiteUrl ?? null;
+  if (typeof body.dayIndex === "number" || body.dayIndex === null) updateData.dayIndex = body.dayIndex;
+  if (typeof body.sortOrder === "number") updateData.sortOrder = body.sortOrder;
   if (typeof body.startTime === "string" || body.startTime === null) updateData.startTime = body.startTime ?? null;
   if (typeof body.extractedCheckin === "string" || body.extractedCheckin === null) updateData.extractedCheckin = body.extractedCheckin ?? null;
   if (typeof body.extractedCheckout === "string" || body.extractedCheckout === null) updateData.extractedCheckout = body.extractedCheckout ?? null;
