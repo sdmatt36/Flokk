@@ -70,8 +70,15 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  const updated = await db.savedItem.update({ where: { id }, data: updateData });
-  return NextResponse.json({ savedItem: updated });
+  try {
+    console.log("[PATCH /api/saves] updateData:", JSON.stringify(updateData));
+    const updated = await db.savedItem.update({ where: { id }, data: updateData });
+    return NextResponse.json({ savedItem: updated });
+  } catch (e) {
+    const err = e as Error;
+    console.error("[PATCH /api/saves] Prisma error:", err.message, err.stack);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
 }
 
 export async function DELETE(
