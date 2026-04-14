@@ -18,7 +18,7 @@ export const POSTS: BlogPost[] = [
     date: "April 2026",
     readTime: "5 min read",
     color: "#f0f4f8",
-    heroImage: "https://images.unsplash.com/photo-1553531384-411a247ccd73?w=800",
+    heroImage: "https://images.unsplash.com/photo-1507608616759-54f48f0af0ee?w=800",
     excerpt: "Every family has a system. Ours was a Google Sheet with 11 tabs and a column called Matt's Ideas. Here is why that stopped working.",
     content: `I have a confession. Before Flokk existed, our family travel planning system was a Google Sheet with 11 tabs, color-coded rows, and a dedicated column for "Matt's Ideas" that my wife, Jody, and I reviewed every so often.
 
