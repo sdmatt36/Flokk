@@ -438,6 +438,7 @@ export function SaveDetailModal({
                 <div style={{ marginTop: "4px", backgroundColor: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.15)", overflow: "hidden", maxHeight: "200px", overflowY: "auto" }}>
                   <button
                     onClick={async () => {
+                      console.log("No trip clicked");
                       setBodyDropdownOpen(false);
                       try {
                         await fetch(`/api/saves/${itemId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tripId: null }) });
