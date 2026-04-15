@@ -704,7 +704,7 @@ export default function DiscoverPage() {
                           </div>
                         )}
                       </div>
-                      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", minHeight: "96px" }}>
+                      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", minHeight: "120px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
                           <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
                           <span style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>{trip.title}</span>
@@ -963,7 +963,7 @@ export default function DiscoverPage() {
                         </div>
                       )}
                     </div>
-                    <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", minHeight: "96px" }}>
+                    <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", minHeight: "120px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
                         <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
                         <span style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>{rec.city}, {rec.country}</span>
