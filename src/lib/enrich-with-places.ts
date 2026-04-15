@@ -57,16 +57,15 @@ export async function enrichWithPlaces(
     const adminArea1 = addressComponents.find(c => c.types.includes("administrative_area_level_1"));
     const extractedCity = locality?.long_name ?? postalTown?.long_name ?? adminArea2?.long_name ?? adminArea1?.long_name ?? null;
 
-    // Step 3: Validate Places result name matches searched name before using image
+    // Step 3: Validate Places result name before using image
     const placesName = result.name ?? "";
-    if (placesName && !nameSimilar(name, placesName)) {
-      console.log('[enrich] Places name mismatch, skipping image:', placesName);
-      return { imageUrl: null, website, city: extractedCity };
-    }
-
-    // Step 4: Follow photo redirect to get CDN URL
     let imageUrl: string | null = null;
-    if (photoRef) {
+
+    if (placesName && !nameSimilar(name, placesName)) {
+      console.log("[enrich] Places name mismatch -- skipping image. Searched:", name, "Got:", placesName);
+      // fall through to OpenGraph fallback below
+    } else if (photoRef) {
+      // Step 4: Follow photo redirect to get CDN URL
       const photoRes = await fetch(
         `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${encodeURIComponent(photoRef)}&key=${GOOGLE_MAPS_API_KEY}`,
         { redirect: "follow" }
@@ -74,6 +73,25 @@ export async function enrichWithPlaces(
       const finalUrl = photoRes.url;
       if (finalUrl && !finalUrl.includes("maps.googleapis.com/maps/api/place/photo")) {
         imageUrl = finalUrl;
+      }
+    }
+
+    // OpenGraph fallback: no Places image (mismatch or no photo) and website available
+    if (!imageUrl && website) {
+      try {
+        const r = await fetch(website, {
+          headers: { "User-Agent": "Mozilla/5.0" },
+          signal: AbortSignal.timeout(4000),
+        });
+        const html = await r.text();
+        const m = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)/i)
+                || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image/i);
+        if (m?.[1]) {
+          imageUrl = m[1];
+          console.log("[enrich] OpenGraph image found:", imageUrl);
+        }
+      } catch {
+        console.log("[enrich] OpenGraph fetch failed, leaving image null");
       }
     }
 
