@@ -774,6 +774,7 @@ export default function DiscoverPage() {
                   color: picksFilter === f ? "#fff" : "#717171",
                   fontSize: "13px",
                   fontWeight: picksFilter === f ? 700 : 500,
+                  lineHeight: "1",
                   cursor: "pointer",
                   transition: "all 0.15s",
                 }}
@@ -930,6 +931,7 @@ export default function DiscoverPage() {
                   color: activeFilter === f ? "#fff" : "#717171",
                   fontSize: "13px",
                   fontWeight: activeFilter === f ? 700 : 500,
+                  lineHeight: "1",
                   cursor: "pointer",
                   transition: "all 0.15s",
                 }}
