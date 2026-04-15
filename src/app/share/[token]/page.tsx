@@ -4,7 +4,6 @@ import { db } from "@/lib/db";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { SharePageBottomBar } from "./SharePageBottomBar";
 import { ShareItineraryView, type DayData } from "./ShareItineraryView";
-import { MapPin, Calendar } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -401,25 +400,14 @@ export default async function SharePage({
       >
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.80) 100%)" }} />
         <div style={{ position: "absolute", bottom: "24px", left: "24px", right: "24px", zIndex: 2 }}>
-          <h1 style={{ fontSize: "30px", fontWeight: 900, color: "#fff", lineHeight: 1.1, marginBottom: "10px", textShadow: "0 2px 12px rgba(0,0,0,0.4)" }}>
+          <h1 style={{ fontSize: "30px", fontWeight: 900, color: "#fff", lineHeight: 1.1, marginBottom: "8px", textShadow: "0 2px 12px rgba(0,0,0,0.4)" }}>
             {trip.title}
           </h1>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "6px" }}>
-            {destination && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", backgroundColor: "rgba(255,255,255,0.18)", backdropFilter: "blur(4px)", borderRadius: "999px", padding: "4px 10px", fontSize: "12px", fontWeight: 600, color: "#fff" }}>
-                <MapPin size={11} />
-                {destination}
-              </span>
-            )}
-            {dateRange && (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", backgroundColor: "rgba(255,255,255,0.18)", backdropFilter: "blur(4px)", borderRadius: "999px", padding: "4px 10px", fontSize: "12px", fontWeight: 600, color: "#fff" }}>
-                <Calendar size={11} />
-                {dateRange}
-              </span>
-            )}
-          </div>
+          <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.9)", fontWeight: 500, marginBottom: "4px" }}>
+            {[destination, dateRange].filter(Boolean).join(" · ")}
+          </p>
           <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.65)" }}>
-            Shared by {curatorName} · {days ?? "—"} days · {totalActivityCount} activities
+            Shared by {curatorName} · {days ?? "—"} days
           </p>
         </div>
       </div>
@@ -431,11 +419,8 @@ export default async function SharePage({
           <ShareItineraryView
             days={daysData}
             isLoggedIn={isLoggedIn}
-            isOwner={isOwner}
             shareToken={token}
             heroImageUrl={heroImg}
-            tripDestination={tripDestination}
-            totalActivityCount={totalActivityCount}
           />
         )}
 
