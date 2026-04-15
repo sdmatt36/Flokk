@@ -16,12 +16,12 @@ function buildSaveConfirmationEmail(
     ? `<p style="margin:0 0 8px;font-size:14px;color:#4A5568;">${city}</p>`
     : "";
   const tripLine = matchedTrip
-    ? `<p style="margin:0 0 16px;font-size:14px;color:#4A5568;">Added to <strong>${matchedTrip.title}</strong></p>`
+    ? `<p style="margin:0 0 16px;font-size:14px;color:#4A5568;">Saved to your <strong>${matchedTrip.title}</strong> trip.</p>`
     : "";
   const button = matchedTrip
-    ? `<a href="https://www.flokktravel.com/trips/${matchedTrip.id}"
+    ? `<a href="https://www.flokktravel.com/trips/${matchedTrip.id}?tab=saved"
          style="display:inline-block;background:#C4664A;color:#ffffff;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:6px;">
-        View trip &rarr;
+        View in ${matchedTrip.title} &rarr;
       </a>`
     : `<a href="https://www.flokktravel.com/saves"
          style="display:inline-block;background:#C4664A;color:#ffffff;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:6px;">
@@ -41,6 +41,68 @@ function buildSaveConfirmationEmail(
   `.trim();
 }
 
+
+async function getCountryForCity(city: string): Promise<string | null> {
+  const key = process.env.GOOGLE_MAPS_API_KEY ?? "";
+  if (!key || !city.trim()) return null;
+  try {
+    const res = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(city)}&key=${key}`
+    );
+    const data = await res.json() as { results?: { address_components: { long_name: string; types: string[] }[] }[] };
+    const components = data.results?.[0]?.address_components ?? [];
+    const country = components.find(c => c.types.includes("country"));
+    return country?.long_name ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function geoMatchTrips(
+  familyProfileId: string,
+  city: string | null,
+  country: string | null
+): Promise<{ id: string; title: string } | null> {
+  if (!city && !country) return null;
+  const today = new Date();
+  const lc = (s: string | null | undefined) => (s ?? "").toLowerCase().trim();
+  try {
+    const trips = await db.trip.findMany({
+      where: {
+        familyProfileId,
+        status: { not: "COMPLETED" },
+        OR: [{ endDate: null }, { endDate: { gte: today } }],
+      },
+      select: { id: true, title: true, destinationCity: true, destinationCountry: true, startDate: true },
+    });
+    const sc = lc(city);
+    const sco = lc(country);
+    const matches = trips.filter(t => {
+      const tc = lc(t.destinationCity);
+      const tco = lc(t.destinationCountry);
+      const tt = lc(t.title);
+      if (sc && tc && (tc.includes(sc) || sc.includes(tc))) return true;
+      if (sc && tt.includes(sc)) return true;
+      if (sco && tco && (tco.includes(sco) || sco.includes(tco))) return true;
+      if (sco && tt.includes(sco)) return true;
+      return false;
+    });
+    if (matches.length === 0) {
+      console.log("[enrich] No trip match for destinationCity:", city, "country:", country);
+      return null;
+    }
+    matches.sort((a, b) => {
+      const da = a.startDate ? Math.abs(a.startDate.getTime() - today.getTime()) : Infinity;
+      const db2 = b.startDate ? Math.abs(b.startDate.getTime() - today.getTime()) : Infinity;
+      return da - db2;
+    });
+    console.log("[enrich] Trip matched:", matches[0].id, matches[0].title);
+    return { id: matches[0].id, title: matches[0].title };
+  } catch (e) {
+    console.error("[geoMatchTrips] query failed:", e);
+    return null;
+  }
+}
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -525,7 +587,8 @@ Field notes:
         const confirmTitle = latestItem?.rawTitle ?? rawUrl;
         let urlBranchTrip: { id: string; title: string } | null = null;
         try {
-          urlBranchTrip = await findMatchingTrip(familyProfile.id, urlSaveCity);
+          const urlSaveCountry = await getCountryForCity(urlSaveCity ?? '');
+          urlBranchTrip = await geoMatchTrips(familyProfile.id, urlSaveCity, urlSaveCountry);
           if (urlBranchTrip) {
             await db.savedItem.update({ where: { id: savedItem.id }, data: { tripId: urlBranchTrip.id } });
             console.log('[trips-save] auto-assigned to trip:', urlBranchTrip.id);
@@ -1170,7 +1233,8 @@ Field notes:
         }
         let nonBookingTrip: { id: string; title: string } | null = null;
         try {
-          nonBookingTrip = await findMatchingTrip(familyProfile.id, placeCity);
+          const nonBookingCountry = await getCountryForCity(placeCity ?? '');
+          nonBookingTrip = await geoMatchTrips(familyProfile.id, placeCity, nonBookingCountry);
           if (nonBookingTrip) {
             await db.savedItem.update({ where: { id: savedItem.id }, data: { tripId: nonBookingTrip.id } });
             console.log('[email-inbound] auto-assigned to trip:', nonBookingTrip.id);
