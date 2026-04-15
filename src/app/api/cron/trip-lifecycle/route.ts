@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     try {
       await db.trip.update({
         where: { id: trip.id },
-        data: { status: "COMPLETED", isPublic: true },
+        data: { status: "COMPLETED" },
       });
       completed++;
 
