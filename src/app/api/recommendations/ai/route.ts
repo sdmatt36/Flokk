@@ -145,9 +145,10 @@ Base recommendations on the destination. Prioritize activities matching travelSt
   });
 
   const raw = response.content[0].type === "text" ? response.content[0].text : "";
+  const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
   let recommendations: unknown[] = [];
   try {
-    recommendations = JSON.parse(raw);
+    recommendations = JSON.parse(cleaned);
     if (!Array.isArray(recommendations)) recommendations = [];
   } catch {
     console.error("[recommendations/ai] JSON parse failed, raw:", raw.slice(0, 300));
