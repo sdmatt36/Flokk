@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 
   const items = await db.savedItem.findMany({
     where: {
-      websiteUrl: null,
+      OR: [{ websiteUrl: null }, { placePhotoUrl: null }],
       extractionStatus: "ENRICHED",
       title: { not: null },
     },
@@ -21,6 +21,8 @@ export async function GET(request: Request) {
       id: true,
       title: true,
       destinationCity: true,
+      websiteUrl: true,
+      placePhotoUrl: true,
     },
     take: 50,
     orderBy: { createdAt: "asc" },
@@ -35,18 +37,22 @@ export async function GET(request: Request) {
   for (const item of items) {
     processed++;
     try {
-      const { website } = await enrichWithPlaces(
+      const { website, imageUrl } = await enrichWithPlaces(
         item.title!,
         item.destinationCity ?? ""
       );
 
-      if (website) {
+      const updateData: Record<string, string> = {};
+      if (website && !item.websiteUrl) updateData.websiteUrl = website;
+      if (imageUrl && !item.placePhotoUrl) updateData.placePhotoUrl = imageUrl;
+
+      if (Object.keys(updateData).length > 0) {
         await db.savedItem.update({
           where: { id: item.id },
-          data: { websiteUrl: website },
+          data: updateData,
         });
         updated++;
-        console.log(`[cron:enrich-saved-items] Updated websiteUrl for ${item.title}`);
+        console.log(`[cron:enrich-saved-items] Updated ${Object.keys(updateData).join(", ")} for ${item.title}`);
       } else {
         skipped++;
         console.log(`[cron:enrich-saved-items] No website found for ${item.title}`);
