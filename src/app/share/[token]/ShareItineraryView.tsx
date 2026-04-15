@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { ChevronDown, MapPin, BookmarkCheck, Bookmark, ExternalLink, ChevronRight } from "lucide-react";
-import { CommunityTripMap, type MarkerDef } from "@/components/features/trips/CommunityTripMap";
 import Link from "next/link";
-import { getDestinationCoords } from "@/lib/destination-coords";
 import type { SerializableItem } from "./ShareActivityCard";
 import type { SaveableItem } from "./SaveDayButton";
 
@@ -45,76 +43,85 @@ const RELATED_TRIPS_BY_DEST: Record<string, RelatedTrip[]> = {
   ],
 };
 
-function buildAllMarkers(days: DayData[]): MarkerDef[] {
-  const markers: MarkerDef[] = [];
-  let num = 0;
-  for (const day of days) {
-    for (const item of day.items) {
-      if (item.lat != null && item.lng != null) {
-        num++;
-        markers.push({ num, label: item.title, lat: item.lat!, lng: item.lng! });
-      }
-    }
-  }
-  return markers;
-}
-
-function buildDayMarkers(day: DayData): MarkerDef[] {
-  const markers: MarkerDef[] = [];
-  let num = 0;
-  for (const item of day.items) {
-    if (item.lat != null && item.lng != null) {
-      num++;
-      markers.push({ num, label: item.title, lat: item.lat!, lng: item.lng! });
-    }
-  }
-  return markers;
-}
-
 export function ShareItineraryView({
   days,
   isLoggedIn,
+  isOwner,
   shareToken,
-  heroImageUrl: _heroImageUrl, // kept in props for server-component compat, unused
+  heroImageUrl,
+  tripTitle,
+  destination,
+  dateRange,
+  durationDays,
+  curatorName,
+  viewCount,
+  totalActivityCount,
+  tripDestination,
 }: {
   days: DayData[];
   isLoggedIn: boolean;
+  isOwner: boolean;
   shareToken: string;
   heroImageUrl?: string | null;
+  tripTitle: string;
+  destination: string;
+  dateRange: string | null;
+  durationDays: number | null;
+  curatorName: string;
+  viewCount: number;
+  totalActivityCount: number;
+  tripDestination: string;
 }) {
-  const [openDay, setOpenDay] = useState(-1);
   const [savedSet, setSavedSet] = useState<Set<string>>(new Set());
   const [savingSet, setSavingSet] = useState<Set<string>>(new Set());
-  const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number } | null>(null);
-  const [leftHeight, setLeftHeight] = useState<number | null>(null);
-  const leftPanelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!leftPanelRef.current) return;
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) setLeftHeight(entry.contentRect.height);
-    });
-    ro.observe(leftPanelRef.current);
-    return () => ro.disconnect();
-  }, []);
+  const [heroConfirmOpen, setHeroConfirmOpen] = useState(false);
+  const [heroStealing, setHeroStealing] = useState(false);
+  const [heroStolen, setHeroStolen] = useState<{ tripId: string; tripTitle: string; copied: number } | null>(null);
 
   const destinationCity = days[0]?.city ?? null;
-  const allMarkers = buildAllMarkers(days);
-  const activeMarkers = openDay >= 0 && days[openDay]
-    ? buildDayMarkers(days[openDay])
-    : allMarkers;
-
-  const mapCenter = ((): [number, number] => {
-    const pts = days.flatMap(d => d.items).filter(i => i.lat != null && i.lng != null);
-    if (pts.length > 0) {
-      const avgLat = pts.reduce((s, p) => s + p.lat!, 0) / pts.length;
-      const avgLng = pts.reduce((s, p) => s + p.lng!, 0) / pts.length;
-      return [avgLng, avgLat];
-    }
-    return getDestinationCoords(destinationCity, null);
-  })();
-
   const relatedTrips = RELATED_TRIPS_BY_DEST[destinationCity ?? ""] ?? [];
+
+  // Top tag for stat pill
+  const tagCount: Record<string, number> = {};
+  for (const day of days) {
+    for (const item of day.items) {
+      if (item.tag) tagCount[item.tag] = (tagCount[item.tag] ?? 0) + 1;
+    }
+  }
+  const topTag = Object.entries(tagCount).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
+  // Highlight reel: up to 4 items with images across all days
+  const highlightItems: SerializableItem[] = [];
+  for (const day of days) {
+    for (const item of day.items) {
+      if (item.imageUrl && highlightItems.length < 4) highlightItems.push(item);
+    }
+  }
+
+  // Avg rating for social proof
+  const ratedItems = days.flatMap(d => d.items).filter(i => i.rating !== null);
+  const avgRating = ratedItems.length > 0
+    ? (ratedItems.reduce((s, i) => s + i.rating!.rating, 0) / ratedItems.length).toFixed(1)
+    : null;
+
+  async function handleHeroSteal() {
+    setHeroStealing(true);
+    try {
+      const res = await fetch("/api/trips/steal-to-new", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shareToken }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json() as { tripId: string; tripTitle: string; copied: number };
+      setHeroStolen(data);
+      setHeroConfirmOpen(false);
+    } catch {
+      alert("Something went wrong. Please try again.");
+    } finally {
+      setHeroStealing(false);
+    }
+  }
 
   async function handleStealDay(day: DayData) {
     if (!isLoggedIn) {
@@ -172,179 +179,321 @@ export function ShareItineraryView({
   }
 
   return (
-    <section style={{ marginTop: "20px" }}>
+    <div>
 
-      {/* Two-column layout: accordion left, map right */}
-      <div className="flex flex-col md:flex-row" style={{ gap: "24px", alignItems: "flex-start" }}>
+      {/* ── SECTION 1: Full-viewport hero ── */}
+      <div
+        style={{
+          minHeight: "100vh",
+          position: "relative",
+          overflow: "hidden",
+          backgroundColor: "#1a1a1a",
+          backgroundImage: heroImageUrl ? `url('${heroImageUrl}')` : undefined,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.1) 100%)" }} />
 
-        {/* Left panel: day accordion */}
-        <div ref={leftPanelRef} className="w-full md:w-[58%]" style={{ minWidth: 0 }}>
-          <div style={{ borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", overflow: "hidden", backgroundColor: "#fff" }}>
-            {days.map((day, i) => {
-              const isOpen = openDay === i;
+        <div style={{ position: "relative", zIndex: 2, textAlign: "center", padding: "24px", maxWidth: "700px", width: "100%" }}>
+          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "clamp(2rem, 5vw, 3rem)", fontWeight: 700, color: "#fff", lineHeight: 1.1, filter: "drop-shadow(0 2px 12px rgba(0,0,0,0.4))" }}>
+            {tripTitle}
+          </h1>
+          <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "1.25rem", marginTop: "8px" }}>
+            {durationDays ? `${durationDays} days in ${destinationCity ?? destination}` : (destinationCity ?? destination)}
+            {curatorName ? ` · ${curatorName}` : ""}
+          </p>
+          {dateRange && (
+            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "0.875rem", marginTop: "4px" }}>
+              {dateRange}
+            </p>
+          )}
+
+          {/* Stat pills */}
+          <div style={{ display: "flex", justifyContent: "center", gap: "12px", marginTop: "24px", flexWrap: "wrap" }}>
+            {[
+              `${totalActivityCount} places`,
+              `${durationDays ?? "?"} days`,
+              ...(topTag ? [topTag] : []),
+            ].map((pill) => (
+              <span
+                key={pill}
+                style={{ backgroundColor: "rgba(255,255,255,0.2)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.3)", color: "#fff", borderRadius: "9999px", padding: "4px 16px", fontSize: "0.875rem" }}
+              >
+                {pill}
+              </span>
+            ))}
+          </div>
+
+          {/* CTA */}
+          <div style={{ marginTop: "32px" }}>
+            {!isOwner && isLoggedIn && (
+              <button
+                onClick={() => setHeroConfirmOpen(true)}
+                style={{ backgroundColor: "#C4664A", color: "#fff", padding: "12px 32px", borderRadius: "9999px", fontSize: "1.125rem", fontWeight: 600, border: "none", cursor: "pointer" }}
+                onMouseOver={e => (e.currentTarget.style.backgroundColor = "#a85539")}
+                onMouseOut={e => (e.currentTarget.style.backgroundColor = "#C4664A")}
+              >
+                Steal This Itinerary
+              </button>
+            )}
+            {!isLoggedIn && (
+              <a
+                href={`/sign-up?redirect_url=${encodeURIComponent(`/share/${shareToken}`)}`}
+                style={{ display: "inline-block", backgroundColor: "#C4664A", color: "#fff", padding: "12px 32px", borderRadius: "9999px", fontSize: "1.125rem", fontWeight: 600, textDecoration: "none" }}
+              >
+                Plan your own trip free
+              </a>
+            )}
+          </div>
+        </div>
+
+        {/* Scroll indicator */}
+        <div style={{ position: "absolute", bottom: "32px", left: "50%", transform: "translateX(-50%)" }}>
+          <ChevronDown size={24} style={{ color: "rgba(255,255,255,0.6)" }} className="animate-bounce" />
+        </div>
+      </div>
+
+      {/* Hero confirm modal */}
+      {heroConfirmOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4 pb-32"
+          onClick={() => setHeroConfirmOpen(false)}
+        >
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", fontWeight: 700, color: "#1B3A5C", marginBottom: "8px" }}>
+              Start planning {tripDestination}?
+            </h2>
+            <p style={{ fontSize: "14px", color: "#717171", marginBottom: "24px", lineHeight: 1.5 }}>
+              We&apos;ll create a new {tripDestination} trip and copy all {totalActivityCount} activities into it as saved places. You can organise them into days from there.
+            </p>
+            <button
+              onClick={handleHeroSteal}
+              disabled={heroStealing}
+              style={{ width: "100%", padding: "14px", borderRadius: "9999px", backgroundColor: heroStealing ? "#E5E5E5" : "#C4664A", color: heroStealing ? "#AAAAAA" : "#fff", fontWeight: 700, fontSize: "15px", border: "none", cursor: heroStealing ? "not-allowed" : "pointer", marginBottom: "12px" }}
+            >
+              {heroStealing ? "Creating your trip..." : `Create my ${tripDestination} trip`}
+            </button>
+            <button
+              onClick={() => setHeroConfirmOpen(false)}
+              style={{ width: "100%", background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "#AAAAAA", padding: "4px 0", fontFamily: "inherit" }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Hero steal success toast */}
+      {heroStolen && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-[#1B3A5C] text-white text-sm px-4 py-3 rounded-xl shadow-lg flex flex-col items-center gap-2 z-50 w-72 text-center">
+          <span className="font-semibold">{heroStolen.tripTitle} created</span>
+          <span className="text-xs" style={{ color: "#D1D5DB" }}>{heroStolen.copied} places saved. Add dates to start planning.</span>
+          <a href={`/trips/${heroStolen.tripId}`} className="text-[#C4664A] font-semibold text-sm">View trip →</a>
+        </div>
+      )}
+
+      {/* ── SECTION 2: Highlight reel ── */}
+      {highlightItems.length >= 2 && (
+        <div style={{ backgroundColor: "#fff", padding: "40px 24px 24px" }}>
+          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1.5rem", fontWeight: 700, color: "#1B3A5C", marginBottom: "16px" }}>
+            Trip highlights
+          </h2>
+          <div className="flex overflow-x-auto gap-4 pb-2 hide-scrollbar">
+            {highlightItems.map((item) => {
+              const saved = savedSet.has(item.id);
+              const saving = savingSet.has(item.id);
               return (
-                <div key={day.index} style={{ borderBottom: i < days.length - 1 ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
-
-                  {/* Header row — click to expand/collapse */}
-                  <div
-                    onClick={() => setOpenDay(isOpen ? -1 : i)}
-                    style={{ display: "flex", alignItems: "center", padding: "13px 16px", cursor: "pointer", gap: "10px", userSelect: "none" }}
+                <div
+                  key={item.id}
+                  style={{ width: "224px", flexShrink: 0, borderRadius: "16px", overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.12)", position: "relative", cursor: "pointer" }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={item.imageUrl!}
+                    alt={item.title}
+                    style={{ width: "224px", height: "224px", objectFit: "cover", display: "block" }}
+                  />
+                  <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 60%)" }} />
+                  <p style={{ position: "absolute", bottom: "32px", left: "12px", right: "12px", color: "#fff", fontWeight: 600, fontSize: "0.875rem", lineHeight: 1.3 }}>
+                    {item.title}
+                  </p>
+                  {item.tag && (
+                    <span style={{ position: "absolute", bottom: "10px", left: "12px", backgroundColor: "#C4664A", color: "#fff", fontSize: "0.75rem", padding: "2px 8px", borderRadius: "9999px" }}>
+                      {item.tag}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => handleFlokk(item)}
+                    disabled={saved || saving}
+                    style={{ position: "absolute", top: "8px", right: "8px", backgroundColor: "rgba(255,255,255,0.9)", color: saved ? "#4a7c59" : "#C4664A", fontSize: "0.75rem", fontWeight: 600, padding: "4px 10px", borderRadius: "9999px", border: "none", cursor: saved ? "default" : "pointer" }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: 0, overflow: "hidden" }}>
-                      <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", whiteSpace: "nowrap" }}>{day.label}</span>
-                      {!isOpen && day.items.length > 0 && (
-                        <div style={{ display: "flex", gap: "4px", overflow: "hidden", minWidth: 0 }}>
-                          {day.items.slice(0, 2).map((item) => (
-                            <span
-                              key={item.id}
-                              style={{ fontSize: "11px", background: "rgba(0,0,0,0.06)", color: "#666", borderRadius: "999px", padding: "2px 8px", whiteSpace: "nowrap" }}
-                            >
-                              {item.title.length > 18 ? item.title.slice(0, 18) + "…" : item.title}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {!isOpen && day.items.length === 0 && (
-                        <span style={{ fontSize: "12px", color: "#bbb", fontStyle: "italic" }}>No activities</span>
-                      )}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-                      <span style={{ fontSize: "13px", color: "#717171" }}>{day.items.length} stop{day.items.length !== 1 ? "s" : ""}</span>
-                      {day.items.length > 0 && (() => {
-                        const allSaved = day.items.every(it => savedSet.has(it.id));
-                        return (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleStealDay(day); }}
-                            disabled={allSaved}
-                            style={{ fontSize: "11px", fontWeight: 700, color: allSaved ? "#4a7c59" : "#fff", backgroundColor: allSaved ? "rgba(74,124,89,0.1)" : "#C4664A", border: allSaved ? "1px solid rgba(74,124,89,0.3)" : "none", borderRadius: "999px", padding: "3px 10px", cursor: allSaved ? "default" : "pointer", whiteSpace: "nowrap" }}
-                          >
-                            {allSaved ? "Flokked!" : "Steal this day"}
-                          </button>
-                        );
-                      })()}
-                      <ChevronDown
-                        size={16}
-                        style={{ color: "#717171", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s ease" }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Expandable body */}
-                  <div style={{ maxHeight: isOpen ? "2000px" : "0", overflow: isOpen ? "visible" : "hidden", transition: "max-height 0.3s ease" }}>
-                    <div style={{ padding: "4px 16px 16px", display: "flex", flexDirection: "column", gap: "8px" }}>
-                      {day.items.map((item, idx) => {
-                        const saved = savedSet.has(item.id);
-                        const saving = savingSet.has(item.id);
-                        return (
-                          <div
-                            key={item.id}
-                            style={{ display: "flex", gap: "10px", alignItems: "flex-start", borderRadius: "10px", padding: "8px", margin: "-8px" }}
-                            className="hover:bg-black/[0.02]"
-                          >
-                            {/* Thumbnail or numbered placeholder */}
-                            {item.imageUrl ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={item.imageUrl}
-                                alt=""
-                                style={{ width: "56px", height: "56px", borderRadius: "8px", flexShrink: 0, objectFit: "cover" }}
-                              />
-                            ) : (
-                              <div style={{ width: "40px", height: "40px", borderRadius: "8px", flexShrink: 0, backgroundColor: "rgba(196,102,74,0.1)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                <span style={{ fontSize: "14px", fontWeight: 800, color: "#C4664A" }}>{idx + 1}</span>
-                              </div>
-                            )}
-
-                            {/* Content */}
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", lineHeight: 1.2 }}>{item.title}</p>
-
-                              {item.notes && (
-                                <p style={{ fontSize: "12px", color: "#717171", marginTop: "2px", lineHeight: 1.4 }}>{item.notes}</p>
-                              )}
-
-                              {item.tag && (
-                                <div style={{ display: "flex", gap: "6px", marginTop: "5px" }}>
-                                  <span style={{ backgroundColor: "rgba(0,0,0,0.05)", color: "#666", fontSize: "11px", padding: "2px 8px", borderRadius: "999px" }}>
-                                    {item.tag}
-                                  </span>
-                                </div>
-                              )}
-
-                              {item.rating && (
-                                <p style={{ fontSize: "12px", color: "#C4664A", marginTop: "4px" }}>
-                                  {"★".repeat(Math.min(5, item.rating.rating))}
-                                  {item.rating.notes && (
-                                    <span style={{ color: "#717171", fontStyle: "italic", marginLeft: "6px" }}>{item.rating.notes}</span>
-                                  )}
-                                </p>
-                              )}
-
-                              {/* Action row */}
-                              <div style={{ display: "flex", gap: "10px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
-                                {item.saveable && (
-                                  <button
-                                    onClick={() => handleFlokk(item)}
-                                    disabled={saved || saving}
-                                    style={{ display: "flex", alignItems: "center", gap: "4px", backgroundColor: saved ? "rgba(74,124,89,0.1)" : "transparent", border: `1.5px solid ${saved ? "rgba(74,124,89,0.3)" : "#C4664A"}`, borderRadius: "999px", padding: "4px 10px", fontSize: "12px", fontWeight: 600, color: saved ? "#4a7c59" : "#C4664A", cursor: saved ? "default" : "pointer" }}
-                                  >
-                                    {saved ? <BookmarkCheck size={11} /> : <Bookmark size={11} />}
-                                    {saving ? "Flokking…" : saved ? "Flokked" : "Flokk It"}
-                                  </button>
-                                )}
-                                {item.lat != null && item.lng != null && (
-                                  <button
-                                    onClick={() => setFlyTarget({ lat: item.lat!, lng: item.lng! })}
-                                    style={{ display: "flex", alignItems: "center", gap: "3px", background: "none", border: "none", padding: 0, fontSize: "12px", fontWeight: 600, color: "#C4664A", cursor: "pointer" }}
-                                  >
-                                    <MapPin size={11} />
-                                    Map
-                                  </button>
-                                )}
-                                {item.websiteUrl && (
-                                  <a
-                                    href={item.websiteUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={(e) => e.stopPropagation()}
-                                    style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "12px", fontWeight: 600, color: "#1B3A5C", textDecoration: "none" }}
-                                  >
-                                    <ExternalLink size={11} />
-                                    Visit site
-                                  </a>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
+                    {saving ? "…" : saved ? "Flokked" : "Flokk It"}
+                  </button>
                 </div>
               );
             })}
           </div>
         </div>
+      )}
 
-        {/* Right panel: map — stacks below on mobile, sticky sidebar on desktop */}
-        <div className="w-full md:w-[42%]" style={{ position: "sticky", top: "60px", height: leftHeight ? `${leftHeight}px` : "300px", minHeight: "260px", maxHeight: "600px" }}>
-          <CommunityTripMap
-            allMarkers={activeMarkers}
-            center={mapCenter}
-            flyTarget={flyTarget}
-            onFlyTargetConsumed={() => setFlyTarget(null)}
-          />
+      {/* ── SECTION 3: Full itinerary ── */}
+      {days.length > 0 && (
+        <div style={{ backgroundColor: "#fff", padding: "32px 24px" }}>
+          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "1.5rem", fontWeight: 700, color: "#1B3A5C", marginBottom: "24px" }}>
+            The full itinerary
+          </h2>
+          <div style={{ display: "flex", flexDirection: "column", gap: "32px" }}>
+            {days.map((day) => {
+              const allSaved = day.items.length > 0 && day.items.every(it => savedSet.has(it.id));
+              return (
+                <div key={day.index}>
+                  {/* Day header */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+                    <div style={{ width: "32px", height: "32px", borderRadius: "9999px", backgroundColor: "#1B3A5C", color: "#fff", fontSize: "0.875rem", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      {day.index}
+                    </div>
+                    <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#1B3A5C", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      {day.label}
+                    </span>
+                  </div>
+
+                  {/* Activity cards */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    {day.items.map((item) => {
+                      const saved = savedSet.has(item.id);
+                      const saving = savingSet.has(item.id);
+                      return (
+                        <div
+                          key={item.id}
+                          className="hover:shadow-md transition-shadow"
+                          style={{ display: "flex", flexDirection: "row", backgroundColor: "#fff", borderRadius: "12px", border: "1px solid #f3f4f6", boxShadow: "0 1px 3px rgba(0,0,0,0.06)", overflow: "hidden" }}
+                        >
+                          {/* Left image or placeholder */}
+                          {item.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={item.imageUrl}
+                              alt=""
+                              style={{ width: "80px", height: "80px", objectFit: "cover", flexShrink: 0 }}
+                            />
+                          ) : (
+                            <div style={{ width: "80px", height: "80px", backgroundColor: "#f9fafb", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                              <MapPin size={20} style={{ color: "#d1d5db" }} />
+                            </div>
+                          )}
+
+                          {/* Right content */}
+                          <div style={{ padding: "12px", display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
+                            <p style={{ fontWeight: 600, color: "#1B3A5C", fontSize: "0.875rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {item.title}
+                            </p>
+                            {item.tag && (
+                              <span style={{ display: "inline-block", fontSize: "0.75rem", backgroundColor: "rgba(196,102,74,0.1)", color: "#C4664A", padding: "2px 8px", borderRadius: "9999px", width: "fit-content", marginTop: "2px" }}>
+                                {item.tag}
+                              </span>
+                            )}
+                            {item.notes && (
+                              <p
+                                style={{ fontSize: "0.75rem", color: "#6b7280", marginTop: "4px", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } as React.CSSProperties}
+                              >
+                                {item.notes}
+                              </p>
+                            )}
+                            {item.rating && (
+                              <p style={{ fontSize: "0.75rem", color: "#C4664A", marginTop: "4px" }}>
+                                {"★".repeat(Math.min(5, item.rating.rating))}
+                              </p>
+                            )}
+                            <div style={{ marginTop: "8px", display: "flex", gap: "16px", alignItems: "center" }}>
+                              {item.saveable && (
+                                <button
+                                  onClick={() => handleFlokk(item)}
+                                  disabled={saved || saving}
+                                  style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "0.75rem", fontWeight: 500, color: saved ? "#4a7c59" : "#C4664A", background: "none", border: "none", padding: 0, cursor: saved ? "default" : "pointer" }}
+                                >
+                                  {saved ? <BookmarkCheck size={11} /> : <Bookmark size={11} />}
+                                  {saving ? "Flokking…" : saved ? "Flokked" : "Flokk It"}
+                                </button>
+                              )}
+                              {item.websiteUrl && (
+                                <a
+                                  href={item.websiteUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ fontSize: "0.75rem", color: "#9ca3af", textDecoration: "none", display: "flex", alignItems: "center", gap: "3px" }}
+                                  onMouseOver={e => (e.currentTarget.style.color = "#6b7280")}
+                                  onMouseOut={e => (e.currentTarget.style.color = "#9ca3af")}
+                                >
+                                  <ExternalLink size={10} />
+                                  Visit site
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Steal this day */}
+                  {day.items.length > 0 && (
+                    <button
+                      onClick={() => handleStealDay(day)}
+                      disabled={allSaved}
+                      style={{ marginTop: "12px", fontSize: "0.875rem", border: allSaved ? "1px solid rgba(74,124,89,0.3)" : "1px solid #C4664A", color: allSaved ? "#4a7c59" : "#C4664A", backgroundColor: allSaved ? "rgba(74,124,89,0.1)" : "transparent", padding: "6px 16px", borderRadius: "9999px", cursor: allSaved ? "default" : "pointer", transition: "background-color 0.15s, color 0.15s" }}
+                      onMouseOver={e => { if (!allSaved) { e.currentTarget.style.backgroundColor = "#C4664A"; e.currentTarget.style.color = "#fff"; } }}
+                      onMouseOut={e => { if (!allSaved) { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = "#C4664A"; } }}
+                    >
+                      {allSaved ? "Day Flokked!" : "Steal this day"}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
+      )}
 
+      {/* ── SECTION 4: Social proof strip ── */}
+      <div style={{ backgroundColor: "#f9fafb", padding: "32px 24px", marginTop: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: "48px", flexWrap: "wrap", textAlign: "center" }}>
+          <div>
+            <p style={{ fontSize: "1.5rem", fontWeight: 700, color: "#1B3A5C" }}>{viewCount}</p>
+            <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: "2px" }}>views</p>
+          </div>
+          <div>
+            <p style={{ fontSize: "1.5rem", fontWeight: 700, color: "#1B3A5C" }}>{totalActivityCount}</p>
+            <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: "2px" }}>activities</p>
+          </div>
+          <div>
+            {avgRating ? (
+              <>
+                <p style={{ fontSize: "1.5rem", fontWeight: 700, color: "#1B3A5C" }}>{avgRating}★</p>
+                <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: "2px" }}>avg rating</p>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: "1.5rem", fontWeight: 700, color: "#1B3A5C", display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                  <MapPin size={20} />{destinationCity ?? "—"}
+                </p>
+                <p style={{ fontSize: "0.75rem", color: "#9ca3af", marginTop: "2px" }}>destination</p>
+              </>
+            )}
+          </div>
+        </div>
       </div>
+      <div style={{ height: "1px", backgroundColor: "#e5e7eb" }} />
 
       {/* More trips families like yours loved */}
       {relatedTrips.length > 0 && (
-        <div style={{ paddingTop: "28px", paddingBottom: "8px", borderTop: "1px solid #F0F0F0", marginTop: "32px" }}>
+        <div style={{ padding: "28px 24px 8px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-            <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a" }}>More trips families like yours loved</p>
-            <Link href="/discover" style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none", display: "flex", alignItems: "center", gap: "2px" }}>
+            <p style={{ fontSize: "1rem", fontWeight: 700, color: "#1a1a1a" }}>More trips families like yours loved</p>
+            <Link href="/discover" style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#C4664A", textDecoration: "none", display: "flex", alignItems: "center", gap: "2px" }}>
               See all <ChevronRight size={13} />
             </Link>
           </div>
@@ -358,12 +507,12 @@ export function ShareItineraryView({
                 <div style={{ height: "160px", borderRadius: "14px", overflow: "hidden", position: "relative", backgroundImage: `url('${trip.img}')`, backgroundSize: "cover", backgroundPosition: "center" }}>
                   <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.72) 100%)" }} />
                   <div style={{ position: "absolute", bottom: "10px", left: "10px", right: "10px", zIndex: 2, pointerEvents: "none" }}>
-                    <p style={{ fontSize: "13px", fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>{trip.city}</p>
-                    <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.75)", marginTop: "2px" }}>{trip.country}</p>
+                    <p style={{ fontSize: "0.8125rem", fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>{trip.city}</p>
+                    <p style={{ fontSize: "0.6875rem", color: "rgba(255,255,255,0.75)", marginTop: "2px" }}>{trip.country}</p>
                   </div>
                   <div style={{ position: "absolute", top: "8px", left: "8px", zIndex: 2, display: "flex", gap: "4px", flexWrap: "wrap", pointerEvents: "none" }}>
                     {trip.tags.map((tag) => (
-                      <span key={tag} style={{ fontSize: "10px", fontWeight: 700, backgroundColor: "rgba(0,0,0,0.45)", color: "#fff", borderRadius: "999px", padding: "2px 7px", backdropFilter: "blur(4px)" }}>
+                      <span key={tag} style={{ fontSize: "0.625rem", fontWeight: 700, backgroundColor: "rgba(0,0,0,0.45)", color: "#fff", borderRadius: "9999px", padding: "2px 7px", backdropFilter: "blur(4px)" }}>
                         {tag}
                       </span>
                     ))}
@@ -375,6 +524,30 @@ export function ShareItineraryView({
         </div>
       )}
 
-    </section>
+      {/* ── SECTION 5: Join CTA (non-logged-in only) ── */}
+      {!isLoggedIn && (
+        <div style={{ backgroundColor: "#1B3A5C", padding: "64px 24px", textAlign: "center" }}>
+          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "clamp(1.5rem, 4vw, 1.875rem)", fontWeight: 700, color: "#fff", marginBottom: "12px" }}>
+            Your family&apos;s next adventure starts here
+          </h2>
+          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "1.125rem", marginBottom: "32px" }}>
+            Save places, build itineraries, and share trips with families like yours.
+          </p>
+          <a
+            href="/sign-up"
+            style={{ display: "inline-block", backgroundColor: "#C4664A", color: "#fff", padding: "12px 32px", borderRadius: "9999px", fontSize: "1.125rem", fontWeight: 600, textDecoration: "none" }}
+          >
+            Join Flokk free
+          </a>
+          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "0.875rem", marginTop: "16px" }}>
+            Already have an account?{" "}
+            <a href="/sign-in" style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none", fontWeight: 600 }}>
+              Sign in →
+            </a>
+          </p>
+        </div>
+      )}
+
+    </div>
   );
 }
