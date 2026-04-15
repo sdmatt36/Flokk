@@ -35,7 +35,8 @@ function buildSaveConfirmationEmail(
       ${tripLine}
       <hr style="border:none;border-top:1px solid #E2E8F0;margin:24px 0;" />
       ${button}
-      <p style="margin:32px 0 0;font-size:12px;color:#A0AEC0;">Flokk &middot; trips@flokktravel.com</p>
+      <p style="margin:32px 0 0;font-size:13px;color:#4A5568;">Matt and Jen<br/>Co-Founders, Flokk</p>
+      <p style="margin:8px 0 0;font-size:12px;color:#A0AEC0;">Flokk &middot; trips@flokktravel.com</p>
     </div>
   `.trim();
 }
