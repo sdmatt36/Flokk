@@ -251,7 +251,7 @@ export function ShareItineraryView({
 
             {/* Left panel: day accordion */}
             <div ref={leftPanelRef} className="w-full md:w-[58%]" style={{ minWidth: 0 }}>
-              <div style={{ borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", overflow: "hidden", backgroundColor: "#fff" }}>
+              <div>
                 {days.map((day, i) => {
                   const isOpen = openDay === i;
                   // Split "Day 1 · Mon, Jul 4" into bold day number + lighter date
