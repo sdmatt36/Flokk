@@ -704,7 +704,7 @@ export default function DiscoverPage() {
                           </div>
                         )}
                       </div>
-                      <div style={{ padding: "14px 16px" }}>
+                      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", minHeight: "96px" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
                           <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
                           <span style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>{trip.title}</span>
@@ -712,9 +712,9 @@ export default function DiscoverPage() {
                         <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "10px" }}>
                           {[familyName, nights ? `${nights} nights` : null].filter(Boolean).join(" · ")}
                         </p>
-                        {trip.shareToken && (
-                          <p style={{ fontSize: "11px", color: "#C4664A", lineHeight: 1.4, fontWeight: 500 }}>Steal days →</p>
-                        )}
+                        <p style={{ fontSize: "11px", color: "#C4664A", lineHeight: 1.4, fontWeight: 500, marginTop: "auto" }}>
+                          {trip.shareToken ? "Steal days →" : "View trip →"}
+                        </p>
                       </div>
                     </div>
                   </Link>
@@ -963,13 +963,13 @@ export default function DiscoverPage() {
                         </div>
                       )}
                     </div>
-                    <div style={{ padding: "14px 16px" }}>
+                    <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", minHeight: "96px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
                         <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
                         <span style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>{rec.city}, {rec.country}</span>
                       </div>
                       <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "10px" }}>{rec.why}</p>
-                      <p style={{ fontSize: "11px", color: "#C4664A", lineHeight: 1.4, fontWeight: 500 }}>{rec.pickReason}</p>
+                      <p style={{ fontSize: "11px", color: "#C4664A", lineHeight: 1.4, fontWeight: 500, marginTop: "auto" }}>{rec.pickReason}</p>
                     </div>
                   </div>
                 </Link>
