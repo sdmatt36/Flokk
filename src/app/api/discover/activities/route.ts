@@ -169,7 +169,7 @@ export async function GET(req: NextRequest) {
         JOIN "Trip" t ON t.id = ma."tripId"
         JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
         LEFT JOIN "PlaceRating" pr ON pr."manualActivityId" = ma.id
-        WHERE (t."status" = 'COMPLETED' OR pr.rating IS NOT NULL)
+        WHERE pr.rating IS NOT NULL AND pr.rating >= 3
 
         UNION ALL
 
@@ -195,7 +195,7 @@ export async function GET(req: NextRequest) {
         JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
         LEFT JOIN "PlaceRating" pr ON pr."itineraryItemId" = ii.id
         WHERE ii.type NOT IN ('FLIGHT', 'TRAIN', 'LODGING', 'TRANSIT')
-          AND (t."status" = 'COMPLETED' OR pr.rating IS NOT NULL)
+          AND pr.rating IS NOT NULL AND pr.rating >= 3
 
         UNION ALL
 
