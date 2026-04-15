@@ -15,17 +15,17 @@ export async function GET(request: Request) {
     where: {
       OR: [{ websiteUrl: null }, { placePhotoUrl: null }],
       extractionStatus: "ENRICHED",
-      title: { not: null },
+      rawTitle: { not: null },
     },
     select: {
       id: true,
-      title: true,
+      rawTitle: true,
       destinationCity: true,
       websiteUrl: true,
       placePhotoUrl: true,
     },
     take: 50,
-    orderBy: { createdAt: "asc" },
+    orderBy: { savedAt: "asc" },
   });
 
   console.log(`[cron:enrich-saved-items] Found ${items.length} records to process`);
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
     processed++;
     try {
       const { website, imageUrl } = await enrichWithPlaces(
-        item.title!,
+        item.rawTitle!,
         item.destinationCity ?? ""
       );
 
@@ -52,15 +52,15 @@ export async function GET(request: Request) {
           data: updateData,
         });
         updated++;
-        console.log(`[cron:enrich-saved-items] Updated ${Object.keys(updateData).join(", ")} for ${item.title}`);
+        console.log(`[cron:enrich-saved-items] Updated ${Object.keys(updateData).join(", ")} for ${item.rawTitle}`);
       } else {
         skipped++;
-        console.log(`[cron:enrich-saved-items] No website found for ${item.title}`);
+        console.log(`[cron:enrich-saved-items] No website found for ${item.rawTitle}`);
       }
     } catch (err) {
       skipped++;
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[cron:enrich-saved-items] Error for ${item.id} (${item.title}):`, msg);
+      console.error(`[cron:enrich-saved-items] Error for ${item.id} (${item.rawTitle}):`, msg);
     }
   }
 
