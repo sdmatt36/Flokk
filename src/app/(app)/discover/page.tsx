@@ -691,31 +691,30 @@ export default function DiscoverPage() {
                       style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
                     >
                       <div style={{ height: "160px", backgroundImage: `url(${coverImage})`, backgroundSize: "cover", backgroundPosition: "center", position: "relative" }}>
-                        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.55) 100%)" }} />
-                        <div style={{ position: "absolute", bottom: "10px", left: "12px", right: "12px" }}>
-                          <p style={{ fontSize: "14px", fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>{trip.title}</p>
+                        <div style={{ position: "absolute", top: "10px", left: "10px" }}>
+                          <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: "#C4664A", color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>
+                            {trip.destinationCity ?? destination}
+                          </span>
                         </div>
-                      </div>
-                      <div style={{ padding: "12px 14px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
-                          <MapPin size={11} style={{ color: "#C4664A", flexShrink: 0 }} />
-                          <span style={{ fontSize: "12px", color: "#2d2d2d", fontWeight: 600 }}>{destination}</span>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                          <p style={{ fontSize: "11px", color: "#717171" }}>
-                            {[
-                              nights ? `${nights} nights` : null,
-                              trip._count.savedItems > 0 ? `${trip._count.savedItems} saves` : null,
-                              trip._count.placeRatings > 0 ? `${trip._count.placeRatings} ratings` : null,
-                              familyName,
-                            ].filter(Boolean).join(" · ")}
-                          </p>
-                          {trip.shareToken && (
-                            <span style={{ fontSize: "11px", color: "#C4664A", fontWeight: 600, flexShrink: 0, marginLeft: "8px" }}>
-                              Steal days →
+                        {trip.shareToken && (
+                          <div style={{ position: "absolute", top: "10px", right: "10px" }}>
+                            <span style={{ fontSize: "10px", fontWeight: 700, backgroundColor: "rgba(27,58,92,0.85)", backdropFilter: "blur(4px)", color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>
+                              Community trip
                             </span>
-                          )}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ padding: "14px 16px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
+                          <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
+                          <span style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>{trip.title}</span>
                         </div>
+                        <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "10px" }}>
+                          {[familyName, nights ? `${nights} nights` : null].filter(Boolean).join(" · ")}
+                        </p>
+                        {trip.shareToken && (
+                          <p style={{ fontSize: "11px", color: "#C4664A", lineHeight: 1.4, fontWeight: 500 }}>Steal days →</p>
+                        )}
                       </div>
                     </div>
                   </Link>
