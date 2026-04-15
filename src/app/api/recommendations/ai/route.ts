@@ -133,7 +133,8 @@ export async function GET(req: NextRequest) {
   "ageAppropriate": boolean,
   "budgetTier": string (one of: Free, Budget, Mid, Premium, Luxury),
   "tip": string (one practical sentence a local would give),
-  "tags": string[]
+  "tags": string[],
+  "websiteUrl": string (optional — a real URL for this place if you are confident it is correct, otherwise omit)
 }
 Base recommendations on the destination. Prioritize activities matching travelStyle, pace, and children ages. Exclude anything conflicting with dietary requirements or mobility notes. Weight toward categories matching topSaveCategories and lovedPlaces patterns.`;
 
