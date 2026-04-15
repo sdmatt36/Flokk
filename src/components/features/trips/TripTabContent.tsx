@@ -4577,6 +4577,16 @@ type FallbackItem = {
   lng: number | null;
 };
 
+type AiRec = {
+  name: string;
+  category: string;
+  whyThisFamily: string;
+  ageAppropriate: boolean;
+  budgetTier: string;
+  tip: string;
+  tags: string[];
+};
+
 function calcAgeFromIso(birthDateIso: string): number {
   const today = new Date();
   const birth = new Date(birthDateIso);
@@ -4634,6 +4644,10 @@ function RecommendedContent({
   const isDesktop = useIsDesktop();
   const [savedSet, setSavedSet] = useState<Set<string>>(new Set());
   const [drawerRec, setDrawerRec] = useState<DrawerRec | null>(null);
+  const [aiRecs, setAiRecs] = useState<AiRec[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiLoaded, setAiLoaded] = useState(false);
+  // fallback items kept for potential future re-use
   const [fallbackItems, setFallbackItems] = useState<FallbackItem[]>([]);
   const [fallbackLoaded, setFallbackLoaded] = useState(false);
 
@@ -4654,121 +4668,87 @@ function RecommendedContent({
   }
   const recDayPills = generateDayPillsForRec(tripStartDate ?? null, tripEndDate ?? null);
 
-  // Filter recommendations by destination city — match rec.city exactly (case-insensitive).
-  // If no destinationCity is provided, return empty array so we show the "no recs yet" state.
-  const hasDestination = !!(destinationCity || destinationCountry);
-  const cityLower = (destinationCity ?? "").toLowerCase().trim();
-  const filteredRecs = !hasDestination ? [] : RECOMMENDATIONS.filter(rec =>
-    rec.city.toLowerCase() === cityLower
-  );
-  const matchesDestination = filteredRecs.length > 0;
+  // Static list filtering commented out — replaced by AI endpoint
+  // const hasDestination = !!(destinationCity || destinationCountry);
+  // const cityLower = (destinationCity ?? "").toLowerCase().trim();
+  // const filteredRecs = !hasDestination ? [] : RECOMMENDATIONS.filter(rec =>
+  //   rec.city.toLowerCase() === cityLower
+  // );
+  // const matchesDestination = filteredRecs.length > 0;
 
-  // Fetch fallback community saves when static recs are absent
+  const hasDestination = !!(destinationCity || destinationCountry);
+
+  // Fetch AI recommendations
   useEffect(() => {
-    if (matchesDestination || !destinationCity || fallbackLoaded) return;
+    if (!tripId || aiLoaded) return;
+    setAiLoaded(true);
+    setAiLoading(true);
+    fetch(`/api/recommendations/ai?tripId=${encodeURIComponent(tripId)}`)
+      .then(r => r.json())
+      .then((data: { recommendations: AiRec[] }) => {
+        setAiRecs(Array.isArray(data.recommendations) ? data.recommendations : []);
+      })
+      .catch(() => {})
+      .finally(() => setAiLoading(false));
+  }, [tripId, aiLoaded]);
+
+  // Fallback community saves kept but no longer primary path
+  useEffect(() => {
+    if (!hasDestination || !destinationCity || fallbackLoaded) return;
     setFallbackLoaded(true);
     fetch(`/api/recommendations/fallback?city=${encodeURIComponent(destinationCity)}`)
       .then(r => r.json())
       .then((items: FallbackItem[]) => setFallbackItems(Array.isArray(items) ? items : []))
       .catch(() => {});
-  }, [matchesDestination, destinationCity, fallbackLoaded]);
+  }, [hasDestination, destinationCity, fallbackLoaded]);
 
-  // Group by category (first segment of tags), sort categories and items alphabetically
-  const grouped = filteredRecs.reduce((acc, rec) => {
-    const cat = rec.tags.split(" · ")[0];
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(rec);
-    return acc;
-  }, {} as Record<string, typeof RECOMMENDATIONS>);
-  const sortedCategories = Object.keys(grouped).sort();
-  sortedCategories.forEach((cat) => grouped[cat].sort((a, b) => a.title.localeCompare(b.title)));
-
-  if (!matchesDestination) {
-    const dest = hasDestination ? [destinationCity, destinationCountry].filter(Boolean).join(", ") : "this destination";
-    const city = destinationCity ?? dest;
+  // Loading state
+  if (aiLoading) {
     return (
-      <div>
-        {fallbackItems.length > 0 ? (
-          <>
-            <div style={{ marginBottom: "20px" }}>
-              <p style={{ fontSize: "18px", fontWeight: 700, color: "#1a1a1a", marginBottom: "4px" }}>Popular in {city}</p>
-              <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.5 }}>
-                Saved by families who&apos;ve visited {city}. More personalised recommendations appear as more families visit {city}.
-              </p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "16px" }}>
-              {fallbackItems.map(item => {
-                const tag = item.categoryTags?.[0] ?? "Explore";
-                const isSaved = savedSet.has(item.id);
-                const placeName = item.rawTitle?.startsWith("http") ? `Place in ${city}` : (item.rawTitle ?? "Saved place");
-                const coverImg = getItemImage(item.rawTitle, item.placePhotoUrl, item.mediaThumbnailUrl, item.categoryTags[0] ?? null, destinationCity, destinationCountry);
-                const initial = placeName.charAt(0).toUpperCase();
-                return (
-                  <div key={item.id} style={{ backgroundColor: "#fff", border: "1px solid #EEEEEE", borderRadius: "16px", overflow: "hidden", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column" }}>
-                    {/* Header image */}
-                    <div style={{ height: "160px", position: "relative", flexShrink: 0, overflow: "hidden", backgroundColor: "#1B3A5C" }}>
-                      {coverImg ? (
-                        <div style={{ position: "absolute", inset: 0, backgroundImage: `url(${coverImg})`, backgroundSize: "cover", backgroundPosition: "center" }} />
-                      ) : (
-                        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, #1B3A5C 0%, #2d5a8e 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <span style={{ fontSize: "40px", fontWeight: 800, color: "rgba(255,255,255,0.25)" }}>{initial}</span>
-                        </div>
-                      )}
-                      {/* Category pill */}
-                      <div style={{ position: "absolute", top: "10px", left: "10px" }}>
-                        <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: "#C4664A", color: "#fff", borderRadius: "999px", padding: "3px 10px" }}>{tag}</span>
-                      </div>
-                    </div>
-
-                    {/* Body */}
-                    <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", flex: 1 }}>
-                      <p style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", marginBottom: "4px", lineHeight: 1.3 }}>{placeName}</p>
-                      {(destinationCity || destinationCountry) && (
-                        <p style={{ fontSize: "13px", color: "#AAAAAA", marginBottom: "6px" }}>
-                          {[destinationCity, destinationCountry].filter(Boolean).join(", ")}
-                        </p>
-                      )}
-                      {item.rawDescription && cleanDisplayDescription(item.rawDescription).length >= 10 && (
-                        <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.5, marginBottom: "10px", flex: 1, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" } as React.CSSProperties} suppressHydrationWarning={true}>{cleanDisplayDescription(item.rawDescription)}</p>
-                      )}
-                      <button
-                        type="button"
-                        disabled={isSaved}
-                        onClick={async () => {
-                          if (!tripId || isSaved) return;
-                          try {
-                            await fetch("/api/saves/activity", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ sourceItemId: item.id }),
-                            });
-                            setSavedSet(prev => new Set([...prev, item.id]));
-                          } catch { /* ignore */ }
-                        }}
-                        style={{ width: "100%", marginTop: "auto", padding: "10px", borderRadius: "10px", border: `1.5px solid ${isSaved ? "#4a7c59" : "#C4664A"}`, background: "none", color: isSaved ? "#4a7c59" : "#C4664A", fontSize: "13px", fontWeight: 700, cursor: isSaved ? "default" : "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
-                      >
-                        {isSaved ? "Saved ✓" : "Add to trip"}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        ) : (
-          <div style={{ padding: "40px 24px", textAlign: "center" }}>
-            <Compass size={32} style={{ color: "#C4664A", margin: "0 auto 12px" }} />
-            <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a", marginBottom: "6px" }}>
-              No recommendations for {dest} yet
-            </p>
-            <p style={{ fontSize: "14px", color: "#717171", lineHeight: 1.5 }}>
-              We&apos;re constantly adding new destinations. Check back soon — or be the first to contribute a trip from {dest}.
-            </p>
-          </div>
-        )}
+      <div style={{ padding: "60px 24px", textAlign: "center" }}>
+        <p style={{ fontSize: "15px", fontWeight: 600, color: "#1B3A5C", marginBottom: "6px" }}>Building recommendations for your family</p>
+        <p style={{ fontSize: "13px", color: "#717171" }}>
+          {members && members.length > 0
+            ? `Personalising for ${buildFamilyContextString(members)}...`
+            : "Personalising for your family..."}
+        </p>
       </div>
     );
   }
+
+  // No destination
+  if (!hasDestination) {
+    return (
+      <div style={{ padding: "40px 24px", textAlign: "center" }}>
+        <Compass size={32} style={{ color: "#C4664A", margin: "0 auto 12px" }} />
+        <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a", marginBottom: "6px" }}>No destination set</p>
+        <p style={{ fontSize: "14px", color: "#717171", lineHeight: 1.5 }}>Add a destination to your trip to get personalised recommendations.</p>
+      </div>
+    );
+  }
+
+  // No AI recs returned (no destination on trip, or parse failed)
+  if (aiLoaded && aiRecs.length === 0) {
+    return (
+      <div style={{ padding: "40px 24px", textAlign: "center" }}>
+        <Compass size={32} style={{ color: "#C4664A", margin: "0 auto 12px" }} />
+        <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a", marginBottom: "6px" }}>
+          No recommendations yet
+        </p>
+        <p style={{ fontSize: "14px", color: "#717171", lineHeight: 1.5 }}>
+          Check back soon — or complete your family profile to get personalised suggestions.
+        </p>
+      </div>
+    );
+  }
+
+  const BUDGET_COLORS: Record<string, string> = {
+    Free:    "#4a7c59",
+    Budget:  "#1B3A5C",
+    Mid:     "#6b5b95",
+    Premium: "#C4664A",
+    Luxury:  "#8B6914",
+  };
 
   return (
     <div>
@@ -4776,29 +4756,52 @@ function RecommendedContent({
       <div style={{ background: "rgba(196,102,74,0.08)", borderLeft: "3px solid #C4664A", padding: "12px 16px", marginBottom: "24px", borderRadius: "0 8px 8px 0" }}>
         <span style={{ fontSize: "12px", color: "#717171" }}>
           {members && members.length > 0
-            ? `Showing recommendations for ${buildFamilyContextString(members)}`
-            : "Showing recommendations for your family"}
+            ? `Personalised for ${buildFamilyContextString(members)}`
+            : "Personalised for your family"}
         </span>
       </div>
 
       {/* Section header */}
       <div style={{ marginBottom: "20px" }}>
         <div style={{ fontSize: "18px", fontWeight: 700, color: "#1a1a1a", marginBottom: "6px" }}>Recommended for your trip</div>
-        <div style={{ fontSize: "13px", color: "#717171" }}>Based on your family&apos;s interests and what families like yours loved</div>
+        <div style={{ fontSize: "13px", color: "#717171" }}>Based on your family&apos;s interests, travel style, and past saves</div>
       </div>
 
-      {/* All cards in one flat 2-column grid */}
+      {/* AI rec cards */}
       <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(2, 1fr)" : "1fr", gap: "16px" }}>
-        {filteredRecs.map((rec) => {
-          const isSaved = savedSet.has(rec.title);
+        {aiRecs.map((rec, i) => {
+          const budgetColor = BUDGET_COLORS[rec.budgetTier] ?? "#717171";
           return (
-            <RecCard
-              key={rec.title}
-              rec={rec}
-              isSaved={isSaved}
-              onToggle={() => { if (!isSaved) setDrawerRec(rec as DrawerRec); }}
-              onOpenDetail={() => setDrawerRec(rec as DrawerRec)}
-            />
+            <div
+              key={`${rec.name}-${i}`}
+              style={{ backgroundColor: "#fff", borderRadius: "16px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #F0F0F0", overflow: "hidden", display: "flex", flexDirection: "column" }}
+            >
+              {/* Header row */}
+              <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid #F5F5F5" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px", marginBottom: "6px" }}>
+                  <p style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, flex: 1 }}>{rec.name}</p>
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: budgetColor, backgroundColor: `${budgetColor}18`, borderRadius: "999px", padding: "3px 10px", flexShrink: 0, whiteSpace: "nowrap" }}>{rec.budgetTier}</span>
+                </div>
+                <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: "#C4664A", color: "#fff", borderRadius: "999px", padding: "3px 10px" }}>{rec.category}</span>
+              </div>
+
+              {/* Why this family */}
+              <div style={{ padding: "10px 16px", background: "rgba(196,102,74,0.05)", borderBottom: "1px solid #F5F5F5" }}>
+                <p style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, fontStyle: "italic", lineHeight: 1.5 }}>{rec.whyThisFamily}</p>
+              </div>
+
+              {/* Tip + tags */}
+              <div style={{ padding: "10px 16px 14px", flex: 1, display: "flex", flexDirection: "column", gap: "8px" }}>
+                <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5 }}>{rec.tip}</p>
+                {rec.tags.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                    {rec.tags.map(tag => (
+                      <span key={tag} style={{ fontSize: "11px", color: "#888", backgroundColor: "#F5F5F5", borderRadius: "999px", padding: "2px 8px" }}>{tag}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           );
         })}
       </div>
@@ -4822,19 +4825,6 @@ function RecommendedContent({
           Contribute →
         </Link>
       </div>
-
-      {/* Rec detail drawer */}
-      <RecommendationDrawer
-        item={drawerRec}
-        tripId={tripId}
-        dayPills={recDayPills}
-        onClose={() => setDrawerRec(null)}
-        onAddedToDay={(dayIndex, title) => {
-          setSavedSet(prev => new Set([...prev, title]));
-          onRefreshItinerary?.();
-          setTimeout(() => setDrawerRec(null), 1200);
-        }}
-      />
     </div>
   );
 }
