@@ -966,6 +966,11 @@ Your saved places, all in one spot
           itemId={modalItemId}
           onClose={() => setModalItemId(null)}
           onTagsUpdated={handleTagsUpdated}
+          onAssigned={(itemId, trip) =>
+            setSaves(prev => prev.map(s =>
+              s.id === itemId ? { ...s, tripId: trip.id || null, assigned: trip.title || null } : s
+            ))
+          }
         />
       )}
 
