@@ -683,7 +683,7 @@ export default function DiscoverPage() {
                 const familyName = trip.isAnonymous || !trip.familyProfile?.familyName
                   ? "A Flokk Family"
                   : `${trip.familyProfile.familyName} Family`;
-                const cardHref = trip.shareToken ? `/share/${trip.shareToken}` : `/trips/${trip.id}`;
+                const cardHref = `/trips/${trip.id}`;
                 return (
                   <Link key={trip.id} href={cardHref} style={{ textDecoration: "none", display: "block" }}>
                     <div
