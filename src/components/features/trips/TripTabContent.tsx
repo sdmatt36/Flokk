@@ -717,20 +717,38 @@ function LodgingDateModal({ itemTitle, onConfirm, onClose }: {
   );
 }
 
-function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDelete, assignedDay }: {
+const ALL_CATEGORY_TAGS = ["Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other"];
+
+function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDelete, assignedDay, onTagsUpdated }: {
   item: SavedDisplayItem;
   onClose: () => void;
   onAddToItinerary?: () => void;
   onMarkBooked?: () => void;
   onDelete?: () => void;
   assignedDay?: number;
+  onTagsUpdated?: (itemId: string, tags: string[]) => void;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
+  const [localTags, setLocalTags] = useState<string[]>(item.categoryTags ?? []);
+  const [editingTags, setEditingTags] = useState(false);
+  const initialTags = useRef(item.categoryTags ?? []);
   const initial = item.title.replace(/^www\./, "").charAt(0).toUpperCase();
-  const categoryLabel = item.categoryTags?.slice(0, 2).join(" · ") ?? "";
+  const categoryLabel = localTags.filter(t => !["VG", "VGN"].includes(t)).slice(0, 2).join(" · ");
+
+  function toggleTag(tag: string) {
+    setLocalTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+  }
+
+  function handleClose() {
+    if (item.id && JSON.stringify(localTags.slice().sort()) !== JSON.stringify(initialTags.current.slice().sort())) {
+      fetch(`/api/saves/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ categoryTags: localTags }) }).catch(() => {});
+      onTagsUpdated?.(item.id, localTags);
+    }
+    onClose();
+  }
   return createPortal(
     <div
-      onClick={onClose}
+      onClick={handleClose}
       style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
     >
       <div
@@ -749,7 +767,7 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
               <span style={{ fontSize: "48px", fontWeight: 900, color: "rgba(255,255,255,0.35)" }}>{initial}</span>
             </div>
           )}
-          <button onClick={onClose} style={{ position: "absolute", top: "12px", right: "12px", width: "32px", height: "32px", borderRadius: "50%", backgroundColor: "rgba(0,0,0,0.5)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "18px", lineHeight: 1 }}>×</button>
+          <button onClick={handleClose} style={{ position: "absolute", top: "12px", right: "12px", width: "32px", height: "32px", borderRadius: "50%", backgroundColor: "rgba(0,0,0,0.5)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "18px", lineHeight: 1 }}>×</button>
           {item.statusBooked && (
             <span style={{ position: "absolute", bottom: "12px", left: "12px", fontSize: "11px", fontWeight: 700, backgroundColor: "rgba(74,124,89,0.9)", color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>Booked ✓</span>
           )}
@@ -761,6 +779,42 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
           {categoryLabel && (
             <span style={{ display: "inline-block", fontSize: "11px", fontWeight: 600, backgroundColor: "rgba(196,102,74,0.1)", color: "#C4664A", borderRadius: "999px", padding: "2px 10px", marginBottom: "8px" }}>{categoryLabel}</span>
           )}
+
+          {/* Tag editing */}
+          <div style={{ marginBottom: "12px" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
+              {localTags.filter(t => !["VG", "VGN"].includes(t)).map(tag => (
+                <button key={tag} onClick={() => toggleTag(tag)}
+                  style={{ fontSize: "11px", fontWeight: 600, background: "#C4664A", color: "#fff", borderRadius: "999px", padding: "3px 10px", border: "none", cursor: "pointer" }}>
+                  {tag}
+                </button>
+              ))}
+              {localTags.length === 0 && !editingTags && (
+                <span style={{ fontSize: "12px", color: "#aaa" }}>No tags yet</span>
+              )}
+              <button onClick={() => setEditingTags(e => !e)}
+                style={{ fontSize: "11px", fontWeight: 600, color: "#C4664A", border: "1.5px solid #C4664A", borderRadius: "999px", padding: "3px 10px", background: "none", cursor: "pointer" }}>
+                {editingTags ? "Done" : "Edit tags"}
+              </button>
+            </div>
+            {editingTags && (
+              <div style={{ marginTop: "8px", padding: "12px", backgroundColor: "#FAFAFA", borderRadius: "10px", border: "1px solid rgba(0,0,0,0.08)" }}>
+                <p style={{ fontSize: "11px", color: "#999", marginBottom: "8px", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Tap to toggle</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                  {ALL_CATEGORY_TAGS.map(tag => {
+                    const active = localTags.includes(tag);
+                    return (
+                      <button key={tag} onClick={() => toggleTag(tag)}
+                        style={{ fontSize: "12px", fontWeight: 600, padding: "5px 12px", borderRadius: "999px", border: "1.5px solid", borderColor: active ? "#C4664A" : "#D0D0D0", backgroundColor: active ? "#C4664A" : "#fff", color: active ? "#fff" : "#666", cursor: "pointer" }}>
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
           {item.detail && <p style={{ fontSize: "13px", color: "#717171", marginBottom: "12px" }}>{item.detail}</p>}
           {item.description && (
             <p style={{ fontSize: "14px", color: "#444", lineHeight: 1.6, marginBottom: "16px" }}>{item.description}</p>
@@ -1369,6 +1423,10 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
             setDetailItem(null);
           }}
           onDelete={() => { handleDeleteSave(detailItem); setDetailItem(null); }}
+          onTagsUpdated={(itemId, tags) => {
+            setLeftSections(prev => prev.map(s => ({ ...s, items: s.items.map(i => i.id === itemId ? { ...i, categoryTags: tags } : i) })));
+            setRightSections(prev => prev.map(s => ({ ...s, items: s.items.map(i => i.id === itemId ? { ...i, categoryTags: tags } : i) })));
+          }}
         />
       )}
     </div>
