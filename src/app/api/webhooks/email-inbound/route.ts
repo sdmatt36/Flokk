@@ -898,24 +898,29 @@ Field notes:
         const outboundVaultLabel = outboundFrom && outboundTo
           ? `${outboundFrom} → ${outboundTo}`
           : `${(extracted.airline as string) ?? ""} ${extracted.flightNumber as string}`.trim();
-        await db.tripDocument.create({
-          data: {
-            tripId: resolvedTripId,
-            label: outboundVaultLabel,
-            type: "booking",
-            content: JSON.stringify({
-              type: "flight", vendorName: extracted.airline, flightNumber: extracted.flightNumber,
-              airline: extracted.airline, fromAirport: extracted.fromAirport, toAirport: extracted.toAirport,
-              fromCity: extracted.fromCity, toCity: extracted.toCity,
-              departureDate: extracted.departureDate, departureTime: extracted.departureTime,
-              arrivalDate: extracted.arrivalDate, arrivalTime: extracted.arrivalTime,
-              confirmationCode: extracted.confirmationCode,
-              totalCost: extracted.totalCost, currency: extracted.currency,
-              guestNames: extracted.guestNames, returnDepartureDate: extracted.returnDepartureDate,
-            }),
-          },
-        });
-        console.log("[email-inbound] created outbound vault doc for trip:", resolvedTripId);
+        const existingOutboundDoc = await db.tripDocument.findFirst({ where: { tripId: resolvedTripId, label: outboundVaultLabel } });
+        if (existingOutboundDoc) {
+          console.log("[vault] Skipping duplicate tripDocument:", outboundVaultLabel);
+        } else {
+          await db.tripDocument.create({
+            data: {
+              tripId: resolvedTripId,
+              label: outboundVaultLabel,
+              type: "booking",
+              content: JSON.stringify({
+                type: "flight", vendorName: extracted.airline, flightNumber: extracted.flightNumber,
+                airline: extracted.airline, fromAirport: extracted.fromAirport, toAirport: extracted.toAirport,
+                fromCity: extracted.fromCity, toCity: extracted.toCity,
+                departureDate: extracted.departureDate, departureTime: extracted.departureTime,
+                arrivalDate: extracted.arrivalDate, arrivalTime: extracted.arrivalTime,
+                confirmationCode: extracted.confirmationCode,
+                totalCost: extracted.totalCost, currency: extracted.currency,
+                guestNames: extracted.guestNames, returnDepartureDate: extracted.returnDepartureDate,
+              }),
+            },
+          });
+          console.log("[email-inbound] created outbound vault doc for trip:", resolvedTripId);
+        }
       }
 
       // FIX 2: Return flight ItineraryItem
@@ -988,26 +993,31 @@ Field notes:
           const returnVaultLabel = returnVaultFrom && returnVaultTo
             ? `${returnVaultFrom} → ${returnVaultTo}`
             : `${(extracted.airline as string) ?? ""} ${extracted.flightNumber as string} (return)`.trim();
-          await db.tripDocument.create({
-            data: {
-              tripId: resolvedTripId,
-              label: returnVaultLabel,
-              type: "booking",
-              content: JSON.stringify({
-                type: "flight", vendorName: extracted.airline,
-                flightNumber: ((extracted.flightNumber as string) ?? "") + " (return)",
-                airline: extracted.airline,
-                fromAirport: extracted.returnFromAirport ?? extracted.toAirport,
-                toAirport: extracted.returnToAirport ?? extracted.fromAirport,
-                fromCity: extracted.toCity, toCity: extracted.fromCity,
-                departureDate: extracted.returnDepartureDate, departureTime: extracted.returnDepartureTime,
-                arrivalDate: extracted.returnArrivalDate ?? null, arrivalTime: extracted.returnArrivalTime ?? null,
-                confirmationCode: extracted.confirmationCode,
-                totalCost: null, currency: extracted.currency, guestNames: extracted.guestNames,
-              }),
-            },
-          });
-          console.log("[email-inbound] created return vault doc for trip:", resolvedTripId);
+          const existingReturnDoc = await db.tripDocument.findFirst({ where: { tripId: resolvedTripId, label: returnVaultLabel } });
+          if (existingReturnDoc) {
+            console.log("[vault] Skipping duplicate tripDocument:", returnVaultLabel);
+          } else {
+            await db.tripDocument.create({
+              data: {
+                tripId: resolvedTripId,
+                label: returnVaultLabel,
+                type: "booking",
+                content: JSON.stringify({
+                  type: "flight", vendorName: extracted.airline,
+                  flightNumber: ((extracted.flightNumber as string) ?? "") + " (return)",
+                  airline: extracted.airline,
+                  fromAirport: extracted.returnFromAirport ?? extracted.toAirport,
+                  toAirport: extracted.returnToAirport ?? extracted.fromAirport,
+                  fromCity: extracted.toCity, toCity: extracted.fromCity,
+                  departureDate: extracted.returnDepartureDate, departureTime: extracted.returnDepartureTime,
+                  arrivalDate: extracted.returnArrivalDate ?? null, arrivalTime: extracted.returnArrivalTime ?? null,
+                  confirmationCode: extracted.confirmationCode,
+                  totalCost: null, currency: extracted.currency, guestNames: extracted.guestNames,
+                }),
+              },
+            });
+            console.log("[email-inbound] created return vault doc for trip:", resolvedTripId);
+          }
         }
       }
 
@@ -1064,21 +1074,26 @@ Field notes:
 
           // Vault doc for return leg
           if (resolvedTripId) {
-            await db.tripDocument.create({
-              data: {
-                tripId: resolvedTripId,
-                label: retTitle,
-                type: "booking",
-                content: JSON.stringify({
-                  type: "flight", vendorName: extracted.airline, airline: extracted.airline,
-                  fromAirport: returnLeg.from, toAirport: returnLeg.to,
-                  fromCity: returnLeg.fromCity ?? returnLeg.from, toCity: returnLeg.toCity ?? returnLeg.to,
-                  departureDate: retDate || null, departureTime: retTime ?? null,
-                  confirmationCode: extracted.confirmationCode,
-                  totalCost: null, currency: extracted.currency, guestNames: extracted.guestNames,
-                }),
-              },
-            });
+            const existingRetLegDoc = await db.tripDocument.findFirst({ where: { tripId: resolvedTripId, label: retTitle } });
+            if (existingRetLegDoc) {
+              console.log("[vault] Skipping duplicate tripDocument:", retTitle);
+            } else {
+              await db.tripDocument.create({
+                data: {
+                  tripId: resolvedTripId,
+                  label: retTitle,
+                  type: "booking",
+                  content: JSON.stringify({
+                    type: "flight", vendorName: extracted.airline, airline: extracted.airline,
+                    fromAirport: returnLeg.from, toAirport: returnLeg.to,
+                    fromCity: returnLeg.fromCity ?? returnLeg.from, toCity: returnLeg.toCity ?? returnLeg.to,
+                    departureDate: retDate || null, departureTime: retTime ?? null,
+                    confirmationCode: extracted.confirmationCode,
+                    totalCost: null, currency: extracted.currency, guestNames: extracted.guestNames,
+                  }),
+                },
+              });
+            }
           }
         }
       }
