@@ -386,24 +386,43 @@ export default async function SharePage({
         </div>
       </header>
 
-      {/* ── ShareItineraryView: full-width, handles hero + all sections ── */}
-      <ShareItineraryView
-        days={daysData}
-        isLoggedIn={isLoggedIn}
-        isOwner={isOwner}
-        shareToken={token}
-        heroImageUrl={heroImg}
-        tripTitle={trip.title ?? destination}
-        destination={destination}
-        dateRange={dateRange}
-        durationDays={days}
-        curatorName={curatorName}
-        viewCount={trip.viewCount}
-        totalActivityCount={totalActivityCount}
-        tripDestination={tripDestination}
-      />
+      {/* ── Hero ── */}
+      <div
+        style={{
+          height: "280px",
+          position: "relative",
+          overflow: "hidden",
+          backgroundColor: "#1a1a1a",
+          backgroundImage: `url('${heroImg}')`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.80) 100%)" }} />
+        <div style={{ position: "absolute", bottom: "24px", left: "24px", right: "24px", zIndex: 2 }}>
+          <h1 style={{ fontSize: "30px", fontWeight: 900, color: "#fff", lineHeight: 1.1, marginBottom: "8px", textShadow: "0 2px 12px rgba(0,0,0,0.4)" }}>
+            {trip.title}
+          </h1>
+          <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.9)", fontWeight: 500, marginBottom: "4px" }}>
+            {[destination, dateRange].filter(Boolean).join(" · ")}
+          </p>
+          <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.65)" }}>
+            Shared by {curatorName} · {days ?? "—"} days
+          </p>
+        </div>
+      </div>
 
       <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "0 24px" }}>
+
+        {/* ── Day-by-day itinerary (client component handles day/category toggle) ── */}
+        {daysData.length > 0 && (
+          <ShareItineraryView
+            days={daysData}
+            isLoggedIn={isLoggedIn}
+            shareToken={token}
+            heroImageUrl={heroImg}
+          />
+        )}
 
         {/* ── Nearby saved places (photo grid, 3+ only) ── */}
         {nearbySaves.length >= 3 && (
@@ -452,6 +471,24 @@ export default async function SharePage({
             Messaging coming soon — join Flokk to be notified when it launches.
           </p>
         </div>
+
+        {/* ── What is Flokk? (non-logged-in only) ── */}
+        {!isLoggedIn && (
+          <div style={{ marginTop: "32px", paddingTop: "32px", borderTop: "1px solid #F0F0F0", textAlign: "center" }}>
+            <p style={{ fontSize: "14px", color: "#6b7280", marginBottom: "6px" }}>
+              Flokk is free family travel planning.
+            </p>
+            <p style={{ fontSize: "13px", color: "#9ca3af", marginBottom: "16px" }}>
+              Save places, plan days, forward booking emails. Built for families.
+            </p>
+            <a
+              href="/sign-up"
+              style={{ display: "inline-block", padding: "10px 24px", backgroundColor: "#1B3A5C", color: "#fff", fontSize: "13px", fontWeight: 700, borderRadius: "999px", textDecoration: "none" }}
+            >
+              Join free
+            </a>
+          </div>
+        )}
 
         {/* Empty state */}
         {allDayIndices.length === 0 && nearbySaves.length === 0 && (
