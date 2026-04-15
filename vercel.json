@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/enrich-manual-activities",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/enrich-saved-items",
+      "schedule": "0 4 * * *"
     }
   ]
 }
