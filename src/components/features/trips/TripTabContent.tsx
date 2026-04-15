@@ -5223,14 +5223,16 @@ const STAR_LABELS: Record<number, string> = {
 
 const EXCLUDE_SAVE_TAGS = /flight|airfare|airline|lodging|accommodation|hotel|transportation/i;
 
-function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, shareToken, onComplete, onNavigateToItinerary, onDoneCapturing }: {
+function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureComplete, shareToken, onComplete, onNavigateToItinerary, onDoneCapturing, onShowSharePrompt }: {
   tripId: string;
+  tripTitle?: string | null;
   destinationCity?: string | null;
   postTripCaptureComplete: boolean;
   shareToken?: string;
   onComplete: () => void;
   onNavigateToItinerary: () => void;
   onDoneCapturing: () => void;
+  onShowSharePrompt?: () => void;
 }) {
   const [items, setItems] = useState<HowWasItItem[]>([]);
   const [done, setDone] = useState(postTripCaptureComplete);
@@ -5349,26 +5351,35 @@ function HowWasItContent({ tripId, destinationCity, postTripCaptureComplete, sha
       })
     ));
     const totalRatings = existingRatingsCount + toSubmit.length;
+    let shouldShowSharePrompt = false;
     if (totalRatings >= 3) {
-      await fetch(`/api/trips/${tripId}/post-trip-status`, {
+      const res = await fetch(`/api/trips/${tripId}/post-trip-status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ postTripCaptureStarted: true, postTripCaptureComplete: true }),
       });
+      const data = await res.json();
+      if (data.showSharePrompt) shouldShowSharePrompt = true;
       setCapturedToast(`Amazing — your ratings are now helping other families plan their trip${destinationCity ? ` to ${destinationCity}` : ""}.`);
       setTimeout(() => setCapturedToast(null), 5000);
       onDoneCapturing();
     } else {
-      await fetch(`/api/trips/${tripId}/post-trip-status`, {
+      const res = await fetch(`/api/trips/${tripId}/post-trip-status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ postTripCaptureComplete: true }),
       });
+      const data = await res.json();
+      if (data.showSharePrompt) shouldShowSharePrompt = true;
     }
     setDone(true);
     onComplete();
     setSubmitting(false);
-    setTimeout(() => onNavigateToItinerary(), 2000);
+    if (shouldShowSharePrompt && onShowSharePrompt) {
+      onShowSharePrompt();
+    } else {
+      setTimeout(() => onNavigateToItinerary(), 2000);
+    }
   }
 
   async function handleDoneCapturing() {
@@ -5620,7 +5631,7 @@ type SavedRec = {
   tags: string;
 };
 
-export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true, shareToken, tripStatus, initialPostTripCaptureStarted = false, initialPostTripCaptureComplete = false, initialPostTripModalVisitCount = 0, viewerMembers }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean; shareToken?: string; tripStatus?: string; initialPostTripCaptureStarted?: boolean; initialPostTripCaptureComplete?: boolean; initialPostTripModalVisitCount?: number; viewerMembers?: { role: "ADULT" | "CHILD"; name: string; birthDate: string | null }[] }) {
+export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true, initialIsPublic = false, shareToken, tripStatus, initialPostTripCaptureStarted = false, initialPostTripCaptureComplete = false, initialPostTripModalVisitCount = 0, viewerMembers }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean; initialIsPublic?: boolean; shareToken?: string; tripStatus?: string; initialPostTripCaptureStarted?: boolean; initialPostTripCaptureComplete?: boolean; initialPostTripModalVisitCount?: number; viewerMembers?: { role: "ADULT" | "CHILD"; name: string; birthDate: string | null }[] }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [postTripCaptureStarted, setPostTripCaptureStarted] = useState(initialPostTripCaptureStarted);
   const [postTripCaptureComplete, setPostTripCaptureComplete] = useState(initialPostTripCaptureComplete);
@@ -5665,6 +5676,8 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [isAnonymous, setIsAnonymous] = useState<boolean>(initialIsAnonymous);
   const [anonymousSaved, setAnonymousSaved] = useState(false);
   const [showTripSettings, setShowTripSettings] = useState(false);
+  const [isPublic, setIsPublic] = useState(initialIsPublic);
+  const [showSharePrompt, setShowSharePrompt] = useState(false);
   const [editTripTitle, setEditTripTitle] = useState('');
   const [editStartDate, setEditStartDate] = useState('');
   const [editEndDate, setEditEndDate] = useState('');
@@ -6676,12 +6689,14 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       {tab === "howwasit" && tripId && (
         <HowWasItContent
           tripId={tripId}
+          tripTitle={tripTitle}
           destinationCity={destinationCity}
           postTripCaptureComplete={postTripCaptureComplete}
           shareToken={shareToken}
           onComplete={() => setPostTripCaptureComplete(true)}
           onNavigateToItinerary={() => setTab("itinerary")}
           onDoneCapturing={() => setPostTripCaptureStarted(true)}
+          onShowSharePrompt={() => setShowSharePrompt(true)}
         />
       )}
 
@@ -7035,6 +7050,24 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
 
             <div className="pt-4 border-t border-gray-100">
               <p className="text-sm font-semibold text-[#0A1628] mb-3">Community visibility</p>
+              <label className="flex items-start gap-3 cursor-pointer mb-4">
+                <input
+                  type="checkbox"
+                  checked={isPublic}
+                  onChange={async (e) => {
+                    const next = e.target.checked;
+                    setIsPublic(next);
+                    if (tripId) await fetch(`/api/trips/${tripId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isPublic: next }) });
+                  }}
+                  className="mt-0.5 w-4 h-4 accent-[#C4664A]"
+                />
+                <div>
+                  <p className="text-sm text-[#0A1628]">Share on Discover</p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    When on, your completed trip appears in the Real Trips section on the Discover page.
+                  </p>
+                </div>
+              </label>
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
@@ -7052,6 +7085,44 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               {anonymousSaved && (
                 <p className="text-xs text-green-600 mt-2 ml-7">Saved</p>
               )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Share with community prompt ── */}
+      {showSharePrompt && createPortal(
+        <div
+          onClick={() => { setShowSharePrompt(false); setTab("itinerary"); }}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.45)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ backgroundColor: "#fff", borderRadius: "20px", width: "100%", maxWidth: "420px", padding: "32px 24px 28px" }}
+          >
+            <p style={{ fontSize: "22px", fontWeight: 900, color: "#1B3A5C", fontFamily: "'Playfair Display', Georgia, serif", marginBottom: "12px" }}>Share this trip?</p>
+            <p style={{ fontSize: "14px", color: "#555", lineHeight: 1.6, marginBottom: "24px" }}>
+              Your {tripTitle ?? "trip"} itinerary will appear on the Discover page so other families can steal it. Your ratings already power Community Picks.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <button
+                onClick={async () => {
+                  if (tripId) await fetch(`/api/trips/${tripId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isPublic: true }) });
+                  setIsPublic(true);
+                  setShowSharePrompt(false);
+                  setTab("itinerary");
+                }}
+                style={{ width: "100%", padding: "14px", backgroundColor: "#C4664A", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Share it
+              </button>
+              <button
+                onClick={() => { setShowSharePrompt(false); setTab("itinerary"); }}
+                style={{ width: "100%", padding: "14px", backgroundColor: "transparent", color: "#1B3A5C", border: "2px solid #1B3A5C", borderRadius: "12px", fontSize: "15px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Keep it private
+              </button>
             </div>
           </div>
         </div>,

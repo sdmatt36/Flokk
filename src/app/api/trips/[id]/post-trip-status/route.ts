@@ -22,6 +22,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (body.postTripCaptureStarted !== undefined) data.postTripCaptureStarted = body.postTripCaptureStarted;
   if (body.postTripCaptureComplete !== undefined) data.postTripCaptureComplete = body.postTripCaptureComplete;
 
+  const showSharePrompt = body.postTripCaptureComplete === true && !trip.isPublic;
   const updated = await db.trip.update({ where: { id: tripId }, data });
-  return NextResponse.json({ trip: updated });
+  return NextResponse.json({ trip: updated, showSharePrompt });
 }
