@@ -117,6 +117,10 @@ export function SaveDetailModal({
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [bodyDropdownOpen, setBodyDropdownOpen] = useState(false);
   const [userRating, setUserRating] = useState<number | null>(null);
+  const [localWebsiteUrl, setLocalWebsiteUrl] = useState<string | null>(null);
+  const [editingUrl, setEditingUrl] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
+  const [urlError, setUrlError] = useState("");
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialNotes = useRef("");
   const initialTags = useRef<string[]>([]);
@@ -137,6 +141,7 @@ export function SaveDetailModal({
         setAssignedTrip(data.item?.trip ?? null);
         setIsBooked(data.item?.isBooked ?? false);
         setStartTime(data.item?.startTime ?? "");
+        setLocalWebsiteUrl(data.item?.websiteUrl ?? null);
         setUserRating(data.item?.userRating ?? null);
         initialNotes.current = data.item?.notes ?? "";
         const tags = data.item?.categoryTags ?? [];
@@ -421,6 +426,81 @@ export function SaveDetailModal({
                 </p>
               );
             })()}
+
+            {/* Visit site + URL edit */}
+            <div style={{ marginBottom: "16px" }}>
+              {localWebsiteUrl ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                  <a
+                    href={localWebsiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
+                  >
+                    Visit site →
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => { setUrlInput(localWebsiteUrl); setEditingUrl(true); setUrlError(""); }}
+                    style={{ fontSize: "12px", color: "#aaa", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+                  >
+                    Edit URL
+                  </button>
+                </div>
+              ) : !editingUrl ? (
+                <button
+                  type="button"
+                  onClick={() => { setUrlInput(""); setEditingUrl(true); setUrlError(""); }}
+                  style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+                >
+                  + Add URL
+                </button>
+              ) : null}
+              {editingUrl && (
+                <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  <input
+                    type="url"
+                    value={urlInput}
+                    onChange={e => { setUrlInput(e.target.value); setUrlError(""); }}
+                    placeholder="https://..."
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: `1px solid ${urlError ? "#e53e3e" : "rgba(0,0,0,0.12)"}`, fontSize: "13px", color: "#333", outline: "none", fontFamily: "-apple-system,BlinkMacSystemFont,sans-serif", boxSizing: "border-box" }}
+                  />
+                  {urlError && <p style={{ fontSize: "12px", color: "#e53e3e", margin: 0 }}>{urlError}</p>}
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const val = urlInput.trim();
+                        if (!val.startsWith("http://") && !val.startsWith("https://")) {
+                          setUrlError("Please enter a valid URL");
+                          return;
+                        }
+                        try {
+                          await fetch(`/api/saves/${itemId}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ websiteUrl: val }),
+                          });
+                          setLocalWebsiteUrl(val);
+                          setEditingUrl(false);
+                          setUrlError("");
+                        } catch { setUrlError("Failed to save. Try again."); }
+                      }}
+                      style={{ fontSize: "12px", fontWeight: 700, padding: "5px 14px", borderRadius: "999px", backgroundColor: "#C4664A", color: "#fff", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setEditingUrl(false); setUrlError(""); }}
+                      style={{ fontSize: "12px", fontWeight: 600, padding: "5px 14px", borderRadius: "999px", backgroundColor: "transparent", color: "#aaa", border: "1px solid #ddd", cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Trip assignment */}
             <div onClick={e => e.stopPropagation()} style={{ position: "relative", marginBottom: "16px" }}>
