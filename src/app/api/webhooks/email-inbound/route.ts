@@ -634,7 +634,7 @@ Field notes:
           .filter((v): v is string => typeof v === "string" && v.length > 0)
           .flatMap((v) => normalizeLocationToKeywords(v))
       ),
-    ];
+    ].filter((k) => k.length > 2);
 
     console.log(`[email-match] type: ${extracted.type ?? "unknown"} | toCity: ${extracted.toCity ?? "null"} | fromCity: ${extracted.fromCity ?? "null"} | city: ${extracted.city ?? "null"} | country: ${extracted.country ?? "null"} | bookingDate: ${bookingDate ?? "null"}`);
     console.log(`[email-match] destKeywords: [${destKeywords.join(", ")}]`);
