@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { sendTripStolenEvent } from "@/lib/loops";
 
 export async function POST(
   req: Request,
@@ -120,6 +121,19 @@ export async function POST(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await db.savedItem.createMany({ data: savedItems as any[] });
+
+  // Loops: notify original trip owner that their trip was stolen
+  try {
+    const sourceTripOwner = await db.trip.findUnique({
+      where: { id: sourceId },
+      select: { familyProfile: { select: { user: { select: { email: true } } } }, destinationCity: true },
+    });
+    if (sourceTripOwner?.familyProfile?.user?.email) {
+      await sendTripStolenEvent(sourceTripOwner.familyProfile.user.email, {
+        tripDestination: sourceTripOwner.destinationCity ?? "your destination",
+      });
+    }
+  } catch (e) { console.error("[loops] trip_stolen event error", e); }
 
   return NextResponse.json({
     copied: savedItems.length,

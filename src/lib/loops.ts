@@ -89,3 +89,53 @@ export async function sendTransactional(
     console.error("[loops] sendTransactional failed:", e);
   }
 }
+
+export async function sendSaveMilestoneEvent(email: string, count: number) {
+  try {
+    await fetch("https://app.loops.so/api/v1/events/send", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.LOOPS_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, eventName: "save_milestone", saveCount: count }),
+    });
+  } catch (e) { console.error("[loops] sendSaveMilestoneEvent error", e); }
+}
+
+export async function sendTripStolenEvent(email: string, { tripDestination }: { tripDestination: string }) {
+  try {
+    await fetch("https://app.loops.so/api/v1/events/send", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.LOOPS_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, eventName: "trip_stolen", tripDestination }),
+    });
+  } catch (e) { console.error("[loops] sendTripStolenEvent error", e); }
+}
+
+export async function sendTripMadePublicEvent(email: string, { tripDestination }: { tripDestination: string }) {
+  try {
+    await fetch("https://app.loops.so/api/v1/events/send", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.LOOPS_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, eventName: "trip_made_public", tripDestination }),
+    });
+  } catch (e) { console.error("[loops] sendTripMadePublicEvent error", e); }
+}
+
+export async function sendRatingsCompleteEvent(email: string, { tripDestination }: { tripDestination: string }) {
+  try {
+    await fetch("https://app.loops.so/api/v1/events/send", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.LOOPS_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, eventName: "ratings_complete", tripDestination }),
+    });
+  } catch (e) { console.error("[loops] sendRatingsCompleteEvent error", e); }
+}
+
+export async function updateLoopsContact(email: string, properties: Record<string, string | number | boolean>) {
+  try {
+    await fetch("https://app.loops.so/api/v1/contacts/update", {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${process.env.LOOPS_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, ...properties }),
+    });
+  } catch (e) { console.error("[loops] updateLoopsContact error", e); }
+}

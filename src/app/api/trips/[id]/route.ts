@@ -1,7 +1,8 @@
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { sendTripMadePublicEvent } from "@/lib/loops";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,17 @@ export async function PATCH(
   if (postTripModalVisitCount !== undefined) data.postTripModalVisitCount = postTripModalVisitCount;
 
   const updated = await db.trip.update({ where: { id }, data });
+
+  // Loops: fire trip_made_public when isPublic flips from false → true
+  if (isPublic === true && !trip.isPublic) {
+    try {
+      const clerkUser = await currentUser();
+      const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? "";
+      await sendTripMadePublicEvent(email, {
+        tripDestination: updated.destinationCity ?? updated.title ?? "your destination",
+      });
+    } catch (e) { console.error("[loops] trip_made_public event error", e); }
+  }
 
   return NextResponse.json({ trip: updated });
 }

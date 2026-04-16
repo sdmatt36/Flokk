@@ -29,7 +29,7 @@ import { z, ZodError } from "zod";
 import { extractOgMetadata } from "@/lib/og-extract";
 import type { SourceType } from "@prisma/client";
 import { getVenueImage } from "@/lib/destination-images";
-import { sendTransactional } from "@/lib/loops";
+import { sendTransactional, sendSaveMilestoneEvent } from "@/lib/loops";
 import { enrichSavedItem } from "@/lib/enrich-save";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
@@ -262,7 +262,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // Loops: fire first-save if this is their first saved item
+    // Loops: fire first-save if this is their first saved item; milestones at 10 and 25
     try {
       const saveCount = await db.savedItem.count({ where: { familyProfileId: saveProfile.id } });
       if (saveCount === 1) {
@@ -273,6 +273,11 @@ export async function POST(request: Request) {
           firstName,
           itemTitle: savedItem.rawTitle ?? "",
         });
+      }
+      if (saveCount === 10 || saveCount === 25) {
+        const clerkUser = await currentUser();
+        const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? "";
+        await sendSaveMilestoneEvent(email, saveCount);
       }
     } catch (e) {
       console.error("[loops] first-save trigger failed:", e);
