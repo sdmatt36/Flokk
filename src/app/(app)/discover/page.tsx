@@ -767,12 +767,12 @@ export default function DiscoverPage() {
                 onClick={() => { setPicksFilter(f); setShowAllPicks(false); }}
                 style={{
                   flexShrink: 0,
-                  padding: "7px 16px",
+                  padding: "5px 12px",
                   borderRadius: "999px",
                   border: picksFilter === f ? "none" : "1.5px solid #E0E0E0",
                   backgroundColor: picksFilter === f ? "#C4664A" : "#fff",
                   color: picksFilter === f ? "#fff" : "#717171",
-                  fontSize: "13px",
+                  fontSize: "12px",
                   fontWeight: picksFilter === f ? 700 : 500,
                   lineHeight: "1",
                   cursor: "pointer",
