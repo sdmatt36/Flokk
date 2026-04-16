@@ -771,7 +771,7 @@ Field notes:
       if (autoType === "flight" || autoType === "hotel") {
         const rawToCity = (extracted.toCity as string | null)?.trim() ?? null;
         const rawCity = (extracted.city as string | null)?.trim() ?? null;
-        const autoDestCity = rawToCity || rawCity || null;
+        const autoDestCity = (rawToCity || rawCity || null)?.replace(/,\s*[A-Z]{2}$/, "").trim() ?? null;
         if (autoDestCity) {
           const autoDestCountry = (extracted.country as string | null) ?? null;
           const rawDate = (extracted.departureDate as string | null) ?? (extracted.checkIn as string | null) ?? null;
@@ -785,6 +785,7 @@ Field notes:
           }
           const autoStart = (extracted.departureDate as string | null) ?? (extracted.checkIn as string | null) ?? null;
           const autoEnd = (extracted.returnDepartureDate as string | null) ?? (extracted.checkOut as string | null) ?? null;
+          const autoStatus = autoEnd && new Date(autoEnd) < new Date() ? "COMPLETED" : "PLANNING";
           const autoShareToken = nanoid(12);
           const autoTrip = await db.trip.create({
             data: {
@@ -793,7 +794,7 @@ Field notes:
               destinationCountry: autoDestCountry,
               startDate: autoStart ? new Date(autoStart) : null,
               endDate: autoEnd ? new Date(autoEnd) : null,
-              status: "PLANNING",
+              status: autoStatus,
               shareToken: autoShareToken,
               familyProfileId: familyProfile.id,
             },
