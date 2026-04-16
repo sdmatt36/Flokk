@@ -431,6 +431,7 @@ export default async function SharePage({
           <ShareItineraryView
             days={daysData}
             isLoggedIn={isLoggedIn}
+            isOwner={isOwner}
             shareToken={token}
             heroImageUrl={heroImg}
           />

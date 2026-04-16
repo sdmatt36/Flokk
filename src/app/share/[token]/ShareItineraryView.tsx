@@ -59,6 +59,15 @@ function buildAllMarkers(days: DayData[]): MarkerDef[] {
   return markers;
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  ACT: "Activity",
+  FLT: "Flight",
+  RAIL: "Train",
+  HOTEL: "Hotel",
+  TRANSFER: "Transfer",
+  RESTAURANT: "Restaurant",
+};
+
 function buildDayMarkers(day: DayData): MarkerDef[] {
   const markers: MarkerDef[] = [];
   let num = 0;
@@ -259,7 +268,7 @@ export function ShareItineraryView({
                   const dayNumLabel = labelParts[0] ?? day.label;
                   const datePart = labelParts[1] ?? null;
                   return (
-                    <div key={day.index} style={{ borderBottom: i < days.length - 1 ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
+                    <div key={day.index} style={{ border: "1px solid rgba(0,0,0,0.08)", borderBottom: i < days.length - 1 ? "1px solid rgba(0,0,0,0.06)" : "none" }}>
 
                       {/* Header row — click to expand/collapse */}
                       <div
@@ -342,7 +351,7 @@ export function ShareItineraryView({
                                   {item.tag && (
                                     <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "5px" }}>
                                       <span style={{ backgroundColor: "rgba(0,0,0,0.05)", color: "#666", fontSize: "11px", padding: "2px 8px", borderRadius: "999px" }}>
-                                        {item.tag}
+                                        {CATEGORY_LABELS[item.tag] ?? item.tag}
                                       </span>
                                     </div>
                                   )}
