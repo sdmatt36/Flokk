@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Instagram, Play, Youtube, Link as LinkIcon } from "lucide-react";
+import { Instagram, Play, Youtube, Link as LinkIcon, Mail } from "lucide-react";
 import { RecentSavesCards, type RecentSaveItem } from "./RecentSavesCards";
 import { DropLinkModal } from "./DropLinkModal";
 
@@ -18,13 +18,16 @@ export type SourceSaveItem = RecentSaveItem & { sourceType: string };
 export function SourceFilterSaves({
   items,
   trips,
+  itineraryItemCount = 1,
 }: {
   items: SourceSaveItem[];
   trips: { id: string; title: string; startDate: string | null; endDate: string | null }[];
+  itineraryItemCount?: number;
 }) {
   const [filter, setFilter] = useState<SourceFilter>("ALL");
   const [dropLinkOpen, setDropLinkOpen] = useState(false);
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+  const [tipDismissed, setTipDismissed] = useState(false);
 
   function handleDelete(id: string) {
     setDeletedIds(prev => new Set([...prev, id]));
@@ -76,6 +79,46 @@ export function SourceFilterSaves({
           </button>
         </div>
       </div>
+
+      {/* Email forwarding tip — shown only when user has no imported bookings */}
+      {itineraryItemCount === 0 && !tipDismissed && (
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          padding: "14px 16px",
+          marginTop: "16px",
+          backgroundColor: "#FDF6F4",
+          borderLeft: "3px solid #C4664A",
+          borderRadius: "8px",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1 }}>
+            <Mail size={16} style={{ color: "#C4664A", flexShrink: 0 }} />
+            <p style={{ margin: 0, fontSize: "13px", color: "#1B3A5C", lineHeight: 1.5 }}>
+              Forward any hotel, flight, or activity confirmation to{" "}
+              <span style={{ fontWeight: 600, color: "#C4664A" }}>trips@flokktravel.com</span>
+              {" "}and we&apos;ll file it into your trip automatically.
+            </p>
+          </div>
+          <button
+            onClick={() => setTipDismissed(true)}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "#AAAAAA",
+              fontSize: "18px",
+              lineHeight: 1,
+              padding: "0 4px",
+              flexShrink: 0,
+            }}
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Filtered recent saves */}
       <div style={{ marginTop: "20px" }}>

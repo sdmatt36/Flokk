@@ -170,6 +170,10 @@ export default async function HomePage() {
     }
   }
 
+  const itineraryItemCount = await db.itineraryItem.count({
+    where: { familyProfileId: profile.id },
+  });
+
   // Deduplicate saved items by rawTitle (keeps most recent), then take 6
   const seenTitles = new Set<string>();
   const dedupedSaves = profile.savedItems.filter(item => {
@@ -314,6 +318,7 @@ export default async function HomePage() {
                 sourceType: item.sourceType,
               }))}
               trips={activePlannedTrips.map(t => ({ id: t.id, title: t.title, startDate: t.startDate ? t.startDate.toISOString() : null, endDate: t.endDate ? t.endDate.toISOString() : null }))}
+              itineraryItemCount={itineraryItemCount}
             />
             </div>{/* end source filter wrapper */}
 
