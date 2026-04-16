@@ -61,6 +61,61 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Fetch community-rated places for this destination
+    const cityPattern = `%${destinationCity}%`;
+
+    const [manualActivityRows, itineraryItemRows] = await Promise.all([
+      db.$queryRaw<Array<{
+        id: string;
+        title: string;
+        address: string | null;
+        lat: number | null;
+        lng: number | null;
+        imageUrl: string | null;
+        avg_rating: number;
+      }>>`
+        SELECT ma.id, ma.title, ma.address, ma.lat, ma.lng, ma."imageUrl", AVG(pr.rating)::float AS avg_rating
+        FROM "ManualActivity" ma
+        INNER JOIN "PlaceRating" pr ON pr."manualActivityId" = ma.id
+        WHERE ma.city ILIKE ${cityPattern}
+        GROUP BY ma.id, ma.title, ma.address, ma.lat, ma.lng, ma."imageUrl"
+        ORDER BY avg_rating DESC
+        LIMIT 20
+      `,
+      db.$queryRaw<Array<{
+        title: string;
+        address: string | null;
+        latitude: number | null;
+        longitude: number | null;
+        avg_rating: number;
+      }>>`
+        SELECT ii.title, ii.address, ii.latitude, ii.longitude, AVG(pr.rating)::float AS avg_rating
+        FROM "ItineraryItem" ii
+        INNER JOIN "PlaceRating" pr ON pr."itineraryItemId" = ii.id
+        WHERE ii."toCity" ILIKE ${cityPattern}
+        GROUP BY ii.id, ii.title, ii.address, ii.latitude, ii.longitude
+        ORDER BY avg_rating DESC
+        LIMIT 10
+      `,
+    ]);
+
+    const seededPlaces: Array<{ name: string; address: string; lat: number; lng: number; avgRating: number }> = [
+      ...manualActivityRows.map(r => ({
+        name: r.title,
+        address: r.address ?? "",
+        lat: r.lat ?? 0,
+        lng: r.lng ?? 0,
+        avgRating: r.avg_rating,
+      })),
+      ...itineraryItemRows.map(r => ({
+        name: r.title,
+        address: r.address ?? "",
+        lat: r.latitude ?? 0,
+        lng: r.longitude ?? 0,
+        avgRating: r.avg_rating,
+      })),
+    ];
+
     const systemPrompt = `You are a family travel itinerary expert. Generate a themed day tour with 5–8 stops for the given destination and theme. Return ONLY valid JSON — no markdown, no preamble. Return an array of stops. Each stop must be:
 {
   "name": string,
@@ -73,7 +128,11 @@ export async function POST(req: NextRequest) {
 }
 Order stops logically by geography to minimize travel time. Use real, well-known places.`;
 
-    const userMessage = `Theme: ${prompt}
+    const seededContext = seededPlaces.length > 0
+      ? `Community-rated places in ${destinationCity} from real families (use these first when relevant):\n${seededPlaces.map(p => `${p.name} — ${p.address} (rated ${p.avgRating.toFixed(1)}/5)`).join("\n")}\n\n`
+      : "";
+
+    const userMessage = `${seededContext}Theme: ${prompt}
 Destination: ${destinationCity}${familyContext ? `\n${familyContext}` : ""}`;
 
     const response = await anthropic.messages.create({
