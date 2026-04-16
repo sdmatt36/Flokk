@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +127,20 @@ export async function GET(
   // Show during the trip (daysAway <= 0) until the day after it ends
   const daysUntilEnd = trip.endDate ? daysUntil(trip.endDate) : daysAway;
   if (daysUntilEnd < -1 || daysAway > WINDOW_DAYS) return NextResponse.json({ show: false });
+
+  const profileId = await resolveProfileId(userId);
+  const familyMembers = profileId
+    ? await db.familyMember.findMany({
+        where: { familyProfileId: profileId },
+        select: {
+          name: true,
+          passportCountry: true,
+          citizenshipCountry: true,
+          passportExpiryDate: true,
+          visaNotes: true,
+        },
+      })
+    : [];
 
   const items: IntelItem[] = [];
   const { destinationCity, destinationCountry, flights, savedItems, manualActivities, itineraryItems, keyInfo, documents } = trip;
@@ -271,15 +286,71 @@ export async function GET(
     const hasVisaRecord =
       keyInfo.some((k) => VISA_RE.test(k.label)) ||
       documents.some((d) => VISA_RE.test(d.label));
-    if (!hasVisaRecord) {
+
+    // Check if any member's visaNotes already covers this destination
+    const visaAlreadyNoted = familyMembers.some((m) =>
+      m.visaNotes && VISA_RE.test(m.visaNotes)
+    );
+
+    if (!hasVisaRecord && !visaAlreadyNoted) {
+      // Build passport context string from family members
+      const passports = familyMembers
+        .map((m) => m.citizenshipCountry ?? m.passportCountry)
+        .filter((p): p is string => !!p);
+      const uniquePassports = [...new Set(passports)];
+
+      const passportContext = uniquePassports.length > 0
+        ? `Check visa requirements for ${uniquePassports.join(" and ")} passport holders travelling to ${destinationCountry ?? "your destination"}.`
+        : `Confirm whether a visa or pre-arrival registration is required for ${destinationCountry ?? "your destination"}.`;
+
       items.push({
         id: "visa",
         category: "documents",
         title: "Visa & entry requirements",
-        reason: `Confirm whether a visa or pre-arrival registration is required for ${destinationCountry ?? "your destination"}.`,
+        reason: passportContext,
         status: "missing",
         urgency: docUrgency(daysAway),
         bookingUrl: null, // BookingIntelCard.getVisaUrl() provides country-specific URL
+      });
+    }
+  }
+
+  // ── Passport expiry ────────────────────────────────────────────────────────
+  if (trip.startDate && familyMembers.length > 0) {
+    const tripStart = new Date(trip.startDate);
+
+    const expiringMembers = familyMembers.filter((m) => {
+      if (!m.passportExpiryDate) return false;
+      return new Date(m.passportExpiryDate) < tripStart;
+    });
+
+    const soonExpiringMembers = familyMembers.filter((m) => {
+      if (!m.passportExpiryDate) return false;
+      const expiry = new Date(m.passportExpiryDate);
+      return expiry >= tripStart && expiry < new Date(tripStart.getTime() + 180 * 24 * 60 * 60 * 1000);
+    });
+
+    if (expiringMembers.length > 0) {
+      const names = expiringMembers.map((m) => m.name).join(", ");
+      items.push({
+        id: "passport-expired",
+        category: "documents",
+        title: "Passport expires before trip",
+        reason: `${names} — passport expires before your trip starts. Renewal required.`,
+        status: "missing",
+        urgency: "now",
+        bookingUrl: null,
+      });
+    } else if (soonExpiringMembers.length > 0) {
+      const names = soonExpiringMembers.map((m) => m.name).join(", ");
+      items.push({
+        id: "passport-expiring",
+        category: "documents",
+        title: "Passport expiring soon",
+        reason: `${names} — passport expires within 6 months of your trip. Many countries require 6 months validity. Check requirements.`,
+        status: "missing",
+        urgency: daysAway <= 45 ? "now" : "soon",
+        bookingUrl: "https://travel.state.gov/content/travel/en/passports/need-passport/renew.html",
       });
     }
   }
