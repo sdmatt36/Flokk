@@ -4,6 +4,7 @@ import { Resend } from "resend";
 import { db } from "@/lib/db";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
+import { nanoid } from "nanoid";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -752,14 +753,49 @@ Field notes:
 
     // No match → unassigned (tripId = null, stored against familyProfile for surfacing in UI)
     const confidenceScore = (extracted.confidence as number) ?? 0;
-    const resolvedTripId: string | null =
+    let resolvedTripId: string | null =
       (matchedTrip && confidenceScore >= 0.8) ? matchedTrip.id : null;
     console.log(`[email-match] result: tripId = ${resolvedTripId ?? "null — unassigned"} | matched: "${matchedTrip?.title ?? "none"}" | confidence: ${confidenceScore}`);
     console.log(`[email-inbound] trip match: "${matchedTrip?.title ?? "UNASSIGNED"}" | resolvedTripId: ${resolvedTripId ?? "null"} | confidence: ${confidenceScore}`);
 
-    if (trips.length === 0) {
-      console.log("[email-inbound] no trips on profile — dropping");
-      return NextResponse.json({ received: true, status: "no_trip" });
+    // Auto-create trip when no match found, confidence >= 0.9, type is flight or hotel, and destination is known
+    if (!matchedTrip && confidenceScore >= 0.9) {
+      const autoType = (extracted.type as string | null) ?? null;
+      if (autoType === "flight" || autoType === "hotel") {
+        const rawToCity = (extracted.toCity as string | null)?.trim() ?? null;
+        const rawCity = (extracted.city as string | null)?.trim() ?? null;
+        const autoDestCity = rawToCity || rawCity || null;
+        if (autoDestCity) {
+          const autoDestCountry = (extracted.country as string | null) ?? null;
+          const rawDate = (extracted.departureDate as string | null) ?? (extracted.checkIn as string | null) ?? null;
+          let autoTitle = autoDestCity;
+          if (rawDate) {
+            try {
+              const [y, m] = rawDate.split("-").map(Number);
+              const monthName = new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long" });
+              autoTitle = `${autoDestCity} - ${monthName} ${y}`;
+            } catch { /* use city only */ }
+          }
+          const autoStart = (extracted.departureDate as string | null) ?? (extracted.checkIn as string | null) ?? null;
+          const autoEnd = (extracted.returnDepartureDate as string | null) ?? (extracted.checkOut as string | null) ?? null;
+          const autoShareToken = nanoid(12);
+          const autoTrip = await db.trip.create({
+            data: {
+              title: autoTitle,
+              destinationCity: autoDestCity,
+              destinationCountry: autoDestCountry,
+              startDate: autoStart ? new Date(autoStart) : null,
+              endDate: autoEnd ? new Date(autoEnd) : null,
+              status: "PLANNING",
+              shareToken: autoShareToken,
+              familyProfileId: familyProfile.id,
+            },
+          });
+          matchedTrip = autoTrip as typeof trips[0];
+          resolvedTripId = autoTrip.id;
+          console.log(`[email-inbound] auto-created trip: "${autoTitle}" id: ${autoTrip.id}`);
+        }
+      }
     }
 
     // Duplicate guard: check confirmationCode across ALL trips for this profile.
