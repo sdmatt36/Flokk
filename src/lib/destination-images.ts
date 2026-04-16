@@ -183,6 +183,8 @@ export const DESTINATION_IMAGES: Record<string, string> = {
   "santorini": "https://images.unsplash.com/photo-1530841377377-3ff06c0ca713?w=800&q=80",
   "athens": "https://images.unsplash.com/photo-1555993539-1732b0258235?w=800&q=80",
   "reykjavik": "https://images.unsplash.com/photo-1520769669658-f07657f5a307?w=800&q=80",
+  "ireland": "https://images.unsplash.com/photo-1590089415225-401ed6596ce4?w=800&q=80",
+  "scotland": "https://images.unsplash.com/photo-1506377585622-bedcbb027afc?w=800&q=80",
 
   // Africa / Middle East
   "marrakech": "https://images.unsplash.com/photo-1597212618440-806262de4f2b?w=800&q=80",

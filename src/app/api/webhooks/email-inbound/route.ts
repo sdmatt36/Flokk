@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
 import { nanoid } from "nanoid";
+import { getTripCoverImage } from "@/lib/destination-images";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -786,6 +787,7 @@ Field notes:
           const autoStart = (extracted.departureDate as string | null) ?? (extracted.checkIn as string | null) ?? null;
           const autoEnd = (extracted.returnDepartureDate as string | null) ?? (extracted.checkOut as string | null) ?? null;
           const autoStatus = autoEnd && new Date(autoEnd) < new Date() ? "COMPLETED" : "PLANNING";
+          const autoHeroImage = getTripCoverImage(autoDestCity, autoDestCountry ?? "");
           const autoShareToken = nanoid(12);
           const autoTrip = await db.trip.create({
             data: {
@@ -795,6 +797,7 @@ Field notes:
               startDate: autoStart ? new Date(autoStart) : null,
               endDate: autoEnd ? new Date(autoEnd) : null,
               status: autoStatus,
+              heroImageUrl: autoHeroImage,
               shareToken: autoShareToken,
               familyProfileId: familyProfile.id,
             },
