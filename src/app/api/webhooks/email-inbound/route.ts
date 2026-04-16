@@ -202,7 +202,14 @@ function tripMatchesDestination(
 ): boolean {
   const haystack = [trip.title, trip.destinationCity, trip.destinationCountry]
     .filter(Boolean).join(" ").toLowerCase();
-  return keywords.some((kw) => haystack.includes(kw.toLowerCase()));
+  return keywords.some((kw) => {
+    const k = kw.toLowerCase();
+    // Full phrase match — always allow (e.g. "San Diego" matching "San Diego")
+    if (k.includes(" ")) return haystack.includes(k);
+    // Single token — require word boundary match to prevent "San" hitting "Busan"
+    const regex = new RegExp(`(?<![a-z])${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![a-z])`, "i");
+    return regex.test(haystack);
+  });
 }
 
 // Maps IATA codes and full airport names to canonical city/country strings.
