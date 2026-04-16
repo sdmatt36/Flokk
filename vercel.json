@@ -5,6 +5,10 @@
       "schedule": "0 9 * * *"
     },
     {
+      "path": "/api/cron/pre-trip-reminder",
+      "schedule": "0 1 * * *"
+    },
+    {
       "path": "/api/cron/trip-lifecycle",
       "schedule": "0 2 * * *"
     },

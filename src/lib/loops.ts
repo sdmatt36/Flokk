@@ -139,3 +139,13 @@ export async function updateLoopsContact(email: string, properties: Record<strin
     });
   } catch (e) { console.error("[loops] updateLoopsContact error", e); }
 }
+
+export async function sendPreTripReminderEvent(email: string, { tripDestination, daysAway }: { tripDestination: string; daysAway: number }) {
+  try {
+    await fetch("https://app.loops.so/api/v1/events/send", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${process.env.LOOPS_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, eventName: "pre_trip_reminder", tripDestination, daysAway }),
+    });
+  } catch (e) { console.error("[loops] sendPreTripReminderEvent error", e); }
+}
