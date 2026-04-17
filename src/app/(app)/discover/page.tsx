@@ -574,7 +574,7 @@ function PlacesTab() {
               <input
                 type="text"
                 value={apName}
-                onChange={e => { setApName(e.target.value); setApAddress(""); setApCity(""); apCityValueRef.current = ""; setApLat(null); setApLng(null); }}
+                onChange={e => { setApName(e.target.value); setApAddress(""); setApLat(null); setApLng(null); }}
                 placeholder="e.g. Ichiran Ramen Shinjuku"
                 autoComplete="off"
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C]"
