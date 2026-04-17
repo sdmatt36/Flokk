@@ -499,17 +499,27 @@ function PlacesTab() {
                   <button
                     onClick={async () => {
                       if (place.website) {
-                        await fetch("/api/saves", {
+                        const body = JSON.stringify({ url: place.website, rawTitle: place.name, notes: place.sampleNote, categoryTags: [place.placeType] });
+                        console.log("[FlokkIt] posting to:", "/api/saves", "body:", body);
+                        const res = await fetch("/api/saves", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ url: place.website, rawTitle: place.name, notes: place.sampleNote, categoryTags: [place.placeType] }),
+                          body,
                         });
+                        console.log("[FlokkIt] response status:", res.status);
+                        const data = await res.json();
+                        console.log("[FlokkIt] response data:", JSON.stringify(data));
                       } else {
-                        await fetch("/api/places/save", {
+                        const body = JSON.stringify({ name: place.name, address: place.address ?? "", city: place.city, type: place.placeType, lat: place.lat, lng: place.lng, notes: place.sampleNote });
+                        console.log("[FlokkIt] posting to:", "/api/places/save", "body:", body);
+                        const res = await fetch("/api/places/save", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ name: place.name, address: place.address ?? "", city: place.city, type: place.placeType, lat: place.lat, lng: place.lng, notes: place.sampleNote }),
+                          body,
                         });
+                        console.log("[FlokkIt] response status:", res.status);
+                        const data = await res.json();
+                        console.log("[FlokkIt] response data:", JSON.stringify(data));
                       }
                       setFlokkConfirmedId(place.id);
                       setTimeout(() => setFlokkConfirmedId(null), 2000);
