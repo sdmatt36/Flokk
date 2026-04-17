@@ -310,10 +310,11 @@ export default async function HomePage() {
               </Link>
               <Link
                 href="/tour"
-                style={{ position: "relative", borderRadius: "16px", overflow: "hidden", display: "block", height: "160px", backgroundColor: "#1B3A5C", textDecoration: "none" }}
+                style={{ position: "relative", borderRadius: "16px", overflow: "hidden", display: "block", height: "160px", backgroundImage: "url('/images/tour-builder-hero.jpg')", backgroundSize: "cover", backgroundPosition: "center", textDecoration: "none" }}
               >
+                <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)" }} />
                 <div style={{ position: "absolute", inset: 0, background: CARD_GRADIENT }} />
-                <div style={{ position: "relative", padding: "16px", display: "flex", flexDirection: "column", justifyContent: "flex-end", height: "100%", boxSizing: "border-box" }}>
+                <div style={{ position: "relative", zIndex: 1, padding: "16px", display: "flex", flexDirection: "column", justifyContent: "flex-end", height: "100%", boxSizing: "border-box" }}>
                   <Sparkles size={20} style={{ color: "#fff", marginBottom: "8px" }} />
                   <p style={{ fontWeight: 700, color: "#fff", fontSize: "17px" }}>Build a Tour</p>
                   <p style={{ color: "#fff", fontSize: "12px", opacity: 0.85, marginTop: "2px" }}>Describe it, we&apos;ll map it</p>
