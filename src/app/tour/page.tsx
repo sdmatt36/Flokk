@@ -4,12 +4,20 @@ import { useState } from "react";
 import { Sparkles, RotateCcw } from "lucide-react";
 import TourResults from "@/components/TourResults";
 
+const CITY_AUTOFILL = [
+  "Tokyo", "Osaka", "Kyoto", "Seoul", "Bangkok", "Chiang Mai", "Singapore",
+  "London", "Paris", "Barcelona", "Rome", "Lisbon", "Amsterdam",
+  "New York", "Chicago", "Portland", "Seattle", "San Francisco",
+  "Dublin", "Edinburgh", "Sydney", "Melbourne", "Bali", "Dubai", "Istanbul",
+];
+
 type Stop = {
   name: string;
   address: string;
   lat: number;
   lng: number;
   duration: number;
+  travelTime: number;
   why: string;
   familyNote: string;
 };
@@ -18,25 +26,52 @@ type TourResponse = {
   stops: Stop[];
   destinationCity: string;
   prompt: string;
+  durationLabel: string;
+  transport: string;
   generatedAt: string;
 };
 
 export default function TourPage() {
   const [prompt, setPrompt] = useState("");
   const [destinationCity, setDestinationCity] = useState("");
+  const [durationLabel, setDurationLabel] = useState("");
+  const [transport, setTransport] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [results, setResults] = useState<TourResponse | null>(null);
+  const [touched, setTouched] = useState(false);
+
+  function handlePromptChange(value: string) {
+    setPrompt(value);
+    setTouched(true);
+    if (!destinationCity.trim()) {
+      const lower = value.toLowerCase();
+      const match = CITY_AUTOFILL.find((city) => lower.includes(city.toLowerCase()));
+      if (match) setDestinationCity(match);
+    }
+  }
+
+  const allFilled =
+    prompt.trim() !== "" &&
+    destinationCity.trim() !== "" &&
+    durationLabel !== "" &&
+    transport !== "";
 
   async function handleSubmit() {
-    if (!prompt.trim() || !destinationCity.trim()) return;
+    if (!allFilled) return;
     setLoading(true);
     setError("");
     try {
       const res = await fetch("/api/tours/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: prompt.trim(), destinationCity: destinationCity.trim(), familyProfileId: undefined }),
+        body: JSON.stringify({
+          prompt: prompt.trim(),
+          destinationCity: destinationCity.trim(),
+          durationLabel,
+          transport,
+          familyProfileId: undefined,
+        }),
       });
       const data = await res.json() as TourResponse & { error?: string };
       if (!res.ok || data.error) {
@@ -55,8 +90,14 @@ export default function TourPage() {
     setResults(null);
     setPrompt("");
     setDestinationCity("");
+    setDurationLabel("");
+    setTransport("");
     setError("");
+    setTouched(false);
   }
+
+  const inputClass =
+    "w-full border border-gray-200 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C]";
 
   return (
     <div className="min-h-screen bg-white">
@@ -86,27 +127,57 @@ export default function TourPage() {
             <textarea
               rows={4}
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={(e) => handlePromptChange(e.target.value)}
               placeholder="A ramen tour in Tokyo near Shinjuku for a family with young kids"
               className="w-full border border-gray-200 rounded-xl p-4 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1B3A5C]"
             />
 
-            <input
-              type="text"
-              value={destinationCity}
-              onChange={(e) => setDestinationCity(e.target.value)}
-              placeholder="City (e.g. Tokyo)"
-              className="w-full border border-gray-200 rounded-xl p-4 text-sm mt-3 focus:outline-none focus:ring-2 focus:ring-[#1B3A5C]"
-            />
+            <div className="flex flex-col sm:flex-row gap-3 mt-3">
+              <input
+                type="text"
+                value={destinationCity}
+                onChange={(e) => { setDestinationCity(e.target.value); setTouched(true); }}
+                placeholder="City (e.g. Tokyo)"
+                className={inputClass}
+              />
+
+              <select
+                value={durationLabel}
+                onChange={(e) => { setDurationLabel(e.target.value); setTouched(true); }}
+                className={inputClass}
+              >
+                <option value="" disabled>How long?</option>
+                <option value="2 hours">2 hours</option>
+                <option value="Half day (4 hrs)">Half day (4 hrs)</option>
+                <option value="Full day (8 hrs)">Full day (8 hrs)</option>
+              </select>
+
+              <select
+                value={transport}
+                onChange={(e) => { setTransport(e.target.value); setTouched(true); }}
+                className={inputClass}
+              >
+                <option value="" disabled>Getting around?</option>
+                <option value="Walking">Walking</option>
+                <option value="Metro / Transit">Metro / Transit</option>
+                <option value="Car or Taxi">Car or Taxi</option>
+              </select>
+            </div>
 
             <button
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={loading || !allFilled}
               className="w-full mt-4 bg-[#1B3A5C] text-white rounded-xl py-3 px-6 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-60"
             >
               <Sparkles size={16} />
               {loading ? "Building your tour..." : "Build my tour"}
             </button>
+
+            {touched && !allFilled && (
+              <p className="text-xs text-gray-400 mt-2 text-center">
+                Fill in all fields to build your tour
+              </p>
+            )}
 
             {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
           </>

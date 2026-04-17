@@ -15,6 +15,7 @@ interface TourStop {
   lat: number;
   lng: number;
   duration: number;
+  travelTime: number;
   why: string;
   familyNote: string;
 }
@@ -23,11 +24,33 @@ export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json() as { prompt: string; destinationCity: string; familyProfileId?: string };
+  const body = await req.json() as {
+    prompt: string;
+    destinationCity: string;
+    familyProfileId?: string;
+    durationLabel?: string;
+    transport?: string;
+  };
   const { prompt, destinationCity } = body;
+  const durationLabel = body.durationLabel ?? "";
+  const transport = body.transport ?? "Walking";
 
   if (!prompt || !destinationCity) {
     return NextResponse.json({ error: "prompt and destinationCity are required" }, { status: 400 });
+  }
+
+  let maxMinutes: number;
+  let targetStops: number;
+  if (durationLabel === "2 hours") {
+    maxMinutes = 120;
+    targetStops = 3;
+  } else if (durationLabel === "Full day (8 hrs)") {
+    maxMinutes = 480;
+    targetStops = 7;
+  } else {
+    // "Half day (4 hrs)" or default
+    maxMinutes = 240;
+    targetStops = 5;
   }
 
   try {
@@ -116,24 +139,13 @@ export async function POST(req: NextRequest) {
       })),
     ];
 
-    const systemPrompt = `You are a family travel itinerary expert. Generate a themed day tour with 5–8 stops for the given destination and theme. Return ONLY valid JSON — no markdown, no preamble. Return an array of stops. Each stop must be:
-{
-  "name": string,
-  "address": string (street address or landmark, as specific as possible),
-  "lat": number (decimal degrees, as accurate as possible),
-  "lng": number (decimal degrees, as accurate as possible),
-  "duration": number (minutes to spend here),
-  "why": string (one sentence on why this fits the theme),
-  "familyNote": string (one practical tip for families, referencing the group if context provided)
-}
-Order stops logically by geography to minimize travel time. Use real, well-known places.`;
+    const systemPrompt = `You are a family travel expert building themed day tours. Return ONLY a JSON array of stops. No markdown, no backticks, no preamble, no explanation. Each stop must have exactly these fields: name (string), address (string), lat (number), lng (number), duration (number, estimated minutes at this stop), travelTime (number, estimated minutes to travel to the NEXT stop by ${transport}, 0 for the last stop), why (string, one sentence on why this stop fits the theme), familyNote (string, specific note for this family based on kids ages). Return exactly ${targetStops} stops. Stops must be geographically clustered for ${transport} travel — walking tours must have stops within 15 minutes walk of each other, metro tours can span the city, car tours have no distance constraint. Keep stops strictly on theme — do not add tangential attractions. Total time (sum of all duration + travelTime fields) must not exceed ${maxMinutes} minutes.`;
 
     const seededContext = seededPlaces.length > 0
       ? `Community-rated places in ${destinationCity} from real families (use these first when relevant):\n${seededPlaces.map(p => `${p.name} — ${p.address} (rated ${p.avgRating.toFixed(1)}/5)`).join("\n")}\n\n`
       : "";
 
-    const userMessage = `${seededContext}Theme: ${prompt}
-Destination: ${destinationCity}${familyContext ? `\n${familyContext}` : ""}`;
+    const userMessage = `${seededContext}Tour theme: ${prompt}. Destination: ${destinationCity}. Duration: ${durationLabel || "Half day (4 hrs)"}. Transport: ${transport}. Family: ${familyContext || "not specified"}`;
 
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
@@ -181,6 +193,8 @@ Destination: ${destinationCity}${familyContext ? `\n${familyContext}` : ""}`;
       stops: geocodedStops,
       destinationCity,
       prompt,
+      durationLabel,
+      transport,
       generatedAt: new Date().toISOString(),
     });
   } catch (err) {
