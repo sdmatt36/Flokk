@@ -24,6 +24,7 @@ export async function POST(request: Request) {
     notes?: string | null;
     rating?: number | null;
     ratingNote?: string | null;
+    imageUrl?: string | null;
     alsoAddToTripId?: string | null;
     alsoAddToDayIndex?: number | null;
   };
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
       lng: body.lng ?? null,
       website: body.website?.trim() ?? null,
       notes: body.notes?.trim() ?? null,
+      imageUrl: body.imageUrl?.trim() ?? null,
       status: "interested",
       dayIndex: null,
       sortOrder: 0,

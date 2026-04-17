@@ -283,8 +283,16 @@ function PlacesTab() {
   const [apNotes, setApNotes] = useState("");
   const [apLat, setApLat] = useState<number | null>(null);
   const [apLng, setApLng] = useState<number | null>(null);
-  const [apSuggestions, setApSuggestions] = useState<Array<{place_id: string; name: string; formatted_address: string; geometry?: {location: {lat: number; lng: number}}}>>([]);
+  const [apSuggestions, setApSuggestions] = useState<Array<{place_id: string; name: string; formatted_address: string; photoUrl?: string; geometry?: {location: {lat: number; lng: number}}}>>([]);
   const [showApSuggestions, setShowApSuggestions] = useState(false);
+  const [apWebsite, setApWebsite] = useState("");
+  const [apImageUrl, setApImageUrl] = useState<string | null>(null);
+  const [apCitySuggestions, setApCitySuggestions] = useState<{cityName: string; countryName: string; placeId?: string}[]>([]);
+  const [apShowCitySuggestions, setApShowCitySuggestions] = useState(false);
+  const apCityDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const apCityRef = useRef<HTMLDivElement>(null);
+  const [flokkConfirmedId, setFlokkConfirmedId] = useState<string | null>(null);
+  const [clipCopiedId, setClipCopiedId] = useState<string | null>(null);
   const [apSaving, setApSaving] = useState(false);
   const [apAddToTrip, setApAddToTrip] = useState(false);
   const [apTrips, setApTrips] = useState<Array<{id: string; title: string; destinationCity: string | null; destinationCountry: string | null; startDate: string | null; endDate: string | null; status: string}>>([]);
@@ -301,6 +309,7 @@ function PlacesTab() {
     function handle(e: MouseEvent) {
       if (cityRef.current && !cityRef.current.contains(e.target as Node)) setShowCitySuggestions(false);
       if (apRef.current && !apRef.current.contains(e.target as Node)) setShowApSuggestions(false);
+      if (apCityRef.current && !apCityRef.current.contains(e.target as Node)) setApShowCitySuggestions(false);
     }
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
@@ -312,13 +321,27 @@ function PlacesTab() {
     apDebounce.current = setTimeout(async () => {
       try {
         const res = await fetch(`/api/places/search?q=${encodeURIComponent(apName)}`);
-        const data = await res.json() as { places: Array<{place_id: string; name: string; formatted_address: string; geometry?: {location: {lat: number; lng: number}}}>};
+        const data = await res.json() as { places: Array<{place_id: string; name: string; formatted_address: string; photoUrl?: string; geometry?: {location: {lat: number; lng: number}}}>};
         setApSuggestions(Array.isArray(data.places) ? data.places.slice(0, 5) : []);
         setShowApSuggestions(true);
       } catch { setApSuggestions([]); }
     }, 400);
     return () => { if (apDebounce.current) clearTimeout(apDebounce.current); };
   }, [apName]);
+
+  useEffect(() => {
+    if (apCityDebounce.current) clearTimeout(apCityDebounce.current);
+    if (apCity.length < 2) { setApCitySuggestions([]); return; }
+    apCityDebounce.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/destinations/lookup?q=${encodeURIComponent(apCity)}`);
+        const data = await res.json();
+        setApCitySuggestions(Array.isArray(data) ? data.slice(0, 5) : []);
+        setApShowCitySuggestions(true);
+      } catch { setApCitySuggestions([]); }
+    }, 400);
+    return () => { if (apCityDebounce.current) clearTimeout(apCityDebounce.current); };
+  }, [apCity]);
 
   useEffect(() => {
     if (cityDebounce.current) clearTimeout(cityDebounce.current);
@@ -400,16 +423,28 @@ function PlacesTab() {
       </div>
 
       {/* Type filter pills */}
-      <div className="flex flex-wrap gap-2 mb-5">
+      <div
+        style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "20px", scrollbarWidth: "none", msOverflowStyle: "none" }}
+        className="hide-scrollbar"
+      >
         {PLACE_TYPE_FILTERS.map(t => (
           <button
             key={t}
-            onClick={() => setPlaceType(t)}
-            className={`px-3 py-1 rounded-full text-[13px] font-medium border transition-colors cursor-pointer ${
-              placeType === t
-                ? "bg-[#C4664A] text-white border-[#C4664A]"
-                : "bg-white text-gray-600 border-gray-200 hover:border-[#1B3A5C]"
-            }`}
+            onClick={() => setPlaceType(t === placeType && t !== "All" ? "All" : t)}
+            style={{
+              flexShrink: 0,
+              padding: "7px 16px",
+              borderRadius: "999px",
+              border: placeType === t ? "none" : "1.5px solid #E0E0E0",
+              backgroundColor: placeType === t ? "#C4664A" : "#fff",
+              color: placeType === t ? "#fff" : "#717171",
+              fontSize: "13px",
+              fontWeight: placeType === t ? 700 : 500,
+              lineHeight: "1",
+              cursor: "pointer",
+              transition: "all 0.15s",
+              fontFamily: "inherit",
+            }}
           >
             {t}
           </button>
@@ -426,7 +461,7 @@ function PlacesTab() {
           No rated places in {selectedCity} yet. Be the first to rate somewhere.
         </p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
           {places.map(place => (
             <div key={place.id} className="border border-gray-100 rounded-2xl overflow-hidden shadow-sm bg-white">
               <div className="bg-gray-100 overflow-hidden" style={{ height: "140px" }}>
@@ -452,6 +487,46 @@ function PlacesTab() {
                 {place.sampleNote && (
                   <p className="text-xs text-gray-500 italic mt-1 line-clamp-2">{place.sampleNote}</p>
                 )}
+                {/* CTAs */}
+                <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-50">
+                  <button
+                    onClick={async () => {
+                      const url = place.website || `https://flokktravel.com/places/${place.id}`;
+                      await fetch("/api/saves", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ url, rawTitle: place.name, notes: place.sampleNote, categoryTags: [place.placeType] }),
+                      });
+                      setFlokkConfirmedId(place.id);
+                      setTimeout(() => setFlokkConfirmedId(null), 2000);
+                    }}
+                    className="text-xs font-medium text-[#C4664A] cursor-pointer hover:underline bg-transparent border-none p-0"
+                    style={{ fontFamily: "inherit" }}
+                  >
+                    {flokkConfirmedId === place.id ? "Flokked!" : "Flokk It"}
+                  </button>
+                  {place.website && (
+                    <a
+                      href={place.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-medium text-[#1B3A5C] cursor-pointer hover:underline"
+                    >
+                      Visit site
+                    </a>
+                  )}
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`https://flokktravel.com/places/${place.id}`);
+                      setClipCopiedId(place.id);
+                      setTimeout(() => setClipCopiedId(null), 2000);
+                    }}
+                    className="text-xs font-medium text-gray-400 cursor-pointer hover:text-gray-600 bg-transparent border-none p-0"
+                    style={{ fontFamily: "inherit" }}
+                  >
+                    {clipCopiedId === place.id ? "Copied!" : "Share"}
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -494,7 +569,9 @@ function PlacesTab() {
                         setApCity(city);
                         setApLat(s.geometry?.location.lat ?? null);
                         setApLng(s.geometry?.location.lng ?? null);
+                        setApImageUrl(s.photoUrl ?? null);
                         setShowApSuggestions(false);
+                        setApShowCitySuggestions(false);
                       }}
                       className="w-full px-4 py-3 text-sm text-[#1B3A5C] hover:bg-gray-50 text-left"
                       style={{ background: "none", border: "none", fontFamily: "inherit", cursor: "pointer" }}
@@ -516,14 +593,45 @@ function PlacesTab() {
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C] mb-3"
             />
 
-            {/* City */}
+            {/* Website */}
             <input
               type="text"
-              value={apCity}
-              onChange={e => setApCity(e.target.value)}
-              placeholder="City"
+              value={apWebsite}
+              onChange={e => setApWebsite(e.target.value)}
+              placeholder="Website (optional)"
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C] mb-3"
             />
+
+            {/* City */}
+            <div ref={apCityRef} className="relative mb-3">
+              <input
+                type="text"
+                value={apCity}
+                onChange={e => { setApCity(e.target.value); setApShowCitySuggestions(true); }}
+                onFocus={() => { if (apCity.length >= 2) setApShowCitySuggestions(true); }}
+                placeholder="City"
+                autoComplete="off"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C]"
+              />
+              {apShowCitySuggestions && apCitySuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg z-50 mt-1 overflow-hidden">
+                  {apCitySuggestions.map(s => (
+                    <button
+                      key={s.placeId ?? s.cityName}
+                      type="button"
+                      onMouseDown={() => { setApCity(s.cityName); setApShowCitySuggestions(false); }}
+                      className="w-full px-4 py-3 text-sm text-[#1B3A5C] hover:bg-gray-50 text-left flex items-center gap-2"
+                      style={{ background: "none", border: "none", fontFamily: "inherit", cursor: "pointer" }}
+                    >
+                      <span className="font-semibold">{s.cityName}</span>
+                      {s.countryName && s.countryName !== s.cityName && (
+                        <span className="text-gray-400 text-xs">· {s.countryName}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Type */}
             <select
@@ -686,7 +794,9 @@ function PlacesTab() {
                       type: apType.toLowerCase(),
                       lat: apLat,
                       lng: apLng,
+                      website: apWebsite.trim() || null,
                       notes: apNotes.trim() || null,
+                      imageUrl: apImageUrl,
                       rating: apRating || null,
                       ratingNote: apNotes.trim() || null,
                       alsoAddToTripId: apAddToTrip && apSelectedTripId ? apSelectedTripId : null,
@@ -696,7 +806,7 @@ function PlacesTab() {
                   if (res.ok) {
                     const savedCity = apCity.trim();
                     setShowAddPlaceModal(false);
-                    setApName(""); setApAddress(""); setApCity(""); setApType(""); setApRating(0); setApNotes(""); setApLat(null); setApLng(null);
+                    setApName(""); setApAddress(""); setApCity(""); setApWebsite(""); setApType(""); setApRating(0); setApNotes(""); setApLat(null); setApLng(null); setApImageUrl(null); setApShowCitySuggestions(false);
                     setApAddToTrip(false); setApSelectedTripId(null); setApDay(1);
                     setAddPlaceToast(`Place added to ${savedCity}`);
                     setTimeout(() => setAddPlaceToast(null), 3000);
