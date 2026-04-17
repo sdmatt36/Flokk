@@ -61,7 +61,7 @@ export async function GET(request: Request) {
         INNER JOIN "Trip" t ON ma."tripId" = t.id
         WHERE ma.city ILIKE ${cityPattern}
           AND ma.type = ${type}
-          AND t.privacy::text = 'PUBLIC'
+          AND (t."isPlacesLibrary" = true OR t.privacy::text = 'PUBLIC')
         GROUP BY ma.id, ma.title, ma.city, ma.type, ma."imageUrl", ma.address, ma.website, ma.lat, ma.lng
         ORDER BY avg_rating DESC, rating_count DESC
         LIMIT ${limit}
@@ -84,7 +84,7 @@ export async function GET(request: Request) {
         INNER JOIN "PlaceRating" pr ON pr."manualActivityId" = ma.id
         INNER JOIN "Trip" t ON ma."tripId" = t.id
         WHERE ma.city ILIKE ${cityPattern}
-          AND t.privacy::text = 'PUBLIC'
+          AND (t."isPlacesLibrary" = true OR t.privacy::text = 'PUBLIC')
         GROUP BY ma.id, ma.title, ma.city, ma.type, ma."imageUrl", ma.address, ma.website, ma.lat, ma.lng
         ORDER BY avg_rating DESC, rating_count DESC
         LIMIT ${limit}
@@ -97,7 +97,7 @@ export async function GET(request: Request) {
     INNER JOIN "PlaceRating" pr ON pr."manualActivityId" = ma.id
     INNER JOIN "Trip" t ON ma."tripId" = t.id
     WHERE ma.city IS NOT NULL
-      AND t.privacy::text = 'PUBLIC'
+      AND (t."isPlacesLibrary" = true OR t.privacy::text = 'PUBLIC')
     GROUP BY ma.city
     ORDER BY place_count DESC
     LIMIT 20
