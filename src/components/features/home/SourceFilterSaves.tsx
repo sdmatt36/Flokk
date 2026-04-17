@@ -78,6 +78,24 @@ export function SourceFilterSaves({
             Anywhere else →
           </button>
         </div>
+
+        {filter !== "ALL" && (
+          <div className="mt-3 bg-white border border-gray-100 rounded-xl px-4 py-3 text-sm text-gray-600 flex items-start gap-3">
+            <LinkIcon size={16} className="text-[#C4664A] mt-0.5 shrink-0" />
+            <div>
+              {filter === "INSTAGRAM" && "Open any Instagram post, tap the three dots, select Copy Link, then paste it into Drop a Link below."}
+              {filter === "TIKTOK" && "On any TikTok, tap Share, then Copy Link. Paste it into Drop a Link below."}
+              {filter === "YOUTUBE" && "Open any YouTube video, tap Share, then Copy Link. Paste it into Drop a Link below."}
+              <button
+                onClick={() => setDropLinkOpen(true)}
+                className="text-[#C4664A] text-sm font-medium mt-2 block"
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+              >
+                Open Drop a Link →
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Email forwarding tip — shown only when user has no imported bookings */}
