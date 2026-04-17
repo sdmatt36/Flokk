@@ -2531,20 +2531,29 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   function computeTransit(lat1: number, lng1: number, lat2: number, lng2: number): { mode: string; duration: string; directionsUrl: string } {
     const km = haversineKm(lat1, lng1, lat2, lng2);
     let mode: string;
-    let mins: number;
+    let rawMins: number;
     if (km < 1) {
       mode = "Walk";
-      mins = Math.round((km * 1000) / 80);
-    } else if (km < 5) {
-      mode = "Transit";
-      mins = Math.round((km * 1000) / 300);
+      rawMins = km / 0.08;
+    } else if (km <= 20) {
+      mode = "Drive or transit";
+      rawMins = km / 0.6;
     } else {
-      mode = "Transit";
-      mins = Math.round((km * 1000) / 500);
+      mode = "Drive";
+      rawMins = km / 0.6;
+    }
+    const mins = Math.round(rawMins / 5) * 5;
+    let duration: string;
+    if (mins >= 60) {
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      duration = m === 0 ? `~${h} hr` : `~${h} hr ${m} min`;
+    } else {
+      duration = `~${mins} min`;
     }
     return {
       mode,
-      duration: `~${mins} min`,
+      duration,
       directionsUrl: getDirectionsUrl(lat1, lng1, lat2, lng2),
     };
   }
@@ -3188,7 +3197,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                     >Move</button>
                                   </div>
                                 </div>,
-                                prevHasCoords && nextHasCoords && distanceBetweenItems <= 50 ? (
+                                prevHasCoords && nextHasCoords ? (
                                   (() => {
                                     const transit = computeTransit(fromCoords!.lat, fromCoords!.lng, toCoords!.lat, toCoords!.lng);
                                     return (
