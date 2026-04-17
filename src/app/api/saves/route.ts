@@ -64,6 +64,7 @@ const SaveSchema = z.object({
 function detectSourceType(url: string): SourceType {
   if (/instagram\.com/.test(url)) return "INSTAGRAM";
   if (/tiktok\.com/.test(url)) return "TIKTOK";
+  if (/youtube\.com|youtu\.be/.test(url)) return "YOUTUBE";
   if (/maps\.google\.com|maps\.app\.goo\.gl|goo\.gl\/maps/.test(url))
     return "GOOGLE_MAPS";
   return "MANUAL";
