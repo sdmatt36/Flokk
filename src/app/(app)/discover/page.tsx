@@ -255,9 +255,10 @@ type CommunityPlace = {
 const PLACE_TYPE_FILTERS = ["All", "Food", "Activity", "Culture", "Outdoor", "Shopping", "Lodging"];
 
 function parseCityFromAddress(address: string): string {
-  const parts = address.split(", ");
-  if (parts.length < 2) return "";
-  return parts[parts.length - 2].replace(/\s+[\d][\d\-]+$/, "").trim();
+  const parts = address.split(",").map(p => p.trim()).filter(Boolean);
+  if (parts.length >= 3) return parts[parts.length - 3];
+  if (parts.length === 2) return parts[0];
+  return parts[0] ?? "";
 }
 
 function PlacesTab() {
@@ -396,20 +397,11 @@ function PlacesTab() {
           <button
             key={t}
             onClick={() => setPlaceType(t)}
-            style={{
-              flexShrink: 0,
-              padding: "7px 16px",
-              borderRadius: "999px",
-              border: placeType === t ? "none" : "1.5px solid #E0E0E0",
-              backgroundColor: placeType === t ? "#C4664A" : "#fff",
-              color: placeType === t ? "#fff" : "#717171",
-              fontSize: "13px",
-              fontWeight: placeType === t ? 700 : 500,
-              lineHeight: "1",
-              cursor: "pointer",
-              transition: "all 0.15s",
-              fontFamily: "inherit",
-            }}
+            className={`px-3 py-1 rounded-full text-[13px] font-medium border transition-colors cursor-pointer ${
+              placeType === t
+                ? "bg-[#C4664A] text-white border-[#C4664A]"
+                : "bg-white text-gray-600 border-gray-200 hover:border-[#1B3A5C]"
+            }`}
           >
             {t}
           </button>
