@@ -441,10 +441,10 @@ export default async function SharePage({
         {nearbySaves.length >= 3 && (
           <section style={{ marginTop: "32px" }}>
             <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>
-              Nearby places
+              Nearby spots
             </h2>
             <p style={{ fontSize: "13px", color: "#888", marginBottom: "14px" }}>
-              Places this family saved near their itinerary stops.
+              Spots this family saved near their itinerary stops.
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px" }}>
               {nearbySaves.slice(0, 12).map((place) => {

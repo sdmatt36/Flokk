@@ -318,7 +318,7 @@ export function TravelIntelSection({ submitOpen, onSubmitClose }: { submitOpen?:
           Community Picks
         </h2>
         <p style={{ fontSize: "14px", color: "#717171", margin: 0 }}>
-          Places and activities saved by families who&apos;ve been there — searchable by destination.
+          Spots and activities saved by families who&apos;ve been there — searchable by destination.
         </p>
       </div>
 

@@ -213,7 +213,7 @@ export default async function TripDetailPage({
             <MapPin size={12} style={{ color: "#fff" }} />
             {(() => {
               const count = trip.savedItems.length + (trip._count?.manualActivities ?? 0);
-              const label = count === 0 ? "No saves yet" : count === 1 ? "1 place" : `${count} places`;
+              const label = count === 0 ? "No saves yet" : count === 1 ? "1 spot" : `${count} spots`;
               return <span style={{ fontSize: "12px", color: "#fff" }}>{label}</span>;
             })()}
             <span style={{ fontSize: "12px", color: "#fff" }}>·</span>

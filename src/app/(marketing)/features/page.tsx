@@ -121,7 +121,7 @@ export default function FeaturesPage() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
             {[
-              { title: "Community Picks", desc: "Places rated by families who have actually been there. Filtered by destination, category, and the ages of kids in the group — not generic star ratings." },
+              { title: "Community Picks", desc: "Spots rated by families who have actually been there. Filtered by destination, category, and the ages of kids in the group — not generic star ratings." },
               { title: "Flokk Travel Intel guides", desc: "Curated destination guides written for families: what to skip, what to book early, what to save for a rainy day. Updated from the community, not a content team." },
               { title: "Steal This Itinerary", desc: "Browse real trips shared by other Flokk families. Copy the whole plan, or cherry-pick the saves you want. The fastest way to plan a trip you've never done before." },
               { title: "Destination search", desc: "Search any destination and surface saves from across the Flokk community. Weighted by family ratings, recency, and relevance to your travel style." },

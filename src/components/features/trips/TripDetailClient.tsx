@@ -301,7 +301,7 @@ export function TripDetailClient({ playfairClass, initialTab = "saved" }: { play
         {/* Stats row */}
         <div style={{ display: "flex", gap: "12px", marginTop: "16px", marginBottom: "20px" }}>
           {[
-            { value: "3", label: "Places saved" },
+            { value: "3", label: "Spots saved" },
             { value: "5", label: "Days" },
           ].map((stat) => (
             <div key={stat.label} style={{

@@ -409,7 +409,7 @@ function PlacesTab() {
     <div>
       {/* Header row */}
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-gray-500">Rated places from the Flokk community</p>
+        <p className="text-sm text-gray-500">Rated spots from the Flokk community</p>
         <button
           className="flex items-center gap-1 border border-[#C4664A] text-[#C4664A] rounded-full px-4 py-2 text-sm font-medium bg-white"
           style={{ fontFamily: "inherit", cursor: "pointer" }}
@@ -487,9 +487,9 @@ function PlacesTab() {
 
       {/* Results */}
       {!selectedCity ? (
-        <p className="text-sm text-gray-400 text-center mt-8">Search a city to see rated places.</p>
+        <p className="text-sm text-gray-400 text-center mt-8">Search a city to see rated spots.</p>
       ) : placesLoading ? (
-        <p className="text-sm text-gray-400 text-center mt-8">Finding places...</p>
+        <p className="text-sm text-gray-400 text-center mt-8">Finding spots...</p>
       ) : places.length === 0 ? (
         <p className="text-sm text-gray-400 text-center mt-8">
           No rated places in {selectedCity} yet. Be the first to rate somewhere.
@@ -688,7 +688,7 @@ function PlacesTab() {
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C] mb-3 bg-white"
               style={{ fontFamily: "inherit" }}
             >
-              <option value="">Type of place</option>
+              <option value="">Type of spot</option>
               <option value="Food">Food</option>
               <option value="Activity">Activity</option>
               <option value="Culture">Culture</option>
@@ -719,7 +719,7 @@ function PlacesTab() {
             <textarea
               value={apNotes}
               onChange={e => setApNotes(e.target.value)}
-              placeholder="What made this place special for your family?"
+              placeholder="What made this spot special for your family?"
               rows={3}
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C] mb-4 resize-none"
             />
@@ -1187,7 +1187,7 @@ export default function DiscoverPage() {
             className="rounded-full px-5 py-2 text-sm font-medium"
             style={{ fontFamily: "inherit", cursor: "pointer", backgroundColor: activeTab === "places" ? "#1B3A5C" : "transparent", color: activeTab === "places" ? "#fff" : "#555", border: activeTab === "places" ? "1.5px solid #1B3A5C" : "1.5px solid #E0E0E0" }}
           >
-            Places
+            Spots
           </button>
         </div>
 
@@ -1430,7 +1430,7 @@ export default function DiscoverPage() {
             Community Picks
           </h2>
           <p style={{ fontSize: "14px", color: "#717171", marginBottom: "24px" }}>
-            Places and activities saved by families who&apos;ve been there — searchable by destination.
+            Spots and activities saved by families who&apos;ve been there — searchable by destination.
           </p>
 
           <div style={{ position: "relative", marginBottom: "16px" }}>
