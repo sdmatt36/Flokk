@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { MapPin, ChevronRight, X, Search } from "lucide-react";
+import { MapPin, ChevronRight, X, Search, Plus } from "lucide-react";
 import { Playfair_Display } from "next/font/google";
 import { getTripCoverImage } from "@/lib/destination-images";
 
@@ -235,7 +235,195 @@ const outlineBtn: React.CSSProperties = {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+// ── Places Tab ────────────────────────────────────────────────────────────────
+
+type CommunityPlace = {
+  id: string;
+  name: string;
+  city: string | null;
+  placeType: string | null;
+  image: string | null;
+  address: string | null;
+  website: string | null;
+  lat: number | null;
+  lng: number | null;
+  ratingCount: number;
+  avgRating: number | null;
+  sampleNote: string | null;
+};
+
+const PLACE_TYPE_FILTERS = ["All", "Food", "Activity", "Culture", "Outdoor", "Shopping", "Lodging"];
+
+function PlacesTab() {
+  const [placeCity, setPlaceCity] = useState("");
+  const [placeType, setPlaceType] = useState("All");
+  const [places, setPlaces] = useState<CommunityPlace[]>([]);
+  const [placesLoading, setPlacesLoading] = useState(false);
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
+
+  const [citySuggestions, setCitySuggestions] = useState<{cityName: string; countryName: string; placeId?: string}[]>([]);
+  const [showCitySuggestions, setShowCitySuggestions] = useState(false);
+  const cityDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cityRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (cityRef.current && !cityRef.current.contains(e.target as Node)) setShowCitySuggestions(false);
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  useEffect(() => {
+    if (cityDebounce.current) clearTimeout(cityDebounce.current);
+    if (placeCity.length < 2) { setCitySuggestions([]); return; }
+    cityDebounce.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/destinations/lookup?q=${encodeURIComponent(placeCity)}`);
+        const data = await res.json();
+        setCitySuggestions(Array.isArray(data) ? data.slice(0, 6) : []);
+        setShowCitySuggestions(true);
+      } catch { setCitySuggestions([]); }
+    }, 400);
+    return () => { if (cityDebounce.current) clearTimeout(cityDebounce.current); };
+  }, [placeCity]);
+
+  useEffect(() => {
+    if (!selectedCity) return;
+    setPlacesLoading(true);
+    const params = new URLSearchParams({ city: selectedCity });
+    if (placeType !== "All") params.set("type", placeType.toLowerCase());
+    fetch(`/api/places/community?${params}`)
+      .then(r => r.json())
+      .then(d => setPlaces(d.places ?? []))
+      .catch(() => setPlaces([]))
+      .finally(() => setPlacesLoading(false));
+  }, [selectedCity, placeType]);
+
+  function selectCity(cityName: string, countryName: string) {
+    const value = countryName ? `${cityName}, ${countryName}` : cityName;
+    setPlaceCity(value);
+    setSelectedCity(cityName);
+    setShowCitySuggestions(false);
+  }
+
+  return (
+    <div>
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm text-gray-500">Rated places from the Flokk community</p>
+        <button
+          className="flex items-center gap-1 border border-[#C4664A] text-[#C4664A] rounded-full px-4 py-2 text-sm font-medium bg-white"
+          style={{ fontFamily: "inherit", cursor: "pointer" }}
+          onClick={() => alert("Add Place modal coming soon")}
+        >
+          <Plus size={13} />
+          Add a Place
+        </button>
+      </div>
+
+      {/* City search */}
+      <div ref={cityRef} className="relative mb-4">
+        <input
+          type="text"
+          value={placeCity}
+          onChange={e => { setPlaceCity(e.target.value); setShowCitySuggestions(true); setSelectedCity(null); }}
+          onFocus={() => { if (placeCity.length >= 2) setShowCitySuggestions(true); }}
+          placeholder="Search a city (e.g. Seoul, Kyoto)"
+          autoComplete="off"
+          className="w-full border border-gray-200 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C]"
+        />
+        {showCitySuggestions && citySuggestions.length > 0 && (
+          <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg z-50 mt-1 overflow-hidden">
+            {citySuggestions.map(s => (
+              <button
+                key={s.placeId ?? s.cityName}
+                type="button"
+                onMouseDown={() => selectCity(s.cityName, s.countryName)}
+                className="w-full px-4 py-3 text-sm text-[#1B3A5C] hover:bg-gray-50 text-left flex items-center gap-2"
+                style={{ background: "none", border: "none", fontFamily: "inherit", cursor: "pointer" }}
+              >
+                <span className="font-semibold">{s.cityName}</span>
+                {s.countryName && s.countryName !== s.cityName && (
+                  <span className="text-gray-400 text-xs">· {s.countryName}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Type filter pills */}
+      <div className="flex flex-wrap gap-2 mb-5">
+        {PLACE_TYPE_FILTERS.map(t => (
+          <button
+            key={t}
+            onClick={() => setPlaceType(t)}
+            className="rounded-full px-4 py-2 text-sm font-medium"
+            style={{
+              fontFamily: "inherit",
+              cursor: "pointer",
+              backgroundColor: placeType === t ? "#1B3A5C" : "transparent",
+              color: placeType === t ? "#fff" : "#555",
+              border: placeType === t ? "1.5px solid #1B3A5C" : "1.5px solid #E0E0E0",
+            }}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* Results */}
+      {!selectedCity ? (
+        <p className="text-sm text-gray-400 text-center mt-8">Search a city to see rated places.</p>
+      ) : placesLoading ? (
+        <p className="text-sm text-gray-400 text-center mt-8">Finding places...</p>
+      ) : places.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center mt-8">
+          No rated places in {selectedCity} yet. Be the first to rate somewhere.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+          {places.map(place => (
+            <div key={place.id} className="border border-gray-100 rounded-2xl overflow-hidden shadow-sm bg-white">
+              <div className="bg-gray-100 overflow-hidden" style={{ height: "140px" }}>
+                {place.image ? (
+                  <img src={place.image} alt={place.name} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full bg-gray-100" />
+                )}
+              </div>
+              <div className="p-3">
+                <p className="text-sm font-semibold text-[#1B3A5C] leading-snug">{place.name}</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {[place.city, place.placeType].filter(Boolean).join(" · ")}
+                </p>
+                {place.ratingCount > 0 ? (
+                  <p className="text-xs mt-1" style={{ color: "#C4664A" }}>
+                    {"★".repeat(Math.round(place.avgRating ?? 0))}
+                    <span className="text-gray-500 ml-1">{place.avgRating} ({place.ratingCount} {place.ratingCount === 1 ? "family" : "families"})</span>
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-400 mt-1">Not yet rated</p>
+                )}
+                {place.sampleNote && (
+                  <p className="text-xs text-gray-500 italic mt-1 line-clamp-2">{place.sampleNote}</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function DiscoverPage() {
+  // Tab
+  const [activeTab, setActiveTab] = useState<"trips" | "places">("trips");
+
   // Global search
   const [searchQuery,    setSearchQuery]    = useState("");
   const [suggestions,    setSuggestions]    = useState<{cityName: string; countryName: string; placeId?: string}[]>([]);
@@ -502,7 +690,7 @@ export default function DiscoverPage() {
       <div style={{ maxWidth: "1280px", margin: "0 auto", padding: "32px 24px 0" }}>
 
         {/* Page header */}
-        <div style={{ marginBottom: "28px" }}>
+        <div style={{ marginBottom: "20px" }}>
           <h1 style={{ fontSize: "26px", fontWeight: 800, color: "#1a1a1a", lineHeight: 1.2, marginBottom: "6px" }}>
             Discover
           </h1>
@@ -510,6 +698,28 @@ export default function DiscoverPage() {
             Real trips from real families, plus destinations picked for yours.
           </p>
         </div>
+
+        {/* Tab pills */}
+        <div className="flex gap-2 mb-6">
+          <button
+            onClick={() => setActiveTab("trips")}
+            className="rounded-full px-5 py-2 text-sm font-medium"
+            style={{ fontFamily: "inherit", cursor: "pointer", backgroundColor: activeTab === "trips" ? "#1B3A5C" : "transparent", color: activeTab === "trips" ? "#fff" : "#555", border: activeTab === "trips" ? "1.5px solid #1B3A5C" : "1.5px solid #E0E0E0" }}
+          >
+            Community Trips
+          </button>
+          <button
+            onClick={() => setActiveTab("places")}
+            className="rounded-full px-5 py-2 text-sm font-medium"
+            style={{ fontFamily: "inherit", cursor: "pointer", backgroundColor: activeTab === "places" ? "#1B3A5C" : "transparent", color: activeTab === "places" ? "#fff" : "#555", border: activeTab === "places" ? "1.5px solid #1B3A5C" : "1.5px solid #E0E0E0" }}
+          >
+            Places
+          </button>
+        </div>
+
+        {activeTab === "places" ? (
+          <PlacesTab />
+        ) : (<>
 
         {/* ── HERO SEARCH BAR ── */}
         <div ref={searchRef} style={{ position: "relative" }}>
@@ -990,11 +1200,12 @@ export default function DiscoverPage() {
             </div>
           )}
         </div>
+        </>)}
 
       </div>
 
       {/* ── Add yours modal ── */}
-      {showAddYours && (
+      {activeTab === "trips" && showAddYours && (
         <div
           onClick={() => setShowAddYours(false)}
           style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
@@ -1084,7 +1295,7 @@ export default function DiscoverPage() {
       )}
 
       {/* ── Community rating modal ── */}
-      {communityRatingModal && (
+      {activeTab === "trips" && communityRatingModal && (
         <div
           onClick={() => setCommunityRatingModal(null)}
           style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
@@ -1164,7 +1375,7 @@ export default function DiscoverPage() {
       )}
 
       {/* ── Activity detail modal ── */}
-      {selectedActivity && (
+      {activeTab === "trips" && selectedActivity && (
         <div
           onClick={() => setSelectedActivity(null)}
           style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
@@ -1238,7 +1449,7 @@ export default function DiscoverPage() {
       )}
 
       {/* ── Rating toast ── */}
-      {communityRatingToast && (
+      {activeTab === "trips" && communityRatingToast && (
         <div style={{ position: "fixed", bottom: "80px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#1B3A5C", color: "#fff", padding: "10px 20px", borderRadius: "999px", fontSize: "13px", fontWeight: 600, zIndex: 200, pointerEvents: "none" }}>
           {communityRatingToast}
         </div>
