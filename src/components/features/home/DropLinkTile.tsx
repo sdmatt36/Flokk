@@ -5,7 +5,7 @@ import { Bookmark } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { DropLinkModal } from "./DropLinkModal";
 
-type Trip = { id: string; title: string; startDate: string | null; endDate: string | null };
+type Trip = { id: string; title: string; startDate: string | null; endDate: string | null; status?: string };
 
 const CARD_GRADIENT =
   "linear-gradient(to bottom, transparent 0%, transparent 30%, rgba(0,0,0,0.5) 60%, rgba(0,0,0,0.85) 100%)";

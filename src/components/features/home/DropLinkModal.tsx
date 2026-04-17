@@ -8,7 +8,7 @@ function getDomainLabel(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return "Saved link"; }
 }
 
-type Trip = { id: string; title: string; startDate: string | null; endDate: string | null };
+type Trip = { id: string; title: string; startDate: string | null; endDate: string | null; status?: string };
 
 type ExtractedCard = {
   title: string;
@@ -480,40 +480,60 @@ export function DropLinkModal({
                 Which trip is this for?
               </p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {trips.map((trip) => {
-                  const active = selectedId === trip.id;
-                  const pulsing = pulseId === trip.id;
+                {(() => {
+                  const upcomingTrips = trips.filter(t => !t.status || t.status === "PLANNING" || t.status === "ACTIVE");
+                  const pastTrips = trips.filter(t => t.status === "COMPLETED");
+                  const renderTripButton = (trip: Trip) => {
+                    const active = selectedId === trip.id;
+                    const pulsing = pulseId === trip.id;
+                    return (
+                      <button
+                        type="button"
+                        key={trip.id}
+                        onClick={() => {
+                          if (active) {
+                            setPulseId(trip.id);
+                            setTimeout(() => setPulseId(null), 200);
+                          } else {
+                            setSelectedId(trip.id);
+                            setSelectedDayIndex(null);
+                          }
+                        }}
+                        style={{
+                          padding: "8px 16px",
+                          borderRadius: "999px",
+                          fontSize: "13px",
+                          fontWeight: 600,
+                          border: "1.5px solid",
+                          borderColor: active ? "#C4664A" : "#E0E0E0",
+                          backgroundColor: active ? "#C4664A" : "#fff",
+                          color: active ? "#fff" : "#555",
+                          cursor: "pointer",
+                          transition: pulsing ? "box-shadow 0s" : "box-shadow 0.3s ease-out, background-color 0.15s, border-color 0.15s",
+                          boxShadow: pulsing ? "0 0 0 4px rgba(196,102,74,0.45)" : "0 0 0 0px rgba(196,102,74,0)",
+                        }}
+                      >
+                        {trip.title}
+                      </button>
+                    );
+                  };
                   return (
-                    <button
-                      type="button"
-                      key={trip.id}
-                      onClick={() => {
-                        if (active) {
-                          setPulseId(trip.id);
-                          setTimeout(() => setPulseId(null), 200);
-                        } else {
-                          setSelectedId(trip.id);
-                          setSelectedDayIndex(null);
-                        }
-                      }}
-                      style={{
-                        padding: "8px 16px",
-                        borderRadius: "999px",
-                        fontSize: "13px",
-                        fontWeight: 600,
-                        border: "1.5px solid",
-                        borderColor: active ? "#C4664A" : "#E0E0E0",
-                        backgroundColor: active ? "#C4664A" : "#fff",
-                        color: active ? "#fff" : "#555",
-                        cursor: "pointer",
-                        transition: pulsing ? "box-shadow 0s" : "box-shadow 0.3s ease-out, background-color 0.15s, border-color 0.15s",
-                        boxShadow: pulsing ? "0 0 0 4px rgba(196,102,74,0.45)" : "0 0 0 0px rgba(196,102,74,0)",
-                      }}
-                    >
-                      {trip.title}
-                    </button>
+                    <>
+                      {upcomingTrips.length > 0 && (
+                        <>
+                          <p className="text-xs text-gray-400 uppercase tracking-wide px-2 py-1 w-full" style={{ flexBasis: "100%" }}>Upcoming</p>
+                          {upcomingTrips.map(renderTripButton)}
+                        </>
+                      )}
+                      {pastTrips.length > 0 && (
+                        <>
+                          <p className="text-xs text-gray-400 uppercase tracking-wide px-2 py-1 w-full" style={{ flexBasis: "100%", marginTop: upcomingTrips.length > 0 ? "8px" : "0" }}>Past Trips</p>
+                          {pastTrips.map(renderTripButton)}
+                        </>
+                      )}
+                    </>
                   );
-                })}
+                })()}
                 {/* Save for later */}
                 {(() => {
                   const active = selectedId === SAVE_LATER;

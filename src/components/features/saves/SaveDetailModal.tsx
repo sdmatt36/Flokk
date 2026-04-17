@@ -28,7 +28,7 @@ type SaveItem = {
   userRating: number | null;
 };
 
-type Trip = { id: string; title: string };
+type Trip = { id: string; title: string; status?: string };
 
 const SOURCE_LABEL: Record<string, string> = {
   INSTAGRAM: "Instagram", TIKTOK: "TikTok", GOOGLE_MAPS: "Google Maps",
@@ -529,15 +529,35 @@ export function SaveDetailModal({
                   >
                     No trip / Keep unassigned
                   </button>
-                  {trips.map(trip => (
-                    <button
-                      key={trip.id}
-                      onClick={() => handleAssignTrip(trip)}
-                      style={{ width: "100%", padding: "12px 16px", textAlign: "left", background: "none", border: "none", borderBottom: "1px solid rgba(0,0,0,0.06)", fontSize: "14px", color: "#1a1a1a", cursor: "pointer", fontWeight: 500 }}
-                    >
-                      {trip.title}
-                    </button>
-                  ))}
+                  {(() => {
+                    const upcomingTrips = trips.filter(t => !t.status || t.status === "PLANNING" || t.status === "ACTIVE");
+                    const pastTrips = trips.filter(t => t.status === "COMPLETED");
+                    const renderTripBtn = (trip: Trip) => (
+                      <button
+                        key={trip.id}
+                        onClick={() => handleAssignTrip(trip)}
+                        style={{ width: "100%", padding: "12px 16px", textAlign: "left", background: "none", border: "none", borderBottom: "1px solid rgba(0,0,0,0.06)", fontSize: "14px", color: "#1a1a1a", cursor: "pointer", fontWeight: 500 }}
+                      >
+                        {trip.title}
+                      </button>
+                    );
+                    return (
+                      <>
+                        {upcomingTrips.length > 0 && (
+                          <>
+                            <p style={{ fontSize: "10px", color: "#aaa", textTransform: "uppercase", letterSpacing: "0.06em", padding: "6px 16px 2px", fontWeight: 600 }}>Upcoming</p>
+                            {upcomingTrips.map(renderTripBtn)}
+                          </>
+                        )}
+                        {pastTrips.length > 0 && (
+                          <>
+                            <p style={{ fontSize: "10px", color: "#aaa", textTransform: "uppercase", letterSpacing: "0.06em", padding: "6px 16px 2px", fontWeight: 600, marginTop: upcomingTrips.length > 0 ? "4px" : "0" }}>Past Trips</p>
+                            {pastTrips.map(renderTripBtn)}
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>

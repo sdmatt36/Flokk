@@ -21,7 +21,7 @@ export function SourceFilterSaves({
   itineraryItemCount = 1,
 }: {
   items: SourceSaveItem[];
-  trips: { id: string; title: string; startDate: string | null; endDate: string | null }[];
+  trips: { id: string; title: string; startDate: string | null; endDate: string | null; status?: string }[];
   itineraryItemCount?: number;
 }) {
   const [filter, setFilter] = useState<SourceFilter>("ALL");

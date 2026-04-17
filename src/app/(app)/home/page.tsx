@@ -88,6 +88,12 @@ export default async function HomePage() {
   const activePlannedTrips = profile.trips.filter(
     (t) => t.status === "PLANNING" || t.status === "ACTIVE"
   );
+  // All trips for pickers that should also show past trips, newest first
+  const allTrips = [...profile.trips].sort((a, b) => {
+    if (!a.startDate) return 1;
+    if (!b.startDate) return -1;
+    return b.startDate.getTime() - a.startDate.getTime();
+  });
 
   // Popular with Flokk Families — completed public trips ordered by recency, deduplicated by city
   const rawPopularTrips = await db.trip.findMany({
@@ -288,7 +294,7 @@ export default async function HomePage() {
             {/* Quick action tiles — mobile order 5 */}
             <div className="order-5 md:order-none">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-              <DropLinkTile trips={activePlannedTrips.map(t => ({ id: t.id, title: t.title, startDate: t.startDate ? t.startDate.toISOString() : null, endDate: t.endDate ? t.endDate.toISOString() : null }))} />
+              <DropLinkTile trips={allTrips.map(t => ({ id: t.id, title: t.title, startDate: t.startDate ? t.startDate.toISOString() : null, endDate: t.endDate ? t.endDate.toISOString() : null, status: t.status }))} />
               <Link
                 href={heroTrip ? `/trips/${heroTrip.id}?tab=recommended` : "/discover"}
                 style={{ position: "relative", borderRadius: "16px", overflow: "hidden", display: "block", height: "160px", backgroundImage: "url('https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=400&q=80')", backgroundSize: "cover", backgroundPosition: "center", textDecoration: "none" }}
@@ -317,7 +323,7 @@ export default async function HomePage() {
                 categoryTags: item.categoryTags,
                 sourceType: item.sourceType,
               }))}
-              trips={activePlannedTrips.map(t => ({ id: t.id, title: t.title, startDate: t.startDate ? t.startDate.toISOString() : null, endDate: t.endDate ? t.endDate.toISOString() : null }))}
+              trips={allTrips.map(t => ({ id: t.id, title: t.title, startDate: t.startDate ? t.startDate.toISOString() : null, endDate: t.endDate ? t.endDate.toISOString() : null, status: t.status }))}
               itineraryItemCount={itineraryItemCount}
             />
             </div>{/* end source filter wrapper */}
