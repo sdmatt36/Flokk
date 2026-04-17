@@ -19,6 +19,7 @@ type TripOption = {
   title: string;
   destinationCity: string | null;
   status: string;
+  startDate: string | null;
 };
 
 type Props = {
@@ -145,6 +146,15 @@ export default function TourResults({ stops, destinationCity, prompt }: Props) {
     setSaving(true);
     setSaveError("");
     try {
+      let date: string;
+      if (trip.startDate) {
+        const tripStart = new Date(trip.startDate + "T12:00:00");
+        tripStart.setDate(tripStart.getDate() + (selectedDay - 1));
+        date = tripStart.toISOString().split("T")[0];
+      } else {
+        date = new Date().toISOString().split("T")[0];
+      }
+
       const results = await Promise.all(
         stops.map(stop =>
           fetch(`/api/trips/${selectedTripId}/activities`, {
@@ -152,10 +162,10 @@ export default function TourResults({ stops, destinationCity, prompt }: Props) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               title: stop.name,
+              date,
               address: stop.address,
               lat: stop.lat,
               lng: stop.lng,
-              dayIndex: selectedDay - 1,
               notes: stop.why,
               website: null,
               time: null,
