@@ -109,7 +109,7 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
   const [suggestionLoading, setSuggestionLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const canSave = title.trim() !== "" && date !== "";
+  const canSave = title.trim() !== "" && (isSavedItem || date !== "");
 
   async function handleSave() {
     if (!canSave) {
