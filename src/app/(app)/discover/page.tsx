@@ -359,13 +359,19 @@ function PlacesTab() {
           <button
             key={t}
             onClick={() => setPlaceType(t)}
-            className="rounded-full px-4 py-2 text-sm font-medium"
             style={{
-              fontFamily: "inherit",
+              flexShrink: 0,
+              padding: "7px 16px",
+              borderRadius: "999px",
+              border: placeType === t ? "none" : "1.5px solid #E0E0E0",
+              backgroundColor: placeType === t ? "#C4664A" : "#fff",
+              color: placeType === t ? "#fff" : "#717171",
+              fontSize: "13px",
+              fontWeight: placeType === t ? 700 : 500,
+              lineHeight: "1",
               cursor: "pointer",
-              backgroundColor: placeType === t ? "#1B3A5C" : "transparent",
-              color: placeType === t ? "#fff" : "#555",
-              border: placeType === t ? "1.5px solid #1B3A5C" : "1.5px solid #E0E0E0",
+              transition: "all 0.15s",
+              fontFamily: "inherit",
             }}
           >
             {t}
