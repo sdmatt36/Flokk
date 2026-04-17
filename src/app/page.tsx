@@ -354,6 +354,7 @@ export default async function LandingPage() {
               {
                 name: "Forward it. Done.",
                 desc: "Send any booking confirmation to trips@flokktravel.com — we extract every detail.",
+                live: true,
               },
               {
                 name: "One Tap Navigation",
@@ -370,9 +371,15 @@ export default async function LandingPage() {
               {
                 name: "Pre-Vetted Family Trips",
                 desc: "Real itineraries from families with kids the same ages and interests as yours.",
+                live: true,
               },
-            ].map(({ name, desc }) => (
-              <div key={name} style={{ backgroundColor: "#FFFFFF", borderRadius: "12px", padding: "28px 24px", border: "1px solid #E8E8E8", borderTopColor: "#C4664A", borderTopWidth: "3px", textAlign: "center" }}>
+            ].map(({ name, desc, live }) => (
+              <div key={name} style={{ backgroundColor: "#FFFFFF", borderRadius: "12px", padding: "28px 24px", border: "1px solid #E8E8E8", borderTopColor: "#C4664A", borderTopWidth: "3px", textAlign: "center", position: "relative", overflow: live ? "hidden" : undefined }}>
+                {live && (
+                  <div className="absolute top-3 right-[-28px] bg-[#C4664A] text-white text-[10px] font-bold uppercase tracking-wider px-8 py-1 rotate-45 shadow-sm">
+                    Now Live
+                  </div>
+                )}
                 <p style={{ color: "#1B3A5C", fontWeight: 600, fontSize: "18px", marginTop: 0, textAlign: "center" }}>{name}</p>
                 <p style={{ color: "#717171", fontSize: "14px", marginTop: "8px", lineHeight: 1.5, textAlign: "center" }}>{desc}</p>
               </div>
