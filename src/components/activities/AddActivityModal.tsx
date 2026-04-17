@@ -73,7 +73,7 @@ const labelStyle: React.CSSProperties = {
 };
 
 export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, defaultDate, destinationCity, destinationCountry }: Props) {
-  const isEditing = !!existingActivity;
+  const isEditing = !!(existingActivity?.id);
   const [title, setTitle] = useState(existingActivity?.title ?? "");
   const [date, setDate] = useState(existingActivity?.date ?? defaultDate ?? "");
   const [time, setTime] = useState(existingActivity?.time ?? "");
@@ -328,16 +328,18 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
           </div>
 
           {/* Date + Start time */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-            <div>
-              <label style={labelStyle}>Date *</label>
-              <input
-                type="date"
-                value={date}
-                onChange={e => setDate(e.target.value)}
-                style={inputStyle}
-              />
-            </div>
+          <div style={{ display: "grid", gridTemplateColumns: (existingActivity?.date || defaultDate) ? "1fr" : "1fr 1fr", gap: "10px" }}>
+            {!(existingActivity?.date || defaultDate) && (
+              <div>
+                <label style={labelStyle}>Date *</label>
+                <input
+                  type="date"
+                  value={date}
+                  onChange={e => setDate(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+            )}
             <div>
               <label style={labelStyle}>Start time</label>
               <input

@@ -2871,7 +2871,15 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                           if (isLodging) {
                                                             setEditingLodging({ id: a.savedItemId!, rawTitle: it.rawTitle ?? a.title, extractedCheckin: it.extractedCheckin ?? "", extractedCheckout: it.extractedCheckout ?? "", websiteUrl: it.websiteUrl ?? "", notes: it.notes ?? "" });
                                                           } else {
-                                                            onEditActivity?.({ id: "", title: it.rawTitle ?? a.title, date: "", time: null, endTime: null, venueName: null, address: null, website: it.websiteUrl ?? null, price: null, currency: null, notes: it.notes ?? null, status: "interested", confirmationCode: null, lat: a.lat ?? null, lng: a.lng ?? null });
+                                                            let actDate = "";
+                                                            if (tripStartDate && a.dayIndex != null) {
+                                                              try {
+                                                                const s = new Date(tripStartDate + "T12:00:00");
+                                                                s.setDate(s.getDate() + a.dayIndex);
+                                                                actDate = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(s.getDate()).padStart(2, "0")}`;
+                                                              } catch { /* ignore */ }
+                                                            }
+                                                            onEditActivity?.({ id: a.savedItemId!, title: it.rawTitle ?? a.title, date: actDate, time: null, endTime: null, venueName: null, address: null, website: it.websiteUrl ?? null, price: null, currency: null, notes: it.notes ?? null, status: "interested", confirmationCode: null, lat: a.lat ?? null, lng: a.lng ?? null });
                                                           }
                                                         } catch { /* ignore */ }
                                                       }}
