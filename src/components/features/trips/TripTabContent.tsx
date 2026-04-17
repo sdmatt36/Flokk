@@ -1779,7 +1779,7 @@ function ActivityDetailModal({ activity, onClose, onEdit, onDelete, onMarkBooked
   );
 }
 
-function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onDeleteActivity, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight, budgetTotal, trackedTotal, budgetCurrency, budgetLoaded, onBudgetChange }: {
+function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onEditSavedActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onDeleteActivity, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight, budgetTotal, trackedTotal, budgetCurrency, budgetLoaded, onBudgetChange }: {
   flyTarget: { lat: number; lng: number } | null;
   onFlyTargetConsumed: () => void;
   tripId?: string;
@@ -1788,6 +1788,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   onSwitchToRecommended?: () => void;
   onActivityAdded?: () => void;
   onEditActivity?: (a: Activity) => void;
+  onEditSavedActivity?: (a: Activity) => void;
   destinationCity?: string | null;
   destinationCountry?: string | null;
   flights?: Flight[];
@@ -2879,7 +2880,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                                 actDate = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(s.getDate()).padStart(2, "0")}`;
                                                               } catch { /* ignore */ }
                                                             }
-                                                            onEditActivity?.({ id: a.savedItemId!, title: it.rawTitle ?? a.title, date: actDate, time: null, endTime: null, venueName: null, address: null, website: it.websiteUrl ?? null, price: null, currency: null, notes: it.notes ?? null, status: "interested", confirmationCode: null, lat: a.lat ?? null, lng: a.lng ?? null });
+                                                            onEditSavedActivity?.({ id: a.savedItemId!, title: it.rawTitle ?? a.title, date: actDate, time: null, endTime: null, venueName: null, address: null, website: it.websiteUrl ?? null, price: null, currency: null, notes: it.notes ?? null, status: "interested", confirmationCode: null, lat: a.lat ?? null, lng: a.lng ?? null });
                                                           }
                                                         } catch { /* ignore */ }
                                                       }}
@@ -5675,6 +5676,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [showFlightModal, setShowFlightModal] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [editingActivity, setEditingActivity] = useState<ExistingActivity | null>(null);
+  const [editingActivityIsSavedItem, setEditingActivityIsSavedItem] = useState(false);
   const [activityDayPickerItem, setActivityDayPickerItem] = useState<Activity | null>(null);
   const [activityToast, setActivityToast] = useState<string | null>(null);
   const [flights, setFlights] = useState<Flight[]>([]);
@@ -6100,10 +6102,12 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           defaultDate={activityDefaultDate}
           destinationCity={destinationCity}
           destinationCountry={destinationCountry}
-          onClose={() => { setShowActivityModal(false); setEditingActivity(null); setActivityDefaultDate(undefined); }}
+          isSavedItem={editingActivityIsSavedItem}
+          onClose={() => { setShowActivityModal(false); setEditingActivity(null); setEditingActivityIsSavedItem(false); setActivityDefaultDate(undefined); }}
           onSaved={(updated) => {
             setShowActivityModal(false);
             setEditingActivity(null);
+            setEditingActivityIsSavedItem(false);
             if (updated?.id) {
               setActivities(prev => prev.map(a => a.id === updated.id ? { ...a, ...updated } : a));
             } else {
@@ -6151,7 +6155,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       {tab === "saved" && (
         <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} />
       )}
-      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onDeleteActivity={handleDeleteActivity} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} budgetTotal={budgetTotal} trackedTotal={trackedTotal} budgetCurrency={budgetCurrency} budgetLoaded={budgetLoaded} onBudgetChange={handleBudgetChange} />}
+      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} onEditSavedActivity={(a) => { setEditingActivity(a); setEditingActivityIsSavedItem(true); }} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onDeleteActivity={handleDeleteActivity} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} budgetTotal={budgetTotal} trackedTotal={trackedTotal} budgetCurrency={budgetCurrency} budgetLoaded={budgetLoaded} onBudgetChange={handleBudgetChange} />}
       {tab === "packing" && <PackingContent tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} tripStartDate={tripStartDate} tripEndDate={tripEndDate} />}
       {tab === "notes" && (
         <div style={{ maxWidth: "600px" }}>

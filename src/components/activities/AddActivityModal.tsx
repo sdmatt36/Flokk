@@ -41,6 +41,7 @@ interface Props {
   defaultDate?: string;
   destinationCity?: string | null;
   destinationCountry?: string | null;
+  isSavedItem?: boolean;
 }
 
 const STATUS_OPTIONS: { value: ActivityStatus; label: string }[] = [
@@ -72,7 +73,7 @@ const labelStyle: React.CSSProperties = {
   display: "block",
 };
 
-export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, defaultDate, destinationCity, destinationCountry }: Props) {
+export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, defaultDate, destinationCity, destinationCountry, isSavedItem }: Props) {
   const isEditing = !!(existingActivity?.id);
   const [title, setTitle] = useState(existingActivity?.title ?? "");
   const [date, setDate] = useState(existingActivity?.date ?? defaultDate ?? "");
@@ -118,6 +119,25 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
     setSaving(true);
     setError("");
     try {
+      if (isSavedItem && existingActivity?.id) {
+        const res = await fetch(`/api/saves/${existingActivity.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            rawTitle: title.trim(),
+            notes: notes.trim() || null,
+            websiteUrl: website.trim() || null,
+          }),
+        });
+        if (!res.ok) {
+          const d = await res.json();
+          setError(d.error ?? "Failed to save");
+          return;
+        }
+        onSaved();
+        return;
+      }
+
       const payload = {
         title: title.trim(),
         date,
