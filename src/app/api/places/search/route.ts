@@ -32,11 +32,17 @@ export async function GET(request: Request) {
     );
     const data = (await res.json()) as { status: string; candidates?: PlaceCandidate[] };
     const candidates = data.candidates ?? [];
-    const places = candidates.map(c => ({
-      ...c,
-      photoUrl: c.photos?.[0]?.photo_reference
-        ? `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${c.photos[0].photo_reference}&key=${process.env.GOOGLE_MAPS_API_KEY}`
-        : null,
+    const places = await Promise.all(candidates.map(async c => {
+      const photoRef = c.photos?.[0]?.photo_reference;
+      let photoUrl: string | null = null;
+      if (photoRef) {
+        const googlePhotoUrl = "https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=" + photoRef + "&key=" + process.env.GOOGLE_MAPS_API_KEY;
+        try {
+          const imgRes = await fetch(googlePhotoUrl, { redirect: "follow" });
+          if (imgRes.ok) photoUrl = imgRes.url;
+        } catch { photoUrl = null; }
+      }
+      return { ...c, photoUrl };
     }));
     return NextResponse.json({ places });
   } catch {
