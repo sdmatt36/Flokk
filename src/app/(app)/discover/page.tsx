@@ -293,6 +293,7 @@ function PlacesTab() {
   const apCityRef = useRef<HTMLDivElement>(null);
   const apCityValueRef = useRef("");
   const [flokkConfirmedId, setFlokkConfirmedId] = useState<string | null>(null);
+  const [flokkDuplicateId, setFlokkDuplicateId] = useState<string | null>(null);
   const [clipCopiedId, setClipCopiedId] = useState<string | null>(null);
   const [apSaving, setApSaving] = useState(false);
   const [apAddToTrip, setApAddToTrip] = useState(false);
@@ -498,36 +499,34 @@ function PlacesTab() {
                 <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-50">
                   <button
                     onClick={async () => {
+                      let isDuplicate = false;
                       if (place.website) {
-                        const body = JSON.stringify({ url: place.website, rawTitle: place.name, notes: place.sampleNote, categoryTags: [place.placeType] });
-                        console.log("[FlokkIt] posting to:", "/api/saves", "body:", body);
                         const res = await fetch("/api/saves", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body,
+                          body: JSON.stringify({ url: place.website, rawTitle: place.name, notes: place.sampleNote, categoryTags: [place.placeType] }),
                         });
-                        console.log("[FlokkIt] response status:", res.status);
-                        const data = await res.json();
-                        console.log("[FlokkIt] response data:", JSON.stringify(data));
+                        const data = await res.json() as { duplicate?: boolean };
+                        isDuplicate = data.duplicate === true;
                       } else {
-                        const body = JSON.stringify({ name: place.name, address: place.address ?? "", city: place.city, type: place.placeType, lat: place.lat, lng: place.lng, notes: place.sampleNote });
-                        console.log("[FlokkIt] posting to:", "/api/places/save", "body:", body);
-                        const res = await fetch("/api/places/save", {
+                        await fetch("/api/places/save", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body,
+                          body: JSON.stringify({ name: place.name, address: place.address ?? "", city: place.city, type: place.placeType, lat: place.lat, lng: place.lng, notes: place.sampleNote }),
                         });
-                        console.log("[FlokkIt] response status:", res.status);
-                        const data = await res.json();
-                        console.log("[FlokkIt] response data:", JSON.stringify(data));
                       }
-                      setFlokkConfirmedId(place.id);
-                      setTimeout(() => setFlokkConfirmedId(null), 2000);
+                      if (isDuplicate) {
+                        setFlokkDuplicateId(place.id);
+                        setTimeout(() => setFlokkDuplicateId(null), 2000);
+                      } else {
+                        setFlokkConfirmedId(place.id);
+                        setTimeout(() => setFlokkConfirmedId(null), 2000);
+                      }
                     }}
                     className="text-xs font-medium text-[#C4664A] cursor-pointer hover:underline bg-transparent border-none p-0"
                     style={{ fontFamily: "inherit" }}
                   >
-                    {flokkConfirmedId === place.id ? "Flokked!" : "Flokk It"}
+                    {flokkDuplicateId === place.id ? "Already saved!" : flokkConfirmedId === place.id ? "Flokked!" : "Flokk It"}
                   </button>
                   {place.website && (
                     <a
