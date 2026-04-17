@@ -20,6 +20,7 @@ type TripOption = {
   destinationCity: string | null;
   status: string;
   startDate: string | null;
+  endDate: string | null;
 };
 
 type Props = {
@@ -37,6 +38,7 @@ export default function TourResults({ stops, destinationCity, prompt }: Props) {
   const [tripsLoading, setTripsLoading] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState(1);
+  const [maxDays, setMaxDays] = useState(30);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState<{ tripTitle: string; tripId: string; day: number } | null>(null);
@@ -275,7 +277,14 @@ export default function TourResults({ stops, destinationCity, prompt }: Props) {
                         {upcomingTrips.map(trip => (
                           <div
                             key={trip.id}
-                            onClick={() => setSelectedTripId(trip.id)}
+                            onClick={() => {
+                              const mx = (trip.startDate && trip.endDate)
+                                ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
+                                : 30;
+                              setSelectedTripId(trip.id);
+                              setMaxDays(mx);
+                              setSelectedDay(d => d > mx ? 1 : d);
+                            }}
                             className={`py-2 px-3 rounded-lg cursor-pointer ${selectedTripId === trip.id ? "bg-[#1B3A5C]/5 border border-[#1B3A5C]" : "hover:bg-gray-50"}`}
                           >
                             <p className="text-sm text-[#1B3A5C] font-medium">{trip.title}</p>
@@ -290,7 +299,14 @@ export default function TourResults({ stops, destinationCity, prompt }: Props) {
                         {pastTrips.map(trip => (
                           <div
                             key={trip.id}
-                            onClick={() => setSelectedTripId(trip.id)}
+                            onClick={() => {
+                              const mx = (trip.startDate && trip.endDate)
+                                ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
+                                : 30;
+                              setSelectedTripId(trip.id);
+                              setMaxDays(mx);
+                              setSelectedDay(d => d > mx ? 1 : d);
+                            }}
                             className={`py-2 px-3 rounded-lg cursor-pointer ${selectedTripId === trip.id ? "bg-[#1B3A5C]/5 border border-[#1B3A5C]" : "hover:bg-gray-50"}`}
                           >
                             <p className="text-sm text-[#1B3A5C] font-medium">{trip.title}</p>
@@ -313,11 +329,13 @@ export default function TourResults({ stops, destinationCity, prompt }: Props) {
                       >−</button>
                       <span className="text-sm font-semibold text-[#1B3A5C] w-16 text-center">Day {selectedDay}</span>
                       <button
-                        onClick={() => setSelectedDay(d => d + 1)}
-                        className="w-8 h-8 rounded-full border border-gray-200 text-gray-600 text-sm font-bold flex items-center justify-center"
+                        onClick={() => setSelectedDay(d => Math.min(maxDays, d + 1))}
+                        disabled={selectedDay >= maxDays}
+                        className="w-8 h-8 rounded-full border border-gray-200 text-gray-600 text-sm font-bold flex items-center justify-center disabled:opacity-40"
                         style={{ background: "none" }}
                       >+</button>
                     </div>
+                    <p className="text-xs text-gray-400 mt-1">This trip has {maxDays} days</p>
                   </div>
                 )}
 
