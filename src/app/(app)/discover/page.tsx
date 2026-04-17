@@ -286,6 +286,13 @@ function PlacesTab() {
   const [apSuggestions, setApSuggestions] = useState<Array<{place_id: string; name: string; formatted_address: string; geometry?: {location: {lat: number; lng: number}}}>>([]);
   const [showApSuggestions, setShowApSuggestions] = useState(false);
   const [apSaving, setApSaving] = useState(false);
+  const [apAddToTrip, setApAddToTrip] = useState(false);
+  const [apTrips, setApTrips] = useState<Array<{id: string; title: string; destinationCity: string | null; destinationCountry: string | null; startDate: string | null; endDate: string | null; status: string}>>([]);
+  const [apTripsLoading, setApTripsLoading] = useState(false);
+  const [apTripsLoaded, setApTripsLoaded] = useState(false);
+  const [apSelectedTripId, setApSelectedTripId] = useState<string | null>(null);
+  const [apDay, setApDay] = useState(1);
+  const [apMaxDays, setApMaxDays] = useState(30);
   const [addPlaceToast, setAddPlaceToast] = useState<string | null>(null);
   const apDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const apRef = useRef<HTMLDivElement>(null);
@@ -458,7 +465,7 @@ function PlacesTab() {
           onClick={() => setShowAddPlaceModal(false)}
         >
           <div
-            className="bg-white max-w-md w-full mx-4 rounded-2xl p-6"
+            className="bg-white max-w-md w-full mx-4 rounded-2xl p-6 overflow-y-auto max-h-[90vh]"
             onClick={e => e.stopPropagation()}
           >
             <h2 className={`${playfair.className} text-xl text-[#1B3A5C] mb-1`}>Add a Place</h2>
@@ -561,6 +568,107 @@ function PlacesTab() {
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C] mb-4 resize-none"
             />
 
+            {/* Also add to trip */}
+            <div className="border-t border-gray-100 mt-4 pt-4 mb-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={apAddToTrip}
+                  onChange={async e => {
+                    setApAddToTrip(e.target.checked);
+                    if (e.target.checked && !apTripsLoaded) {
+                      setApTripsLoading(true);
+                      try {
+                        const res = await fetch("/api/trips?status=ALL");
+                        const data = await res.json() as { trips: Array<{id: string; title: string; destinationCity: string | null; destinationCountry: string | null; startDate: string | null; endDate: string | null; status: string}> };
+                        setApTrips(data.trips ?? []);
+                        setApTripsLoaded(true);
+                      } catch { setApTrips([]); } finally { setApTripsLoading(false); }
+                    }
+                  }}
+                  className="w-4 h-4 accent-[#1B3A5C]"
+                />
+                <span className="text-sm text-gray-600">Also add to a trip itinerary</span>
+              </label>
+
+              {apAddToTrip && (
+                <div className="mt-3">
+                  {apTripsLoading ? (
+                    <p className="text-xs text-gray-400 py-2">Loading trips...</p>
+                  ) : apTrips.length === 0 ? (
+                    <p className="text-xs text-gray-400 py-2">No trips found.</p>
+                  ) : (
+                    <>
+                      {apTrips.filter(t => t.status !== "COMPLETED").length > 0 && (
+                        <div className="mb-2">
+                          <p className="text-xs text-gray-400 font-medium mb-1">Upcoming</p>
+                          {apTrips.filter(t => t.status !== "COMPLETED").map(trip => (
+                            <div
+                              key={trip.id}
+                              onClick={() => {
+                                setApSelectedTripId(trip.id);
+                                setApDay(1);
+                                const mx = (trip.startDate && trip.endDate)
+                                  ? Math.round((new Date(trip.endDate.split("T")[0]).getTime() - new Date(trip.startDate.split("T")[0]).getTime()) / (1000 * 60 * 60 * 24)) + 1
+                                  : 30;
+                                setApMaxDays(Math.max(1, mx));
+                              }}
+                              className={`py-2 px-3 rounded-lg cursor-pointer hover:bg-gray-50 mb-1 ${apSelectedTripId === trip.id ? "bg-[#1B3A5C]/5 border border-[#1B3A5C]" : "border border-transparent"}`}
+                            >
+                              <p className="text-sm font-medium text-[#1B3A5C]">{trip.title}</p>
+                              {trip.destinationCity && <p className="text-xs text-gray-400">{trip.destinationCity}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {apTrips.filter(t => t.status === "COMPLETED").length > 0 && (
+                        <div className="mb-2">
+                          <p className="text-xs text-gray-400 font-medium mb-1">Past Trips</p>
+                          {apTrips.filter(t => t.status === "COMPLETED").map(trip => (
+                            <div
+                              key={trip.id}
+                              onClick={() => {
+                                setApSelectedTripId(trip.id);
+                                setApDay(1);
+                                const mx = (trip.startDate && trip.endDate)
+                                  ? Math.round((new Date(trip.endDate.split("T")[0]).getTime() - new Date(trip.startDate.split("T")[0]).getTime()) / (1000 * 60 * 60 * 24)) + 1
+                                  : 30;
+                                setApMaxDays(Math.max(1, mx));
+                              }}
+                              className={`py-2 px-3 rounded-lg cursor-pointer hover:bg-gray-50 mb-1 ${apSelectedTripId === trip.id ? "bg-[#1B3A5C]/5 border border-[#1B3A5C]" : "border border-transparent"}`}
+                            >
+                              <p className="text-sm font-medium text-[#1B3A5C]">{trip.title}</p>
+                              {trip.destinationCity && <p className="text-xs text-gray-400">{trip.destinationCity}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {apSelectedTripId && (
+                        <div className="flex items-center gap-3 mt-3">
+                          <p className="text-xs text-gray-500 font-medium">Which day?</p>
+                          <button
+                            type="button"
+                            onClick={() => setApDay(d => Math.max(1, d - 1))}
+                            disabled={apDay <= 1}
+                            className="w-7 h-7 rounded-full border border-gray-200 text-sm font-medium text-gray-500 flex items-center justify-center"
+                            style={{ opacity: apDay <= 1 ? 0.4 : 1 }}
+                          >−</button>
+                          <span className="text-sm font-semibold text-[#1B3A5C]">Day {apDay}</span>
+                          <button
+                            type="button"
+                            onClick={() => setApDay(d => Math.min(apMaxDays, d + 1))}
+                            disabled={apDay >= apMaxDays}
+                            className="w-7 h-7 rounded-full border border-gray-200 text-sm font-medium text-gray-500 flex items-center justify-center"
+                            style={{ opacity: apDay >= apMaxDays ? 0.4 : 1 }}
+                          >+</button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Save */}
             <button
               disabled={apSaving || !apName.trim() || !apCity.trim() || !apType}
@@ -581,12 +689,15 @@ function PlacesTab() {
                       notes: apNotes.trim() || null,
                       rating: apRating || null,
                       ratingNote: apNotes.trim() || null,
+                      alsoAddToTripId: apAddToTrip && apSelectedTripId ? apSelectedTripId : null,
+                      alsoAddToDayIndex: apAddToTrip && apSelectedTripId ? apDay - 1 : null,
                     }),
                   });
                   if (res.ok) {
                     const savedCity = apCity.trim();
                     setShowAddPlaceModal(false);
                     setApName(""); setApAddress(""); setApCity(""); setApType(""); setApRating(0); setApNotes(""); setApLat(null); setApLng(null);
+                    setApAddToTrip(false); setApSelectedTripId(null); setApDay(1);
                     setAddPlaceToast(`Place added to ${savedCity}`);
                     setTimeout(() => setAddPlaceToast(null), 3000);
                     if (selectedCity && savedCity.toLowerCase().includes(selectedCity.toLowerCase())) {
