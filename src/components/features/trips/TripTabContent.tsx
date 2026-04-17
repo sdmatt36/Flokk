@@ -717,7 +717,7 @@ function LodgingDateModal({ itemTitle, onConfirm, onClose }: {
   );
 }
 
-const ALL_CATEGORY_TAGS = ["Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other"];
+const ALL_CATEGORY_TAGS = ["Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Kids Camps", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other"];
 
 function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDelete, assignedDay, onTagsUpdated }: {
   item: SavedDisplayItem;
@@ -1002,7 +1002,7 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
   );
 }
 
-const SAVED_FILTER_PILLS = ["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other", "Unorganized"];
+const SAVED_FILTER_PILLS = ["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Kids Camps", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other", "Unorganized"];
 
 function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDelete }: {
   item: SavedDisplayItem;

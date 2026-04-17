@@ -42,7 +42,7 @@ type PlaceResult = {
   photos?: { photo_reference: string }[];
 };
 
-const FILTER_PILLS = ["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other", "Unorganized"];
+const FILTER_PILLS = ["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Kids Camps", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other", "Unorganized"];
 
 type ApiItem = {
   id: string;
@@ -697,6 +697,7 @@ export function SavesScreen() {
     "Experiences": ["experiences", "activity"],
     "Lodging": ["lodging"],
     "Adventure": ["adventure"],
+    "Kids Camps": ["kids camps", "kids_camps"],
     "Nature": ["nature", "outdoor"],
     "Shopping": ["shopping"],
     "Entertainment": ["entertainment"],
@@ -1158,6 +1159,7 @@ Your saved places, all in one spot
                   { value: "experiences", label: "Experiences" },
                   { value: "lodging", label: "Lodging" },
                   { value: "adventure", label: "Adventure" },
+                  { value: "kids_camps", label: "Kids Camps" },
                   { value: "nature", label: "Nature" },
                   { value: "shopping", label: "Shopping" },
                   { value: "entertainment", label: "Entertainment" },

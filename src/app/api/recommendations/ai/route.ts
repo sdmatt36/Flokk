@@ -128,7 +128,7 @@ export async function GET(req: NextRequest) {
   const systemPrompt = `You are a family travel recommendation engine. You receive structured data about a real family and their destination. Return ONLY valid JSON -- no markdown, no preamble. Return an array of 10 recommendations. Each recommendation must be:
 {
   "name": string,
-  "category": string (one of: Food & Drink, Culture, Experiences, Nature, Adventure, Shopping, Lodging, Entertainment, Wellness),
+  "category": string (one of: Food & Drink, Culture, Experiences, Nature, Adventure, Kids Camps, Shopping, Lodging, Entertainment, Wellness),
   "whyThisFamily": string (one sentence, specific to this family's profile -- reference their ages, interests, or style),
   "ageAppropriate": boolean,
   "budgetTier": string (one of: Free, Budget, Mid, Premium, Luxury),
