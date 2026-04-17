@@ -279,6 +279,7 @@ function PlacesTab() {
   const [apAddress, setApAddress] = useState("");
   const [apCity, setApCity] = useState("");
   const [apType, setApType] = useState("");
+  const [apRating, setApRating] = useState(0);
   const [apNotes, setApNotes] = useState("");
   const [apLat, setApLat] = useState<number | null>(null);
   const [apLng, setApLng] = useState<number | null>(null);
@@ -533,6 +534,24 @@ function PlacesTab() {
               <option value="Lodging">Lodging</option>
             </select>
 
+            {/* Rating */}
+            <div className="mb-3">
+              <p className="text-xs text-gray-500 font-medium mb-1">Your rating</p>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map(star => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setApRating(star === apRating ? 0 : star)}
+                    className="text-xl cursor-pointer bg-transparent border-none p-0 leading-none"
+                    style={{ color: star <= apRating ? "#C4664A" : "#D1D5DB" }}
+                  >
+                    {star <= apRating ? "★" : "☆"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Notes */}
             <textarea
               value={apNotes}
@@ -560,12 +579,14 @@ function PlacesTab() {
                       lat: apLat,
                       lng: apLng,
                       notes: apNotes.trim() || null,
+                      rating: apRating || null,
+                      ratingNote: apNotes.trim() || null,
                     }),
                   });
                   if (res.ok) {
                     const savedCity = apCity.trim();
                     setShowAddPlaceModal(false);
-                    setApName(""); setApAddress(""); setApCity(""); setApType(""); setApNotes(""); setApLat(null); setApLng(null);
+                    setApName(""); setApAddress(""); setApCity(""); setApType(""); setApRating(0); setApNotes(""); setApLat(null); setApLng(null);
                     setAddPlaceToast(`Place added to ${savedCity}`);
                     setTimeout(() => setAddPlaceToast(null), 3000);
                     if (selectedCity && savedCity.toLowerCase().includes(selectedCity.toLowerCase())) {

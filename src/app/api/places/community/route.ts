@@ -57,12 +57,13 @@ export async function GET(request: Request) {
           ROUND(AVG(pr.rating)::numeric, 1)::float AS avg_rating,
           MAX(pr.notes) AS sample_note
         FROM "ManualActivity" ma
-        INNER JOIN "PlaceRating" pr ON pr."manualActivityId" = ma.id
+        LEFT JOIN "PlaceRating" pr ON pr."manualActivityId" = ma.id
         INNER JOIN "Trip" t ON ma."tripId" = t.id
         WHERE ma.city ILIKE ${cityPattern}
           AND ma.type = ${type}
           AND (t."isPlacesLibrary" = true OR t.privacy::text = 'PUBLIC')
-        GROUP BY ma.id, ma.title, ma.city, ma.type, ma."imageUrl", ma.address, ma.website, ma.lat, ma.lng
+        GROUP BY ma.id, ma.title, ma.city, ma.type, ma."imageUrl", ma.address, ma.website, ma.lat, ma.lng, t."isPlacesLibrary"
+        HAVING (COUNT(pr.id) > 0 OR t."isPlacesLibrary" = true)
         ORDER BY avg_rating DESC, rating_count DESC
         LIMIT ${limit}
       `)
@@ -81,11 +82,12 @@ export async function GET(request: Request) {
           ROUND(AVG(pr.rating)::numeric, 1)::float AS avg_rating,
           MAX(pr.notes) AS sample_note
         FROM "ManualActivity" ma
-        INNER JOIN "PlaceRating" pr ON pr."manualActivityId" = ma.id
+        LEFT JOIN "PlaceRating" pr ON pr."manualActivityId" = ma.id
         INNER JOIN "Trip" t ON ma."tripId" = t.id
         WHERE ma.city ILIKE ${cityPattern}
           AND (t."isPlacesLibrary" = true OR t.privacy::text = 'PUBLIC')
-        GROUP BY ma.id, ma.title, ma.city, ma.type, ma."imageUrl", ma.address, ma.website, ma.lat, ma.lng
+        GROUP BY ma.id, ma.title, ma.city, ma.type, ma."imageUrl", ma.address, ma.website, ma.lat, ma.lng, t."isPlacesLibrary"
+        HAVING (COUNT(pr.id) > 0 OR t."isPlacesLibrary" = true)
         ORDER BY avg_rating DESC, rating_count DESC
         LIMIT ${limit}
       `);

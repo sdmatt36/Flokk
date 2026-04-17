@@ -22,13 +22,20 @@ export async function POST(request: Request) {
     lng?: number | null;
     website?: string | null;
     notes?: string | null;
+    rating?: number | null;
+    ratingNote?: string | null;
   };
 
   if (!body.name?.trim() || !body.city?.trim() || !body.type?.trim()) {
     return NextResponse.json({ error: "name, city, and type are required" }, { status: 400 });
   }
 
-  const tripId = await getOrCreatePlacesLibrary(profileId);
+  let tripId: string;
+  try {
+    tripId = await getOrCreatePlacesLibrary(profileId);
+  } catch {
+    return NextResponse.json({ error: "Failed to initialize Places Library" }, { status: 500 });
+  }
 
   const activity = await db.manualActivity.create({
     data: {
@@ -47,6 +54,22 @@ export async function POST(request: Request) {
       sortOrder: 0,
     },
   });
+
+  if (body.rating && body.rating >= 1 && body.rating <= 5) {
+    await db.placeRating.create({
+      data: {
+        familyProfileId: profileId,
+        manualActivityId: activity.id,
+        placeName: activity.title,
+        placeType: activity.type!,
+        destinationCity: activity.city,
+        lat: activity.lat,
+        lng: activity.lng,
+        rating: body.rating,
+        notes: body.ratingNote?.trim() ?? null,
+      },
+    });
+  }
 
   return NextResponse.json({
     id: activity.id,
