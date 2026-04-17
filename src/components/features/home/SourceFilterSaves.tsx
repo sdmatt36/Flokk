@@ -138,20 +138,22 @@ export function SourceFilterSaves({
         </div>
       )}
 
-      {/* Filtered recent saves — hidden when a source pill is active */}
-      {filter === "ALL" && (
-        <div style={{ marginTop: "20px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
-            <h2 style={{ fontWeight: 700, color: "#1a1a1a", fontSize: "15px" }}>Recent saves</h2>
-            <a href="/saves" style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}>See all</a>
-          </div>
-          {visible.length > 0 ? (
-            <RecentSavesCards items={visible} onDelete={handleDelete} />
-          ) : (
-            <p style={{ fontSize: "13px", color: "#aaa", padding: "16px 0" }}>No saves yet.</p>
-          )}
+      {/* Filtered recent saves */}
+      <div style={{ marginTop: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+          <h2 style={{ fontWeight: 700, color: "#1a1a1a", fontSize: "15px" }}>
+            {filter === "ALL" ? "Recent saves" : `Saved from ${filter.charAt(0) + filter.slice(1).toLowerCase()}`}
+          </h2>
+          <a href="/saves" style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}>See all</a>
         </div>
-      )}
+        {visible.length > 0 ? (
+          <RecentSavesCards items={visible} onDelete={handleDelete} />
+        ) : (
+          <p style={{ fontSize: "13px", color: "#aaa", padding: "16px 0" }}>
+            {filter === "ALL" ? "No saves yet." : `No saves from ${filter.charAt(0) + filter.slice(1).toLowerCase()} yet.`}
+          </p>
+        )}
+      </div>
 
       {dropLinkOpen && (
         <DropLinkModal
