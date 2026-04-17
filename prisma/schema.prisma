@@ -256,6 +256,7 @@ model Trip {
   postTripCaptureStarted    Boolean           @default(false)
   postTripCaptureComplete   Boolean           @default(false)
   postTripModalVisitCount   Int               @default(0)
+  isPlacesLibrary           Boolean           @default(false)
   placeRatings              PlaceRating[]
 }
 
