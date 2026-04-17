@@ -255,6 +255,15 @@ type CommunityPlace = {
 const PLACE_TYPE_FILTERS = ["All", "Food", "Activity", "Culture", "Outdoor", "Shopping", "Lodging"];
 
 function parseCityFromAddress(address: string): string {
+  if (!address) return "";
+
+  // Japanese address: find segment with postal code (〒 or NNN-NNNN pattern)
+  // Format: "Japan, 〒150-0041 Tokyo, Shibuya, ..." → extract "Tokyo"
+  const jpMatch = address.match(/〒?\d{3}-\d{4}\s+([^\s,]+)/);
+  if (jpMatch) return jpMatch[1];
+
+  // Western address: city is 3rd from end
+  // "132 W 31st St, New York, NY 10001, United States" → "New York"
   const parts = address.split(",").map(p => p.trim()).filter(Boolean);
   if (parts.length >= 3) return parts[parts.length - 3];
   if (parts.length === 2) return parts[0];
@@ -428,7 +437,7 @@ function PlacesTab() {
           className="w-full border border-gray-200 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C]"
         />
         {showCitySuggestions && citySuggestions.length > 0 && (
-          <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg z-50 mt-1 overflow-hidden">
+          <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg mt-1 overflow-hidden" style={{ zIndex: 60 }}>
             {citySuggestions.map(s => (
               <button
                 key={s.placeId ?? s.cityName}
@@ -585,6 +594,37 @@ function PlacesTab() {
             <h2 className={`${playfair.className} text-xl text-[#1B3A5C] mb-1`}>Add a Place</h2>
             <p className="text-sm text-gray-500 mb-5">Share a spot your family loved.</p>
 
+            {/* City */}
+            <div ref={apCityRef} className="relative mb-3">
+              <input
+                type="text"
+                value={apCity}
+                onChange={e => { setApCity(e.target.value); apCityValueRef.current = e.target.value; setApShowCitySuggestions(true); }}
+                onFocus={() => { if (apCity.length >= 2) setApShowCitySuggestions(true); }}
+                placeholder="City"
+                autoComplete="off"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C]"
+              />
+              {apShowCitySuggestions && apCitySuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg z-50 mt-1 overflow-hidden">
+                  {apCitySuggestions.map(s => (
+                    <button
+                      key={s.placeId ?? s.cityName}
+                      type="button"
+                      onMouseDown={() => { setApCity(s.cityName); apCityValueRef.current = s.cityName; setApShowCitySuggestions(false); setApCitySuggestions([]); }}
+                      className="w-full px-4 py-3 text-sm text-[#1B3A5C] hover:bg-gray-50 text-left flex items-center gap-2"
+                      style={{ background: "none", border: "none", fontFamily: "inherit", cursor: "pointer" }}
+                    >
+                      <span className="font-semibold">{s.cityName}</span>
+                      {s.countryName && s.countryName !== s.cityName && (
+                        <span className="text-gray-400 text-xs">· {s.countryName}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Name + autocomplete */}
             <div ref={apRef} className="relative mb-3">
               <input
@@ -640,37 +680,6 @@ function PlacesTab() {
               placeholder="Website (optional)"
               className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C] mb-3"
             />
-
-            {/* City */}
-            <div ref={apCityRef} className="relative mb-3">
-              <input
-                type="text"
-                value={apCity}
-                onChange={e => { setApCity(e.target.value); apCityValueRef.current = e.target.value; setApShowCitySuggestions(true); }}
-                onFocus={() => { if (apCity.length >= 2) setApShowCitySuggestions(true); }}
-                placeholder="City"
-                autoComplete="off"
-                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C]"
-              />
-              {apShowCitySuggestions && apCitySuggestions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg z-50 mt-1 overflow-hidden">
-                  {apCitySuggestions.map(s => (
-                    <button
-                      key={s.placeId ?? s.cityName}
-                      type="button"
-                      onMouseDown={() => { setApCity(s.cityName); apCityValueRef.current = s.cityName; setApShowCitySuggestions(false); setApCitySuggestions([]); }}
-                      className="w-full px-4 py-3 text-sm text-[#1B3A5C] hover:bg-gray-50 text-left flex items-center gap-2"
-                      style={{ background: "none", border: "none", fontFamily: "inherit", cursor: "pointer" }}
-                    >
-                      <span className="font-semibold">{s.cityName}</span>
-                      {s.countryName && s.countryName !== s.cityName && (
-                        <span className="text-gray-400 text-xs">· {s.countryName}</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
 
             {/* Type */}
             <select
