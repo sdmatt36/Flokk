@@ -197,7 +197,7 @@ export default function TourPage() {
                   className={inputClass}
                 />
                 {showSuggestions && suggestions.length > 0 && (
-                  <div className="absolute bg-white border border-gray-200 rounded-xl shadow-lg z-50 mt-1 overflow-hidden left-0 right-0">
+                  <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg z-50 mt-1 overflow-hidden">
                     {suggestions.map((s) => (
                       <button
                         key={s.placeId}
@@ -222,7 +222,7 @@ export default function TourPage() {
               <select
                 value={durationLabel}
                 onChange={(e) => { setDurationLabel(e.target.value); setTouched(true); }}
-                className={inputClass}
+                className={`flex-1 ${inputClass}`}
               >
                 <option value="" disabled>How long?</option>
                 <option value="2 hours">2 hours</option>
@@ -233,7 +233,7 @@ export default function TourPage() {
               <select
                 value={transport}
                 onChange={(e) => { setTransport(e.target.value); setTouched(true); }}
-                className={inputClass}
+                className={`flex-1 ${inputClass}`}
               >
                 <option value="" disabled>Getting around?</option>
                 <option value="Walking">Walking</option>
