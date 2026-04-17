@@ -180,6 +180,11 @@ export default function TourPage() {
             )}
 
             {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
+
+            <div className="border-t border-gray-100 mt-8 pt-6">
+              <p className="text-sm text-gray-500">Looking for trip ideas?</p>
+              <a href="/discover" className="text-sm text-[#1B3A5C] font-medium">Browse community tours on Discover →</a>
+            </div>
           </>
         )}
       </div>
