@@ -291,6 +291,7 @@ function PlacesTab() {
   const [apShowCitySuggestions, setApShowCitySuggestions] = useState(false);
   const apCityDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const apCityRef = useRef<HTMLDivElement>(null);
+  const apCityValueRef = useRef("");
   const [flokkConfirmedId, setFlokkConfirmedId] = useState<string | null>(null);
   const [clipCopiedId, setClipCopiedId] = useState<string | null>(null);
   const [apSaving, setApSaving] = useState(false);
@@ -320,7 +321,7 @@ function PlacesTab() {
     if (apName.length < 3) { setApSuggestions([]); return; }
     apDebounce.current = setTimeout(async () => {
       try {
-        const cityParam = apCity.trim() ? `&city=${encodeURIComponent(apCity.trim())}` : "";
+        const cityParam = apCityValueRef.current.trim() ? `&city=${encodeURIComponent(apCityValueRef.current.trim())}` : "";
         const res = await fetch(`/api/places/search?q=${encodeURIComponent(apName)}${cityParam}`);
         const data = await res.json() as { places: Array<{place_id: string; name: string; formatted_address: string; photoUrl?: string; geometry?: {location: {lat: number; lng: number}}}>};
         setApSuggestions(Array.isArray(data.places) ? data.places.slice(0, 5) : []);
@@ -385,7 +386,12 @@ function PlacesTab() {
         <button
           className="flex items-center gap-1 border border-[#C4664A] text-[#C4664A] rounded-full px-4 py-2 text-sm font-medium bg-white"
           style={{ fontFamily: "inherit", cursor: "pointer" }}
-          onClick={() => setShowAddPlaceModal(true)}
+          onClick={() => {
+            setShowAddPlaceModal(true);
+            const currentSearchCity = placeCity.split(",")[0].trim();
+            setApCity(currentSearchCity);
+            apCityValueRef.current = currentSearchCity;
+          }}
         >
           <Plus size={13} />
           Add a Place
@@ -559,7 +565,7 @@ function PlacesTab() {
               <input
                 type="text"
                 value={apName}
-                onChange={e => { setApName(e.target.value); setApAddress(""); setApCity(""); setApLat(null); setApLng(null); }}
+                onChange={e => { setApName(e.target.value); setApAddress(""); setApCity(""); apCityValueRef.current = ""; setApLat(null); setApLng(null); }}
                 placeholder="e.g. Ichiran Ramen Shinjuku"
                 autoComplete="off"
                 className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C]"
@@ -574,7 +580,7 @@ function PlacesTab() {
                         const city = parseCityFromAddress(s.formatted_address ?? "");
                         setApName(s.name ?? "");
                         setApAddress(s.formatted_address ?? "");
-                        setApCity(city);
+                        setApCity(city); apCityValueRef.current = city;
                         setApLat(s.geometry?.location.lat ?? null);
                         setApLng(s.geometry?.location.lng ?? null);
                         setApImageUrl(s.photoUrl ?? null);
@@ -615,7 +621,7 @@ function PlacesTab() {
               <input
                 type="text"
                 value={apCity}
-                onChange={e => { setApCity(e.target.value); setApShowCitySuggestions(true); }}
+                onChange={e => { setApCity(e.target.value); apCityValueRef.current = e.target.value; setApShowCitySuggestions(true); }}
                 onFocus={() => { if (apCity.length >= 2) setApShowCitySuggestions(true); }}
                 placeholder="City"
                 autoComplete="off"
@@ -627,7 +633,7 @@ function PlacesTab() {
                     <button
                       key={s.placeId ?? s.cityName}
                       type="button"
-                      onMouseDown={() => { setApCity(s.cityName); setApShowCitySuggestions(false); setApCitySuggestions([]); }}
+                      onMouseDown={() => { setApCity(s.cityName); apCityValueRef.current = s.cityName; setApShowCitySuggestions(false); setApCitySuggestions([]); }}
                       className="w-full px-4 py-3 text-sm text-[#1B3A5C] hover:bg-gray-50 text-left flex items-center gap-2"
                       style={{ background: "none", border: "none", fontFamily: "inherit", cursor: "pointer" }}
                     >
@@ -814,7 +820,7 @@ function PlacesTab() {
                   if (res.ok) {
                     const savedCity = apCity.trim();
                     setShowAddPlaceModal(false);
-                    setApName(""); setApAddress(""); setApCity(""); setApWebsite(""); setApType(""); setApRating(0); setApNotes(""); setApLat(null); setApLng(null); setApImageUrl(null); setApShowCitySuggestions(false);
+                    setApName(""); setApAddress(""); setApCity(""); apCityValueRef.current = ""; setApWebsite(""); setApType(""); setApRating(0); setApNotes(""); setApLat(null); setApLng(null); setApImageUrl(null); setApShowCitySuggestions(false);
                     setApAddToTrip(false); setApSelectedTripId(null); setApDay(1);
                     setAddPlaceToast(`Place added to ${savedCity}`);
                     setTimeout(() => setAddPlaceToast(null), 3000);
