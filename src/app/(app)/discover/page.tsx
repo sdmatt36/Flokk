@@ -290,6 +290,7 @@ function PlacesTab() {
   const [apCitySuggestions, setApCitySuggestions] = useState<{cityName: string; countryName: string; placeId?: string}[]>([]);
   const [apShowCitySuggestions, setApShowCitySuggestions] = useState(false);
   const apCityDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const apCitySearchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const apCityRef = useRef<HTMLDivElement>(null);
   const apCityValueRef = useRef("");
   const [flokkConfirmedId, setFlokkConfirmedId] = useState<string | null>(null);
@@ -345,6 +346,22 @@ function PlacesTab() {
     }, 400);
     return () => { if (apCityDebounce.current) clearTimeout(apCityDebounce.current); };
   }, [apCity]);
+
+  // Re-trigger venue search when city changes (if name already typed)
+  useEffect(() => {
+    if (apCitySearchDebounce.current) clearTimeout(apCitySearchDebounce.current);
+    if (apName.length < 3) return;
+    apCitySearchDebounce.current = setTimeout(async () => {
+      try {
+        const cityParam = apCityValueRef.current.trim() ? `&city=${encodeURIComponent(apCityValueRef.current.trim())}` : "";
+        const res = await fetch(`/api/places/search?q=${encodeURIComponent(apName)}${cityParam}`);
+        const data = await res.json() as { places: Array<{place_id: string; name: string; formatted_address: string; photoUrl?: string; geometry?: {location: {lat: number; lng: number}}}>};
+        setApSuggestions(Array.isArray(data.places) ? data.places.slice(0, 5) : []);
+        setShowApSuggestions(true);
+      } catch { setApSuggestions([]); }
+    }, 600);
+    return () => { if (apCitySearchDebounce.current) clearTimeout(apCitySearchDebounce.current); };
+  }, [apCity]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (cityDebounce.current) clearTimeout(cityDebounce.current);
@@ -432,7 +449,7 @@ function PlacesTab() {
 
       {/* Type filter pills */}
       <div
-        style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "20px", scrollbarWidth: "none", msOverflowStyle: "none" }}
+        style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "20px", scrollbarWidth: "none", msOverflowStyle: "none", position: "relative", zIndex: 40 }}
         className="hide-scrollbar"
       >
         {PLACE_TYPE_FILTERS.map(t => (
