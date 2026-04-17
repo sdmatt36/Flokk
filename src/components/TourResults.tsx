@@ -150,7 +150,7 @@ export default function TourResults({ stops, destinationCity, prompt }: Props) {
     try {
       let date: string;
       if (trip.startDate) {
-        const tripStart = new Date(trip.startDate + "T12:00:00");
+        const tripStart = new Date(trip.startDate.split("T")[0] + "T12:00:00");
         tripStart.setDate(tripStart.getDate() + (selectedDay - 1));
         date = tripStart.toISOString().split("T")[0];
       } else {
@@ -279,7 +279,7 @@ export default function TourResults({ stops, destinationCity, prompt }: Props) {
                             key={trip.id}
                             onClick={() => {
                               const mx = (trip.startDate && trip.endDate)
-                                ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
+                                ? Math.round((new Date(trip.endDate.split("T")[0]).getTime() - new Date(trip.startDate.split("T")[0]).getTime()) / (1000 * 60 * 60 * 24)) + 1
                                 : 30;
                               setSelectedTripId(trip.id);
                               setMaxDays(mx);
@@ -301,7 +301,7 @@ export default function TourResults({ stops, destinationCity, prompt }: Props) {
                             key={trip.id}
                             onClick={() => {
                               const mx = (trip.startDate && trip.endDate)
-                                ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1
+                                ? Math.round((new Date(trip.endDate.split("T")[0]).getTime() - new Date(trip.startDate.split("T")[0]).getTime()) / (1000 * 60 * 60 * 24)) + 1
                                 : 30;
                               setSelectedTripId(trip.id);
                               setMaxDays(mx);
