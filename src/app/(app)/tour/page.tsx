@@ -30,17 +30,13 @@ type TourResponse = {
   generatedAt: string;
 };
 
-const EXAMPLE_PROMPTS = [
-  "Best ramen shops near Shinjuku, walking distance",
-  "Street art and coffee in Barcelona, half day",
-  "Kid-friendly history tour of London, full day",
-  "Sunset spots in Santorini for a family of 4",
-];
-
-const TIPS = [
-  "Add a neighborhood or area — 'near Shinjuku' beats just 'Tokyo'",
-  "Tell us your transport — walking tours cluster stops tightly, car tours can roam",
-  "Mention your family — 'kids under 5' or 'teens' changes everything",
+const VIBE_CHIPS = [
+  "Just the two of us",
+  "With the whole family",
+  "Multi-family adventure",
+  "Grandparents in tow",
+  "Teens take the lead",
+  "Off the beaten path",
 ];
 
 export default function TourPage() {
@@ -111,6 +107,11 @@ export default function TourPage() {
   function handleCityChange(value: string) {
     setDestinationCity(value);
     setShowSuggestions(true);
+    setTouched(true);
+  }
+
+  function appendVibe(vibe: string) {
+    setPrompt(prev => prev ? `${prev} ${vibe}` : vibe);
     setTouched(true);
   }
 
@@ -199,7 +200,6 @@ export default function TourPage() {
         />
         <div className="absolute inset-0 bg-black/50" />
         <div className="relative z-10 h-full flex flex-col items-center justify-center text-center px-4">
-          <Sparkles size={28} className="text-white mb-3" />
           <h1 className="font-serif text-4xl font-bold text-white">Build a Tour</h1>
           <p className="text-sm text-white/80 mt-2">Describe what you want. We&apos;ll map it.</p>
         </div>
@@ -293,37 +293,21 @@ export default function TourPage() {
         </div>
       </div>
 
-      {/* How to Flokk a Tour */}
+      {/* How to Build a Flokkin' Great Tour */}
       <div className="max-w-2xl mx-auto px-4 mt-8 mb-12">
-        <h2 className="font-serif text-xl font-semibold text-[#1B3A5C] mb-2">How to Flokk a Tour</h2>
-        <p className="text-sm text-gray-500 mb-5">The more specific you are, the better your tour.</p>
+        <h2 className="font-serif text-xl font-semibold text-[#1B3A5C] mb-2">How to Build a Flokkin&apos; Great Tour</h2>
+        <p className="text-sm text-gray-500 mb-5">Who&apos;s coming along?</p>
 
-        {/* Example prompt chips */}
         <div className="flex flex-wrap gap-2">
-          {EXAMPLE_PROMPTS.map((p) => (
+          {VIBE_CHIPS.map((vibe) => (
             <button
-              key={p}
-              onClick={() => { setPrompt(p); setTouched(true); }}
+              key={vibe}
+              onClick={() => appendVibe(vibe)}
               className="border border-gray-200 rounded-full px-4 py-2 text-sm text-gray-600 cursor-pointer hover:border-[#1B3A5C] hover:text-[#1B3A5C] transition-colors bg-white"
               style={{ fontFamily: "inherit" }}
             >
-              {p}
+              {vibe}
             </button>
-          ))}
-        </div>
-
-        {/* Tips */}
-        <div className="mt-6 flex flex-col gap-4">
-          {TIPS.map((tip, i) => (
-            <div key={i} className="flex items-start gap-3">
-              <div
-                className="shrink-0 flex items-center justify-center text-white text-xs font-bold rounded-full"
-                style={{ width: 24, height: 24, backgroundColor: "#C4664A", fontSize: "11px" }}
-              >
-                {i + 1}
-              </div>
-              <p className="text-sm text-gray-600">{tip}</p>
-            </div>
           ))}
         </div>
       </div>
