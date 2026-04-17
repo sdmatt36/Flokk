@@ -1830,8 +1830,6 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   // Lodging edit: stores { id, rawTitle, startTime, websiteUrl, notes } fetched on demand
   const [editingLodging, setEditingLodging] = useState<{ id: string; rawTitle: string; extractedCheckin: string; extractedCheckout: string; websiteUrl: string; notes: string } | null>(null);
   const [lodgingSaving, setLodgingSaving] = useState(false);
-  const [editingSavedActivity, setEditingSavedActivity] = useState<{ id: string; title: string; notes: string; websiteUrl: string } | null>(null);
-  const [savedActivitySaving, setSavedActivitySaving] = useState(false);
   const [dragErrorToast, setDragErrorToast] = useState<string | null>(null);
   const [conflictToast, setConflictToast] = useState<string | null>(null);
   const [dismissedConflictDays, setDismissedConflictDays] = useState<Set<number>>(new Set());
@@ -2873,7 +2871,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                           if (isLodging) {
                                                             setEditingLodging({ id: a.savedItemId!, rawTitle: it.rawTitle ?? a.title, extractedCheckin: it.extractedCheckin ?? "", extractedCheckout: it.extractedCheckout ?? "", websiteUrl: it.websiteUrl ?? "", notes: it.notes ?? "" });
                                                           } else {
-                                                            setEditingSavedActivity({ id: a.savedItemId!, title: it.rawTitle ?? a.title, notes: it.notes ?? "", websiteUrl: it.websiteUrl ?? "" });
+                                                            onEditActivity?.({ id: "", title: it.rawTitle ?? a.title, date: "", time: null, endTime: null, venueName: null, address: null, website: it.websiteUrl ?? null, price: null, currency: null, notes: it.notes ?? null, status: "interested", confirmationCode: null, lat: a.lat ?? null, lng: a.lng ?? null });
                                                           }
                                                         } catch { /* ignore */ }
                                                       }}
@@ -3488,66 +3486,6 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
               style={{ width: "100%", padding: "14px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
             >
               {lodgingSaving ? "Saving…" : "Save changes"}
-            </button>
-          </div>
-        </div>,
-        document.body
-      )}
-      {editingSavedActivity && createPortal(
-        <div
-          onClick={() => setEditingSavedActivity(null)}
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "560px", maxHeight: "85vh", overflowY: "auto", padding: "24px 20px 40px", paddingBottom: "max(40px, env(safe-area-inset-bottom))" }}
-          >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
-              <p style={{ fontSize: "17px", fontWeight: 800, color: "#1a1a1a" }}>Edit Activity</p>
-              <button onClick={() => setEditingSavedActivity(null)} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#999", padding: "4px", lineHeight: 1 }}>×</button>
-            </div>
-            <p style={{ fontSize: "12px", fontWeight: 600, color: "#888", marginBottom: "4px" }}>Name</p>
-            <input
-              type="text"
-              value={editingSavedActivity.title}
-              onChange={e => setEditingSavedActivity(prev => prev ? { ...prev, title: e.target.value } : prev)}
-              style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", outline: "none", boxSizing: "border-box", fontFamily: "inherit", marginBottom: "14px" }}
-            />
-            <p style={{ fontSize: "12px", fontWeight: 600, color: "#888", marginBottom: "4px" }}>Notes</p>
-            <textarea
-              rows={3}
-              value={editingSavedActivity.notes}
-              onChange={e => setEditingSavedActivity(prev => prev ? { ...prev, notes: e.target.value } : prev)}
-              style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", outline: "none", boxSizing: "border-box", resize: "none", fontFamily: "inherit", marginBottom: "14px" }}
-            />
-            <p style={{ fontSize: "12px", fontWeight: 600, color: "#888", marginBottom: "4px" }}>Website URL</p>
-            <input
-              type="url"
-              value={editingSavedActivity.websiteUrl}
-              onChange={e => setEditingSavedActivity(prev => prev ? { ...prev, websiteUrl: e.target.value } : prev)}
-              style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", outline: "none", boxSizing: "border-box", fontFamily: "inherit", marginBottom: "20px" }}
-            />
-            <button
-              disabled={savedActivitySaving}
-              onClick={async () => {
-                setSavedActivitySaving(true);
-                try {
-                  await fetch(`/api/saves/${editingSavedActivity.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ rawTitle: editingSavedActivity.title, notes: editingSavedActivity.notes, websiteUrl: editingSavedActivity.websiteUrl }),
-                  });
-                  setRecAdditions(prev => prev.map(r =>
-                    r.savedItemId === editingSavedActivity.id ? { ...r, title: editingSavedActivity.title } : r
-                  ));
-                  setEditingSavedActivity(null);
-                } catch { /* ignore */ } finally {
-                  setSavedActivitySaving(false);
-                }
-              }}
-              style={{ width: "100%", padding: "14px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: savedActivitySaving ? 0.6 : 1 }}
-            >
-              {savedActivitySaving ? "Saving…" : "Save changes"}
             </button>
           </div>
         </div>,
