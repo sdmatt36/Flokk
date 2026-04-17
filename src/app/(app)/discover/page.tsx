@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { MapPin, ChevronRight, X, Search, Plus } from "lucide-react";
+import { MapPin, ChevronRight, X, Search, Plus, CalendarPlus } from "lucide-react";
 import { Playfair_Display } from "next/font/google";
 import { getTripCoverImage } from "@/lib/destination-images";
+import { AddToItineraryModal } from "@/components/places/AddToItineraryModal";
+import type { AddToItinerarySpot } from "@/components/places/AddToItineraryModal";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700", "900"] });
 
@@ -304,6 +306,9 @@ function PlacesTab() {
   const apCityValueRef = useRef("");
   const [flokkConfirmedId, setFlokkConfirmedId] = useState<string | null>(null);
   const [clipCopiedId, setClipCopiedId] = useState<string | null>(null);
+  const [itineraryModalSpot, setItineraryModalSpot] = useState<AddToItinerarySpot | null>(null);
+  const [itineraryConfirmation, setItineraryConfirmation] = useState<{ placeId: string; tripName: string; day: number } | null>(null);
+  const itineraryConfirmTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [apSaving, setApSaving] = useState(false);
   const [apAddToTrip, setApAddToTrip] = useState(false);
   const [apTrips, setApTrips] = useState<Array<{id: string; title: string; destinationCity: string | null; destinationCountry: string | null; startDate: string | null; endDate: string | null; status: string}>>([]);
@@ -553,12 +558,23 @@ function PlacesTab() {
                   >
                     {flokkConfirmedId === place.id ? "Flokked!" : "Flokk It"}
                   </button>
+                  <button
+                    onClick={() => {
+                      if (itineraryConfirmTimeout.current) clearTimeout(itineraryConfirmTimeout.current);
+                      setItineraryModalSpot({ name: place.name, city: place.city, address: place.address, sampleNote: place.sampleNote, placeType: place.placeType });
+                    }}
+                    className="flex items-center text-xs font-medium text-[#1B3A5C] cursor-pointer hover:underline bg-transparent border-none p-0"
+                    style={{ fontFamily: "inherit" }}
+                  >
+                    <CalendarPlus size={13} style={{ marginRight: "4px" }} />
+                    + Itinerary
+                  </button>
                   {place.website && (
                     <a
                       href={place.website}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs font-medium text-[#1B3A5C] cursor-pointer hover:underline"
+                      className="text-xs font-medium text-gray-400 cursor-pointer hover:underline"
                     >
                       Visit site
                     </a>
@@ -575,11 +591,33 @@ function PlacesTab() {
                     {clipCopiedId === place.id ? "Copied!" : "Share"}
                   </button>
                 </div>
+                {itineraryConfirmation?.placeId === place.id && (
+                  <p className="text-[#1B3A5C] text-xs font-medium mt-2">
+                    Added to {itineraryConfirmation.tripName}, Day {itineraryConfirmation.day}
+                  </p>
+                )}
               </div>
             </div>
           ))}
         </div>
       )}
+
+      <AddToItineraryModal
+        open={itineraryModalSpot !== null}
+        onClose={result => {
+          if (result && itineraryModalSpot) {
+            // Find the place id by matching name+city so we can show confirmation on the right card
+            const matched = places.find(p => p.name === itineraryModalSpot.name && p.city === itineraryModalSpot.city);
+            if (matched) {
+              if (itineraryConfirmTimeout.current) clearTimeout(itineraryConfirmTimeout.current);
+              setItineraryConfirmation({ placeId: matched.id, tripName: result.tripName, day: result.day });
+              itineraryConfirmTimeout.current = setTimeout(() => setItineraryConfirmation(null), 4000);
+            }
+          }
+          setItineraryModalSpot(null);
+        }}
+        spot={itineraryModalSpot ?? { name: "", city: null }}
+      />
 
       {/* ── Add Place Modal ── */}
       {showAddPlaceModal && (
