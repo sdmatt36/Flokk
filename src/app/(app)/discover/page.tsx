@@ -254,6 +254,12 @@ type CommunityPlace = {
 
 const PLACE_TYPE_FILTERS = ["All", "Food", "Activity", "Culture", "Outdoor", "Shopping", "Lodging"];
 
+function parseCityFromAddress(address: string): string {
+  const parts = address.split(", ");
+  if (parts.length < 2) return "";
+  return parts[parts.length - 2].replace(/\s+[\d][\d\-]+$/, "").trim();
+}
+
 function PlacesTab() {
   const [placeCity, setPlaceCity] = useState("");
   const [placeType, setPlaceType] = useState("All");
@@ -266,13 +272,44 @@ function PlacesTab() {
   const cityDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cityRef = useRef<HTMLDivElement>(null);
 
+  const [showAddPlaceModal, setShowAddPlaceModal] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [apName, setApName] = useState("");
+  const [apAddress, setApAddress] = useState("");
+  const [apCity, setApCity] = useState("");
+  const [apType, setApType] = useState("");
+  const [apNotes, setApNotes] = useState("");
+  const [apLat, setApLat] = useState<number | null>(null);
+  const [apLng, setApLng] = useState<number | null>(null);
+  const [apSuggestions, setApSuggestions] = useState<Array<{place_id: string; name: string; formatted_address: string; geometry?: {location: {lat: number; lng: number}}}>>([]);
+  const [showApSuggestions, setShowApSuggestions] = useState(false);
+  const [apSaving, setApSaving] = useState(false);
+  const [addPlaceToast, setAddPlaceToast] = useState<string | null>(null);
+  const apDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const apRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     function handle(e: MouseEvent) {
       if (cityRef.current && !cityRef.current.contains(e.target as Node)) setShowCitySuggestions(false);
+      if (apRef.current && !apRef.current.contains(e.target as Node)) setShowApSuggestions(false);
     }
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, []);
+
+  useEffect(() => {
+    if (apDebounce.current) clearTimeout(apDebounce.current);
+    if (apName.length < 3) { setApSuggestions([]); return; }
+    apDebounce.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/places/search?q=${encodeURIComponent(apName)}`);
+        const data = await res.json() as { places: Array<{place_id: string; name: string; formatted_address: string; geometry?: {location: {lat: number; lng: number}}}>};
+        setApSuggestions(Array.isArray(data.places) ? data.places.slice(0, 5) : []);
+        setShowApSuggestions(true);
+      } catch { setApSuggestions([]); }
+    }, 400);
+    return () => { if (apDebounce.current) clearTimeout(apDebounce.current); };
+  }, [apName]);
 
   useEffect(() => {
     if (cityDebounce.current) clearTimeout(cityDebounce.current);
@@ -298,7 +335,7 @@ function PlacesTab() {
       .then(d => setPlaces(d.places ?? []))
       .catch(() => setPlaces([]))
       .finally(() => setPlacesLoading(false));
-  }, [selectedCity, placeType]);
+  }, [selectedCity, placeType, refreshKey]);
 
   function selectCity(cityName: string, countryName: string) {
     const value = countryName ? `${cityName}, ${countryName}` : cityName;
@@ -315,7 +352,7 @@ function PlacesTab() {
         <button
           className="flex items-center gap-1 border border-[#C4664A] text-[#C4664A] rounded-full px-4 py-2 text-sm font-medium bg-white"
           style={{ fontFamily: "inherit", cursor: "pointer" }}
-          onClick={() => alert("Add Place modal coming soon")}
+          onClick={() => setShowAddPlaceModal(true)}
         >
           <Plus size={13} />
           Add a Place
@@ -418,6 +455,155 @@ function PlacesTab() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ── Add Place Modal ── */}
+      {showAddPlaceModal && (
+        <div
+          className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center"
+          onClick={() => setShowAddPlaceModal(false)}
+        >
+          <div
+            className="bg-white max-w-md w-full mx-4 rounded-2xl p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 className={`${playfair.className} text-xl text-[#1B3A5C] mb-1`}>Add a Place</h2>
+            <p className="text-sm text-gray-500 mb-5">Share a spot your family loved.</p>
+
+            {/* Name + autocomplete */}
+            <div ref={apRef} className="relative mb-3">
+              <input
+                type="text"
+                value={apName}
+                onChange={e => { setApName(e.target.value); setApAddress(""); setApCity(""); setApLat(null); setApLng(null); }}
+                placeholder="e.g. Ichiran Ramen Shinjuku"
+                autoComplete="off"
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C]"
+              />
+              {showApSuggestions && apSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-xl shadow-lg z-50 mt-1 overflow-hidden">
+                  {apSuggestions.map(s => (
+                    <button
+                      key={s.place_id}
+                      type="button"
+                      onMouseDown={() => {
+                        const city = parseCityFromAddress(s.formatted_address ?? "");
+                        setApName(s.name ?? "");
+                        setApAddress(s.formatted_address ?? "");
+                        setApCity(city);
+                        setApLat(s.geometry?.location.lat ?? null);
+                        setApLng(s.geometry?.location.lng ?? null);
+                        setShowApSuggestions(false);
+                      }}
+                      className="w-full px-4 py-3 text-sm text-[#1B3A5C] hover:bg-gray-50 text-left"
+                      style={{ background: "none", border: "none", fontFamily: "inherit", cursor: "pointer" }}
+                    >
+                      <span className="font-semibold block">{s.name}</span>
+                      {s.formatted_address && <span className="text-gray-400 text-xs block truncate">{s.formatted_address}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Address */}
+            <input
+              type="text"
+              value={apAddress}
+              onChange={e => setApAddress(e.target.value)}
+              placeholder="Address"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C] mb-3"
+            />
+
+            {/* City */}
+            <input
+              type="text"
+              value={apCity}
+              onChange={e => setApCity(e.target.value)}
+              placeholder="City"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C] mb-3"
+            />
+
+            {/* Type */}
+            <select
+              value={apType}
+              onChange={e => setApType(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C] mb-3 bg-white"
+              style={{ fontFamily: "inherit" }}
+            >
+              <option value="">Type of place</option>
+              <option value="Food">Food</option>
+              <option value="Activity">Activity</option>
+              <option value="Culture">Culture</option>
+              <option value="Outdoor">Outdoor</option>
+              <option value="Shopping">Shopping</option>
+              <option value="Lodging">Lodging</option>
+            </select>
+
+            {/* Notes */}
+            <textarea
+              value={apNotes}
+              onChange={e => setApNotes(e.target.value)}
+              placeholder="What made this place special for your family?"
+              rows={3}
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C] mb-4 resize-none"
+            />
+
+            {/* Save */}
+            <button
+              disabled={apSaving || !apName.trim() || !apCity.trim() || !apType}
+              onClick={async () => {
+                if (!apName.trim() || !apCity.trim() || !apType) return;
+                setApSaving(true);
+                try {
+                  const res = await fetch("/api/places/save", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      name: apName.trim(),
+                      address: apAddress.trim() || null,
+                      city: apCity.trim(),
+                      type: apType.toLowerCase(),
+                      lat: apLat,
+                      lng: apLng,
+                      notes: apNotes.trim() || null,
+                    }),
+                  });
+                  if (res.ok) {
+                    const savedCity = apCity.trim();
+                    setShowAddPlaceModal(false);
+                    setApName(""); setApAddress(""); setApCity(""); setApType(""); setApNotes(""); setApLat(null); setApLng(null);
+                    setAddPlaceToast(`Place added to ${savedCity}`);
+                    setTimeout(() => setAddPlaceToast(null), 3000);
+                    if (selectedCity && savedCity.toLowerCase().includes(selectedCity.toLowerCase())) {
+                      setRefreshKey(k => k + 1);
+                    }
+                  }
+                } finally {
+                  setApSaving(false);
+                }
+              }}
+              className="w-full bg-[#1B3A5C] text-white rounded-xl py-3 text-sm font-semibold"
+              style={{ fontFamily: "inherit", cursor: apSaving || !apName.trim() || !apCity.trim() || !apType ? "default" : "pointer", opacity: apSaving || !apName.trim() || !apCity.trim() || !apType ? 0.5 : 1 }}
+            >
+              {apSaving ? "Saving..." : "Add Place"}
+            </button>
+
+            <p
+              className="text-sm text-gray-400 text-center mt-3 cursor-pointer"
+              onClick={() => setShowAddPlaceModal(false)}
+            >
+              Cancel
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add Place Toast ── */}
+      {addPlaceToast && (
+        <div style={{ position: "fixed", bottom: "80px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#1B3A5C", color: "#fff", padding: "10px 20px", borderRadius: "999px", fontSize: "13px", fontWeight: 600, zIndex: 200, pointerEvents: "none" }}>
+          {addPlaceToast}
         </div>
       )}
     </div>
