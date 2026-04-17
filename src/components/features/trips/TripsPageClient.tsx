@@ -300,7 +300,7 @@ function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => vo
                   {trip.savedCount + trip.manualActivityCount + trip.itineraryItemCount}
                 </p>
                 <p style={{ fontSize: "11px", color: "#717171", marginTop: "2px" }}>
-                  {(trip.savedCount + trip.manualActivityCount + trip.itineraryItemCount) === 1 ? "place" : "places"}
+                  {(trip.savedCount + trip.manualActivityCount + trip.itineraryItemCount) === 1 ? "spot" : "spots"}
                 </p>
               </div>
             )}

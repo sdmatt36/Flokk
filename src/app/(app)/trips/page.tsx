@@ -22,6 +22,7 @@ export default async function TripsPage({
     where: { id: profileId },
     include: {
       trips: {
+        where: { isPlacesLibrary: false },
         orderBy: { startDate: "asc" },
         include: {
           _count: { select: { savedItems: true, packingItems: true, manualActivities: true, itineraryItems: { where: { type: { notIn: ['FLIGHT', 'TRAIN'] } } } } },
