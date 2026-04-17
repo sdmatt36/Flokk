@@ -11,6 +11,7 @@ import {
   Plus,
   Compass,
   Calendar,
+  Sparkles,
 } from "lucide-react";
 import { AddTripButton } from "@/components/features/home/AddTripModal";
 import { getTripCoverImage } from "@/lib/destination-images";
@@ -293,7 +294,7 @@ export default async function HomePage() {
 
             {/* Quick action tiles — mobile order 5 */}
             <div className="order-5 md:order-none">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
               <DropLinkTile trips={allTrips.map(t => ({ id: t.id, title: t.title, startDate: t.startDate ? t.startDate.toISOString() : null, endDate: t.endDate ? t.endDate.toISOString() : null, status: t.status }))} />
               <Link
                 href={heroTrip ? `/trips/${heroTrip.id}?tab=recommended` : "/discover"}
@@ -305,6 +306,17 @@ export default async function HomePage() {
                   <Compass size={20} style={{ color: "#fff", marginBottom: "8px" }} />
                   <p style={{ fontWeight: 700, color: "#fff", fontSize: "17px" }}>Get inspired</p>
                   <p style={{ color: "#fff", fontSize: "12px", opacity: 0.85, marginTop: "2px" }}>Picked for your family</p>
+                </div>
+              </Link>
+              <Link
+                href="/tour"
+                style={{ position: "relative", borderRadius: "16px", overflow: "hidden", display: "block", height: "160px", backgroundColor: "#1B3A5C", textDecoration: "none" }}
+              >
+                <div style={{ position: "absolute", inset: 0, background: CARD_GRADIENT }} />
+                <div style={{ position: "relative", padding: "16px", display: "flex", flexDirection: "column", justifyContent: "flex-end", height: "100%", boxSizing: "border-box" }}>
+                  <Sparkles size={20} style={{ color: "#fff", marginBottom: "8px" }} />
+                  <p style={{ fontWeight: 700, color: "#fff", fontSize: "17px" }}>Build a Tour</p>
+                  <p style={{ color: "#fff", fontSize: "12px", opacity: 0.85, marginTop: "2px" }}>Describe it, we&apos;ll map it</p>
                 </div>
               </Link>
             </div>

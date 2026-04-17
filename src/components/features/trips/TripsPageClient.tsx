@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { MapPin, Calendar, Plus, Map, Search, Plane, Globe, Pencil, Trash2 } from "lucide-react";
+import { MapPin, Calendar, Plus, Map, Search, Plane, Globe, Pencil, Trash2, Sparkles } from "lucide-react";
 import { getTripCoverImage } from "@/lib/destination-images";
 
 type Trip = {
@@ -468,6 +468,13 @@ export function TripsPageClient({
             </p>
           </div>
           <div style={{ display: "flex", gap: "8px", flexShrink: 0, marginTop: "4px" }}>
+            <Link
+              href="/tour"
+              style={{ display: "flex", alignItems: "center", gap: "6px", border: "1px solid #1B3A5C", color: "#1B3A5C", borderRadius: "12px", padding: "8px 16px", fontSize: "14px", fontWeight: 500, textDecoration: "none", backgroundColor: "transparent" }}
+            >
+              <Sparkles size={14} />
+              Build a Tour
+            </Link>
             <Link
               href="/trips/past/new"
               style={{ display: "flex", alignItems: "center", gap: "5px", backgroundColor: "#F0F0F0", color: "#1B3A5C", borderRadius: "20px", padding: "8px 14px", fontSize: "13px", fontWeight: 600, textDecoration: "none" }}
