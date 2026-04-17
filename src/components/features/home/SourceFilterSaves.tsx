@@ -34,8 +34,7 @@ export function SourceFilterSaves({
     fetch(`/api/saves/${id}`, { method: "DELETE" }).catch(e => console.error("[delete save]", e));
   }
 
-  const filtered = (filter === "ALL" ? items : items.filter(item => item.sourceType === filter))
-    .filter(item => !deletedIds.has(item.id));
+  const filtered = items.filter(item => !deletedIds.has(item.id));
 
   // Show at most 6, already deduped by caller
   const visible = filtered.slice(0, 6);
