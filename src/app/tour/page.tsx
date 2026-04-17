@@ -1,15 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Sparkles, RotateCcw } from "lucide-react";
 import TourResults from "@/components/TourResults";
 
-const CITY_AUTOFILL = [
-  "Tokyo", "Osaka", "Kyoto", "Seoul", "Bangkok", "Chiang Mai", "Singapore",
-  "London", "Paris", "Barcelona", "Rome", "Lisbon", "Amsterdam",
-  "New York", "Chicago", "Portland", "Seattle", "San Francisco",
-  "Dublin", "Edinburgh", "Sydney", "Melbourne", "Bali", "Dubai", "Istanbul",
-];
+type DestinationSuggestion = {
+  placeId: string;
+  cityName: string;
+  countryName: string;
+};
 
 type Stop = {
   name: string;
@@ -41,14 +40,65 @@ export default function TourPage() {
   const [results, setResults] = useState<TourResponse | null>(null);
   const [touched, setTouched] = useState(false);
 
-  function handlePromptChange(value: string) {
-    setPrompt(value);
-    setTouched(true);
-    if (!destinationCity.trim()) {
-      const lower = value.toLowerCase();
-      const match = CITY_AUTOFILL.find((city) => lower.includes(city.toLowerCase()));
-      if (match) setDestinationCity(match);
+  // Autocomplete
+  const [suggestions, setSuggestions] = useState<DestinationSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Dismiss dropdown on outside click
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
     }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  // Fetch city suggestions with debounce
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (destinationCity.length < 2) {
+      setSuggestions([]);
+      setSuggestionsLoading(false);
+      return;
+    }
+
+    setSuggestionsLoading(true);
+
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/destinations/lookup?q=${encodeURIComponent(destinationCity)}`);
+        const data: DestinationSuggestion[] = await res.json();
+        setSuggestions(Array.isArray(data) ? data : []);
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setSuggestionsLoading(false);
+      }
+    }, 400);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [destinationCity]);
+
+  function selectSuggestion(cityName: string, countryName: string) {
+    const value = countryName ? `${cityName}, ${countryName}` : cityName;
+    setDestinationCity(value);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    setTouched(true);
+  }
+
+  function handleCityChange(value: string) {
+    setDestinationCity(value);
+    setShowSuggestions(true);
+    setTouched(true);
   }
 
   const allFilled =
@@ -94,6 +144,8 @@ export default function TourPage() {
     setTransport("");
     setError("");
     setTouched(false);
+    setSuggestions([]);
+    setShowSuggestions(false);
   }
 
   const inputClass =
@@ -127,19 +179,45 @@ export default function TourPage() {
             <textarea
               rows={4}
               value={prompt}
-              onChange={(e) => handlePromptChange(e.target.value)}
+              onChange={(e) => { setPrompt(e.target.value); setTouched(true); }}
               placeholder="A ramen tour in Tokyo near Shinjuku for a family with young kids"
               className="w-full border border-gray-200 rounded-xl p-4 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1B3A5C]"
             />
 
             <div className="flex flex-col sm:flex-row gap-3 mt-3">
-              <input
-                type="text"
-                value={destinationCity}
-                onChange={(e) => { setDestinationCity(e.target.value); setTouched(true); }}
-                placeholder="City (e.g. Tokyo)"
-                className={inputClass}
-              />
+              {/* City input with autocomplete */}
+              <div ref={suggestionsRef} className="relative flex-1">
+                <input
+                  type="text"
+                  value={destinationCity}
+                  onChange={(e) => handleCityChange(e.target.value)}
+                  onFocus={() => { if (destinationCity.length >= 2) setShowSuggestions(true); }}
+                  placeholder="City (e.g. Tokyo)"
+                  autoComplete="off"
+                  className={inputClass}
+                />
+                {showSuggestions && suggestions.length > 0 && (
+                  <div className="absolute bg-white border border-gray-200 rounded-xl shadow-lg z-50 mt-1 overflow-hidden left-0 right-0">
+                    {suggestions.map((s) => (
+                      <button
+                        key={s.placeId}
+                        type="button"
+                        onMouseDown={() => selectSuggestion(s.cityName, s.countryName)}
+                        className="w-full px-4 py-3 text-sm text-[#1B3A5C] cursor-pointer hover:bg-gray-50 text-left flex items-center gap-2"
+                        style={{ background: "none", border: "none", fontFamily: "inherit" }}
+                      >
+                        <span className="font-semibold">{s.cityName}</span>
+                        {s.countryName && s.countryName !== s.cityName && (
+                          <span className="text-gray-400 text-xs">· {s.countryName}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {suggestionsLoading && destinationCity.length >= 2 && (
+                  <p className="text-xs text-gray-400 mt-1">Searching...</p>
+                )}
+              </div>
 
               <select
                 value={durationLabel}
