@@ -277,9 +277,8 @@ export default function TourPage() {
           <button
             onClick={handleSubmit}
             disabled={loading || !allFilled}
-            className="w-full mt-4 bg-[#1B3A5C] text-white rounded-xl py-3 px-6 text-sm font-medium flex items-center justify-center gap-2 disabled:opacity-60"
+            className="w-full mt-4 bg-[#1B3A5C] text-white rounded-xl py-3 px-6 text-sm font-medium flex items-center justify-center disabled:opacity-60"
           >
-            <Sparkles size={16} />
             {loading ? "Building your tour..." : "Build my tour"}
           </button>
 
@@ -310,6 +309,7 @@ export default function TourPage() {
             </button>
           ))}
         </div>
+        <p className="text-xs text-gray-400 italic mt-4">Try: &apos;Best sushi near Tsukiji&apos; · &apos;Street art walk in Shoreditch&apos; · &apos;Castle hopping in Edinburgh&apos;</p>
       </div>
     </div>
   );
