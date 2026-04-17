@@ -320,7 +320,8 @@ function PlacesTab() {
     if (apName.length < 3) { setApSuggestions([]); return; }
     apDebounce.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/places/search?q=${encodeURIComponent(apName)}`);
+        const cityParam = apCity.trim() ? `&city=${encodeURIComponent(apCity.trim())}` : "";
+        const res = await fetch(`/api/places/search?q=${encodeURIComponent(apName)}${cityParam}`);
         const data = await res.json() as { places: Array<{place_id: string; name: string; formatted_address: string; photoUrl?: string; geometry?: {location: {lat: number; lng: number}}}>};
         setApSuggestions(Array.isArray(data.places) ? data.places.slice(0, 5) : []);
         setShowApSuggestions(true);
@@ -491,12 +492,19 @@ function PlacesTab() {
                 <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-50">
                   <button
                     onClick={async () => {
-                      const url = place.website || `https://flokktravel.com/places/${place.id}`;
-                      await fetch("/api/saves", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ url, rawTitle: place.name, notes: place.sampleNote, categoryTags: [place.placeType] }),
-                      });
+                      if (place.website) {
+                        await fetch("/api/saves", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ url: place.website, rawTitle: place.name, notes: place.sampleNote, categoryTags: [place.placeType] }),
+                        });
+                      } else {
+                        await fetch("/api/places/save", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ name: place.name, address: place.address ?? "", city: place.city, type: place.placeType, lat: place.lat, lng: place.lng, notes: place.sampleNote }),
+                        });
+                      }
                       setFlokkConfirmedId(place.id);
                       setTimeout(() => setFlokkConfirmedId(null), 2000);
                     }}
@@ -619,7 +627,7 @@ function PlacesTab() {
                     <button
                       key={s.placeId ?? s.cityName}
                       type="button"
-                      onMouseDown={() => { setApCity(s.cityName); setApShowCitySuggestions(false); }}
+                      onMouseDown={() => { setApCity(s.cityName); setApShowCitySuggestions(false); setApCitySuggestions([]); }}
                       className="w-full px-4 py-3 text-sm text-[#1B3A5C] hover:bg-gray-50 text-left flex items-center gap-2"
                       style={{ background: "none", border: "none", fontFamily: "inherit", cursor: "pointer" }}
                     >
