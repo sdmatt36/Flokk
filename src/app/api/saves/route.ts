@@ -60,6 +60,7 @@ const SaveSchema = z.object({
   extractedCheckout: z.string().optional(),
   userRating: z.number().int().min(1).max(5).optional().nullable(),
   notes: z.string().optional().nullable(),
+  destinationCity: z.string().optional().nullable(),
 });
 
 function detectSourceType(url: string): SourceType {
@@ -137,7 +138,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const { url, tripId, title, description, thumbnailUrl, tags, lat, lng, dayIndex, extractedCheckin, extractedCheckout, userRating, notes } = SaveSchema.parse(body);
+    const { url, tripId, title, description, thumbnailUrl, tags, lat, lng, dayIndex, extractedCheckin, extractedCheckout, userRating, notes, destinationCity } = SaveSchema.parse(body);
 
     const profileId = await resolveProfileId(userId);
     if (!profileId) return NextResponse.json({ error: "Complete onboarding first" }, { status: 400 });
@@ -216,6 +217,7 @@ export async function POST(request: Request) {
           rawTitle,
           rawDescription,
           mediaThumbnailUrl,
+          destinationCity: destinationCity ?? null,
           placePhotoUrl: rawTitle ? (getVenueImage(rawTitle) ?? null) : null,
           categoryTags: tags ?? [],
           lat: lat ?? null,
