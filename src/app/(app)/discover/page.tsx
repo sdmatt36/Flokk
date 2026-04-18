@@ -413,6 +413,7 @@ function PlacesTab() {
   }, [selectedCity, placeType, refreshKey]);
 
   function selectCity(cityName: string, countryName: string) {
+    if (cityDebounce.current) clearTimeout(cityDebounce.current);
     const value = countryName ? `${cityName}, ${countryName}` : cityName;
     setPlaceCity(value);
     setSelectedCity(cityName);
