@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { getOrCreatePlacesLibrary } from "@/lib/places-library";
+import { writeThroughCommunitySpot } from "@/lib/community-write-through";
 
 export const dynamic = "force-dynamic";
 
@@ -40,40 +41,61 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Failed to initialize Places Library" }, { status: 500 });
   }
 
-  const activity = await db.manualActivity.create({
-    data: {
-      tripId,
-      title: body.name.trim(),
-      date: new Date().toISOString().split("T")[0],
-      city: body.city.trim(),
-      type: body.type.toLowerCase(),
-      address: body.address?.trim() ?? null,
-      lat: body.lat ?? null,
-      lng: body.lng ?? null,
-      website: body.website?.trim() ?? null,
-      notes: body.notes?.trim() ?? null,
-      imageUrl: body.imageUrl?.trim() ?? null,
-      status: "interested",
-      dayIndex: null,
-      sortOrder: 0,
-    },
-  });
-
-  if (body.rating && body.rating >= 1 && body.rating <= 5) {
-    await db.placeRating.create({
+  const activity = await db.$transaction(async (tx) => {
+    const created = await tx.manualActivity.create({
       data: {
-        familyProfileId: profileId,
-        manualActivityId: activity.id,
-        placeName: activity.title,
-        placeType: activity.type!,
-        destinationCity: activity.city,
-        lat: activity.lat,
-        lng: activity.lng,
-        rating: body.rating,
-        notes: body.ratingNote?.trim() ?? null,
+        tripId,
+        title: body.name.trim(),
+        date: new Date().toISOString().split("T")[0],
+        city: body.city.trim(),
+        type: body.type.toLowerCase(),
+        address: body.address?.trim() ?? null,
+        lat: body.lat ?? null,
+        lng: body.lng ?? null,
+        website: body.website?.trim() ?? null,
+        notes: body.notes?.trim() ?? null,
+        imageUrl: body.imageUrl?.trim() ?? null,
+        status: "interested",
+        dayIndex: null,
+        sortOrder: 0,
       },
     });
-  }
+
+    if (body.rating && body.rating >= 1 && body.rating <= 5) {
+      await tx.placeRating.create({
+        data: {
+          familyProfileId: profileId,
+          manualActivityId: created.id,
+          placeName: created.title,
+          placeType: created.type!,
+          destinationCity: created.city,
+          lat: created.lat,
+          lng: created.lng,
+          rating: body.rating,
+          notes: body.ratingNote?.trim() ?? null,
+        },
+      });
+
+      await writeThroughCommunitySpot(tx, {
+        name: created.title,
+        city: created.city ?? "",
+        country: null,
+        lat: created.lat ?? null,
+        lng: created.lng ?? null,
+        photoUrl: created.imageUrl ?? null,
+        websiteUrl: created.website ?? null,
+        description: body.ratingNote ?? null,
+        category: created.type ?? null,
+        googlePlaceId: null,
+        authorProfileId: profileId,
+        familyProfileId: profileId,
+        rating: body.rating,
+        note: body.ratingNote ?? null,
+      });
+    }
+
+    return created;
+  }, { timeout: 10000 });
 
   let addedToTrip = false;
   if (body.alsoAddToTripId) {
