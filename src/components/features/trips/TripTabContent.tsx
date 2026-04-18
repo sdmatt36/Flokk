@@ -5410,8 +5410,8 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
     setSubmitting(false);
     setCapturedToast(
       toSubmit.length > 0
-        ? `Saved ${toSubmit.length} rating${toSubmit.length === 1 ? "" : "s"}. Thanks for contributing to Flokk.`
-        : "Trip captured. Thanks for contributing to Flokk."
+        ? `Saved ${toSubmit.length} rating${toSubmit.length === 1 ? "" : "s"}.`
+        : (done ? "No changes to save." : "Trip captured. Thanks for contributing to Flokk.")
     );
     setTimeout(() => setCapturedToast(null), 4000);
     onDoneCapturing();
@@ -5627,59 +5627,57 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
 
       {/* Section 3 — Finish capture */}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      {!done && (
-        <div style={{
-          marginTop: "32px",
-          paddingTop: "24px",
-          borderTop: "1px solid #E5E7EB",
-          textAlign: "center",
+      <div style={{
+        marginTop: "32px",
+        paddingTop: "24px",
+        borderTop: "1px solid #E5E7EB",
+        textAlign: "center",
+      }}>
+        <p style={{
+          fontSize: "14px",
+          color: "#64748B",
+          fontFamily: "'DM Sans', sans-serif",
+          marginBottom: "12px",
         }}>
-          <p style={{
-            fontSize: "14px",
-            color: "#64748B",
+          {done ? "Making updates?" : "Finished capturing your memories from this trip?"}
+        </p>
+        <button
+          onClick={handleDoneCapturing}
+          disabled={submitting}
+          style={{
+            padding: "12px 28px",
+            borderRadius: "9999px",
+            border: "none",
+            background: submitting ? "#94A3B8" : "#C4664A",
+            color: "#FFFFFF",
+            fontSize: "15px",
+            fontWeight: 500,
             fontFamily: "'DM Sans', sans-serif",
-            marginBottom: "12px",
-          }}>
-            Finished capturing your memories from this trip?
-          </p>
-          <button
-            onClick={handleDoneCapturing}
-            disabled={submitting}
-            style={{
-              padding: "12px 28px",
-              borderRadius: "9999px",
-              border: "none",
-              background: submitting ? "#94A3B8" : "#C4664A",
-              color: "#FFFFFF",
-              fontSize: "15px",
-              fontWeight: 500,
-              fontFamily: "'DM Sans', sans-serif",
-              cursor: submitting ? "not-allowed" : "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              transition: "background 150ms ease-out",
-            }}
-          >
-            {submitting ? (
-              <>
-                <span style={{
-                  display: "inline-block",
-                  width: "14px",
-                  height: "14px",
-                  border: "2px solid rgba(255,255,255,0.4)",
-                  borderTopColor: "#FFFFFF",
-                  borderRadius: "50%",
-                  animation: "spin 600ms linear infinite",
-                }} />
-                Saving your ratings...
-              </>
-            ) : (
-              "Save my ratings and finish"
-            )}
-          </button>
-        </div>
-      )}
+            cursor: submitting ? "not-allowed" : "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            transition: "background 150ms ease-out",
+          }}
+        >
+          {submitting ? (
+            <>
+              <span style={{
+                display: "inline-block",
+                width: "14px",
+                height: "14px",
+                border: "2px solid rgba(255,255,255,0.4)",
+                borderTopColor: "#FFFFFF",
+                borderRadius: "50%",
+                animation: "spin 600ms linear infinite",
+              }} />
+              Saving your ratings...
+            </>
+          ) : (
+            done ? "Save my updates" : "Save my ratings and finish"
+          )}
+        </button>
+      </div>
 
       {capturedToast && (
         <div style={{ position: "fixed", bottom: "96px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#1B3A5C", color: "#fff", padding: "12px 20px", borderRadius: "12px", fontSize: "14px", fontWeight: 500, zIndex: 9999, maxWidth: "320px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}>
