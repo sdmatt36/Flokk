@@ -5234,6 +5234,7 @@ type HowWasItItem = {
   wouldReturn: boolean | null;
   alreadySaved: boolean;
   ratingId?: string;
+  savedItemId?: string;
 };
 
 const STAR_LABELS: Record<number, string> = {
@@ -5286,11 +5287,12 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
       fetch(`/api/trips/${tripId}/activities`).then(r => r.ok ? r.json() : []),
     ]).then(([itinData, savesData, ratingData, manualData]) => {
       const itinItems: { id: string; title?: string | null; type?: string }[] = Array.isArray(itinData) ? itinData : ((itinData as { items?: unknown[] }).items ?? []);
-      type ExistingRating = { id: string; rating: number; notes: string | null; wouldReturn: boolean | null; itineraryItemId?: string | null; manualActivityId?: string | null };
+      type ExistingRating = { id: string; rating: number; notes: string | null; wouldReturn: boolean | null; itineraryItemId?: string | null; manualActivityId?: string | null; savedItemId?: string | null };
       const existingRatings: ExistingRating[] = ratingData.ratings ?? [];
       setExistingRatingsCount(existingRatings.length);
       const ratingByItinId = new Map<string, ExistingRating>(existingRatings.filter(r => r.itineraryItemId).map(r => [r.itineraryItemId!, r]));
       const ratingByManualId = new Map<string, ExistingRating>(existingRatings.filter(r => r.manualActivityId).map(r => [r.manualActivityId!, r]));
+      const ratingBySavedId = new Map<string, ExistingRating>(existingRatings.filter(r => r.savedItemId).map(r => [r.savedItemId!, r]));
 
       // LODGING: exclude check-out items; strip "Check-in: " prefix from title
       // ACTIVITY: include all
@@ -5315,18 +5317,24 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
         });
 
       // SavedItems assigned to trip — exclude flight/lodging/transportation tags
-      const saveItems: HowWasItItem[] = ((savesData.saves ?? []) as { id: string; rawTitle?: string | null; categoryTags?: string[] }[])
+      // Hydration priority: (1) PlaceRating.savedItemId match, (2) SavedItem.userRating, (3) 0
+      const saveItems: HowWasItItem[] = ((savesData.saves ?? []) as { id: string; rawTitle?: string | null; categoryTags?: string[]; userRating?: number | null; notes?: string | null }[])
         .filter(s => !s.categoryTags?.some(t => EXCLUDE_SAVE_TAGS.test(t)))
-        .map(s => ({
-          id: s.id,
-          title: s.rawTitle ?? "Untitled",
-          type: "save",
-          itemKind: "save" as const,
-          rating: 0,
-          notes: "",
-          wouldReturn: null,
-          alreadySaved: false,
-        }));
+        .map(s => {
+          const existingRating = ratingBySavedId.get(s.id) ?? (s.userRating ? { id: "", rating: s.userRating, notes: s.notes ?? null, wouldReturn: null, itineraryItemId: null, manualActivityId: null, savedItemId: s.id } : null);
+          return {
+            id: s.id,
+            title: s.rawTitle ?? "Untitled",
+            type: "save",
+            itemKind: "save" as const,
+            rating: existingRating?.rating ?? 0,
+            notes: existingRating?.notes ?? "",
+            wouldReturn: existingRating?.wouldReturn ?? null,
+            alreadySaved: !!existingRating,
+            ratingId: existingRating?.id || undefined,
+            savedItemId: s.id,
+          };
+        });
 
       // ManualActivity records — deduplicate against itinerary and save titles
       const existingTitles = new Set<string>([
@@ -5365,6 +5373,7 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
         body: JSON.stringify({
           ...(it.itemKind === "itinerary" ? { itineraryItemId: it.id } : {}),
           ...(it.itemKind === "manual" ? { manualActivityId: it.id } : {}),
+          ...(it.itemKind === "save" ? { savedItemId: it.savedItemId } : {}),
           placeName: it.title,
           placeType: it.type.toLowerCase(),
           rating: it.rating,

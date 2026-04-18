@@ -17,7 +17,20 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const trip = await db.trip.findUnique({ where: { id: tripId } });
   if (!trip || trip.familyProfileId !== profileId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const ratings = await db.placeRating.findMany({ where: { tripId }, orderBy: { createdAt: "asc" } });
+  const ratings = await db.placeRating.findMany({
+    where: { tripId },
+    select: {
+      id: true,
+      rating: true,
+      notes: true,
+      wouldReturn: true,
+      kidsRating: true,
+      itineraryItemId: true,
+      manualActivityId: true,
+      savedItemId: true,
+    },
+    orderBy: { createdAt: "asc" },
+  });
   return NextResponse.json({ ratings });
 }
 
@@ -35,6 +48,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const body = await req.json() as {
     itineraryItemId?: string;
     manualActivityId?: string;
+    savedItemId?: string;
     placeName: string;
     placeType: string;
     rating: number;
@@ -49,6 +63,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       tripId,
       itineraryItemId: body.itineraryItemId ?? null,
       manualActivityId: body.manualActivityId ?? null,
+      savedItemId: body.savedItemId ?? null,
       placeName: body.placeName,
       placeType: body.placeType,
       destinationCity: trip.destinationCity ?? null,
