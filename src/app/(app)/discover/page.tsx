@@ -1039,12 +1039,6 @@ export default function DiscoverPage() {
   const [picksFilter, setPicksFilter]         = useState("All");
   const [picksSearch, setPicksSearch]         = useState("");
   const [showAllPicks, setShowAllPicks]       = useState(false);
-  const [communityRatingModal, setCommunityRatingModal] = useState<{ id: string; title: string; city: string | null } | null>(null);
-  const [communityRatingValue, setCommunityRatingValue] = useState(0);
-  const [communityRatingNotes, setCommunityRatingNotes] = useState("");
-  const [communityRatingSubmitting, setCommunityRatingSubmitting] = useState(false);
-  const [communityRatedItems, setCommunityRatedItems] = useState<Map<string, number>>(new Map());
-  const [communityRatingToast, setCommunityRatingToast] = useState<string | null>(null);
   const [userSavedKeys, setUserSavedKeys] = useState<Set<string>>(new Set());
   const [selectedActivity, setSelectedActivity] = useState<DiscoverActivity | null>(null);
 
@@ -1060,21 +1054,6 @@ export default function DiscoverPage() {
         setUserSavedKeys(keys);
       })
       .catch((err) => { console.error('[discover] Failed to fetch user saves for isSaved check:', err); });
-  }, []);
-
-  useEffect(() => {
-    fetch("/api/community/rate")
-      .then(r => r.json())
-      .then(d => {
-        const map = new Map<string, number>();
-        for (const item of (d.ratings ?? [])) {
-          if (item.placeName && item.rating) {
-            map.set((item.placeName as string).toLowerCase().trim(), item.rating as number);
-          }
-        }
-        setCommunityRatedItems(map);
-      })
-      .catch((err) => { console.error('[discover] Failed to fetch community ratings:', err); });
   }, []);
 
   useEffect(() => {
@@ -1626,17 +1605,6 @@ export default function DiscoverPage() {
                     ) : (act.visitorCount ?? 0) === 1 ? (
                       <p style={{ fontSize: "11px", color: "#CCCCCC", marginBottom: "4px" }}>1 family rated this</p>
                     ) : null}
-                    {/* Personal rating */}
-                    {communityRatedItems.has(act.title.toLowerCase().trim()) && (
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
-                        <span style={{ fontSize: "11px", color: "#AAAAAA" }}>You rated:</span>
-                        <div style={{ display: "flex", gap: "1px" }}>
-                          {[1, 2, 3, 4, 5].map(i => (
-                            <span key={i} style={{ color: i <= (communityRatedItems.get(act.title.toLowerCase().trim()) ?? 0) ? "#f59e0b" : "#d1d5db", fontSize: "13px" }}>★</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                     <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "10px" }}>
                       {act.source === "placeholder"
                         ? "Flokk Pick"
@@ -1649,15 +1617,6 @@ export default function DiscoverPage() {
                         <a href={act.websiteUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: "12px", color: "#1B3A5C", textDecoration: "underline", textAlign: "center" }}>
                           Visit site →
                         </a>
-                      )}
-                      {/* Rate it — only for users who have this place saved */}
-                      {isSaved && !communityRatedItems.has(act.title.toLowerCase().trim()) && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setCommunityRatingModal({ id: act.id, title: act.title, city: act.city }); setCommunityRatingValue(0); setCommunityRatingNotes(""); }}
-                          style={{ background: "none", border: "none", padding: "0 0 2px", fontSize: "11px", color: "#AAAAAA", cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
-                        >
-                          ★ Rate it
-                        </button>
                       )}
                       <button
                         onClick={(e) => { e.stopPropagation(); handlePickSave(act); }}
@@ -1880,86 +1839,6 @@ export default function DiscoverPage() {
         </div>
       )}
 
-      {/* ── Community rating modal ── */}
-      {activeTab === "trips" && communityRatingModal && (
-        <div
-          onClick={() => setCommunityRatingModal(null)}
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ backgroundColor: "#fff", borderRadius: "16px", padding: "24px", width: "100%", maxWidth: "360px", display: "flex", flexDirection: "column", gap: "16px" }}
-          >
-            <h2 style={{ fontFamily: "Playfair Display, serif", fontSize: 18, fontWeight: 700, color: "#1B3A5C", margin: 0, lineHeight: 1.3 }}>
-              {communityRatingModal.title.length > 40 ? communityRatingModal.title.slice(0, 40) + "…" : communityRatingModal.title}
-            </h2>
-
-            {/* Star selector */}
-            <div style={{ display: "flex", gap: "8px" }}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  onClick={() => setCommunityRatingValue(star)}
-                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "28px", color: star <= communityRatingValue ? "#f59e0b" : "#d1d5db", lineHeight: 1 }}
-                >
-                  ★
-                </button>
-              ))}
-            </div>
-
-            {/* Notes */}
-            <textarea
-              placeholder="What did you think?"
-              value={communityRatingNotes}
-              onChange={(e) => setCommunityRatingNotes(e.target.value)}
-              rows={3}
-              style={{ border: "1px solid #E8E8E8", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "#0A1628", outline: "none", fontFamily: "Inter, sans-serif", resize: "vertical" }}
-            />
-
-            {/* Save button */}
-            <button
-              disabled={communityRatingValue === 0 || communityRatingSubmitting}
-              onClick={async () => {
-                if (communityRatingValue === 0) return;
-                setCommunityRatingSubmitting(true);
-                try {
-                  const res = await fetch("/api/community/rate", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      placeName: communityRatingModal.title,
-                      destinationCity: communityRatingModal.city ?? undefined,
-                      rating: communityRatingValue,
-                      notes: communityRatingNotes.trim() || undefined,
-                    }),
-                  });
-                  if (res.ok) {
-                    setCommunityRatedItems((prev) => new Map(prev).set(communityRatingModal.title.toLowerCase().trim(), communityRatingValue));
-                    setCommunityRatingModal(null);
-                    setCommunityRatingToast("Rating saved!");
-                    setTimeout(() => setCommunityRatingToast(null), 3000);
-                  }
-                } finally {
-                  setCommunityRatingSubmitting(false);
-                }
-              }}
-              style={{ padding: "12px 0", borderRadius: 8, border: "none", backgroundColor: communityRatingValue > 0 ? "#C4664A" : "#E8E8E8", color: communityRatingValue > 0 ? "#fff" : "#aaa", fontSize: 14, fontWeight: 600, cursor: communityRatingValue > 0 ? "pointer" : "default", fontFamily: "Inter, sans-serif" }}
-            >
-              {communityRatingSubmitting ? "Saving…" : "Save rating"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setCommunityRatingModal(null)}
-              style={{ background: "none", border: "none", padding: 0, fontSize: "13px", color: "#717171", cursor: "pointer", fontFamily: "Inter, sans-serif", textAlign: "center" }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* ── Activity detail modal ── */}
       {activeTab === "trips" && selectedActivity && (
         <div
@@ -2031,13 +1910,6 @@ export default function DiscoverPage() {
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* ── Rating toast ── */}
-      {activeTab === "trips" && communityRatingToast && (
-        <div style={{ position: "fixed", bottom: "80px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#1B3A5C", color: "#fff", padding: "10px 20px", borderRadius: "999px", fontSize: "13px", fontWeight: 600, zIndex: 200, pointerEvents: "none" }}>
-          {communityRatingToast}
         </div>
       )}
 
