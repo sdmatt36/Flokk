@@ -284,6 +284,15 @@ function PlacesTab() {
   const cityDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cityRef = useRef<HTMLDivElement>(null);
 
+  const [availablePillCities, setAvailablePillCities] = useState<{ city: string; placeCount: number }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/places/cities")
+      .then(r => r.json())
+      .then(d => setAvailablePillCities(d.cities ?? []))
+      .catch(() => setAvailablePillCities([]));
+  }, []);
+
   const [showAddPlaceModal, setShowAddPlaceModal] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [apName, setApName] = useState("");
@@ -460,6 +469,59 @@ function PlacesTab() {
           </div>
         )}
       </div>
+
+      {/* City pills */}
+      {availablePillCities.length > 0 && (
+        <div
+          style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "8px", marginBottom: "12px", scrollbarWidth: "none", msOverflowStyle: "none" }}
+          className="hide-scrollbar"
+        >
+          <button
+            onClick={() => { setPlaceCity(""); setSelectedCity(null); }}
+            style={{
+              flexShrink: 0,
+              padding: "7px 16px",
+              borderRadius: "999px",
+              border: selectedCity === null ? "none" : "1.5px solid #E0E0E0",
+              backgroundColor: selectedCity === null ? "#1B3A5C" : "#fff",
+              color: selectedCity === null ? "#fff" : "#1B3A5C",
+              fontSize: "13px",
+              fontWeight: selectedCity === null ? 700 : 500,
+              lineHeight: "1",
+              cursor: "pointer",
+              transition: "all 0.15s",
+              fontFamily: "inherit",
+            }}
+          >
+            All cities
+          </button>
+          {availablePillCities.map(c => {
+            const isSelected = selectedCity === c.city;
+            return (
+              <button
+                key={c.city}
+                onClick={() => selectCity(c.city, "")}
+                style={{
+                  flexShrink: 0,
+                  padding: "7px 16px",
+                  borderRadius: "999px",
+                  border: isSelected ? "none" : "1.5px solid #E0E0E0",
+                  backgroundColor: isSelected ? "#1B3A5C" : "#fff",
+                  color: isSelected ? "#fff" : "#1B3A5C",
+                  fontSize: "13px",
+                  fontWeight: isSelected ? 700 : 500,
+                  lineHeight: "1",
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                  fontFamily: "inherit",
+                }}
+              >
+                {c.city}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Type filter pills */}
       <div
