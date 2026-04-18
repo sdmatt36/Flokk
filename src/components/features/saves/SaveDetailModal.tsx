@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
-import { X, MapPin, Sparkles, ExternalLink, ChevronDown } from "lucide-react";
+import { X, MapPin, Sparkles, ExternalLink, ChevronDown, Check } from "lucide-react";
 import { getTripCoverImage } from "@/lib/destination-images";
 
 type SaveItem = {
@@ -165,7 +165,7 @@ export function SaveDetailModal({
       initialNotes.current = notes;
       setNoteSaved(true);
       if (noteTimer.current) clearTimeout(noteTimer.current);
-      noteTimer.current = setTimeout(() => setNoteSaved(false), 2000);
+      noteTimer.current = setTimeout(() => setNoteSaved(false), 2500);
     } catch { /* silent */ }
     finally { setNoteSaving(false); }
   }
@@ -231,7 +231,7 @@ export function SaveDetailModal({
 
   return (
     <>
-      <style>{`.directions-link:hover { text-decoration: underline; }`}</style>
+      <style>{`.directions-link:hover { text-decoration: underline; } @keyframes spin { to { transform: rotate(360deg); } }`}</style>
       {/* Backdrop */}
       <div
         onClick={handleClose}
@@ -606,12 +606,32 @@ export function SaveDetailModal({
                     lineHeight: 1.5, boxSizing: "border-box",
                   }}
                 />
-                {(noteSaving || noteSaved) && (
-                  <span style={{ position: "absolute", bottom: "8px", right: "10px", fontSize: "11px", color: "#aaa" }}>
-                    {noteSaving ? "Saving…" : "Saved"}
-                  </span>
-                )}
               </div>
+              {(noteSaving || noteSaved) && (
+                <div style={{
+                  display: "flex", alignItems: "center", gap: "6px",
+                  marginTop: "6px", fontSize: "13px",
+                  color: noteSaving ? "#6B7280" : "#6B8F71",
+                  fontFamily: "'DM Sans', sans-serif",
+                  transition: "opacity 200ms ease-out",
+                }}>
+                  {noteSaving ? (
+                    <>
+                      <span style={{
+                        display: "inline-block", width: "12px", height: "12px",
+                        border: "2px solid #E5E7EB", borderTopColor: "#6B7280",
+                        borderRadius: "50%", animation: "spin 600ms linear infinite"
+                      }} />
+                      <span>Saving…</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} strokeWidth={2.5} />
+                      <span>Saved</span>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
           {/* Start time — only shown when item is assigned to a day */}
