@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
@@ -357,6 +357,8 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
                 zIndex: 50,
                 minWidth: "180px",
                 overflow: "hidden",
+                maxHeight: "280px",
+                overflowY: "auto",
               }}
             >
               {(() => {
@@ -498,6 +500,7 @@ export function SavesScreen() {
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
   const [dietaryFilter, setDietaryFilter] = useState<string | null>(null);
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [saves, setSaves] = useState<Save[]>([]);
   const [availableTrips, setAvailableTrips] = useState<{ id: string; title: string; destinationCity: string | null; destinationCountry: string | null; endDate: string | null; isPlacesLibrary?: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -716,6 +719,20 @@ export function SavesScreen() {
     "Other": ["other"],
   };
 
+  // Unique cities derived from saves, alphabetical — used for city pill row
+  const availableCities = useMemo(() => {
+    const cities = new Set<string>();
+    saves.forEach(s => {
+      if (s.destinationCity && s.destinationCity.trim()) cities.add(s.destinationCity.trim());
+    });
+    return Array.from(cities).sort((a, b) => a.localeCompare(b));
+  }, [saves]);
+
+  // City filter — applied before category/search
+  const cityFiltered = selectedCity
+    ? saves.filter(s => s.destinationCity?.trim() === selectedCity)
+    : saves;
+
   // Card matching: search + category filter (ignores assigned/unassigned axis)
   const matchesFilter = (s: Save): boolean => {
     const searchLower = search.toLowerCase();
@@ -741,7 +758,7 @@ export function SavesScreen() {
   // Trip section: hidden when "Unorganized" filter active
   const tripCards = activeFilter === "Unorganized"
     ? []
-    : saves.filter((s) => s.assigned !== null && matchesFilter(s)).sort((a, b) => a.title.localeCompare(b.title));
+    : cityFiltered.filter((s) => s.assigned !== null && matchesFilter(s)).sort((a, b) => a.title.localeCompare(b.title));
 
   // Group assigned cards by trip name
   const tripGroups = tripCards.reduce<Record<string, Save[]>>((acc, s) => {
@@ -752,7 +769,7 @@ export function SavesScreen() {
   }, {});
 
   // Unassigned saves split into: city-grouped (has destinationCity) and orphans (no city)
-  const allUnassigned = saves.filter((s) => s.assigned === null && matchesFilter(s));
+  const allUnassigned = cityFiltered.filter((s) => s.assigned === null && matchesFilter(s));
 
   // City sections: unassigned saves with a known city, grouped by city, sorted alphabetically by city
   const cityGroups = allUnassigned
@@ -843,6 +860,35 @@ Your saved places, all in one spot
             </div>
           );
         })()}
+
+        {/* CITY PILL ROW */}
+        {availableCities.length > 0 && (
+          <div style={{ marginBottom: "12px" }}>
+            <div
+              style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "8px", scrollbarWidth: "none", msOverflowStyle: "none" }}
+              className="hide-scrollbar"
+            >
+              <button
+                onClick={() => setSelectedCity(null)}
+                style={{ flexShrink: 0, padding: "7px 16px", borderRadius: "999px", border: selectedCity === null ? "none" : "1.5px solid #E0E0E0", backgroundColor: selectedCity === null ? "#1B3A5C" : "#fff", color: selectedCity === null ? "#fff" : "#1B3A5C", fontSize: "13px", fontWeight: selectedCity === null ? 700 : 500, lineHeight: "1", cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit" }}
+              >
+                All cities
+              </button>
+              {availableCities.map(city => {
+                const isSelected = selectedCity === city;
+                return (
+                  <button
+                    key={city}
+                    onClick={() => setSelectedCity(isSelected ? null : city)}
+                    style={{ flexShrink: 0, padding: "7px 16px", borderRadius: "999px", border: isSelected ? "none" : "1.5px solid #E0E0E0", backgroundColor: isSelected ? "#1B3A5C" : "#fff", color: isSelected ? "#fff" : "#1B3A5C", fontSize: "13px", fontWeight: isSelected ? 700 : 500, lineHeight: "1", cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit" }}
+                  >
+                    {city}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* FILTER STRIP */}
         <div style={{ display: "flex", overflowX: "auto", gap: "8px", marginBottom: "24px", paddingBottom: "4px", scrollbarWidth: "none" }}>
