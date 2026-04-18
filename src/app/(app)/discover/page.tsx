@@ -7,6 +7,8 @@ import { Playfair_Display } from "next/font/google";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { AddToItineraryModal } from "@/components/places/AddToItineraryModal";
 import type { AddToItinerarySpot } from "@/components/places/AddToItineraryModal";
+import { PlaceActionRow } from "@/components/features/places/PlaceActionRow";
+import type { UserSpotRating } from "@/app/api/community/user-ratings/route";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700", "900"] });
 
@@ -1041,6 +1043,8 @@ export default function DiscoverPage() {
   const [showAllPicks, setShowAllPicks]       = useState(false);
   const [userSavedKeys, setUserSavedKeys] = useState<Set<string>>(new Set());
   const [selectedActivity, setSelectedActivity] = useState<DiscoverActivity | null>(null);
+  const [userSpotRatings, setUserSpotRatings] = useState<Map<string, number>>(new Map());
+  const [shareToast, setShareToast] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/saves")
@@ -1054,6 +1058,21 @@ export default function DiscoverPage() {
         setUserSavedKeys(keys);
       })
       .catch((err) => { console.error('[discover] Failed to fetch user saves for isSaved check:', err); });
+  }, []);
+
+  useEffect(() => {
+    fetch("/api/community/user-ratings")
+      .then(r => r.json())
+      .then(d => {
+        const map = new Map<string, number>();
+        (d.ratings ?? []).forEach((r: UserSpotRating) => {
+          if (r.rating != null) {
+            map.set(`${r.spotName.toLowerCase().trim()}|${(r.spotCity ?? "").toLowerCase().trim()}`, r.rating);
+          }
+        });
+        setUserSpotRatings(map);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -1612,31 +1631,23 @@ export default function DiscoverPage() {
                           ? "A Real Flokker"
                           : `${act.familyName} Family`}
                     </p>
-                    <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: "6px" }}>
-                      {act.websiteUrl && (
-                        <a href={act.websiteUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ fontSize: "12px", color: "#1B3A5C", textDecoration: "underline", textAlign: "center" }}>
-                          Visit site →
-                        </a>
-                      )}
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handlePickSave(act); }}
-                        disabled={savedActivities.has(act.id)}
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 700,
-                          border: "none",
-                          color: "#fff",
-                          backgroundColor: savedActivities.has(act.id) ? "#AAAAAA" : "#C4664A",
-                          borderRadius: "8px",
-                          padding: "8px",
-                          cursor: savedActivities.has(act.id) ? "default" : "pointer",
-                          fontFamily: "inherit",
-                          transition: "all 0.15s",
-                          width: "100%",
+                    <div style={{ marginTop: "auto" }} onClick={(e) => e.stopPropagation()}>
+                      <PlaceActionRow
+                        place={{
+                          name: act.title,
+                          city: act.city,
+                          websiteUrl: act.websiteUrl,
+                          photoUrl: act.imageUrl,
+                          category: act.type,
+                          sourceTripId: act.tripId,
+                          sourceShareToken: act.shareToken,
                         }}
-                      >
-                        {savedActivities.has(act.id) ? "Saved ✓" : "Flokk It"}
-                      </button>
+                        isSaved={isSaved || savedActivities.has(act.id)}
+                        userRating={userSpotRatings.get(`${act.title.toLowerCase().trim()}|${(act.city ?? "").toLowerCase().trim()}`) ?? null}
+                        onFlokkIt={() => handlePickSave(act)}
+                        onShareToast={(msg) => { setShareToast(msg); setTimeout(() => setShareToast(null), 3000); }}
+                        layout="vertical"
+                      />
                     </div>
                   </div>
                 </div>
@@ -1889,27 +1900,40 @@ export default function DiscoverPage() {
                     ? "A Real Flokker"
                     : `${selectedActivity.familyName} Family`}
               </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                {selectedActivity.websiteUrl && (
-                  <a
-                    href={selectedActivity.websiteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ display: "block", padding: "11px", borderRadius: "10px", border: "2px solid #1B3A5C", backgroundColor: "transparent", color: "#1B3A5C", fontSize: "13px", fontWeight: 700, textAlign: "center", textDecoration: "none", fontFamily: "inherit" }}
-                  >
-                    Visit site →
-                  </a>
-                )}
-                <button
-                  onClick={() => { handlePickSave(selectedActivity); setSelectedActivity(null); }}
-                  disabled={savedActivities.has(selectedActivity.id)}
-                  style={{ padding: "11px", borderRadius: "10px", border: "none", backgroundColor: savedActivities.has(selectedActivity.id) ? "#AAAAAA" : "#C4664A", color: "#fff", fontSize: "13px", fontWeight: 700, cursor: savedActivities.has(selectedActivity.id) ? "default" : "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
-                >
-                  {savedActivities.has(selectedActivity.id) ? "Saved ✓" : "Flokk It"}
-                </button>
-              </div>
+              <PlaceActionRow
+                place={{
+                  name: selectedActivity.title,
+                  city: selectedActivity.city,
+                  websiteUrl: selectedActivity.websiteUrl,
+                  photoUrl: selectedActivity.imageUrl,
+                  category: selectedActivity.type,
+                  sourceTripId: selectedActivity.tripId,
+                  sourceShareToken: selectedActivity.shareToken,
+                }}
+                isSaved={
+                  userSavedKeys.has(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`) ||
+                  savedActivities.has(selectedActivity.id)
+                }
+                userRating={userSpotRatings.get(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`) ?? null}
+                onFlokkIt={() => { handlePickSave(selectedActivity); setSelectedActivity(null); }}
+                onShareToast={(msg) => { setShareToast(msg); setTimeout(() => setShareToast(null), 3000); }}
+                layout="horizontal"
+              />
             </div>
           </div>
+        </div>
+      )}
+
+      {shareToast && (
+        <div style={{
+          position: "fixed", bottom: 88, left: "50%",
+          transform: "translateX(-50%)",
+          backgroundColor: "#1B3A5C", color: "#fff",
+          padding: "10px 20px", borderRadius: 999,
+          fontSize: 13, fontWeight: 600, zIndex: 1300,
+          pointerEvents: "none", whiteSpace: "nowrap",
+        }}>
+          {shareToast}
         </div>
       )}
 
