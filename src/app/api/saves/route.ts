@@ -58,7 +58,7 @@ const SaveSchema = z.object({
   extractedCheckin: z.string().optional(),
   extractedCheckout: z.string().optional(),
   userRating: z.number().int().min(1).max(5).optional().nullable(),
-  userNote: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
 });
 
 function detectSourceType(url: string): SourceType {
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
           rawTitle: parsed.title,
           destinationCity: parsed.city?.trim() || null,
           categoryTags: parsed.category ? [parsed.category] : [],
-          userNote: parsed.notes?.trim() || null,
+          notes: parsed.notes?.trim() || null,
           websiteUrl: parsed.website?.trim() || null,
           extractionStatus: "ENRICHED",
           status: "UNORGANIZED",
@@ -136,7 +136,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const { url, tripId, title, description, thumbnailUrl, tags, lat, lng, dayIndex, extractedCheckin, extractedCheckout, userRating, userNote } = SaveSchema.parse(body);
+    const { url, tripId, title, description, thumbnailUrl, tags, lat, lng, dayIndex, extractedCheckin, extractedCheckout, userRating, notes } = SaveSchema.parse(body);
 
     const profileId = await resolveProfileId(userId);
     if (!profileId) return NextResponse.json({ error: "Complete onboarding first" }, { status: 400 });
@@ -224,7 +224,7 @@ export async function POST(request: Request) {
         extractionStatus: "PENDING",
         status: tripId ? "TRIP_ASSIGNED" : "UNORGANIZED",
         userRating: userRating ?? null,
-        userNote: userNote ?? null,
+        notes: notes ?? null,
       },
     });
 

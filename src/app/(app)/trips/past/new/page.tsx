@@ -441,7 +441,7 @@ function Step2Links({
         thumbnailUrl: link.imageUrl ?? undefined,
         tags: [link.category || "other"],
         userRating: link.rating ?? undefined,
-        userNote: link.note || undefined,
+        notes: link.note || undefined,
         extractedCheckin: link.checkIn || undefined,
         extractedCheckout: link.checkOut || undefined,
       };
