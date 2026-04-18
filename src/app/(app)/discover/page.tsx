@@ -401,9 +401,9 @@ function PlacesTab() {
   }, [placeCity]);
 
   useEffect(() => {
-    if (!selectedCity) return;
     setPlacesLoading(true);
-    const params = new URLSearchParams({ city: selectedCity });
+    const params = new URLSearchParams();
+    if (selectedCity) params.set("city", selectedCity);
     if (placeType !== "All") params.set("type", placeType.toLowerCase());
     fetch(`/api/places/community?${params}`)
       .then(r => r.json())
@@ -436,7 +436,7 @@ function PlacesTab() {
           }}
         >
           <Plus size={13} />
-          Add a Place
+          Add a Spot
         </button>
       </div>
 
@@ -568,14 +568,10 @@ function PlacesTab() {
       </div>
 
       {/* Results */}
-      {!selectedCity ? (
-        <p className="text-sm text-gray-400 text-center mt-8">Search a city to see rated spots.</p>
-      ) : placesLoading ? (
+      {placesLoading ? (
         <p className="text-sm text-gray-400 text-center mt-8">Finding spots...</p>
       ) : places.length === 0 ? (
-        <p className="text-sm text-gray-400 text-center mt-8">
-          No rated places in {selectedCity} yet. Be the first to rate somewhere.
-        </p>
+        <p className="text-sm text-gray-400 text-center mt-8">No spots match these filters yet.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
           {places.map(place => (
@@ -703,7 +699,7 @@ function PlacesTab() {
             className="bg-white max-w-md w-full mx-4 rounded-2xl p-6 overflow-y-auto max-h-[90vh]"
             onClick={e => e.stopPropagation()}
           >
-            <h2 className={`${playfair.className} text-xl text-[#1B3A5C] mb-1`}>Add a Place</h2>
+            <h2 className={`${playfair.className} text-xl text-[#1B3A5C] mb-1`}>Add a Spot</h2>
             <p className="text-sm text-gray-500 mb-5">Share a spot your family loved.</p>
 
             {/* City */}
