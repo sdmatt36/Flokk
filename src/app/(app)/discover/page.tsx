@@ -993,6 +993,8 @@ function PlacesTab() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DiscoverPage() {
+  const SPOTS_TAB_ENABLED = false; // flip to true to re-enable Spots tab
+
   // Tab
   const [activeTab, setActiveTab] = useState<"trips" | "places">("trips");
 
@@ -1280,16 +1282,18 @@ export default function DiscoverPage() {
           >
             Community Trips
           </button>
-          <button
-            onClick={() => setActiveTab("places")}
-            className="rounded-full px-5 py-2 text-sm font-medium"
-            style={{ fontFamily: "inherit", cursor: "pointer", backgroundColor: activeTab === "places" ? "#1B3A5C" : "transparent", color: activeTab === "places" ? "#fff" : "#555", border: activeTab === "places" ? "1.5px solid #1B3A5C" : "1.5px solid #E0E0E0" }}
-          >
-            Spots
-          </button>
+          {SPOTS_TAB_ENABLED && (
+            <button
+              onClick={() => setActiveTab("places")}
+              className="rounded-full px-5 py-2 text-sm font-medium"
+              style={{ fontFamily: "inherit", cursor: "pointer", backgroundColor: activeTab === "places" ? "#1B3A5C" : "transparent", color: activeTab === "places" ? "#fff" : "#555", border: activeTab === "places" ? "1.5px solid #1B3A5C" : "1.5px solid #E0E0E0" }}
+            >
+              Spots
+            </button>
+          )}
         </div>
 
-        {activeTab === "places" ? (
+        {SPOTS_TAB_ENABLED && activeTab === "places" ? (
           <PlacesTab />
         ) : (<>
 
