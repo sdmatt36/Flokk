@@ -471,6 +471,20 @@ function PlacesTab() {
         )}
       </div>
 
+      {/* Under-construction banner */}
+      <div style={{
+        padding: "12px 16px",
+        marginBottom: "16px",
+        backgroundColor: "#FEF3E6",
+        borderLeft: "4px solid #C4664A",
+        borderRadius: "6px",
+        fontSize: "14px",
+        color: "#334155",
+        fontFamily: "'DM Sans', sans-serif",
+      }}>
+        <strong style={{ color: "#1B3A5C" }}>Currently being built.</strong> Please excuse our Flokkin messiness. The full Spots experience is on the way.
+      </div>
+
       {/* City pills */}
       {availablePillCities.length > 0 && (
         <div
@@ -993,7 +1007,7 @@ function PlacesTab() {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function DiscoverPage() {
-  const SPOTS_TAB_ENABLED = false; // flip to true to re-enable Spots tab
+  const SPOTS_TAB_ENABLED = true;
 
   // Tab
   const [activeTab, setActiveTab] = useState<"trips" | "places">("trips");
