@@ -73,6 +73,8 @@ model FamilyProfile {
   senderEmailVerifications SenderEmailVerification[]
   placeRatings     PlaceRating[]
   profileMembers   ProfileMember[]
+  authoredSpots    CommunitySpot[]    @relation("CommunitySpotAuthor")
+  spotContributions SpotContribution[] @relation("SpotContributionFamily")
 }
 
 model ProfileMember {
@@ -847,4 +849,48 @@ model PlaceRating {
   familyProfile   FamilyProfile @relation(fields: [familyProfileId], references: [id])
   trip            Trip?         @relation(fields: [tripId], references: [id])
   savedItem        SavedItem?    @relation(fields: [savedItemId], references: [id])
+}
+
+model CommunitySpot {
+  id                String               @id @default(cuid())
+  name              String
+  city              String
+  country           String?
+  category          String?
+  googlePlaceId     String?              @unique
+  address           String?
+  lat               Float?
+  lng               Float?
+  photoUrl          String?
+  websiteUrl        String?
+  description       String?
+  averageRating     Float?
+  ratingCount       Int                  @default(0)
+  contributionCount Int                  @default(0)
+  authorProfileId   String
+  author            FamilyProfile        @relation("CommunitySpotAuthor", fields: [authorProfileId], references: [id], onDelete: Restrict)
+  contributions     SpotContribution[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@index([city])
+  @@index([category])
+  @@index([authorProfileId])
+  @@index([city, category])
+}
+
+model SpotContribution {
+  id              String        @id @default(cuid())
+  communitySpotId String
+  spot            CommunitySpot @relation(fields: [communitySpotId], references: [id], onDelete: Cascade)
+  familyProfileId String
+  family          FamilyProfile @relation("SpotContributionFamily", fields: [familyProfileId], references: [id], onDelete: Cascade)
+  rating          Int?
+  note            String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([communitySpotId, familyProfileId])
+  @@index([familyProfileId])
+  @@index([communitySpotId])
 }
