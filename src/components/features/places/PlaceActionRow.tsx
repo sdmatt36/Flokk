@@ -18,7 +18,7 @@ export interface PlaceActionRowProps {
   onFlokkIt: () => Promise<void> | void;
   onEdit?: () => void;
   onShareToast?: (message: string) => void;
-  layout?: "horizontal" | "vertical";
+  variant?: "card-compact" | "card-expanded";
 }
 
 const TERRA = "#C4664A";
@@ -33,7 +33,7 @@ export function PlaceActionRow({
   onFlokkIt,
   onEdit,
   onShareToast,
-  layout = "horizontal",
+  variant = "card-expanded",
 }: PlaceActionRowProps) {
   const { open: openAddToItinerary } = useAddToItinerary();
   const [flokking, setFlokking] = useState(false);
@@ -99,72 +99,172 @@ export function PlaceActionRow({
         </div>
       )}
 
-      <div style={{
-        display: "flex",
-        flexDirection: layout === "horizontal" ? "row" : "column",
-        flexWrap: layout === "horizontal" ? "wrap" : "nowrap",
-        gap: 6,
-        alignItems: layout === "horizontal" ? "center" : "stretch",
-      }}>
-        {isSaved ? (
-          <button type="button" style={savedPill} disabled>
-            <BookmarkCheck size={14} /> Saved
-          </button>
-        ) : (
-          <button
-            type="button"
-            style={primaryBtn}
-            onClick={handleFlokkIt}
-            disabled={flokking}
-            aria-label={`Flokk ${place.name}`}
-          >
-            {flokking ? "Saving..." : "Flokk It"}
-          </button>
-        )}
+      {variant === "card-compact" ? (
+        // Two-row compact layout for 3-col card grid
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {/* Row 1: Primary action, full width */}
+          {isSaved ? (
+            <button
+              type="button"
+              disabled
+              style={{
+                ...savedPill,
+                width: "100%",
+                padding: "7px 10px",
+                fontSize: 12,
+              }}
+            >
+              <BookmarkCheck size={13} /> Saved
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleFlokkIt}
+              disabled={flokking}
+              aria-label={`Flokk ${place.name}`}
+              style={{
+                ...primaryBtn,
+                width: "100%",
+                padding: "7px 10px",
+                fontSize: 12,
+              }}
+            >
+              {flokking ? "Saving…" : "Flokk It"}
+            </button>
+          )}
 
-        <button
-          type="button"
-          style={btnBase}
-          onClick={handleAddToItinerary}
-          aria-label={`Add ${place.name} to itinerary`}
-        >
-          <Plus size={14} /> Itinerary
-        </button>
+          {/* Row 2: Secondary actions, equal-flex */}
+          <div style={{ display: "flex", gap: 4 }}>
+            <button
+              type="button"
+              onClick={handleAddToItinerary}
+              aria-label={`Add ${place.name} to itinerary`}
+              style={{
+                ...btnBase,
+                flex: 1,
+                padding: "6px 4px",
+                fontSize: 11,
+                gap: 3,
+              }}
+            >
+              <Plus size={12} /> Itinerary
+            </button>
 
-        {place.websiteUrl && (
-          <a
-            href={place.websiteUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ ...btnBase, textDecoration: "none" }}
-            onClick={(e) => e.stopPropagation()}
-            aria-label={`Visit site for ${place.name}`}
-          >
-            <ExternalLink size={14} /> Visit
-          </a>
-        )}
+            {place.websiteUrl ? (
+              <a
+                href={place.websiteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                aria-label={`Visit site for ${place.name}`}
+                style={{
+                  ...btnBase,
+                  flex: 1,
+                  padding: "6px 4px",
+                  fontSize: 11,
+                  gap: 3,
+                  textDecoration: "none",
+                }}
+              >
+                <ExternalLink size={12} /> Visit
+              </a>
+            ) : null}
 
-        <button
-          type="button"
-          style={btnBase}
-          onClick={handleShare}
-          disabled={sharing}
-          aria-label={`Share ${place.name}`}
-        >
-          <Share2 size={14} /> Share
-        </button>
+            <button
+              type="button"
+              onClick={handleShare}
+              disabled={sharing}
+              aria-label={`Share ${place.name}`}
+              style={{
+                ...btnBase,
+                flex: 1,
+                padding: "6px 4px",
+                fontSize: 11,
+                gap: 3,
+              }}
+            >
+              <Share2 size={12} /> Share
+            </button>
 
-        {canEdit && onEdit && (
+            {canEdit && onEdit ? (
+              <button
+                type="button"
+                onClick={onEdit}
+                aria-label={`Edit ${place.name}`}
+                style={{
+                  ...btnBase,
+                  padding: "6px 8px",
+                  fontSize: 11,
+                }}
+              >
+                <Pencil size={12} />
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        // Expanded layout for detail modal and wider containers
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {isSaved ? (
+            <button type="button" style={savedPill} disabled>
+              <BookmarkCheck size={14} /> Saved
+            </button>
+          ) : (
+            <button
+              type="button"
+              style={primaryBtn}
+              onClick={handleFlokkIt}
+              disabled={flokking}
+              aria-label={`Flokk ${place.name}`}
+            >
+              {flokking ? "Saving…" : "Flokk It"}
+            </button>
+          )}
+
           <button
             type="button"
             style={btnBase}
-            onClick={onEdit}
-            aria-label={`Edit ${place.name}`}
+            onClick={handleAddToItinerary}
+            aria-label={`Add ${place.name} to itinerary`}
           >
-            <Pencil size={14} />
+            <Plus size={14} /> Itinerary
           </button>
-        )}
-      </div>
+
+          {place.websiteUrl && (
+            <a
+              href={place.websiteUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ ...btnBase, textDecoration: "none" }}
+              onClick={(e) => e.stopPropagation()}
+              aria-label={`Visit site for ${place.name}`}
+            >
+              <ExternalLink size={14} /> Visit
+            </a>
+          )}
+
+          <button
+            type="button"
+            style={btnBase}
+            onClick={handleShare}
+            disabled={sharing}
+            aria-label={`Share ${place.name}`}
+          >
+            <Share2 size={14} /> Share
+          </button>
+
+          {canEdit && onEdit && (
+            <button
+              type="button"
+              style={btnBase}
+              onClick={onEdit}
+              aria-label={`Edit ${place.name}`}
+            >
+              <Pencil size={14} />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

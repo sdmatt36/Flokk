@@ -1646,7 +1646,7 @@ export default function DiscoverPage() {
                         userRating={userSpotRatings.get(`${act.title.toLowerCase().trim()}|${(act.city ?? "").toLowerCase().trim()}`) ?? null}
                         onFlokkIt={() => handlePickSave(act)}
                         onShareToast={(msg) => { setShareToast(msg); setTimeout(() => setShareToast(null), 3000); }}
-                        layout="vertical"
+                        variant="card-compact"
                       />
                     </div>
                   </div>
@@ -1917,7 +1917,7 @@ export default function DiscoverPage() {
                 userRating={userSpotRatings.get(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`) ?? null}
                 onFlokkIt={() => { handlePickSave(selectedActivity); setSelectedActivity(null); }}
                 onShareToast={(msg) => { setShareToast(msg); setTimeout(() => setShareToast(null), 3000); }}
-                layout="horizontal"
+                variant="card-expanded"
               />
             </div>
           </div>
