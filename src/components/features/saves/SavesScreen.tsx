@@ -1390,10 +1390,10 @@ Your saved places, all in one spot
                 if (ratingValue === 0) return;
                 setRatingSubmitting(true);
                 try {
-                  const res = await fetch(`/api/saves/${ratingModal.id}/rate`, {
-                    method: "POST",
+                  const res = await fetch(`/api/saves/${ratingModal.id}`, {
+                    method: "PATCH",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ rating: ratingValue, notes: ratingNotes.trim() || undefined }),
+                    body: JSON.stringify({ userRating: ratingValue, notes: ratingNotes.trim() || undefined }),
                   });
                   if (res.ok) {
                     setRatedItemId(ratingModal.id);

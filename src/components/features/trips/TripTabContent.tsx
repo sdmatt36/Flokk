@@ -5292,7 +5292,6 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
       setExistingRatingsCount(existingRatings.length);
       const ratingByItinId = new Map<string, ExistingRating>(existingRatings.filter(r => r.itineraryItemId).map(r => [r.itineraryItemId!, r]));
       const ratingByManualId = new Map<string, ExistingRating>(existingRatings.filter(r => r.manualActivityId).map(r => [r.manualActivityId!, r]));
-      const ratingBySavedId = new Map<string, ExistingRating>(existingRatings.filter(r => r.savedItemId).map(r => [r.savedItemId!, r]));
 
       // LODGING: exclude check-out items; strip "Check-in: " prefix from title
       // ACTIVITY: include all
@@ -5317,24 +5316,20 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
         });
 
       // SavedItems assigned to trip — exclude flight/lodging/transportation tags
-      // Hydration priority: (1) PlaceRating.savedItemId match, (2) SavedItem.userRating, (3) 0
+      // Save-kind ratings live exclusively in SavedItem.userRating (Option B architecture)
       const saveItems: HowWasItItem[] = ((savesData.saves ?? []) as { id: string; rawTitle?: string | null; categoryTags?: string[]; userRating?: number | null; notes?: string | null }[])
         .filter(s => !s.categoryTags?.some(t => EXCLUDE_SAVE_TAGS.test(t)))
-        .map(s => {
-          const existingRating = ratingBySavedId.get(s.id) ?? (s.userRating ? { id: "", rating: s.userRating, notes: s.notes ?? null, wouldReturn: null, itineraryItemId: null, manualActivityId: null, savedItemId: s.id } : null);
-          return {
-            id: s.id,
-            title: s.rawTitle ?? "Untitled",
-            type: "save",
-            itemKind: "save" as const,
-            rating: existingRating?.rating ?? 0,
-            notes: existingRating?.notes ?? "",
-            wouldReturn: existingRating?.wouldReturn ?? null,
-            alreadySaved: !!existingRating,
-            ratingId: existingRating?.id || undefined,
-            savedItemId: s.id,
-          };
-        });
+        .map(s => ({
+          id: s.id,
+          title: s.rawTitle ?? "Untitled",
+          type: "save",
+          itemKind: "save" as const,
+          rating: s.userRating ?? 0,
+          notes: s.notes ?? "",
+          wouldReturn: null,
+          alreadySaved: s.userRating != null,
+          savedItemId: s.id,
+        }));
 
       // ManualActivity records — deduplicate against itinerary and save titles
       const existingTitles = new Set<string>([
@@ -5366,22 +5361,29 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
   async function handleSubmitAll() {
     setSubmitting(true);
     const toSubmit = items.filter(it => it.rating > 0 && !it.alreadySaved);
-    await Promise.all(toSubmit.map(it =>
-      fetch(`/api/trips/${tripId}/ratings`, {
+    await Promise.all(toSubmit.map(it => {
+      if (it.itemKind === "save") {
+        // Option B: save-kind ratings write only to SavedItem.userRating — no PlaceRating created
+        return fetch(`/api/saves/${it.savedItemId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userRating: it.rating, notes: it.notes || undefined }),
+        });
+      }
+      return fetch(`/api/trips/${tripId}/ratings`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...(it.itemKind === "itinerary" ? { itineraryItemId: it.id } : {}),
           ...(it.itemKind === "manual" ? { manualActivityId: it.id } : {}),
-          ...(it.itemKind === "save" ? { savedItemId: it.savedItemId } : {}),
           placeName: it.title,
           placeType: it.type.toLowerCase(),
           rating: it.rating,
           notes: it.notes || undefined,
           wouldReturn: it.wouldReturn ?? undefined,
         }),
-      })
-    ));
+      });
+    }));
     const totalRatings = existingRatingsCount + toSubmit.length;
     let shouldShowSharePrompt = false;
     if (totalRatings >= 3) {
@@ -5426,8 +5428,20 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
   }
 
   async function handleSaveEdit(item: HowWasItItem) {
-    if (!item.ratingId) return;
     setEditSaving(true);
+    if (item.itemKind === "save") {
+      // Option B: save-kind edits write only to SavedItem.userRating
+      await fetch(`/api/saves/${item.savedItemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userRating: item.rating, notes: item.notes || undefined }),
+      });
+      setItems(prev => prev.map(i => i.id === item.id ? { ...i, rating: item.rating, notes: item.notes, alreadySaved: true } : i));
+      setEditingItemId(null);
+      setEditSaving(false);
+      return;
+    }
+    if (!item.ratingId) { setEditSaving(false); return; }
     await fetch(`/api/trips/${tripId}/ratings/${item.ratingId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
