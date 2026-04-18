@@ -531,19 +531,16 @@ function PlacesTab() {
                   <button
                     onClick={async () => {
                       try {
-                        const res = await fetch("/api/places/save", {
+                        const res = await fetch("/api/saves", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({
-                            name: place.name,
-                            address: place.address ?? "",
-                            city: place.city,
-                            type: place.placeType,
-                            lat: place.lat,
-                            lng: place.lng,
-                            website: place.website ?? null,
+                            sourceType: "MANUAL",
+                            title: place.name,
+                            city: place.city ?? null,
+                            category: place.placeType ?? null,
                             notes: place.sampleNote ?? null,
-                            imageUrl: place.image ?? null,
+                            website: place.website ?? null,
                           }),
                         });
                         await res.json();
