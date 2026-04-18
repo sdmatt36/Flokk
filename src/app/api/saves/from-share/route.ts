@@ -46,6 +46,8 @@ export async function POST(request: Request) {
     lng?: number | null;
     placePhotoUrl?: string | null;
     websiteUrl?: string | null;
+    tripId?: string | null;
+    category?: string | null;
   };
 
   if (!body.title?.trim()) {
@@ -68,7 +70,7 @@ export async function POST(request: Request) {
   await db.savedItem.create({
     data: {
       familyProfileId: profileId,
-      tripId: null,
+      tripId: body.tripId ?? null,
       rawTitle: body.title.trim(),
       destinationCity: body.city ?? null,
       lat: body.lat ?? null,
@@ -76,9 +78,9 @@ export async function POST(request: Request) {
       placePhotoUrl: body.placePhotoUrl ?? null,
       websiteUrl: body.websiteUrl ?? null,
       sourceType: "IN_APP",
-      status: "UNORGANIZED",
+      status: body.tripId ? "TRIP_ASSIGNED" : "UNORGANIZED",
       extractionStatus: "ENRICHED",
-      categoryTags: inferCategoryTagFromTitle(body.title.trim()),
+      categoryTags: body.category ? [body.category] : inferCategoryTagFromTitle(body.title.trim()),
     },
   });
 
