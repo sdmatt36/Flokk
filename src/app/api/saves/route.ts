@@ -33,6 +33,7 @@ import { sendTransactional, sendSaveMilestoneEvent } from "@/lib/loops";
 import { enrichSavedItem } from "@/lib/enrich-save";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
+import { writeThroughCommunitySpot } from "@/lib/community-write-through";
 
 const ManualSaveSchema = z.object({
   sourceType: z.literal("MANUAL"),
@@ -205,28 +206,51 @@ export async function POST(request: Request) {
       }
     }
 
-    const savedItem = await db.savedItem.create({
-      data: {
-        familyProfileId: saveProfile.id,
-        tripId: tripId ?? null,
-        sourceType,
-        sourceUrl: url,
-        rawTitle,
-        rawDescription,
-        mediaThumbnailUrl,
-        placePhotoUrl: rawTitle ? (getVenueImage(rawTitle) ?? null) : null,
-        categoryTags: tags ?? [],
-        lat: lat ?? null,
-        lng: lng ?? null,
-        dayIndex: dayIndex ?? null,
-        extractedCheckin: extractedCheckin ?? null,
-        extractedCheckout: extractedCheckout ?? null,
-        extractionStatus: "PENDING",
-        status: tripId ? "TRIP_ASSIGNED" : "UNORGANIZED",
-        userRating: userRating ?? null,
-        notes: notes ?? null,
-      },
-    });
+    const savedItem = await db.$transaction(async (tx) => {
+      const created = await tx.savedItem.create({
+        data: {
+          familyProfileId: saveProfile.id,
+          tripId: tripId ?? null,
+          sourceType,
+          sourceUrl: url,
+          rawTitle,
+          rawDescription,
+          mediaThumbnailUrl,
+          placePhotoUrl: rawTitle ? (getVenueImage(rawTitle) ?? null) : null,
+          categoryTags: tags ?? [],
+          lat: lat ?? null,
+          lng: lng ?? null,
+          dayIndex: dayIndex ?? null,
+          extractedCheckin: extractedCheckin ?? null,
+          extractedCheckout: extractedCheckout ?? null,
+          extractionStatus: "PENDING",
+          status: tripId ? "TRIP_ASSIGNED" : "UNORGANIZED",
+          userRating: userRating ?? null,
+          notes: notes ?? null,
+        },
+      });
+
+      if ((created.userRating != null || (created.notes && created.notes.trim() !== "")) && created.destinationCity) {
+        await writeThroughCommunitySpot(tx, {
+          name: created.rawTitle ?? "",
+          city: created.destinationCity,
+          country: created.destinationCountry ?? null,
+          lat: created.lat ?? null,
+          lng: created.lng ?? null,
+          photoUrl: created.placePhotoUrl ?? created.mediaThumbnailUrl ?? null,
+          websiteUrl: created.websiteUrl ?? null,
+          description: created.notes ?? null,
+          category: created.categoryTags?.[0] ?? null,
+          googlePlaceId: null,
+          authorProfileId: created.familyProfileId,
+          familyProfileId: created.familyProfileId,
+          rating: created.userRating ?? null,
+          note: created.notes ?? null,
+        });
+      }
+
+      return created;
+    }, { timeout: 10000 });
 
     // Enrich with Google Places photo at save time (synchronous — result in same response)
     let urlEnrichedPhotoUrl: string | null = null;
