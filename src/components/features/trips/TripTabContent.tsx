@@ -5358,71 +5358,61 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tripId]);
 
-  async function handleSubmitAll() {
+  async function handleDoneCapturing() {
     setSubmitting(true);
+
+    // Save any pending ratings first
     const toSubmit = items.filter(it => it.rating > 0 && !it.alreadySaved);
-    await Promise.all(toSubmit.map(it => {
-      if (it.itemKind === "save") {
-        // Option B: save-kind ratings write only to SavedItem.userRating — no PlaceRating created
-        return fetch(`/api/saves/${it.savedItemId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userRating: it.rating, notes: it.notes || undefined }),
-        });
+    if (toSubmit.length > 0) {
+      try {
+        await Promise.all(toSubmit.map(it => {
+          if (it.itemKind === "save") {
+            // Option B: save-kind ratings write only to SavedItem.userRating — no PlaceRating created
+            return fetch(`/api/saves/${it.savedItemId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ userRating: it.rating, notes: it.notes || undefined }),
+            });
+          }
+          return fetch(`/api/trips/${tripId}/ratings`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...(it.itemKind === "itinerary" ? { itineraryItemId: it.id } : {}),
+              ...(it.itemKind === "manual" ? { manualActivityId: it.id } : {}),
+              placeName: it.title,
+              placeType: it.type.toLowerCase(),
+              rating: it.rating,
+              notes: it.notes || undefined,
+              wouldReturn: it.wouldReturn ?? undefined,
+            }),
+          });
+        }));
+      } catch (err) {
+        console.error("[handleDoneCapturing] rating submit failed:", err);
+        setSubmitting(false);
+        alert("Some ratings failed to save. Please try again.");
+        return;
       }
-      return fetch(`/api/trips/${tripId}/ratings`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...(it.itemKind === "itinerary" ? { itineraryItemId: it.id } : {}),
-          ...(it.itemKind === "manual" ? { manualActivityId: it.id } : {}),
-          placeName: it.title,
-          placeType: it.type.toLowerCase(),
-          rating: it.rating,
-          notes: it.notes || undefined,
-          wouldReturn: it.wouldReturn ?? undefined,
-        }),
-      });
-    }));
-    const totalRatings = existingRatingsCount + toSubmit.length;
-    let shouldShowSharePrompt = false;
-    if (totalRatings >= 3) {
-      const res = await fetch(`/api/trips/${tripId}/post-trip-status`, {
+    }
+
+    // Mark trip capture complete and started
+    try {
+      await fetch(`/api/trips/${tripId}/post-trip-status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ postTripCaptureStarted: true, postTripCaptureComplete: true }),
       });
-      const data = await res.json();
-      if (data.showSharePrompt) shouldShowSharePrompt = true;
-      setCapturedToast(`Amazing — your ratings are now helping other families plan their trip${destinationCity ? ` to ${destinationCity}` : ""}.`);
-      setTimeout(() => setCapturedToast(null), 5000);
-      onDoneCapturing();
-    } else {
-      const res = await fetch(`/api/trips/${tripId}/post-trip-status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postTripCaptureComplete: true }),
-      });
-      const data = await res.json();
-      if (data.showSharePrompt) shouldShowSharePrompt = true;
+    } catch (err) {
+      console.error("[handleDoneCapturing] status update failed:", err);
     }
-    setDone(true);
-    onComplete();
-    setSubmitting(false);
-    if (shouldShowSharePrompt && onShowSharePrompt) {
-      onShowSharePrompt();
-    } else {
-      setTimeout(() => onNavigateToItinerary(), 2000);
-    }
-  }
 
-  async function handleDoneCapturing() {
-    await fetch(`/api/trips/${tripId}/post-trip-status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ postTripCaptureStarted: true }),
-    });
-    setCapturedToast("Trip captured. Thanks for contributing to Flokk.");
+    setSubmitting(false);
+    setCapturedToast(
+      toSubmit.length > 0
+        ? `Saved ${toSubmit.length} rating${toSubmit.length === 1 ? "" : "s"}. Thanks for contributing to Flokk.`
+        : "Trip captured. Thanks for contributing to Flokk."
+    );
     setTimeout(() => setCapturedToast(null), 4000);
     onDoneCapturing();
   }
@@ -5635,28 +5625,61 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
         </div>
       </div>
 
-      {/* Section 3 — All done */}
+      {/* Section 3 — Finish capture */}
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       {!done && (
-        <button
-          onClick={handleSubmitAll}
-          disabled={submitting}
-          style={{ width: "100%", padding: "14px", backgroundColor: submitting ? "#999" : "#1B3A5C", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: 700, cursor: submitting ? "default" : "pointer", fontFamily: "inherit" }}
-        >
-          {submitting ? "Saving..." : "All done — share my ratings"}
-        </button>
+        <div style={{
+          marginTop: "32px",
+          paddingTop: "24px",
+          borderTop: "1px solid #E5E7EB",
+          textAlign: "center",
+        }}>
+          <p style={{
+            fontSize: "14px",
+            color: "#64748B",
+            fontFamily: "'DM Sans', sans-serif",
+            marginBottom: "12px",
+          }}>
+            Finished capturing your memories from this trip?
+          </p>
+          <button
+            onClick={handleDoneCapturing}
+            disabled={submitting}
+            style={{
+              padding: "12px 28px",
+              borderRadius: "9999px",
+              border: "none",
+              background: submitting ? "#94A3B8" : "#C4664A",
+              color: "#FFFFFF",
+              fontSize: "15px",
+              fontWeight: 500,
+              fontFamily: "'DM Sans', sans-serif",
+              cursor: submitting ? "not-allowed" : "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              transition: "background 150ms ease-out",
+            }}
+          >
+            {submitting ? (
+              <>
+                <span style={{
+                  display: "inline-block",
+                  width: "14px",
+                  height: "14px",
+                  border: "2px solid rgba(255,255,255,0.4)",
+                  borderTopColor: "#FFFFFF",
+                  borderRadius: "50%",
+                  animation: "spin 600ms linear infinite",
+                }} />
+                Saving your ratings...
+              </>
+            ) : (
+              "Save my ratings and finish"
+            )}
+          </button>
+        </div>
       )}
-
-      <div style={{ marginTop: "32px", paddingTop: "24px", borderTop: "1px solid #e7e5e4", textAlign: "center" }}>
-        <p style={{ fontSize: "13px", color: "#a8a29e", marginBottom: "12px" }}>
-          Finished capturing your memories from this trip?
-        </p>
-        <button
-          onClick={handleDoneCapturing}
-          style={{ fontSize: "13px", color: "#a8a29e", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", fontFamily: "inherit" }}
-        >
-          I&apos;m done capturing this trip
-        </button>
-      </div>
 
       {capturedToast && (
         <div style={{ position: "fixed", bottom: "96px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#1B3A5C", color: "#fff", padding: "12px 20px", borderRadius: "12px", fontSize: "14px", fontWeight: 500, zIndex: 9999, maxWidth: "320px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.2)" }}>
