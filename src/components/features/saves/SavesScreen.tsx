@@ -102,7 +102,7 @@ type SaveCardProps = {
   assignTrip: (id: string, trip: string) => void;
   onTripClick: (tripName: string) => void;
   onCardClick: (id: string) => void;
-  availableTrips: { id: string; title: string }[];
+  availableTrips: { id: string; title: string; endDate?: string | null }[];
   onDeleted?: (id: string) => void;
   onIdentifyPlace?: (id: string) => void;
   onRateClick?: (id: string, title: string) => void;
@@ -359,36 +359,44 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
                 overflow: "hidden",
               }}
             >
-              {[...availableTrips.map(t => t.title), "+ Create new trip"].map((trip, idx) => (
-                <button
-                  key={trip}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    assignTrip(save.id, trip);
-                  }}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    textAlign: "left",
-                    padding: "10px 14px",
-                    fontSize: "13px",
-                    color: trip === "+ Create new trip" ? "#C4664A" : "#1a1a1a",
-                    fontWeight: trip === "+ Create new trip" ? 600 : 400,
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    borderBottom: idx < availableTrips.length ? "1px solid rgba(0,0,0,0.06)" : "none",
-                  }}
-                  onMouseEnter={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#FFFFFF";
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
-                  }}
-                >
-                  {trip}
-                </button>
-              ))}
+              {(() => {
+                const todayStr = new Date().toISOString();
+                // TODO: move isPlacesLibrary filter server-side in a future cleanup prompt
+                const upcoming = availableTrips.filter(t => !t.endDate || t.endDate >= todayStr);
+                const past = availableTrips.filter(t => t.endDate && t.endDate < todayStr);
+                const tripBtn = (title: string, key: string, isLast: boolean) => (
+                  <button
+                    key={key}
+                    onClick={(e) => { e.stopPropagation(); assignTrip(save.id, title); }}
+                    style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "13px", color: "#1a1a1a", fontWeight: 400, background: "none", border: "none", cursor: "pointer", borderBottom: isLast ? "none" : "1px solid rgba(0,0,0,0.06)" }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9F9F9"; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
+                  >
+                    {title}
+                  </button>
+                );
+                return (
+                  <>
+                    {upcoming.map((t, i) => tripBtn(t.title, t.id, i === upcoming.length - 1 && past.length === 0))}
+                    {past.length > 0 && (
+                      <>
+                        <div style={{ padding: "5px 14px", fontSize: "11px", fontWeight: 600, color: "#AAAAAA", backgroundColor: "#F9F9F9", borderTop: "1px solid rgba(0,0,0,0.06)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+                          Past trips
+                        </div>
+                        {past.map((t, i) => tripBtn(t.title, t.id, i === past.length - 1))}
+                      </>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); assignTrip(save.id, "+ Create new trip"); }}
+                      style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "13px", color: "#C4664A", fontWeight: 600, background: "none", border: "none", cursor: "pointer", borderTop: "1px solid rgba(0,0,0,0.06)" }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9F9F9"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
+                    >
+                      + Create new trip
+                    </button>
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -468,7 +476,7 @@ function CardGrid({ cards, openDropdown, setOpenDropdown, assignTrip, onTripClic
   assignTrip: (id: string, trip: string) => void;
   onTripClick: (tripName: string) => void;
   onCardClick: (id: string) => void;
-  availableTrips: { id: string; title: string }[];
+  availableTrips: { id: string; title: string; endDate?: string | null }[];
   onDeleted?: (id: string) => void;
   onIdentifyPlace?: (id: string) => void;
   onRateClick?: (id: string, title: string) => void;
@@ -491,7 +499,7 @@ export function SavesScreen() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [dietaryFilter, setDietaryFilter] = useState<string | null>(null);
   const [saves, setSaves] = useState<Save[]>([]);
-  const [availableTrips, setAvailableTrips] = useState<{ id: string; title: string; destinationCity: string | null; destinationCountry: string | null }[]>([]);
+  const [availableTrips, setAvailableTrips] = useState<{ id: string; title: string; destinationCity: string | null; destinationCountry: string | null; endDate: string | null; isPlacesLibrary?: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [showFabModal, setShowFabModal] = useState(false);
@@ -528,10 +536,12 @@ export function SavesScreen() {
   useEffect(() => {
     Promise.all([
       fetch("/api/saves").then(r => r.json()),
-      fetch("/api/trips").then(r => r.json()),
+      fetch("/api/trips?status=ALL").then(r => r.json()),
     ]).then(([savesData, tripsData]) => {
       setSaves((savesData.saves ?? []).map(mapApiItem));
-      setAvailableTrips(tripsData.trips ?? []);
+      // TODO: move isPlacesLibrary filter server-side in a future cleanup prompt
+      const allTrips = (tripsData.trips ?? []).filter((t: { isPlacesLibrary?: boolean }) => !t.isPlacesLibrary);
+      setAvailableTrips(allTrips);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -733,7 +743,7 @@ export function SavesScreen() {
     ? []
     : saves.filter((s) => s.assigned !== null && matchesFilter(s)).sort((a, b) => a.title.localeCompare(b.title));
 
-  // Group assigned cards by trip name (each group is already sorted)
+  // Group assigned cards by trip name
   const tripGroups = tripCards.reduce<Record<string, Save[]>>((acc, s) => {
     const key = s.assigned!;
     if (!acc[key]) acc[key] = [];
@@ -741,16 +751,27 @@ export function SavesScreen() {
     return acc;
   }, {});
 
-  // Unorganized section sorted alphabetically
-  const unorganizedCards = saves
-    .filter((s) => s.assigned === null && matchesFilter(s))
-    .sort((a, b) => a.title.localeCompare(b.title));
-  const showUnorganized = activeFilter !== "All"
-    ? unorganizedCards.length > 0  // category or unorganized filter
-    : unorganizedCards.length > 0; // "All" — always show if there are any
+  // Unassigned saves split into: city-grouped (has destinationCity) and orphans (no city)
+  const allUnassigned = saves.filter((s) => s.assigned === null && matchesFilter(s));
+
+  // City sections: unassigned saves with a known city, grouped by city, sorted alphabetically by city
+  const cityGroups = allUnassigned
+    .filter(s => s.destinationCity !== null)
+    .reduce<Record<string, Save[]>>((acc, s) => {
+      const key = s.destinationCity!;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(s);
+      return acc;
+    }, {});
+  // Within each city, sort by savedAt DESC (most recent first)
+  Object.values(cityGroups).forEach(arr => arr.sort((a, b) => b.id.localeCompare(a.id)));
+  const sortedCityEntries = Object.entries(cityGroups).sort(([a], [b]) => a.localeCompare(b));
+
+  // Orphan section: unassigned saves with no city at all
+  const orphanCards = allUnassigned.filter(s => s.destinationCity === null);
 
   const tripGroupEntries = Object.entries(tripGroups);
-  const hasNoResults = tripGroupEntries.length === 0 && unorganizedCards.length === 0;
+  const hasNoResults = tripGroupEntries.length === 0 && sortedCityEntries.length === 0 && orphanCards.length === 0;
 
   // Flag emoji per destination (expandable)
   const TRIP_FLAGS: Record<string, string> = {};
@@ -788,10 +809,12 @@ Your saved places, all in one spot
           </div>
         </div>
 
-        {/* ACTIVE TRIP BANNER — only shown when there are relevant unorganized saves for the active trip */}
+        {/* ACTIVE TRIP BANNER — only shown when there are relevant unorganized saves for an upcoming trip */}
         {(() => {
-          if (availableTrips.length === 0) return null;
-          const activeTrip = availableTrips[0];
+          const todayBanner = new Date().toISOString();
+          const upcomingForBanner = availableTrips.filter(t => !t.endDate || t.endDate >= todayBanner);
+          if (upcomingForBanner.length === 0) return null;
+          const activeTrip = upcomingForBanner[0];
           const tripCity = activeTrip.destinationCity?.toLowerCase() ?? "";
           const tripCountry = activeTrip.destinationCountry?.toLowerCase() ?? "";
           const relevantUnassigned = saves.filter((s) => {
@@ -895,16 +918,26 @@ Your saved places, all in one spot
           );
         })}
 
-        {/* SECTION 2: Unorganized saves */}
-        {showUnorganized && (
+        {/* SECTION 2: City-grouped unassigned saves */}
+        {sortedCityEntries.map(([cityName, cards]) => (
+          <div key={cityName} style={{ marginBottom: "32px" }}>
+            <SectionHeader
+              title={cityName}
+              count={cards.length}
+            />
+            <CardGrid cards={cards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={() => {}} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} onIdentifyPlace={setIdentifyingItem} onRateClick={(id, title) => { setRatingModal({ id, title }); setRatingValue(0); setRatingNotes(""); }} ratedItemId={ratedItemId} />
+          </div>
+        ))}
+
+        {/* SECTION 3: Orphan saves — no city */}
+        {orphanCards.length > 0 && (
           <div>
             <SectionHeader
               icon={<Bookmark size={16} style={{ color: "#C4664A" }} />}
               title="Not yet assigned"
-              count={unorganizedCards.length}
-              action={{ label: "Assign all →", onClick: () => setActiveFilter("Unorganized") }}
+              count={orphanCards.length}
             />
-            <CardGrid cards={unorganizedCards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={(name) => { const t = availableTrips.find((tr) => tr.title === name); if (t) router.push(`/trips/${t.id}`); }} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} onIdentifyPlace={setIdentifyingItem} onRateClick={(id, title) => { setRatingModal({ id, title }); setRatingValue(0); setRatingNotes(""); }} ratedItemId={ratedItemId} />
+            <CardGrid cards={orphanCards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={(name) => { const t = availableTrips.find((tr) => tr.title === name); if (t) router.push(`/trips/${t.id}`); }} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} onIdentifyPlace={setIdentifyingItem} onRateClick={(id, title) => { setRatingModal({ id, title }); setRatingValue(0); setRatingNotes(""); }} ratedItemId={ratedItemId} />
           </div>
         )}
 

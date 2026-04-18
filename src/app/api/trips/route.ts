@@ -30,7 +30,7 @@ export async function GET(request: Request) {
   const trips = profile?.trips ?? [];
   console.log("[GET /api/trips] returning", trips.length, "trips for familyProfile", profileId ?? "none");
   return NextResponse.json(
-    { trips: trips.map(t => ({ id: t.id, title: t.title, destinationCity: t.destinationCity, destinationCountry: t.destinationCountry, startDate: t.startDate, endDate: t.endDate, status: t.status })) },
+    { trips: trips.map(t => ({ id: t.id, title: t.title, destinationCity: t.destinationCity, destinationCountry: t.destinationCountry, startDate: t.startDate, endDate: t.endDate, status: t.status, isPlacesLibrary: t.isPlacesLibrary })) },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

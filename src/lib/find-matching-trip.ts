@@ -1,8 +1,8 @@
 import { db } from "@/lib/db";
 
-// Finds the best matching active trip for a given destination.
+// Finds the best matching trip for a given destination.
+// Includes completed (past) trips — upcoming trips are preferred, then most recent past trip.
 // Priority: exact city match → exact country match.
-// When multiple trips match at the same level, picks nearest startDate to today.
 // Returns null if no match or city/country are both null.
 
 export async function findMatchingTrip(
@@ -10,18 +10,28 @@ export async function findMatchingTrip(
   city: string | null,
   country?: string | null
 ): Promise<{ id: string; title: string; destinationCity: string | null } | null> {
-  const today = new Date();
+  const now = new Date();
 
-  function pickNearest<T extends { id: string; title: string; destinationCity: string | null; startDate: Date | null }>(
+  function pickBest<T extends { id: string; title: string; destinationCity: string | null; startDate: Date | null; endDate: Date | null }>(
     trips: T[]
   ): { id: string; title: string; destinationCity: string | null } {
     if (trips.length === 1) return trips[0];
-    trips.sort((a, b) => {
-      const da = a.startDate ? Math.abs(a.startDate.getTime() - today.getTime()) : Infinity;
-      const db2 = b.startDate ? Math.abs(b.startDate.getTime() - today.getTime()) : Infinity;
-      return da - db2;
+    const upcoming = trips.filter(t => t.endDate && t.endDate.getTime() >= now.getTime());
+    const past = trips.filter(t => !t.endDate || t.endDate.getTime() < now.getTime());
+    if (upcoming.length > 0) {
+      upcoming.sort((a, b) => {
+        const da = a.startDate?.getTime() ?? Infinity;
+        const db2 = b.startDate?.getTime() ?? Infinity;
+        return da - db2;
+      });
+      return upcoming[0];
+    }
+    past.sort((a, b) => {
+      const da = a.startDate?.getTime() ?? 0;
+      const db2 = b.startDate?.getTime() ?? 0;
+      return db2 - da; // most recent past trip first
     });
-    return trips[0];
+    return past[0];
   }
 
   // Step 1: city match
@@ -31,11 +41,11 @@ export async function findMatchingTrip(
         where: {
           familyProfileId,
           destinationCity: { equals: city, mode: "insensitive" },
-          status: { not: "COMPLETED" },
+          isPlacesLibrary: false,
         },
-        select: { id: true, title: true, destinationCity: true, startDate: true },
+        select: { id: true, title: true, destinationCity: true, startDate: true, endDate: true },
       });
-      if (trips.length > 0) return pickNearest(trips);
+      if (trips.length > 0) return pickBest(trips);
     } catch (e) {
       console.error("[findMatchingTrip] city query failed:", e);
     }
@@ -48,11 +58,11 @@ export async function findMatchingTrip(
         where: {
           familyProfileId,
           destinationCountry: { equals: country, mode: "insensitive" },
-          status: { not: "COMPLETED" },
+          isPlacesLibrary: false,
         },
-        select: { id: true, title: true, destinationCity: true, startDate: true },
+        select: { id: true, title: true, destinationCity: true, startDate: true, endDate: true },
       });
-      if (trips.length > 0) return pickNearest(trips);
+      if (trips.length > 0) return pickBest(trips);
     } catch (e) {
       console.error("[findMatchingTrip] country query failed:", e);
     }
