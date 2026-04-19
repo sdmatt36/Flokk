@@ -93,6 +93,182 @@ function mapApiItem(item: ApiItem): Save {
   };
 }
 
+// ─── Tabbed saves types ───────────────────────────────────────────────────────
+
+type TripRow = {
+  id: string;
+  title: string;
+  destinationCity: string | null;
+  startDate: string | null;
+  endDate: string | null;
+};
+
+interface UpcomingTripSection {
+  tripId: string;
+  tripName: string;
+  destinationCity: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  explicitSaves: Save[];
+  suggestedSaves: Save[];
+}
+
+interface PastCitySection {
+  city: string;
+  saves: Save[];
+}
+
+interface TabbedSavesState {
+  upcoming: UpcomingTripSection[];
+  past: PastCitySection[];
+  unassigned: Save[];
+  counts: { upcoming: number; past: number; unassigned: number };
+  suggestedTripMap: Map<string, Array<{ id: string; name: string }>>;
+}
+
+type SharedCardGridProps = {
+  openDropdown: string | null;
+  setOpenDropdown: (id: string | null) => void;
+  assignTrip: (id: string, trip: string) => void;
+  onCardClick: (id: string) => void;
+  availableTrips: { id: string; title: string; endDate?: string | null }[];
+  onDeleted?: (id: string) => void;
+  onIdentifyPlace?: (id: string) => void;
+  onRateClick?: (id: string, title: string) => void;
+  ratedItemId?: string | null;
+};
+
+function formatTripDateRange(startIso: string, endIso: string | null): string {
+  const start = new Date(startIso);
+  const monthFmt: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+  if (!endIso) return start.toLocaleDateString("en-US", monthFmt);
+  const end = new Date(endIso);
+  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+  if (sameMonth) {
+    return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })}–${end.getDate()}`;
+  }
+  return `${start.toLocaleDateString("en-US", monthFmt)} – ${end.toLocaleDateString("en-US", monthFmt)}`;
+}
+
+function groupTabbedSaves(saves: Save[], allTrips: TripRow[]): TabbedSavesState {
+  const now = new Date();
+
+  const upcomingTrips = allTrips
+    .filter((t) => !t.endDate || new Date(t.endDate) >= now)
+    .sort((a, b) => {
+      const aStart = a.startDate ? new Date(a.startDate).getTime() : Infinity;
+      const bStart = b.startDate ? new Date(b.startDate).getTime() : Infinity;
+      if (aStart !== bStart) return aStart - bStart;
+      return (a.title ?? "").localeCompare(b.title ?? "");
+    });
+
+  const pastTrips = allTrips.filter((t) => t.endDate && new Date(t.endDate) < now);
+  const pastTripIds = new Set(pastTrips.map((t) => t.id));
+  const pastTripCities = new Set(
+    pastTrips.map((t) => (t.destinationCity ?? "").trim().toLowerCase()).filter(Boolean)
+  );
+
+  const upcomingCityIndex = new Map<string, string[]>();
+  for (const t of upcomingTrips) {
+    const key = (t.destinationCity ?? "").trim().toLowerCase();
+    if (!key) continue;
+    const existing = upcomingCityIndex.get(key) ?? [];
+    existing.push(t.id);
+    upcomingCityIndex.set(key, existing);
+  }
+
+  const upcomingSections: UpcomingTripSection[] = upcomingTrips.map((t) => ({
+    tripId: t.id,
+    tripName: t.title,
+    destinationCity: t.destinationCity,
+    startDate: t.startDate,
+    endDate: t.endDate,
+    explicitSaves: [],
+    suggestedSaves: [],
+  }));
+  const upcomingTripIndex = new Map(upcomingSections.map((s) => [s.tripId, s]));
+
+  const pastCityMap = new Map<string, Save[]>();
+  const unassigned: Save[] = [];
+  const suggestedTripMap = new Map<string, Array<{ id: string; name: string }>>();
+
+  for (const save of saves) {
+    const cityKey = (save.destinationCity ?? "").trim().toLowerCase();
+
+    if (save.tripId && upcomingTripIndex.has(save.tripId)) {
+      upcomingTripIndex.get(save.tripId)!.explicitSaves.push(save);
+      continue;
+    }
+
+    if (save.tripId && pastTripIds.has(save.tripId)) {
+      const city = save.destinationCity ?? "Unknown";
+      const list = pastCityMap.get(city) ?? [];
+      list.push(save);
+      pastCityMap.set(city, list);
+      continue;
+    }
+
+    if (!save.tripId && cityKey) {
+      const upcomingMatches = upcomingCityIndex.get(cityKey) ?? [];
+      if (upcomingMatches.length > 0) {
+        for (const tripId of upcomingMatches) {
+          upcomingTripIndex.get(tripId)!.suggestedSaves.push(save);
+        }
+        const options = upcomingMatches.map((tid) => ({
+          id: tid,
+          name: upcomingTripIndex.get(tid)!.tripName,
+        }));
+        suggestedTripMap.set(save.id, options);
+        continue;
+      }
+      if (pastTripCities.has(cityKey)) {
+        const city = save.destinationCity ?? "Unknown";
+        const list = pastCityMap.get(city) ?? [];
+        list.push(save);
+        pastCityMap.set(city, list);
+        continue;
+      }
+    }
+
+    unassigned.push(save);
+  }
+
+  for (const section of upcomingSections) {
+    section.explicitSaves.sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""));
+    section.suggestedSaves.sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""));
+  }
+
+  const pastSections: PastCitySection[] = Array.from(pastCityMap.entries())
+    .map(([city, citySaves]) => ({
+      city,
+      saves: citySaves.sort((a, b) => (a.title ?? "").localeCompare(b.title ?? "")),
+    }))
+    .sort((a, b) => a.city.localeCompare(b.city));
+
+  unassigned.sort((a, b) => {
+    const cityA = (a.destinationCity ?? "").toLowerCase();
+    const cityB = (b.destinationCity ?? "").toLowerCase();
+    if (cityA !== cityB) {
+      if (!cityA) return 1;
+      if (!cityB) return -1;
+      return cityA.localeCompare(cityB);
+    }
+    return (a.title ?? "").localeCompare(b.title ?? "");
+  });
+
+  return {
+    upcoming: upcomingSections,
+    past: pastSections,
+    unassigned,
+    counts: {
+      upcoming: upcomingSections.reduce((sum, s) => sum + s.explicitSaves.length + s.suggestedSaves.length, 0),
+      past: pastSections.reduce((sum, s) => sum + s.saves.length, 0),
+      unassigned: unassigned.length,
+    },
+    suggestedTripMap,
+  };
+}
+
 // ─── SaveCard ─────────────────────────────────────────────────────────────────
 
 type SaveCardProps = {
@@ -108,9 +284,11 @@ type SaveCardProps = {
   onRateClick?: (id: string, title: string) => void;
   ratedItemId?: string | null;
   onAssignCity?: (id: string) => void;
+  suggestedForOptions?: Array<{ id: string; name: string }>;
+  onAddToTrip?: (saveId: string, options: Array<{ id: string; name: string }>) => void;
 };
 
-function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId, onAssignCity }: SaveCardProps) {
+function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId, onAssignCity, suggestedForOptions, onAddToTrip }: SaveCardProps) {
   const filteredTags = save.tags.filter(t => {
     if (t.toLowerCase() === "other" && save.tags.some(t2 =>
       !["other", "vg", "vgn"].includes(t2.toLowerCase()) && t2.toLowerCase() !== t.toLowerCase()
@@ -225,6 +403,13 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
 
       {/* Card body */}
       <div style={{ padding: "12px" }}>
+        {/* Suggested badge */}
+        {suggestedForOptions && suggestedForOptions.length > 0 && (
+          <div style={{ display: "inline-flex", alignItems: "center", backgroundColor: "rgba(196,102,74,0.1)", borderRadius: "4px", padding: "2px 6px", marginBottom: "6px" }}>
+            <span style={{ fontSize: "10px", fontWeight: 600, color: "#C4664A", textTransform: "uppercase", letterSpacing: "0.04em" }}>Suggested</span>
+          </div>
+        )}
+
         {/* Title */}
         <p
           style={{
@@ -454,6 +639,18 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
             </button>
           </div>
         )}
+
+        {/* Add to trip — for suggested saves */}
+        {onAddToTrip && suggestedForOptions && suggestedForOptions.length > 0 && (
+          <div style={{ marginTop: "8px" }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); onAddToTrip(save.id, suggestedForOptions); }}
+              style={{ background: "#C4664A", border: "none", borderRadius: "999px", padding: "4px 12px", fontSize: "11px", color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}
+            >
+              + Add to trip
+            </button>
+          </div>
+        )}
       </div>
     </div>
     </div>
@@ -604,6 +801,163 @@ function OtherPlacesSection({ saves, openDropdown, setOpenDropdown, assignTrip, 
   );
 }
 
+// ─── Tab content components ───────────────────────────────────────────────────
+
+const SHOW_MORE_STYLE: React.CSSProperties = {
+  marginTop: 12,
+  padding: "8px 16px",
+  border: "1px solid #E5E7EB",
+  borderRadius: 8,
+  background: "white",
+  color: "#1B3A5C",
+  fontSize: 13,
+  fontWeight: 500,
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+
+function UpcomingTabContent({ sections, expandedSections, setExpandedSections, suggestedTripMap, onAddToTrip, sharedProps }: {
+  sections: UpcomingTripSection[];
+  expandedSections: Set<string>;
+  setExpandedSections: (s: Set<string>) => void;
+  suggestedTripMap: Map<string, Array<{ id: string; name: string }>>;
+  onAddToTrip: (saveId: string, options: Array<{ id: string; name: string }>) => void;
+  sharedProps: SharedCardGridProps;
+}) {
+  if (sections.every((s) => s.explicitSaves.length + s.suggestedSaves.length === 0)) {
+    return <p style={{ color: "#6B7280", textAlign: "center", padding: "40px 0", fontSize: 14 }}>No upcoming trips yet. Add one to start planning.</p>;
+  }
+  return (
+    <>
+      {sections.map((section) => {
+        const totalCount = section.explicitSaves.length + section.suggestedSaves.length;
+        if (totalCount === 0) return null;
+        const expanded = expandedSections.has(section.tripId);
+        const explicitShown = expanded ? section.explicitSaves : section.explicitSaves.slice(0, 3);
+        const suggestedShown = expanded ? section.suggestedSaves : section.suggestedSaves.slice(0, Math.max(0, 3 - explicitShown.length));
+        return (
+          <section key={section.tripId} style={{ marginBottom: 32 }}>
+            <div style={{ marginBottom: 12 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: "#1B3A5C", margin: 0, fontFamily: "'Playfair Display', Georgia, serif" }}>
+                {section.tripName}
+                {section.startDate && (
+                  <span style={{ color: "#64748B", fontWeight: 500, fontSize: 13, marginLeft: 8 }}>
+                    {formatTripDateRange(section.startDate, section.endDate)}
+                  </span>
+                )}
+              </h3>
+              <p style={{ fontSize: 12, color: "#64748B", margin: "2px 0 0 0" }}>
+                {totalCount} {totalCount === 1 ? "save" : "saves"}
+                {section.suggestedSaves.length > 0 && ` • ${section.suggestedSaves.length} suggested`}
+              </p>
+            </div>
+            <div className="grid grid-cols-3 lg:grid-cols-3 md:grid-cols-2 sm:grid-cols-1" style={{ gap: 16 }}>
+              {explicitShown.map((save) => (
+                <SaveCard key={save.id} save={save} {...sharedProps} onTripClick={() => {}} />
+              ))}
+              {suggestedShown.map((save) => (
+                <SaveCard
+                  key={save.id}
+                  save={save}
+                  {...sharedProps}
+                  onTripClick={() => {}}
+                  suggestedForOptions={suggestedTripMap.get(save.id)}
+                  onAddToTrip={onAddToTrip}
+                />
+              ))}
+            </div>
+            {totalCount > 3 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const next = new Set(expandedSections);
+                  if (expanded) next.delete(section.tripId); else next.add(section.tripId);
+                  setExpandedSections(next);
+                }}
+                style={SHOW_MORE_STYLE}
+              >
+                {expanded ? "Show less" : `Show all ${totalCount} saves →`}
+              </button>
+            )}
+          </section>
+        );
+      })}
+    </>
+  );
+}
+
+function PastTabContent({ sections, expandedSections, setExpandedSections, sharedProps }: {
+  sections: PastCitySection[];
+  expandedSections: Set<string>;
+  setExpandedSections: (s: Set<string>) => void;
+  sharedProps: SharedCardGridProps;
+}) {
+  if (sections.length === 0) {
+    return <p style={{ color: "#6B7280", textAlign: "center", padding: "40px 0", fontSize: 14 }}>No past-trip saves yet.</p>;
+  }
+  return (
+    <>
+      {sections.map((section) => {
+        const key = `past-${section.city}`;
+        const expanded = expandedSections.has(key);
+        const shown = expanded ? section.saves : section.saves.slice(0, 3);
+        return (
+          <section key={section.city} style={{ marginBottom: 32 }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 12 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: "#1B3A5C", margin: 0, fontFamily: "'Playfair Display', Georgia, serif" }}>{section.city}</h3>
+              <span style={{ fontSize: 12, color: "#64748B" }}>{section.saves.length} {section.saves.length === 1 ? "save" : "saves"}</span>
+            </div>
+            <div className="grid grid-cols-3 lg:grid-cols-3 md:grid-cols-2 sm:grid-cols-1" style={{ gap: 16 }}>
+              {shown.map((save) => (
+                <SaveCard key={save.id} save={save} {...sharedProps} onTripClick={() => {}} />
+              ))}
+            </div>
+            {section.saves.length > 3 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const next = new Set(expandedSections);
+                  if (expanded) next.delete(key); else next.add(key);
+                  setExpandedSections(next);
+                }}
+                style={SHOW_MORE_STYLE}
+              >
+                {expanded ? "Show less" : `Show all ${section.saves.length} saves →`}
+              </button>
+            )}
+          </section>
+        );
+      })}
+    </>
+  );
+}
+
+function UnassignedTabContent({ items, sharedProps, onAssignCity }: {
+  items: Save[];
+  sharedProps: SharedCardGridProps;
+  onAssignCity: (id: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  if (items.length === 0) {
+    return <p style={{ color: "#6B7280", textAlign: "center", padding: "40px 0", fontSize: 14 }}>Every save is assigned or matched. You&apos;re on top of things.</p>;
+  }
+  const shown = expanded ? items : items.slice(0, 3);
+  return (
+    <section>
+      <div className="grid grid-cols-3 lg:grid-cols-3 md:grid-cols-2 sm:grid-cols-1" style={{ gap: 16 }}>
+        {shown.map((save) => (
+          <SaveCard key={save.id} save={save} {...sharedProps} onTripClick={() => {}} onAssignCity={onAssignCity} />
+        ))}
+      </div>
+      {items.length > 3 && (
+        <button type="button" onClick={() => setExpanded(!expanded)} style={SHOW_MORE_STYLE}>
+          {expanded ? "Show less" : `Show all ${items.length} saves →`}
+        </button>
+      )}
+    </section>
+  );
+}
+
 // ─── SavesScreen ──────────────────────────────────────────────────────────────
 
 export function SavesScreen() {
@@ -613,7 +967,7 @@ export function SavesScreen() {
   const [dietaryFilter, setDietaryFilter] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [saves, setSaves] = useState<Save[]>([]);
-  const [availableTrips, setAvailableTrips] = useState<{ id: string; title: string; destinationCity: string | null; destinationCountry: string | null; endDate: string | null; isPlacesLibrary?: boolean }[]>([]);
+  const [availableTrips, setAvailableTrips] = useState<{ id: string; title: string; destinationCity: string | null; destinationCountry: string | null; startDate: string | null; endDate: string | null; isPlacesLibrary?: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [showFabModal, setShowFabModal] = useState(false);
@@ -647,6 +1001,9 @@ export function SavesScreen() {
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [ratedItemId, setRatedItemId] = useState<string | null>(null);
   const [assignCityItemId, setAssignCityItemId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"upcoming" | "past" | "unassigned">("upcoming");
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+  const [addToTripModal, setAddToTripModal] = useState<{ saveId: string; options: Array<{ id: string; name: string }> } | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -793,6 +1150,26 @@ export function SavesScreen() {
     } catch { /* silent */ }
   };
 
+  const doAssignToTrip = async (saveId: string, tripId: string, tripName: string) => {
+    setSaves(prev => prev.map(s => s.id === saveId ? { ...s, tripId, assigned: tripName } : s));
+    setAddToTripModal(null);
+    try {
+      await fetch(`/api/saves/${saveId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tripId }),
+      });
+    } catch { /* silent */ }
+  };
+
+  const handleAddToTrip = (saveId: string, options: Array<{ id: string; name: string }>) => {
+    if (options.length === 1) {
+      doAssignToTrip(saveId, options[0].id, options[0].name);
+    } else {
+      setAddToTripModal({ saveId, options });
+    }
+  };
+
   const handleManualSave = async () => {
     if (!manualName.trim()) return;
     setManualSubmitting(true);
@@ -895,8 +1272,8 @@ export function SavesScreen() {
   };
 
   const filteredSaves = cityFiltered.filter(matchesFilter);
-  const grouping = groupSaves(filteredSaves);
-  const hasNoResults = grouping.unassigned.length === 0 && grouping.cityGroups.length === 0 && grouping.otherPlaces.length === 0;
+  const tabbed = groupTabbedSaves(filteredSaves, availableTrips);
+  const hasNoResults = !loading && tabbed.counts.upcoming === 0 && tabbed.counts.past === 0 && tabbed.counts.unassigned === 0;
 
   return (
     <div
@@ -930,41 +1307,6 @@ Your saved places, all in one spot
             )}
           </div>
         </div>
-
-        {/* ACTIVE TRIP BANNER — only shown when there are relevant unorganized saves for an upcoming trip */}
-        {(() => {
-          const todayBanner = new Date().toISOString();
-          const upcomingForBanner = availableTrips.filter(t => !t.endDate || t.endDate >= todayBanner);
-          if (upcomingForBanner.length === 0) return null;
-          const activeTrip = upcomingForBanner[0];
-          const tripCity = activeTrip.destinationCity?.toLowerCase() ?? "";
-          const tripCountry = activeTrip.destinationCountry?.toLowerCase() ?? "";
-          const relevantUnassigned = saves.filter((s) => {
-            if (s.assigned !== null) return false;
-            const saveCity = s.destinationCity?.toLowerCase() ?? "";
-            const saveCountry = s.destinationCountry?.toLowerCase() ?? "";
-            return (tripCity && saveCity && saveCity.includes(tripCity)) ||
-                   (tripCountry && saveCountry && saveCountry.includes(tripCountry));
-          });
-          if (relevantUnassigned.length === 0) return null;
-          const unassignedCount = relevantUnassigned.length;
-          return (
-            <div style={{ backgroundColor: "rgba(196,102,74,0.08)", borderLeft: "3px solid #C4664A", borderRadius: "8px", padding: "12px 16px", marginBottom: "16px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <MapPin size={14} style={{ color: "#C4664A", flexShrink: 0 }} />
-                  <span style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>Planning {activeTrip.title}</span>
-                </div>
-                <button onClick={() => router.push(`/trips/${activeTrip.id}`)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: "#C4664A", fontWeight: 600, padding: 0 }}>
-                  Review now →
-                </button>
-              </div>
-              <p style={{ fontSize: "12px", color: "#717171", marginTop: "4px", marginLeft: "20px" }}>
-                You have {unassignedCount} unorganized {unassignedCount === 1 ? "save" : "saves"} — review them for this trip?
-              </p>
-            </div>
-          );
-        })()}
 
         {/* CITY PILL ROW */}
         {availableCities.length > 0 && (
@@ -1039,7 +1381,35 @@ Your saved places, all in one spot
           </div>
         )}
 
-        {/* SECTIONS */}
+        {/* TAB BAR */}
+        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #E5E7EB", marginBottom: 20 }}>
+          {([
+            { id: "upcoming", label: "Upcoming", count: tabbed.counts.upcoming },
+            { id: "past", label: "Past", count: tabbed.counts.past },
+            { id: "unassigned", label: "Unassigned", count: tabbed.counts.unassigned },
+          ] as const).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                padding: "12px 16px",
+                border: "none",
+                background: "transparent",
+                borderBottom: activeTab === tab.id ? "2px solid #1B3A5C" : "2px solid transparent",
+                color: activeTab === tab.id ? "#1B3A5C" : "#64748B",
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                marginBottom: -1,
+              }}
+            >
+              {tab.label} ({tab.count})
+            </button>
+          ))}
+        </div>
+
         {loading && (
           <div style={{ textAlign: "center", padding: "48px 24px", color: "#999", fontSize: "14px" }}>
             Loading your saves…
@@ -1052,30 +1422,48 @@ Your saved places, all in one spot
           </div>
         )}
 
-        {/* SECTION: Unassigned — no city */}
-        {grouping.unassigned.length > 0 && (
-          <div style={{ marginBottom: "32px" }}>
-            <SectionHeader
-              icon={<Bookmark size={16} style={{ color: "#C4664A" }} />}
-              title="Unassigned"
-              count={grouping.unassigned.length}
-            />
-            <CardGrid cards={grouping.unassigned} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={() => {}} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} onIdentifyPlace={setIdentifyingItem} onRateClick={(id, title) => { setRatingModal({ id, title }); setRatingValue(0); setRatingNotes(""); }} ratedItemId={ratedItemId} onAssignCity={(id) => { setAssignCityItemId(id); setManualCityQuery(""); setManualCity(""); setManualCountry(""); setManualCitySuggestions([]); setManualCityShowDropdown(false); }} />
-          </div>
-        )}
-
-        {/* SECTIONS: City groups — sorted by save count desc */}
-        {grouping.cityGroups.map(({ city, saves: citySaves }) => (
-          <div key={city} style={{ marginBottom: "32px" }}>
-            <SectionHeader title={city} count={citySaves.length} />
-            <CardGrid cards={citySaves} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={() => {}} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} onIdentifyPlace={setIdentifyingItem} onRateClick={(id, title) => { setRatingModal({ id, title }); setRatingValue(0); setRatingNotes(""); }} ratedItemId={ratedItemId} />
-          </div>
-        ))}
-
-        {/* SECTION: Other places — cities with <3 saves, collapsed */}
-        {grouping.otherPlaces.length > 0 && (
-          <OtherPlacesSection saves={grouping.otherPlaces} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} onIdentifyPlace={setIdentifyingItem} onRateClick={(id, title) => { setRatingModal({ id, title }); setRatingValue(0); setRatingNotes(""); }} ratedItemId={ratedItemId} />
-        )}
+        {!loading && (() => {
+          const sharedGrid: SharedCardGridProps = {
+            openDropdown,
+            setOpenDropdown,
+            assignTrip,
+            onCardClick: (id) => setModalItemId(id),
+            availableTrips,
+            onDeleted: handleItemDeleted,
+            onIdentifyPlace: setIdentifyingItem,
+            onRateClick: (id, title) => { setRatingModal({ id, title }); setRatingValue(0); setRatingNotes(""); },
+            ratedItemId,
+          };
+          return (
+            <>
+              {activeTab === "upcoming" && (
+                <UpcomingTabContent
+                  sections={tabbed.upcoming}
+                  expandedSections={expandedSections}
+                  setExpandedSections={setExpandedSections}
+                  suggestedTripMap={tabbed.suggestedTripMap}
+                  onAddToTrip={handleAddToTrip}
+                  sharedProps={sharedGrid}
+                />
+              )}
+              {activeTab === "past" && (
+                <PastTabContent
+                  sections={tabbed.past}
+                  expandedSections={expandedSections}
+                  setExpandedSections={setExpandedSections}
+                  sharedProps={sharedGrid}
+                />
+              )}
+              {activeTab === "unassigned" && (
+                <UnassignedTabContent
+                  items={tabbed.unassigned}
+                  sharedProps={sharedGrid}
+                  onAssignCity={(id) => { setAssignCityItemId(id); setManualCityQuery(""); setManualCity(""); setManualCountry(""); setManualCitySuggestions([]); setManualCityShowDropdown(false); }}
+                />
+              )}
+            </>
+          );
+        })()}
 
       </div>
 
@@ -1432,6 +1820,40 @@ Your saved places, all in one spot
                 {manualSubmitting ? "Saving..." : "Save Activity"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add-to-trip picker — when save matches multiple upcoming trips */}
+      {addToTripModal && (
+        <div
+          onClick={() => setAddToTripModal(null)}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: "#fff", borderRadius: "20px", width: "100%", maxWidth: "320px", padding: "24px", boxShadow: "0 8px 40px rgba(0,0,0,0.18)", display: "flex", flexDirection: "column", gap: "12px" }}
+          >
+            <h3 style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C", margin: 0, fontFamily: '"Playfair Display", Georgia, serif' }}>
+              Add to which trip?
+            </h3>
+            {addToTripModal.options.map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => doAssignToTrip(addToTripModal.saveId, opt.id, opt.name)}
+                style={{ width: "100%", padding: "12px 16px", border: "1px solid #E5E7EB", borderRadius: "8px", background: "white", color: "#1B3A5C", fontSize: "14px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9F5F3"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "white"; }}
+              >
+                {opt.name}
+              </button>
+            ))}
+            <button
+              onClick={() => setAddToTripModal(null)}
+              style={{ padding: "10px 0", border: "none", background: "transparent", color: "#6B7280", fontSize: "13px", cursor: "pointer", fontFamily: "inherit" }}
+            >
+              Cancel
+            </button>
           </div>
         </div>
       )}
