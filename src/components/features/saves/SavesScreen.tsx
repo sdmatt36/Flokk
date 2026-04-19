@@ -99,6 +99,8 @@ type TripRow = {
   id: string;
   title: string;
   destinationCity: string | null;
+  cities: string[];
+  country: string | null;
   startDate: string | null;
   endDate: string | null;
 };
@@ -164,17 +166,44 @@ function groupTabbedSaves(saves: Save[], allTrips: TripRow[]): TabbedSavesState 
 
   const pastTrips = allTrips.filter((t) => t.endDate && new Date(t.endDate) < now);
   const pastTripIds = new Set(pastTrips.map((t) => t.id));
-  const pastTripCities = new Set(
-    pastTrips.map((t) => (t.destinationCity ?? "").trim().toLowerCase()).filter(Boolean)
-  );
 
+  // Build past city set from cities[] array, falling back to destinationCity
+  const pastTripCities = new Set<string>();
+  for (const t of pastTrips) {
+    const cityList = t.cities.length > 0 ? t.cities : (t.destinationCity ? [t.destinationCity] : []);
+    for (const c of cityList) {
+      const key = c.trim().toLowerCase();
+      if (key) pastTripCities.add(key);
+    }
+  }
+
+  // Build past country set from country field
+  const pastTripCountries = new Set<string>();
+  for (const t of pastTrips) {
+    if (t.country) pastTripCountries.add(t.country.trim().toLowerCase());
+  }
+
+  // Build upcoming city index: city key → [tripId, ...]
   const upcomingCityIndex = new Map<string, string[]>();
   for (const t of upcomingTrips) {
-    const key = (t.destinationCity ?? "").trim().toLowerCase();
-    if (!key) continue;
-    const existing = upcomingCityIndex.get(key) ?? [];
+    const cityList = t.cities.length > 0 ? t.cities : (t.destinationCity ? [t.destinationCity] : []);
+    for (const c of cityList) {
+      const key = c.trim().toLowerCase();
+      if (!key) continue;
+      const existing = upcomingCityIndex.get(key) ?? [];
+      existing.push(t.id);
+      upcomingCityIndex.set(key, existing);
+    }
+  }
+
+  // Build upcoming country index: country key → [tripId, ...]
+  const upcomingCountryIndex = new Map<string, string[]>();
+  for (const t of upcomingTrips) {
+    if (!t.country) continue;
+    const key = t.country.trim().toLowerCase();
+    const existing = upcomingCountryIndex.get(key) ?? [];
     existing.push(t.id);
-    upcomingCityIndex.set(key, existing);
+    upcomingCountryIndex.set(key, existing);
   }
 
   const upcomingSections: UpcomingTripSection[] = upcomingTrips.map((t) => ({
@@ -194,6 +223,7 @@ function groupTabbedSaves(saves: Save[], allTrips: TripRow[]): TabbedSavesState 
 
   for (const save of saves) {
     const cityKey = (save.destinationCity ?? "").trim().toLowerCase();
+    const countryKey = (save.destinationCountry ?? "").trim().toLowerCase();
 
     if (save.tripId && upcomingTripIndex.has(save.tripId)) {
       upcomingTripIndex.get(save.tripId)!.explicitSaves.push(save);
@@ -208,25 +238,51 @@ function groupTabbedSaves(saves: Save[], allTrips: TripRow[]): TabbedSavesState 
       continue;
     }
 
-    if (!save.tripId && cityKey) {
-      const upcomingMatches = upcomingCityIndex.get(cityKey) ?? [];
-      if (upcomingMatches.length > 0) {
-        for (const tripId of upcomingMatches) {
-          upcomingTripIndex.get(tripId)!.suggestedSaves.push(save);
+    if (!save.tripId) {
+      // Try city match first (cities[] array)
+      if (cityKey) {
+        const upcomingCityMatches = upcomingCityIndex.get(cityKey) ?? [];
+        if (upcomingCityMatches.length > 0) {
+          for (const tripId of upcomingCityMatches) {
+            upcomingTripIndex.get(tripId)!.suggestedSaves.push(save);
+          }
+          const options = upcomingCityMatches.map((tid) => ({
+            id: tid,
+            name: upcomingTripIndex.get(tid)!.tripName,
+          }));
+          suggestedTripMap.set(save.id, options);
+          continue;
         }
-        const options = upcomingMatches.map((tid) => ({
-          id: tid,
-          name: upcomingTripIndex.get(tid)!.tripName,
-        }));
-        suggestedTripMap.set(save.id, options);
-        continue;
+        if (pastTripCities.has(cityKey)) {
+          const city = save.destinationCity ?? "Unknown";
+          const list = pastCityMap.get(city) ?? [];
+          list.push(save);
+          pastCityMap.set(city, list);
+          continue;
+        }
       }
-      if (pastTripCities.has(cityKey)) {
-        const city = save.destinationCity ?? "Unknown";
-        const list = pastCityMap.get(city) ?? [];
-        list.push(save);
-        pastCityMap.set(city, list);
-        continue;
+
+      // Fallback: country match (Trip.country vs Save.destinationCountry)
+      if (countryKey) {
+        const upcomingCountryMatches = upcomingCountryIndex.get(countryKey) ?? [];
+        if (upcomingCountryMatches.length > 0) {
+          for (const tripId of upcomingCountryMatches) {
+            upcomingTripIndex.get(tripId)!.suggestedSaves.push(save);
+          }
+          const options = upcomingCountryMatches.map((tid) => ({
+            id: tid,
+            name: upcomingTripIndex.get(tid)!.tripName,
+          }));
+          suggestedTripMap.set(save.id, options);
+          continue;
+        }
+        if (pastTripCountries.has(countryKey)) {
+          const city = save.destinationCity ?? "Unknown";
+          const list = pastCityMap.get(city) ?? [];
+          list.push(save);
+          pastCityMap.set(city, list);
+          continue;
+        }
       }
     }
 
@@ -967,7 +1023,7 @@ export function SavesScreen() {
   const [dietaryFilter, setDietaryFilter] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [saves, setSaves] = useState<Save[]>([]);
-  const [availableTrips, setAvailableTrips] = useState<{ id: string; title: string; destinationCity: string | null; destinationCountry: string | null; startDate: string | null; endDate: string | null; isPlacesLibrary?: boolean }[]>([]);
+  const [availableTrips, setAvailableTrips] = useState<{ id: string; title: string; destinationCity: string | null; destinationCountry: string | null; cities: string[]; country: string | null; startDate: string | null; endDate: string | null; isPlacesLibrary?: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [showFabModal, setShowFabModal] = useState(false);
