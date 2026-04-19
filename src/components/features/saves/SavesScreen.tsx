@@ -479,7 +479,7 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
                 padding: "2px 8px",
               }}
             >
-              {tag}
+              {categoryLabel(tag)}
             </span>
           ))}
           {extraTags > 0 && (

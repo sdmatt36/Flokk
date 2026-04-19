@@ -257,7 +257,9 @@ type CommunityPlace = {
   sampleNote: string | null;
 };
 
-const PLACE_TYPE_FILTERS = ["All", "Food", "Activity", "Culture", "Outdoor", "Shopping", "Lodging"];
+// Spot type filter: slug is sent to the API, label is displayed in the pill button.
+// "All" is a sentinel handled separately in the render.
+
 
 function parseCityFromAddress(address: string): string {
   if (!address) return "";
@@ -546,28 +548,48 @@ function PlacesTab() {
         style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "20px", scrollbarWidth: "none", msOverflowStyle: "none", position: "relative", zIndex: 10 }}
         className="hide-scrollbar"
       >
-        {PLACE_TYPE_FILTERS.map(t => (
           <button
-            key={t}
-            onClick={() => setPlaceType(t === placeType && t !== "All" ? "All" : t)}
+            key="All"
+            onClick={() => setPlaceType("All")}
             style={{
               flexShrink: 0,
               padding: "7px 16px",
               borderRadius: "999px",
-              border: placeType === t ? "none" : "1.5px solid #E0E0E0",
-              backgroundColor: placeType === t ? "#C4664A" : "#fff",
-              color: placeType === t ? "#fff" : "#717171",
+              border: placeType === "All" ? "none" : "1.5px solid #E0E0E0",
+              backgroundColor: placeType === "All" ? "#C4664A" : "#fff",
+              color: placeType === "All" ? "#fff" : "#717171",
               fontSize: "13px",
-              fontWeight: placeType === t ? 700 : 500,
+              fontWeight: placeType === "All" ? 700 : 500,
               lineHeight: "1",
               cursor: "pointer",
               transition: "all 0.15s",
               fontFamily: "inherit",
             }}
           >
-            {t}
+            All
           </button>
-        ))}
+          {CATEGORIES.map(({ slug, label }) => (
+            <button
+              key={slug}
+              onClick={() => setPlaceType(slug === placeType ? "All" : slug)}
+              style={{
+                flexShrink: 0,
+                padding: "7px 16px",
+                borderRadius: "999px",
+                border: placeType === slug ? "none" : "1.5px solid #E0E0E0",
+                backgroundColor: placeType === slug ? "#C4664A" : "#fff",
+                color: placeType === slug ? "#fff" : "#717171",
+                fontSize: "13px",
+                fontWeight: placeType === slug ? 700 : 500,
+                lineHeight: "1",
+                cursor: "pointer",
+                transition: "all 0.15s",
+                fontFamily: "inherit",
+              }}
+            >
+              {label}
+            </button>
+          ))}
       </div>
 
       {/* Results */}
