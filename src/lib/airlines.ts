@@ -150,6 +150,14 @@ export const AIRPORTS: Airport[] = [
   { code: "YVR", name: "Vancouver International", city: "Vancouver", country: "CA" },
   { code: "YYZ", name: "Toronto Pearson International", city: "Toronto", country: "CA" },
   { code: "ZRH", name: "Zurich Airport", city: "Zurich", country: "CH" },
+  // Scandinavia & Iceland — added for KEF/Nordic coverage
+  { code: "ARN", name: "Stockholm Arlanda Airport", city: "Stockholm", country: "SE" },
+  { code: "BGO", name: "Bergen Airport Flesland", city: "Bergen", country: "NO" },
+  { code: "CPH", name: "Copenhagen Airport", city: "Copenhagen", country: "DK" },
+  { code: "HEL", name: "Helsinki-Vantaa Airport", city: "Helsinki", country: "FI" },
+  { code: "KEF", name: "Keflavík International Airport", city: "Reykjavík", country: "IS" },
+  { code: "OSL", name: "Oslo Gardermoen Airport", city: "Oslo", country: "NO" },
+  { code: "TRD", name: "Trondheim Værnes Airport", city: "Trondheim", country: "NO" },
 ];
 
 export function getAirportCity(code: string): string {
