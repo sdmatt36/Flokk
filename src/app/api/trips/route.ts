@@ -45,22 +45,33 @@ export async function POST(req: Request) {
   if (!familyProfile) return NextResponse.json({ error: "No family profile" }, { status: 400 });
 
   const body = await req.json();
-  const { destination, startDate, endDate, status, isAnonymous } = body as {
-    destination: string;
-    startDate: string;
-    endDate: string;
-    status?: string;
-    isAnonymous?: boolean;
-  };
+  const { status, isAnonymous } = body as { status?: string; isAnonymous?: boolean };
 
-  if (!destination || !startDate || !endDate) {
+  let cities: string[] = [];
+  let country: string | null = null;
+
+  if (Array.isArray(body.cities) && body.cities.length > 0 && typeof body.country === "string" && body.country.trim().length > 0) {
+    // New chip-based submission
+    cities = (body.cities as string[]).map((c) => c.trim()).filter(Boolean);
+    country = body.country.trim();
+  } else if (typeof body.destination === "string" && body.destination.trim().length > 0) {
+    // Legacy fallback: comma-parse for old callers (past-trip import, steal-to-new, etc.)
+    const parts = body.destination.split(",").map((s: string) => s.trim());
+    cities = [parts[0] ?? body.destination];
+    country = parts[1] ?? null;
+  } else {
+    return NextResponse.json({ error: "Missing destination" }, { status: 400 });
+  }
+
+  const startDate: string = body.startDate;
+  const endDate: string = body.endDate;
+
+  if (!startDate || !endDate) {
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  // Parse destination into city / country
-  const parts = destination.split(",").map((s) => s.trim());
-  const destinationCity = parts[0] ?? destination;
-  const destinationCountry = parts[1] ?? null;
+  const destinationCity = cities[0];
+  const destinationCountry = country;
 
   // Build a readable title
   const start = new Date(startDate);
@@ -76,6 +87,8 @@ export async function POST(req: Request) {
       title,
       destinationCity,
       destinationCountry,
+      cities,
+      country,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
       status: (status === "COMPLETED" ? "COMPLETED" : "PLANNING") as "PLANNING" | "COMPLETED",
