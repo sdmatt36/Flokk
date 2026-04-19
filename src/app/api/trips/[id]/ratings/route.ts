@@ -3,19 +3,10 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { sendRatingsCompleteEvent } from "@/lib/loops";
+import { writeThroughCommunitySpot, cleanVenueName } from "@/lib/community-write-through";
+import { ensureSavedItemForRating } from "@/lib/ensure-saved-item-for-rating";
 
 export const dynamic = "force-dynamic";
-
-// Inline copy — canonical source: scripts/lib/clean-venue-name.ts
-function cleanVenueName(raw: string): string {
-  if (!raw) return raw;
-  let name = raw;
-  name = name.replace(/\s*\|\s*Tabelog.*$/i, "");
-  name = name.replace(/\s+-\s+[^|]+\/[^|]+$/i, "");
-  name = name.replace(/\s*\([^)]*\/[^)]*\)\s*$/u, "");
-  name = name.replace(/\s+/g, " ").trim();
-  return name;
-}
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { userId } = await auth();
@@ -135,22 +126,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       if (rawName && city) {
         const cleanedName = cleanVenueName(rawName);
+        try {
+          await db.$transaction(async (tx) => {
+            const spotId = await writeThroughCommunitySpot(tx, {
+              name: rawName,
+              city: city!,
+              country,
+              lat,
+              lng,
+              photoUrl,
+              websiteUrl,
+              category,
+              googlePlaceId: null,
+              authorProfileId: profileId,
+              familyProfileId: profileId,
+              rating: rating.rating,
+              note: rating.notes ?? null,
+            });
 
-        await db.$transaction(async (tx) => {
-          // Find or create CommunitySpot by normalized name+city (insensitive)
-          let spot = await tx.communitySpot.findFirst({
-            where: {
-              name: { equals: cleanedName, mode: "insensitive" },
-              city: { equals: city!, mode: "insensitive" },
-            },
-            select: { id: true },
-          });
-
-          if (!spot) {
-            // TODO: enrich lat/lng via Google Places in a future background job for spots with null coords
-            spot = await tx.communitySpot.create({
-              data: {
-                name: cleanedName,
+            if (spotId) {
+              await ensureSavedItemForRating(tx, {
+                familyProfileId: profileId,
+                communitySpotId: spotId,
+                placeName: cleanedName,
                 city: city!,
                 country,
                 lat,
@@ -158,49 +156,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
                 photoUrl,
                 websiteUrl,
                 category,
-                authorProfileId: profileId,
-              },
-              select: { id: true },
-            });
-          }
-
-          // Upsert this family's SpotContribution
-          await tx.spotContribution.upsert({
-            where: {
-              communitySpotId_familyProfileId: {
-                communitySpotId: spot.id,
-                familyProfileId: profileId,
-              },
-            },
-            create: {
-              communitySpotId: spot.id,
-              familyProfileId: profileId,
-              rating: rating.rating,
-              note: rating.notes ?? null,
-            },
-            update: {
-              rating: rating.rating,
-              note: rating.notes ?? null,
-            },
-          });
-
-          // Recompute aggregates from all contributions for this spot
-          const contributions = await tx.spotContribution.findMany({
-            where: { communitySpotId: spot.id },
-            select: { rating: true },
-          });
-          const ratedContribs = contributions.filter(c => c.rating != null);
-          const ratingCount = ratedContribs.length;
-          const contributionCount = contributions.length;
-          const averageRating = ratingCount > 0
-            ? ratedContribs.reduce((sum, c) => sum + c.rating!, 0) / ratingCount
-            : null;
-
-          await tx.communitySpot.update({
-            where: { id: spot.id },
-            data: { averageRating, ratingCount, contributionCount },
-          });
-        }, { timeout: 10000 });
+                googlePlaceId: null,
+                rating: rating.rating,
+                note: rating.notes ?? null,
+              });
+            }
+          }, { timeout: 10000 });
+        } catch (e) {
+          console.error("[community-write-through] trips/ratings POST failed:", e);
+        }
       }
     } catch (e) {
       console.error("[community-write-through] trips/ratings failed:", e);

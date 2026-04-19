@@ -3,7 +3,8 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { getOrCreatePlacesLibrary } from "@/lib/places-library";
-import { writeThroughCommunitySpot } from "@/lib/community-write-through";
+import { writeThroughCommunitySpot, cleanVenueName } from "@/lib/community-write-through";
+import { ensureSavedItemForRating } from "@/lib/ensure-saved-item-for-rating";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
         },
       });
 
-      await writeThroughCommunitySpot(tx, {
+      const spotId = await writeThroughCommunitySpot(tx, {
         name: created.title,
         city: created.city ?? "",
         country: null,
@@ -92,6 +93,24 @@ export async function POST(request: Request) {
         rating: body.rating,
         note: body.ratingNote ?? null,
       });
+
+      if (spotId) {
+        await ensureSavedItemForRating(tx, {
+          familyProfileId: profileId,
+          communitySpotId: spotId,
+          placeName: cleanVenueName(created.title),
+          city: created.city ?? "",
+          country: null,
+          lat: created.lat ?? null,
+          lng: created.lng ?? null,
+          photoUrl: created.imageUrl ?? null,
+          websiteUrl: created.website ?? null,
+          category: created.type ?? null,
+          googlePlaceId: null,
+          rating: body.rating ?? null,
+          note: body.ratingNote ?? null,
+        });
+      }
     }
 
     return created;

@@ -2,19 +2,10 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { writeThroughCommunitySpot, cleanVenueName } from "@/lib/community-write-through";
+import { ensureSavedItemForRating } from "@/lib/ensure-saved-item-for-rating";
 
 export const dynamic = "force-dynamic";
-
-// Inline copy — canonical source: scripts/lib/clean-venue-name.ts
-function cleanVenueName(raw: string): string {
-  if (!raw) return raw;
-  let name = raw;
-  name = name.replace(/\s*\|\s*Tabelog.*$/i, "");
-  name = name.replace(/\s+-\s+[^|]+\/[^|]+$/i, "");
-  name = name.replace(/\s*\([^)]*\/[^)]*\)\s*$/u, "");
-  name = name.replace(/\s+/g, " ").trim();
-  return name;
-}
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string; ratingId: string }> }) {
   const { userId } = await auth();
@@ -89,20 +80,29 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
         if (rawName && city) {
           const cleanedName = cleanVenueName(rawName);
+          try {
+            await db.$transaction(async (tx) => {
+              const spotId = await writeThroughCommunitySpot(tx, {
+                name: rawName,
+                city: city!,
+                country,
+                lat,
+                lng,
+                photoUrl,
+                websiteUrl,
+                category,
+                googlePlaceId: null,
+                authorProfileId: profileId,
+                familyProfileId: profileId,
+                rating: updated.rating,
+                note: updated.notes ?? null,
+              });
 
-          await db.$transaction(async (tx) => {
-            let spot = await tx.communitySpot.findFirst({
-              where: {
-                name: { equals: cleanedName, mode: "insensitive" },
-                city: { equals: city!, mode: "insensitive" },
-              },
-              select: { id: true },
-            });
-
-            if (!spot) {
-              spot = await tx.communitySpot.create({
-                data: {
-                  name: cleanedName,
+              if (spotId) {
+                await ensureSavedItemForRating(tx, {
+                  familyProfileId: profileId,
+                  communitySpotId: spotId,
+                  placeName: cleanedName,
                   city: city!,
                   country,
                   lat,
@@ -110,51 +110,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
                   photoUrl,
                   websiteUrl,
                   category,
-                  authorProfileId: profileId,
-                },
-                select: { id: true },
-              });
-            }
-
-            await tx.spotContribution.upsert({
-              where: {
-                communitySpotId_familyProfileId: {
-                  communitySpotId: spot.id,
-                  familyProfileId: profileId,
-                },
-              },
-              create: {
-                communitySpotId: spot.id,
-                familyProfileId: profileId,
-                rating: updated.rating,
-                note: updated.notes ?? null,
-              },
-              update: {
-                rating: updated.rating,
-                note: updated.notes ?? null,
-              },
-            });
-
-            const contributions = await tx.spotContribution.findMany({
-              where: { communitySpotId: spot.id },
-              select: { rating: true },
-            });
-            const ratedContribs = contributions.filter(c => c.rating != null);
-            const ratingCount = ratedContribs.length;
-            const contributionCount = contributions.length;
-            const averageRating = ratingCount > 0
-              ? ratedContribs.reduce((sum, c) => sum + c.rating!, 0) / ratingCount
-              : null;
-
-            await tx.communitySpot.update({
-              where: { id: spot.id },
-              data: { averageRating, ratingCount, contributionCount },
-            });
-          }, { timeout: 10000 });
+                  googlePlaceId: null,
+                  rating: updated.rating,
+                  note: updated.notes ?? null,
+                });
+              }
+            }, { timeout: 10000 });
+          } catch (e) {
+            console.error("[community-write-through] trips/ratings/[ratingId] PATCH failed:", e);
+          }
         }
       }
     } catch (e) {
-      console.error("[community-write-through] trips/ratings/[ratingId] PATCH failed:", e);
+      console.error("[community-write-through] trips/ratings/[ratingId] outer failed:", e);
     }
   }
 

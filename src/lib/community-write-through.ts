@@ -20,7 +20,7 @@ export interface CommunityWriteThroughContext {
 }
 
 // Inline copy — canonical source: scripts/lib/clean-venue-name.ts
-function cleanVenueName(raw: string): string {
+export function cleanVenueName(raw: string): string {
   if (!raw) return raw;
   let name = raw;
   name = name.replace(/\s*\|\s*Tabelog.*$/i, "");
@@ -38,12 +38,12 @@ function cleanVenueName(raw: string): string {
 export async function writeThroughCommunitySpot(
   tx: Tx,
   ctx: CommunityWriteThroughContext
-): Promise<void> {
-  if (!ctx.city || !ctx.city.trim()) return;
-  if (ctx.rating == null && !ctx.note) return;
+): Promise<string | null> {
+  if (!ctx.city || !ctx.city.trim()) return null;
+  if (ctx.rating == null && !ctx.note) return null;
 
   const cleanedName = cleanVenueName(ctx.name);
-  if (!cleanedName) return;
+  if (!cleanedName) return null;
 
   let spot: { id: string } | null = null;
 
@@ -118,4 +118,6 @@ export async function writeThroughCommunitySpot(
     where: { id: spot.id },
     data: { averageRating, ratingCount, contributionCount },
   });
+
+  return spot.id;
 }

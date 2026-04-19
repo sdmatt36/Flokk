@@ -330,6 +330,10 @@ model SavedItem {
   startTime                String?
   needsPlaceConfirmation   Boolean   @default(false)
   ratings                  PlaceRating[]
+  communitySpotId          String?
+  communitySpot            CommunitySpot? @relation("SavedItemToCommunitySpot", fields: [communitySpotId], references: [id], onDelete: SetNull)
+
+  @@index([communitySpotId])
 }
 
 enum SourceType {
@@ -870,6 +874,7 @@ model CommunitySpot {
   authorProfileId   String
   author            FamilyProfile        @relation("CommunitySpotAuthor", fields: [authorProfileId], references: [id], onDelete: Restrict)
   contributions     SpotContribution[]
+  savedItems        SavedItem[]          @relation("SavedItemToCommunitySpot")
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 
