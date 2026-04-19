@@ -487,7 +487,7 @@ Return this exact JSON structure:
   "contactPhone": "string or null",
   "contactEmail": "string or null",
   "guestNames": ["string"] or [],
-  "legs": [{ "from": "IATA", "to": "IATA", "fromCity": "string", "toCity": "string", "departure": "YYYY-MM-DDTHH:MM" }] or [],
+  "legs": [{ "from": "IATA", "to": "IATA", "fromCity": "string", "toCity": "string", "departure": "YYYY-MM-DDTHH:MM", "arrival": "YYYY-MM-DDTHH:MM" }] or [],
   "outboundDestination": "string or null — the furthest non-home city in the itinerary (the actual trip destination, not the return airport)",
   "outboundDestinationAirport": "IATA code or null — airport code for outboundDestination",
   "confidence": "0.0 to 1.0"
@@ -495,7 +495,7 @@ Return this exact JSON structure:
 
 Field notes:
 - guestNames: Extract ALL passenger/guest/traveler names as an array. For activity/tour bookings (GetYourGuide, Viator, Klook), look under "Travelers", "Guests", "Participants" sections and include every name listed. For flights, include all passenger names on the booking, not just the primary contact. For hotels, include all guests listed. Return [] only if no names are found anywhere in the email.
-- legs: For flights ONLY. Extract every individual flight segment as a separate leg object. A Tokyo→Singapore→Colombo→London itinerary has 3 legs. Always populate this array for flights even if only one segment.
+- legs: For flights ONLY. Extract EVERY individual flight segment as a separate leg object, INCLUDING intermediate stops like layovers or stopovers. A Tokyo→Singapore→Colombo itinerary has 2 legs: TYO→SIN and SIN→CMB. A Seattle→Keflavík→Bergen itinerary has 2 legs: SEA→KEF and KEF→BGO. NEVER consolidate segments — if the email mentions a ticketed segment, it MUST appear in legs. Always populate this array for flights even if only one segment. Include arrival datetime per leg when visible in the email.
 - outboundDestination / outboundDestinationAirport: For round-trip flights that depart from and return to a home airport (NRT, HND, LHR, LGW), identify the furthest destination city/airport — NOT the return airport. Example: NRT→SIN→CMB→LHR→NRT has outboundDestination="Colombo" and outboundDestinationAirport="CMB". For one-way or simple round trips, this is just toCity/toAirport.
 - fromAirport/toAirport/fromCity/toCity: Keep these for backward compatibility. fromAirport = first leg departure, toAirport = outboundDestinationAirport (NOT the return leg airport), fromCity = first leg departure city, toCity = outboundDestination city.`,
       }],
@@ -893,33 +893,177 @@ Field notes:
         ? `${outboundFrom} → ${outboundTo}`
         : outboundFrom ? `${outboundFrom} → (destination)` : outboundTo ? `(origin) → ${outboundTo}` : (extracted.flightNumber as string) ?? "Flight";
 
-      // Outbound ItineraryItem — upsert by tripId + confirmationCode + scheduledDate to prevent re-forward duplicates
-      const existingOutbound = outboundConf ? await db.itineraryItem.findFirst({
-        where: { tripId: resolvedTripId, confirmationCode: outboundConf, type: "FLIGHT", scheduledDate: (extracted.departureDate as string | null) ?? null },
-      }) : null;
-      const outboundItem = existingOutbound
-        ? await db.itineraryItem.update({
-            where: { id: existingOutbound.id },
-            data: { title: outboundTitle, departureTime: resolved.departureTime, arrivalTime: resolved.arrivalTime, fromAirport: resolved.fromAirport, toAirport: resolved.toAirport, fromCity: resolved.fromCity, toCity: resolved.toCity, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex: outboundDayIndex },
-          })
-        : await db.itineraryItem.create({
-            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: "FLIGHT", title: outboundTitle, scheduledDate: (extracted.departureDate as string | null) ?? null, departureTime: resolved.departureTime, arrivalTime: resolved.arrivalTime, fromAirport: resolved.fromAirport, toAirport: resolved.toAirport, fromCity: resolved.fromCity, toCity: resolved.toCity, confirmationCode: outboundConf, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex: outboundDayIndex },
-          });
-      // Geocode arrival airport (where the family lands — critical map pin)
-      // Priority: IATA+city (e.g. "GMP airport Seoul") → city fallback (e.g. "Seoul international airport")
-      const outboundArrivalIATA = resolved.toAirport ?? null;
-      const outboundArrivalCity = resolved.toCity ?? (extracted.toCity as string | null) ?? null;
-      if (outboundArrivalIATA || outboundArrivalCity) {
-        const primaryQuery = outboundArrivalIATA && outboundArrivalCity
-          ? `${outboundArrivalIATA} airport ${outboundArrivalCity}`
-          : outboundArrivalIATA ? `${outboundArrivalIATA} airport` : `${outboundArrivalCity} international airport`;
-        let geo = await geocodePlace(primaryQuery);
-        if (!geo && outboundArrivalCity) geo = await geocodePlace(`${outboundArrivalCity} international airport`);
-        if (geo) await db.itineraryItem.update({ where: { id: outboundItem.id }, data: { latitude: geo.lat, longitude: geo.lng, arrivalLat: geo.lat, arrivalLng: geo.lng } });
-      }
-      console.log("[email-inbound] created outbound ItineraryItem:", outboundItem.id);
+      // ── Per-leg flight ItineraryItem creation ────────────────────────────────
+      // Each segment in legs[] becomes its own ItineraryItem row. Same
+      // confirmationCode, different scheduledDate → no dedup collision.
+      // Falls back to scalar fromAirport/toAirport synthesis if legs[] is empty.
 
-      // Also keep Flight record (powers booking intel card) — only when trip is matched
+      type FlightLeg = {
+        from: string;
+        to: string;
+        fromCity: string | null;
+        toCity: string | null;
+        departureDate: string | null;
+        departureTime: string | null;
+        arrivalDate: string | null;
+        arrivalTime: string | null;
+      };
+
+      let flightLegs: FlightLeg[] = [];
+
+      const rawLegs = Array.isArray(extracted.legs)
+        ? extracted.legs as Array<{ from: string; to: string; fromCity?: string; toCity?: string; departure?: string; arrival?: string }>
+        : [];
+
+      if (rawLegs.length > 0) {
+        flightLegs = rawLegs.map((l) => {
+          const [depDate, depTime] = typeof l.departure === "string" ? l.departure.split("T") : [null, null];
+          const [arrDate, arrTime] = typeof l.arrival === "string" ? l.arrival.split("T") : [null, null];
+          return {
+            from: l.from,
+            to: l.to,
+            fromCity: l.fromCity ?? null,
+            toCity: l.toCity ?? null,
+            departureDate: depDate ?? null,
+            departureTime: depTime ? depTime.slice(0, 5) : null,
+            arrivalDate: arrDate ?? null,
+            arrivalTime: arrTime ? arrTime.slice(0, 5) : null,
+          };
+        });
+      } else {
+        // Fallback: synthesize from scalar fields when legs[] was not populated
+        if ((extracted.fromAirport as string | null) && (extracted.toAirport as string | null)) {
+          flightLegs.push({
+            from: extracted.fromAirport as string,
+            to: extracted.toAirport as string,
+            fromCity: (extracted.fromCity as string | null) ?? null,
+            toCity: (extracted.toCity as string | null) ?? null,
+            departureDate: (extracted.departureDate as string | null) ?? null,
+            departureTime: (extracted.departureTime as string | null) ?? null,
+            arrivalDate: (extracted.arrivalDate as string | null) ?? null,
+            arrivalTime: (extracted.arrivalTime as string | null) ?? null,
+          });
+        }
+        // Synthesize return leg from scalar return fields if present
+        if (
+          (extracted.returnDepartureDate as string | null) &&
+          (extracted.returnFromAirport as string | null) &&
+          (extracted.returnToAirport as string | null)
+        ) {
+          flightLegs.push({
+            from: extracted.returnFromAirport as string,
+            to: extracted.returnToAirport as string,
+            fromCity: (extracted.toCity as string | null) ?? null,
+            toCity: (extracted.fromCity as string | null) ?? null,
+            departureDate: extracted.returnDepartureDate as string,
+            departureTime: (extracted.returnDepartureTime as string | null) ?? null,
+            arrivalDate: (extracted.returnArrivalDate as string | null) ?? null,
+            arrivalTime: (extracted.returnArrivalTime as string | null) ?? null,
+          });
+        }
+      }
+
+      console.log(`[email-inbound] creating ${flightLegs.length} flight ItineraryItem(s) for confirmation ${outboundConf ?? "(no code)"}`);
+
+      const createdLegItemIds: string[] = [];
+
+      for (let legIdx = 0; legIdx < flightLegs.length; legIdx++) {
+        const leg = flightLegs[legIdx];
+
+        if (!leg.from || !leg.to) {
+          console.warn(`[email-inbound] skipping leg with missing airports: from=${leg.from} to=${leg.to}`);
+          continue;
+        }
+
+        const legTitle = `${leg.from} → ${leg.to}`;
+        const legDayIndex = leg.departureDate ? await getDayIndex(resolvedTripId, leg.departureDate) : null;
+
+        // Geocode arrival airport for map pin — IATA+city preferred, IATA-only fallback
+        const geoQuery = leg.toCity
+          ? `${leg.to} airport ${leg.toCity}`
+          : `${leg.to} airport`;
+        const legGeo = await geocodePlace(geoQuery);
+        const legArrivalLat = legGeo?.lat ?? null;
+        const legArrivalLng = legGeo?.lng ?? null;
+
+        // Upsert key: tripId + confirmationCode + scheduledDate + fromAirport + toAirport
+        // fromAirport/toAirport prevent collision when two legs depart on the same calendar date.
+        const existingLeg = outboundConf ? await db.itineraryItem.findFirst({
+          where: {
+            tripId: resolvedTripId,
+            confirmationCode: outboundConf,
+            type: "FLIGHT",
+            scheduledDate: leg.departureDate ?? null,
+            fromAirport: leg.from,
+            toAirport: leg.to,
+          },
+        }) : null;
+
+        // Booking cost charged to the first leg only — avoids double-counting in budget
+        const legCost = legIdx === 0 ? parsedCost : null;
+
+        const legItemData = {
+          type: "FLIGHT" as const,
+          title: legTitle,
+          scheduledDate: leg.departureDate ?? null,
+          departureTime: leg.departureTime,
+          arrivalTime: leg.arrivalTime,
+          fromAirport: leg.from,
+          toAirport: leg.to,
+          fromCity: leg.fromCity,
+          toCity: leg.toCity,
+          confirmationCode: outboundConf,
+          totalCost: legCost,
+          currency: detectedCurrency,
+          passengers,
+          dayIndex: legDayIndex,
+          latitude: legArrivalLat,
+          longitude: legArrivalLng,
+          arrivalLat: legArrivalLat,
+          arrivalLng: legArrivalLng,
+        };
+
+        const legItemId = existingLeg
+          ? (await db.itineraryItem.update({
+              where: { id: existingLeg.id },
+              data: legItemData,
+            })).id
+          : (await db.itineraryItem.create({
+              data: { ...legItemData, tripId: resolvedTripId, familyProfileId: familyProfile.id, sourceType: "EMAIL_IMPORT" },
+            })).id;
+
+        createdLegItemIds.push(legItemId);
+        console.log(`[email-inbound] upserted leg ${legIdx + 1}/${flightLegs.length} ItineraryItem: ${legItemId} (${legTitle})`);
+      }
+
+      // Grow trip.cities[] with intermediate stopover cities (legs[0..n-2] destinations)
+      // so Layer 2 save matching works for cities visited during stopovers.
+      if (resolvedTripId && flightLegs.length > 1) {
+        const stopoverCities = flightLegs
+          .slice(0, -1)
+          .map((l) => l.toCity)
+          .filter((c): c is string => typeof c === "string" && c.trim().length > 0);
+
+        if (stopoverCities.length > 0) {
+          const tripForCities = await db.trip.findUnique({
+            where: { id: resolvedTripId },
+            select: { cities: true },
+          });
+          if (tripForCities) {
+            const existingLower = new Set((tripForCities.cities ?? []).map((c: string) => c.toLowerCase()));
+            const newCities = stopoverCities.filter((c) => !existingLower.has(c.toLowerCase()));
+            if (newCities.length > 0) {
+              await db.trip.update({
+                where: { id: resolvedTripId },
+                data: { cities: { set: [...(tripForCities.cities ?? []), ...newCities] } },
+              });
+              console.log(`[email-inbound] grew trip.cities with stopover(s): ${newCities.join(", ")}`);
+            }
+          }
+        }
+      }
+
+      // Flight record (powers booking intel card) — one per booking, not per leg
       if (resolvedTripId) {
         await db.flight.create({
           data: {
@@ -941,18 +1085,18 @@ Field notes:
           },
         });
 
-        // Outbound vault doc
-        const outboundVaultLabel = outboundFrom && outboundTo
+        // TripDocument vault — one per booking (represents the whole booking, not per leg)
+        const vaultLabel = outboundFrom && outboundTo
           ? `${outboundFrom} → ${outboundTo}`
           : `${(extracted.airline as string) ?? ""} ${extracted.flightNumber as string}`.trim();
-        const existingOutboundDoc = await db.tripDocument.findFirst({ where: { tripId: resolvedTripId, label: outboundVaultLabel } });
-        if (existingOutboundDoc) {
-          console.log("[vault] Skipping duplicate tripDocument:", outboundVaultLabel);
+        const existingVaultDoc = await db.tripDocument.findFirst({ where: { tripId: resolvedTripId, label: vaultLabel } });
+        if (existingVaultDoc) {
+          console.log("[vault] Skipping duplicate tripDocument:", vaultLabel);
         } else {
           await db.tripDocument.create({
             data: {
               tripId: resolvedTripId,
-              label: outboundVaultLabel,
+              label: vaultLabel,
               type: "booking",
               content: JSON.stringify({
                 type: "flight", vendorName: extracted.airline, flightNumber: extracted.flightNumber,
@@ -963,185 +1107,11 @@ Field notes:
                 confirmationCode: extracted.confirmationCode,
                 totalCost: extracted.totalCost, currency: extracted.currency,
                 guestNames: extracted.guestNames, returnDepartureDate: extracted.returnDepartureDate,
+                legs: extracted.legs,
               }),
             },
           });
-          console.log("[email-inbound] created outbound vault doc for trip:", resolvedTripId);
-        }
-      }
-
-      // FIX 2: Return flight ItineraryItem
-      if (extracted.returnDepartureDate) {
-        const returnDayIndex = await getDayIndex(resolvedTripId, extracted.returnDepartureDate as string);
-        const returnTitle = `${extracted.toAirport ?? extracted.toCity ?? "?"} → ${extracted.fromAirport ?? extracted.fromCity ?? "?"}`;
-
-        const returnConfCode = (extracted.confirmationCode as string | null) ?? null;
-        const existingReturn = returnConfCode ? await db.itineraryItem.findFirst({
-          where: { tripId: resolvedTripId, confirmationCode: returnConfCode, type: "FLIGHT", scheduledDate: extracted.returnDepartureDate as string },
-        }) : null;
-        const returnItem = existingReturn
-          ? await db.itineraryItem.update({ where: { id: existingReturn.id }, data: { title: returnTitle, departureTime: (extracted.returnDepartureTime as string | null) ?? null, arrivalTime: (extracted.returnArrivalTime as string | null) ?? null, dayIndex: returnDayIndex } })
-          : await db.itineraryItem.create({
-          data: {
-            tripId: resolvedTripId,
-            familyProfileId: familyProfile.id,
-            type: "FLIGHT",
-            title: returnTitle,
-            scheduledDate: extracted.returnDepartureDate as string,
-            departureTime: (extracted.returnDepartureTime as string | null) ?? null,
-            arrivalTime: (extracted.returnArrivalTime as string | null) ?? null,
-            fromAirport: (extracted.returnFromAirport as string | null) ?? (extracted.toAirport as string | null) ?? null,
-            toAirport: (extracted.returnToAirport as string | null) ?? (extracted.fromAirport as string | null) ?? null,
-            fromCity: (extracted.toCity as string | null) ?? null,
-            toCity: (extracted.fromCity as string | null) ?? null,
-            confirmationCode: returnConfCode,
-            passengers,
-            dayIndex: returnDayIndex,
-          },
-        });
-        // Geocode return arrival airport
-        // Priority: IATA+city → city fallback
-        const returnArrivalIATA = (extracted.returnToAirport as string | null) ?? (extracted.fromAirport as string | null) ?? null;
-        const returnArrivalCity = (extracted.fromCity as string | null) ?? null;
-        if (returnArrivalIATA || returnArrivalCity) {
-          const primaryQuery = returnArrivalIATA && returnArrivalCity
-            ? `${returnArrivalIATA} airport ${returnArrivalCity}`
-            : returnArrivalIATA ? `${returnArrivalIATA} airport` : `${returnArrivalCity} international airport`;
-          let geo = await geocodePlace(primaryQuery);
-          if (!geo && returnArrivalCity) geo = await geocodePlace(`${returnArrivalCity} international airport`);
-          if (geo) await db.itineraryItem.update({ where: { id: returnItem.id }, data: { latitude: geo.lat, longitude: geo.lng, arrivalLat: geo.lat, arrivalLng: geo.lng } });
-        }
-        console.log("[email-inbound] created return ItineraryItem:", returnItem.id);
-
-        // Also keep return Flight record and vault doc — only when trip is matched
-        if (resolvedTripId) {
-          await db.flight.create({
-            data: {
-              tripId: resolvedTripId,
-              type: "return",
-              airline: (extracted.airline as string | null) ?? "",
-              flightNumber: ((extracted.flightNumber as string) ?? "") + " (return)",
-              fromAirport: (extracted.returnFromAirport as string | null) ?? (extracted.toAirport as string | null) ?? "",
-              fromCity: (extracted.toCity as string | null) ?? (extracted.returnFromAirport as string | null) ?? "",
-              toAirport: (extracted.returnToAirport as string | null) ?? (extracted.fromAirport as string | null) ?? "",
-              toCity: (extracted.fromCity as string | null) ?? (extracted.returnToAirport as string | null) ?? "",
-              departureDate: extracted.returnDepartureDate as string,
-              departureTime: (extracted.returnDepartureTime as string | null) ?? "",
-              arrivalDate: (extracted.returnArrivalDate as string | null) ?? null,
-              arrivalTime: (extracted.returnArrivalTime as string | null) ?? null,
-              confirmationCode: (extracted.confirmationCode as string | null) ?? null,
-              status: "booked",
-              dayIndex: returnDayIndex,
-            },
-          });
-
-          const returnVaultFrom = (extracted.returnFromAirport as string | null) || (extracted.toAirport as string | null) || null;
-          const returnVaultTo   = (extracted.returnToAirport   as string | null) || (extracted.fromAirport as string | null) || null;
-          const returnVaultLabel = returnVaultFrom && returnVaultTo
-            ? `${returnVaultFrom} → ${returnVaultTo}`
-            : `${(extracted.airline as string) ?? ""} ${extracted.flightNumber as string} (return)`.trim();
-          const existingReturnDoc = await db.tripDocument.findFirst({ where: { tripId: resolvedTripId, label: returnVaultLabel } });
-          if (existingReturnDoc) {
-            console.log("[vault] Skipping duplicate tripDocument:", returnVaultLabel);
-          } else {
-            await db.tripDocument.create({
-              data: {
-                tripId: resolvedTripId,
-                label: returnVaultLabel,
-                type: "booking",
-                content: JSON.stringify({
-                  type: "flight", vendorName: extracted.airline,
-                  flightNumber: ((extracted.flightNumber as string) ?? "") + " (return)",
-                  airline: extracted.airline,
-                  fromAirport: extracted.returnFromAirport ?? extracted.toAirport,
-                  toAirport: extracted.returnToAirport ?? extracted.fromAirport,
-                  fromCity: extracted.toCity, toCity: extracted.fromCity,
-                  departureDate: extracted.returnDepartureDate, departureTime: extracted.returnDepartureTime,
-                  arrivalDate: extracted.returnArrivalDate ?? null, arrivalTime: extracted.returnArrivalTime ?? null,
-                  confirmationCode: extracted.confirmationCode,
-                  totalCost: null, currency: extracted.currency, guestNames: extracted.guestNames,
-                }),
-              },
-            });
-            console.log("[email-inbound] created return vault doc for trip:", resolvedTripId);
-          }
-        }
-      }
-
-      // Legs-based return leg — only when legs array has a non-home→home segment
-      // AND the simple returnDepartureDate path hasn't already handled it.
-      // For HND→SIN→CMB→LHR: returnLeg = CMB→LHR (first leg where from=non-home, to=home).
-      if (legs.length > 1 && !extracted.returnDepartureDate) {
-        const returnLeg = legs.find((l) => !HOME.has(l.from) && HOME.has(l.to)) ?? null;
-        if (returnLeg) {
-          const [retDate, retTime] = (returnLeg.departure ?? "").split("T");
-          const retDayIndex = retDate ? await getDayIndex(resolvedTripId, retDate) : null;
-          const retTitle = `${returnLeg.from} → ${returnLeg.to}`;
-          const retConf = (extracted.confirmationCode as string | null) ?? null;
-
-          const existingRetLeg = retConf && retDate ? await db.itineraryItem.findFirst({
-            where: { tripId: resolvedTripId, confirmationCode: retConf, type: "FLIGHT", scheduledDate: retDate },
-          }) : null;
-
-          const retItem = existingRetLeg
-            ? await db.itineraryItem.update({
-                where: { id: existingRetLeg.id },
-                data: { title: retTitle, departureTime: retTime ?? null, dayIndex: retDayIndex },
-              })
-            : await db.itineraryItem.create({
-                data: {
-                  tripId: resolvedTripId,
-                  familyProfileId: familyProfile.id,
-                  type: "FLIGHT",
-                  title: retTitle,
-                  scheduledDate: retDate || null,
-                  departureTime: retTime ?? null,
-                  arrivalTime: (extracted.arrivalTime as string | null) ?? null,
-                  fromAirport: returnLeg.from,
-                  toAirport: returnLeg.to,
-                  fromCity: returnLeg.fromCity ?? returnLeg.from,
-                  toCity: returnLeg.toCity ?? returnLeg.to,
-                  confirmationCode: retConf,
-                  passengers,
-                  dayIndex: retDayIndex,
-                },
-              });
-
-          // Geocode return arrival (home airport)
-          const retArrivalIATA = returnLeg.to;
-          const retArrivalCity = returnLeg.toCity ?? null;
-          if (retArrivalIATA || retArrivalCity) {
-            const retGeoQuery = retArrivalIATA && retArrivalCity
-              ? `${retArrivalIATA} airport ${retArrivalCity}`
-              : retArrivalIATA ? `${retArrivalIATA} airport` : `${retArrivalCity} international airport`;
-            const retGeo = await geocodePlace(retGeoQuery);
-            if (retGeo) await db.itineraryItem.update({ where: { id: retItem.id }, data: { latitude: retGeo.lat, longitude: retGeo.lng, arrivalLat: retGeo.lat, arrivalLng: retGeo.lng } });
-          }
-          console.log(`[email-inbound] created return leg ItineraryItem: ${retItem.id} ${retTitle}`);
-
-          // Vault doc for return leg
-          if (resolvedTripId) {
-            const existingRetLegDoc = await db.tripDocument.findFirst({ where: { tripId: resolvedTripId, label: retTitle } });
-            if (existingRetLegDoc) {
-              console.log("[vault] Skipping duplicate tripDocument:", retTitle);
-            } else {
-              await db.tripDocument.create({
-                data: {
-                  tripId: resolvedTripId,
-                  label: retTitle,
-                  type: "booking",
-                  content: JSON.stringify({
-                    type: "flight", vendorName: extracted.airline, airline: extracted.airline,
-                    fromAirport: returnLeg.from, toAirport: returnLeg.to,
-                    fromCity: returnLeg.fromCity ?? returnLeg.from, toCity: returnLeg.toCity ?? returnLeg.to,
-                    departureDate: retDate || null, departureTime: retTime ?? null,
-                    confirmationCode: extracted.confirmationCode,
-                    totalCost: null, currency: extracted.currency, guestNames: extracted.guestNames,
-                  }),
-                },
-              });
-            }
-          }
+          console.log("[email-inbound] created vault doc for trip:", resolvedTripId);
         }
       }
 
