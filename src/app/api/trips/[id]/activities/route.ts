@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { classifyActivityType } from "@/lib/activity-intelligence";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
+import { normalizeCategorySlug } from "@/lib/categories";
 
 // Returns the city the traveler is in on a given date by looking at the most recent
 // LODGING check-in on or before that day. Falls back to trip destinationCity.
@@ -68,6 +69,7 @@ export async function POST(
     confirmationCode,
     lat: clientLat,
     lng: clientLng,
+    type: clientType,
   } = body;
 
   if (!title || !date) {
@@ -113,6 +115,8 @@ export async function POST(
     } catch { /* geocoding optional */ }
   }
 
+  const resolvedType = normalizeCategorySlug(clientType) ?? null;
+
   const activity = await db.manualActivity.create({
     data: {
       tripId,
@@ -131,6 +135,7 @@ export async function POST(
       status: status ?? "interested",
       confirmationCode: confirmationCode ?? null,
       dayIndex,
+      ...(resolvedType && { type: resolvedType }),
     },
   });
 
@@ -148,12 +153,14 @@ export async function POST(
     }
   }
 
-  // Classify activity type (fire-and-forget)
-  classifyActivityType(activity.title, activity.venueName, activity.address)
-    .then((type) => {
-      db.manualActivity.update({ where: { id: activity.id }, data: { type } }).catch(() => {});
-    })
-    .catch(() => {});
+  // Classify activity type (fire-and-forget) — skip if user explicitly selected a category
+  if (!resolvedType) {
+    classifyActivityType(activity.title, activity.venueName, activity.address)
+      .then((type) => {
+        db.manualActivity.update({ where: { id: activity.id }, data: { type } }).catch(() => {});
+      })
+      .catch(() => {});
+  }
 
   // Increment budgetSpent only if activity currency matches trip's budgetCurrency
   if (price) {

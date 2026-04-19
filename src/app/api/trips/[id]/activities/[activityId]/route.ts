@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { normalizeCategorySlug } from "@/lib/categories";
 
 async function getCityForDay(tripId: string, dayDate: string): Promise<string> {
   const lodging = await db.itineraryItem.findFirst({
@@ -59,6 +60,7 @@ export async function PATCH(
     notes,
     status,
     confirmationCode,
+    type: clientType,
   } = body;
 
   // Geocode if venueName or address is being set and current coords are null
@@ -102,6 +104,7 @@ export async function PATCH(
       ...(notes !== undefined && { notes: notes ?? null }),
       ...(status !== undefined && { status }),
       ...(confirmationCode !== undefined && { confirmationCode: confirmationCode ?? null }),
+      ...(clientType !== undefined && { type: normalizeCategorySlug(clientType) ?? clientType }),
       ...(body.sortOrder !== undefined && { sortOrder: body.sortOrder }),
     },
   });

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { CATEGORIES } from "@/lib/categories";
 
 type ActivityStatus = "interested" | "confirmed" | "booked";
 
@@ -103,13 +104,14 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
   const [lng, setLng] = useState<number | null>(existingActivity?.lng ?? null);
   const [addressFromPlaces, setAddressFromPlaces] = useState(false);
   const addressEditedRef = useRef(false);
+  const [category, setCategory] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [suggestion, setSuggestion] = useState<PlacesSuggestion | null>(null);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const canSave = title.trim() !== "" && (isSavedItem || date !== "");
+  const canSave = title.trim() !== "" && (isSavedItem || date !== "") && (isEditing || isSavedItem || !!category);
 
   async function handleSave() {
     if (!canSave) {
@@ -153,6 +155,7 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
         confirmationCode: confirmationCode.trim() || null,
         lat: lat ?? null,
         lng: lng ?? null,
+        type: category || undefined,
       };
 
       const url = isEditing
@@ -346,6 +349,37 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
               </div>
             )}
           </div>
+
+          {/* Category pills — new activities only */}
+          {!isSavedItem && (
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6, display: "block" }}>
+                Category *
+              </label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {CATEGORIES.map((c) => (
+                  <button
+                    key={c.slug}
+                    type="button"
+                    onClick={() => setCategory(c.slug)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 999,
+                      border: category === c.slug ? "1px solid #C4664A" : "1px solid #E5E7EB",
+                      background: category === c.slug ? "#C4664A" : "white",
+                      color: category === c.slug ? "white" : "#1B3A5C",
+                      fontSize: 12,
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Date + Start time */}
           <div style={{ display: "grid", gridTemplateColumns: (existingActivity?.date || defaultDate) ? "1fr" : "1fr 1fr", gap: "10px" }}>

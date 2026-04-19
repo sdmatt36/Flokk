@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
 import { getItemImage } from "@/lib/destination-images";
-import { CATEGORIES } from "@/lib/categories";
+import { CATEGORIES, categoryLabel } from "@/lib/categories";
 import {
   Search,
   MapPin,
@@ -396,7 +396,7 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
           }}
         >
           <span style={{ fontSize: "13px", color: "#94a3b8" }}>
-            {save.tags[0] ?? "Saved place"}
+            {categoryLabel(filteredTags[0]) || "Saved place"}
           </span>
         </div>
       )}
@@ -1059,8 +1059,6 @@ export function SavesScreen() {
     setManualCityShowDropdown(false);
   }
 
-  const unorganizedCount = saves.filter((s) => s.assigned === null).length;
-
   const handlePlaceSearch = (query: string) => {
     if (placeSearchTimeout.current) clearTimeout(placeSearchTimeout.current);
     if (query.length < 3) { setPlaceResults([]); return; }
@@ -1241,7 +1239,7 @@ export function SavesScreen() {
       s.location.toLowerCase().includes(searchLower) ||
       (s.assigned?.toLowerCase().includes(searchLower) ?? false);
     const matchesCategory =
-      activeFilter === "All" || activeFilter === "Unorganized"
+      activeFilter === "All"
         ? true
         : s.tags.some(t => t === activeFilter);
     const matchesDietary =
@@ -1250,8 +1248,7 @@ export function SavesScreen() {
         : dietaryFilter === "Vegan"
         ? s.tags.includes("VGN")
         : true;
-    const matchesUnorganized = activeFilter === "Unorganized" ? s.assigned === null : true;
-    return matchesSearch && matchesCategory && matchesDietary && matchesUnorganized;
+    return matchesSearch && matchesCategory && matchesDietary;
   };
 
   const filteredSaves = cityFiltered.filter(matchesFilter);
@@ -1322,23 +1319,12 @@ Your saved places, all in one spot
 
         {/* FILTER STRIP */}
         <div style={{ display: "flex", overflowX: "auto", gap: "8px", marginBottom: "24px", paddingBottom: "4px", scrollbarWidth: "none" }}>
-          {(["All", "Unorganized"] as const).map((pill) => {
-            const isActive = activeFilter === pill;
-            return (
-              <button
-                key={pill}
-                onClick={(e) => { e.stopPropagation(); setActiveFilter(pill); }}
-                style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: "5px", padding: "7px 16px", borderRadius: "999px", fontSize: "13px", fontWeight: isActive ? 600 : 400, color: isActive ? "#fff" : "#717171", backgroundColor: isActive ? "#C4664A" : "#fff", border: isActive ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease" }}
-              >
-                {pill}
-                {pill === "Unorganized" && unorganizedCount > 0 && (
-                  <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: "18px", height: "18px", borderRadius: "999px", backgroundColor: isActive ? "rgba(255,255,255,0.3)" : "#C4664A", color: "#fff", fontSize: "10px", fontWeight: 700, padding: "0 4px" }}>
-                    {unorganizedCount}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+          <button
+            onClick={(e) => { e.stopPropagation(); setActiveFilter("All"); }}
+            style={{ flexShrink: 0, padding: "7px 16px", borderRadius: "999px", fontSize: "13px", fontWeight: activeFilter === "All" ? 600 : 400, color: activeFilter === "All" ? "#fff" : "#717171", backgroundColor: activeFilter === "All" ? "#C4664A" : "#fff", border: activeFilter === "All" ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease" }}
+          >
+            All
+          </button>
           {CATEGORIES.map(({ slug, label }) => {
             const isActive = activeFilter === slug;
             return (
