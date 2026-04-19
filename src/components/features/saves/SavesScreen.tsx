@@ -107,9 +107,10 @@ type SaveCardProps = {
   onIdentifyPlace?: (id: string) => void;
   onRateClick?: (id: string, title: string) => void;
   ratedItemId?: string | null;
+  onAssignCity?: (id: string) => void;
 };
 
-function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId }: SaveCardProps) {
+function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId, onAssignCity }: SaveCardProps) {
   const filteredTags = save.tags.filter(t => {
     if (t.toLowerCase() === "other" && save.tags.some(t2 =>
       !["other", "vg", "vgn"].includes(t2.toLowerCase()) && t2.toLowerCase() !== t.toLowerCase()
@@ -314,9 +315,13 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
         {/* Assignment row */}
         <div style={{ position: "relative" }}>
           {save.tripId ? (
-            <span style={{ display: "inline-block", fontSize: "11px", fontWeight: 600, color: "#fff", backgroundColor: "#C4664A", borderRadius: "999px", padding: "2px 8px" }}>
+            <a
+              href={`/trips/${save.tripId}`}
+              onClick={(e) => e.stopPropagation()}
+              style={{ display: "inline-block", fontSize: "11px", fontWeight: 600, color: "#fff", backgroundColor: "#C4664A", borderRadius: "999px", padding: "2px 8px", textDecoration: "none" }}
+            >
               {save.assigned ?? "Trip assigned"}
-            </span>
+            </a>
           ) : (
             <button
               onClick={(e) => {
@@ -437,6 +442,18 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
             )}
           </div>
         )}
+
+        {/* Assign location */}
+        {onAssignCity && (
+          <div style={{ marginTop: "8px" }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); onAssignCity(save.id); }}
+              style={{ background: "none", border: "1px solid #d1d5db", borderRadius: "999px", padding: "3px 10px", fontSize: "11px", color: "#717171", cursor: "pointer", fontFamily: "Inter, sans-serif" }}
+            >
+              Assign location
+            </button>
+          </div>
+        )}
       </div>
     </div>
     </div>
@@ -471,7 +488,7 @@ function SectionHeader({ icon, title, badge, count, action }: {
 
 // ─── CardGrid ─────────────────────────────────────────────────────────────────
 
-function CardGrid({ cards, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId }: {
+function CardGrid({ cards, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId, onAssignCity }: {
   cards: Save[];
   openDropdown: string | null;
   setOpenDropdown: (id: string | null) => void;
@@ -483,12 +500,106 @@ function CardGrid({ cards, openDropdown, setOpenDropdown, assignTrip, onTripClic
   onIdentifyPlace?: (id: string) => void;
   onRateClick?: (id: string, title: string) => void;
   ratedItemId?: string | null;
+  onAssignCity?: (id: string) => void;
 }) {
   return (
     <div className="grid grid-cols-3 lg:grid-cols-3 md:grid-cols-2 sm:grid-cols-1" style={{ gap: "16px" }}>
       {cards.map((save) => (
-        <SaveCard key={save.id} save={save} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={onTripClick} onCardClick={onCardClick} availableTrips={availableTrips} onDeleted={onDeleted} onIdentifyPlace={onIdentifyPlace} onRateClick={onRateClick} ratedItemId={ratedItemId} />
+        <SaveCard key={save.id} save={save} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={onTripClick} onCardClick={onCardClick} availableTrips={availableTrips} onDeleted={onDeleted} onIdentifyPlace={onIdentifyPlace} onRateClick={onRateClick} ratedItemId={ratedItemId} onAssignCity={onAssignCity} />
       ))}
+    </div>
+  );
+}
+
+// ─── Grouping ─────────────────────────────────────────────────────────────────
+
+function sortCardsAlphabetical(a: Save, b: Save): number {
+  const titleA = (a.title ?? "").trim();
+  const titleB = (b.title ?? "").trim();
+  if (titleA && titleB) return titleA.localeCompare(titleB);
+  if (titleA) return -1;
+  if (titleB) return 1;
+  return 0;
+}
+
+interface SavesGrouping {
+  unassigned: Save[];
+  cityGroups: Array<{ city: string; saves: Save[] }>;
+  otherPlaces: Save[];
+  totalCount: number;
+}
+
+function groupSaves(saves: Save[]): SavesGrouping {
+  const unassigned: Save[] = [];
+  const cityMap = new Map<string, Save[]>();
+
+  for (const save of saves) {
+    const city = save.destinationCity?.trim();
+    if (!city) {
+      unassigned.push(save);
+      continue;
+    }
+    const existing = cityMap.get(city) ?? [];
+    existing.push(save);
+    cityMap.set(city, existing);
+  }
+
+  const cityGroups: Array<{ city: string; saves: Save[] }> = [];
+  const otherPlaces: Save[] = [];
+
+  for (const [city, citySaves] of cityMap.entries()) {
+    if (citySaves.length >= 3) {
+      cityGroups.push({ city, saves: citySaves });
+    } else {
+      otherPlaces.push(...citySaves);
+    }
+  }
+
+  cityGroups.sort((a, b) => {
+    if (b.saves.length !== a.saves.length) return b.saves.length - a.saves.length;
+    return a.city.localeCompare(b.city);
+  });
+
+  for (const group of cityGroups) {
+    group.saves.sort(sortCardsAlphabetical);
+  }
+
+  unassigned.sort(sortCardsAlphabetical);
+  otherPlaces.sort(sortCardsAlphabetical);
+
+  return { unassigned, cityGroups, otherPlaces, totalCount: saves.length };
+}
+
+// ─── OtherPlacesSection ───────────────────────────────────────────────────────
+
+function OtherPlacesSection({ saves, openDropdown, setOpenDropdown, assignTrip, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId }: {
+  saves: Save[];
+  openDropdown: string | null;
+  setOpenDropdown: (id: string | null) => void;
+  assignTrip: (id: string, trip: string) => void;
+  onCardClick: (id: string) => void;
+  availableTrips: { id: string; title: string; endDate?: string | null }[];
+  onDeleted?: (id: string) => void;
+  onIdentifyPlace?: (id: string) => void;
+  onRateClick?: (id: string, title: string) => void;
+  ratedItemId?: string | null;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div style={{ marginBottom: "32px" }}>
+      <div
+        onClick={() => setExpanded(e => !e)}
+        style={{ cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: "12px", borderBottom: "1px solid rgba(0,0,0,0.06)", marginBottom: expanded ? "12px" : 0 }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>Other places</span>
+          <span style={{ fontSize: "12px", color: "#717171" }}>{saves.length} {saves.length === 1 ? "save" : "saves"}</span>
+        </div>
+        <span style={{ fontSize: "14px", color: "#717171", display: "inline-block", transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>▾</span>
+      </div>
+      {expanded && (
+        <CardGrid cards={saves} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={() => {}} onCardClick={onCardClick} availableTrips={availableTrips} onDeleted={onDeleted} onIdentifyPlace={onIdentifyPlace} onRateClick={onRateClick} ratedItemId={ratedItemId} />
+      )}
     </div>
   );
 }
@@ -535,6 +646,7 @@ export function SavesScreen() {
   const [ratingNotes, setRatingNotes] = useState("");
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [ratedItemId, setRatedItemId] = useState<string | null>(null);
+  const [assignCityItemId, setAssignCityItemId] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -655,6 +767,32 @@ export function SavesScreen() {
     setSaves((prev) => prev.filter((s) => s.id !== deletedId));
   };
 
+  const handleAssignCity = async (cityName: string, countryName: string) => {
+    if (!assignCityItemId) return;
+    const id = assignCityItemId;
+    try {
+      const res = await fetch(`/api/saves/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ destinationCity: cityName, destinationCountry: countryName || null }),
+      });
+      if (res.ok) {
+        setSaves(prev => prev.map(s =>
+          s.id === id
+            ? { ...s, destinationCity: cityName, destinationCountry: countryName || null, location: [cityName, countryName].filter(Boolean).join(", ") }
+            : s
+        ));
+        setAssignCityItemId(null);
+        setManualCityQuery("");
+        setManualCity("");
+        setManualCountry("");
+        setManualCitySuggestions([]);
+        setSavedToast("Location assigned");
+        setTimeout(() => setSavedToast(null), 3000);
+      }
+    } catch { /* silent */ }
+  };
+
   const handleManualSave = async () => {
     if (!manualName.trim()) return;
     setManualSubmitting(true);
@@ -752,46 +890,13 @@ export function SavesScreen() {
         : dietaryFilter === "Vegan"
         ? s.tags.includes("VGN")
         : true;
-    return matchesSearch && matchesCategory && matchesDietary;
+    const matchesUnorganized = activeFilter === "Unorganized" ? s.assigned === null : true;
+    return matchesSearch && matchesCategory && matchesDietary && matchesUnorganized;
   };
 
-  // Trip section: hidden when "Unorganized" filter active
-  const tripCards = activeFilter === "Unorganized"
-    ? []
-    : cityFiltered.filter((s) => s.assigned !== null && matchesFilter(s)).sort((a, b) => a.title.localeCompare(b.title));
-
-  // Group assigned cards by trip name
-  const tripGroups = tripCards.reduce<Record<string, Save[]>>((acc, s) => {
-    const key = s.assigned!;
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(s);
-    return acc;
-  }, {});
-
-  // Unassigned saves split into: city-grouped (has destinationCity) and orphans (no city)
-  const allUnassigned = cityFiltered.filter((s) => s.assigned === null && matchesFilter(s));
-
-  // City sections: unassigned saves with a known city, grouped by city, sorted alphabetically by city
-  const cityGroups = allUnassigned
-    .filter(s => s.destinationCity !== null)
-    .reduce<Record<string, Save[]>>((acc, s) => {
-      const key = s.destinationCity!;
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(s);
-      return acc;
-    }, {});
-  // Within each city, sort by savedAt DESC (most recent first)
-  Object.values(cityGroups).forEach(arr => arr.sort((a, b) => b.id.localeCompare(a.id)));
-  const sortedCityEntries = Object.entries(cityGroups).sort(([a], [b]) => a.localeCompare(b));
-
-  // Orphan section: unassigned saves with no city at all
-  const orphanCards = allUnassigned.filter(s => s.destinationCity === null);
-
-  const tripGroupEntries = Object.entries(tripGroups);
-  const hasNoResults = tripGroupEntries.length === 0 && sortedCityEntries.length === 0 && orphanCards.length === 0;
-
-  // Flag emoji per destination (expandable)
-  const TRIP_FLAGS: Record<string, string> = {};
+  const filteredSaves = cityFiltered.filter(matchesFilter);
+  const grouping = groupSaves(filteredSaves);
+  const hasNoResults = grouping.unassigned.length === 0 && grouping.cityGroups.length === 0 && grouping.otherPlaces.length === 0;
 
   return (
     <div
@@ -947,44 +1052,29 @@ Your saved places, all in one spot
           </div>
         )}
 
-        {/* SECTION 1: Trip-grouped saves */}
-        {tripGroupEntries.map(([tripName, cards]) => {
-          const matchedTrip = availableTrips.find((t) => t.title === tripName);
-          const handleViewTrip = () => { if (matchedTrip) router.push(`/trips/${matchedTrip.id}`); };
-          return (
-            <div key={tripName} style={{ marginBottom: "32px" }}>
-              <SectionHeader
-                title={tripName}
-                badge={TRIP_FLAGS[tripName]}
-                count={cards.length}
-                action={matchedTrip ? { label: "View trip →", onClick: handleViewTrip } : undefined}
-              />
-              <CardGrid cards={cards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={handleViewTrip} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} onIdentifyPlace={setIdentifyingItem} onRateClick={(id, title) => { setRatingModal({ id, title }); setRatingValue(0); setRatingNotes(""); }} ratedItemId={ratedItemId} />
-            </div>
-          );
-        })}
-
-        {/* SECTION 2: City-grouped unassigned saves */}
-        {sortedCityEntries.map(([cityName, cards]) => (
-          <div key={cityName} style={{ marginBottom: "32px" }}>
+        {/* SECTION: Unassigned — no city */}
+        {grouping.unassigned.length > 0 && (
+          <div style={{ marginBottom: "32px" }}>
             <SectionHeader
-              title={cityName}
-              count={cards.length}
+              icon={<Bookmark size={16} style={{ color: "#C4664A" }} />}
+              title="Unassigned"
+              count={grouping.unassigned.length}
             />
-            <CardGrid cards={cards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={() => {}} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} onIdentifyPlace={setIdentifyingItem} onRateClick={(id, title) => { setRatingModal({ id, title }); setRatingValue(0); setRatingNotes(""); }} ratedItemId={ratedItemId} />
+            <CardGrid cards={grouping.unassigned} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={() => {}} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} onIdentifyPlace={setIdentifyingItem} onRateClick={(id, title) => { setRatingModal({ id, title }); setRatingValue(0); setRatingNotes(""); }} ratedItemId={ratedItemId} onAssignCity={(id) => { setAssignCityItemId(id); setManualCityQuery(""); setManualCity(""); setManualCountry(""); setManualCitySuggestions([]); setManualCityShowDropdown(false); }} />
+          </div>
+        )}
+
+        {/* SECTIONS: City groups — sorted by save count desc */}
+        {grouping.cityGroups.map(({ city, saves: citySaves }) => (
+          <div key={city} style={{ marginBottom: "32px" }}>
+            <SectionHeader title={city} count={citySaves.length} />
+            <CardGrid cards={citySaves} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={() => {}} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} onIdentifyPlace={setIdentifyingItem} onRateClick={(id, title) => { setRatingModal({ id, title }); setRatingValue(0); setRatingNotes(""); }} ratedItemId={ratedItemId} />
           </div>
         ))}
 
-        {/* SECTION 3: Orphan saves — no city */}
-        {orphanCards.length > 0 && (
-          <div>
-            <SectionHeader
-              icon={<Bookmark size={16} style={{ color: "#C4664A" }} />}
-              title="Not yet assigned"
-              count={orphanCards.length}
-            />
-            <CardGrid cards={orphanCards} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={(name) => { const t = availableTrips.find((tr) => tr.title === name); if (t) router.push(`/trips/${t.id}`); }} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} onIdentifyPlace={setIdentifyingItem} onRateClick={(id, title) => { setRatingModal({ id, title }); setRatingValue(0); setRatingNotes(""); }} ratedItemId={ratedItemId} />
-          </div>
+        {/* SECTION: Other places — cities with <3 saves, collapsed */}
+        {grouping.otherPlaces.length > 0 && (
+          <OtherPlacesSection saves={grouping.otherPlaces} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onCardClick={(id) => setModalItemId(id)} availableTrips={availableTrips} onDeleted={handleItemDeleted} onIdentifyPlace={setIdentifyingItem} onRateClick={(id, title) => { setRatingModal({ id, title }); setRatingValue(0); setRatingNotes(""); }} ratedItemId={ratedItemId} />
         )}
 
       </div>
@@ -1340,6 +1430,66 @@ Your saved places, all in one spot
                 style={{ flex: 1, padding: "12px 0", borderRadius: 8, border: "none", backgroundColor: manualName.trim() ? "#C4664A" : "#E8E8E8", color: manualName.trim() ? "#fff" : "#aaa", fontSize: 14, fontWeight: 600, cursor: manualName.trim() ? "pointer" : "default", fontFamily: "Inter, sans-serif" }}
               >
                 {manualSubmitting ? "Saving..." : "Save Activity"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign city modal */}
+      {assignCityItemId && (
+        <div
+          onClick={() => { setAssignCityItemId(null); setManualCityQuery(""); setManualCitySuggestions([]); }}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: "#fff", borderRadius: "20px", width: "100%", maxWidth: "360px", padding: "24px", boxShadow: "0 8px 40px rgba(0,0,0,0.18)", display: "flex", flexDirection: "column", gap: "16px" }}
+          >
+            <h3 style={{ fontSize: "17px", fontWeight: 800, color: "#1B3A5C", margin: 0, fontFamily: '"Playfair Display", Georgia, serif', lineHeight: 1.2 }}>
+              Assign a location
+            </h3>
+            <div style={{ position: "relative" }}>
+              <input
+                type="text"
+                value={manualCityQuery}
+                onChange={(e) => { setManualCityQuery(e.target.value); setManualCity(e.target.value); setManualCountry(""); }}
+                placeholder="e.g. Tokyo"
+                autoFocus
+                style={{ display: "block", width: "100%", border: "1.5px solid #e5e7eb", borderRadius: "10px", padding: "10px 12px", fontSize: "14px", color: "#1a1a1a", outline: "none", boxSizing: "border-box", fontFamily: "inherit" }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = "#C4664A"; }}
+                onBlur={(e) => { e.currentTarget.style.borderColor = "#e5e7eb"; }}
+              />
+              {manualCityShowDropdown && manualCitySuggestions.length > 0 && (
+                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 100, background: "#fff", border: "1px solid #E8E8E8", borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.1)", overflow: "hidden", marginTop: 4 }}>
+                  {manualCitySuggestions.map((s) => (
+                    <div
+                      key={s.placeId}
+                      onMouseDown={() => selectManualCity(s.cityName, s.countryName, s.region ?? "")}
+                      style={{ padding: "10px 12px", fontSize: 14, color: "#0A1628", cursor: "pointer", borderBottom: "1px solid #F5F5F5", fontFamily: "Inter, sans-serif" }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#F9F5F3"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#fff"; }}
+                    >
+                      <span style={{ fontWeight: 600 }}>{s.cityName}</span>
+                      {s.countryName && <span style={{ color: "#717171", marginLeft: 6 }}>{s.countryName}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={() => { setAssignCityItemId(null); setManualCityQuery(""); setManualCitySuggestions([]); }}
+                style={{ flex: 1, padding: "10px 0", borderRadius: "8px", border: "1px solid #E8E8E8", backgroundColor: "#fff", color: "#717171", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!manualCity.trim()}
+                onClick={() => handleAssignCity(manualCity.trim(), manualCountry)}
+                style={{ flex: 1, padding: "10px 0", borderRadius: "8px", border: "none", backgroundColor: manualCity.trim() ? "#C4664A" : "#E8E8E8", color: manualCity.trim() ? "#fff" : "#aaa", fontSize: "14px", fontWeight: 600, cursor: manualCity.trim() ? "pointer" : "default", fontFamily: "inherit" }}
+              >
+                Assign
               </button>
             </div>
           </div>
