@@ -1298,9 +1298,29 @@ export function SavesScreen() {
   };
 
   const doAssignToTrip = async (saveId: string, tripId: string, tripName: string) => {
+    const save = saves.find(s => s.id === saveId);
+    const destinationCity = save?.destinationCity ?? null;
+    const trip = availableTrips.find(t => t.id === tripId);
+    const existingCities = trip?.cities ?? [];
+    const cityNotInTrip = destinationCity && !existingCities.map(c => c.toLowerCase()).includes(destinationCity.toLowerCase());
+
     setSaves(prev => prev.map(s => s.id === saveId ? { ...s, tripId, assigned: tripName } : s));
+    if (cityNotInTrip) {
+      setAvailableTrips(prev => prev.map(t => t.id === tripId ? { ...t, cities: [...existingCities, destinationCity!] } : t));
+    }
     setAddToTripModal(null);
     try {
+      if (cityNotInTrip) {
+        try {
+          await fetch(`/api/trips/${tripId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cities: [...existingCities, destinationCity!] }),
+          });
+        } catch (e) {
+          console.error("[doAssignToTrip] city-grow failed:", e);
+        }
+      }
       await fetch(`/api/saves/${saveId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
