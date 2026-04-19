@@ -819,6 +819,7 @@ model ItineraryItem {
   sourceType        String   @default("EMAIL_IMPORT")
   sortOrder         Int      @default(0)
   needsVerification Boolean  @default(false)
+  rooms             Json?
   createdAt         DateTime @default(now())
 }
 

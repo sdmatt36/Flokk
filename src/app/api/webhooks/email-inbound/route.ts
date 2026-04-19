@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { Resend } from "resend";
 import { db } from "@/lib/db";
+import { Prisma } from "@prisma/client";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
 import { nanoid } from "nanoid";
@@ -488,6 +489,7 @@ Return this exact JSON structure:
   "contactPhone": "string or null",
   "contactEmail": "string or null",
   "guestNames": ["string"] or [],
+  "rooms": [{ "confirmationCode": "string", "guests": ["string"], "cost": number }] or null,
   "legs": [{ "from": "IATA", "to": "IATA", "fromCity": "string", "toCity": "string", "departure": "YYYY-MM-DDTHH:MM", "arrival": "YYYY-MM-DDTHH:MM" }] or [],
   "outboundDestination": "string or null — the furthest non-home city in the itinerary (the actual trip destination, not the return airport)",
   "outboundDestinationAirport": "IATA code or null — airport code for outboundDestination",
@@ -496,6 +498,7 @@ Return this exact JSON structure:
 
 Field notes:
 - guestNames: Extract ALL passenger/guest/traveler names as an array. For activity/tour bookings (GetYourGuide, Viator, Klook), look under "Travelers", "Guests", "Participants" sections and include every name listed. For flights, include all passenger names on the booking, not just the primary contact. For hotels, include all guests listed. Return [] only if no names are found anywhere in the email.
+- rooms: For HOTEL bookings ONLY. If the confirmation email contains MULTIPLE rooms with distinct confirmation numbers (common when families book 2+ rooms at the same property for the same dates), return each room as a separate object in this array. Each room object has: confirmationCode (the room-specific code), guests (the guest names on that room), cost (the price for that room in the booking currency). If the booking is a single room, return null — NOT an empty array. If the top-level confirmationCode matches one of the rooms (or the email only contains one room), treat that as a single-room booking and return rooms: null. Example: a Strawberry Hotels email with booking numbers 28686792 (2 adults, 13576 NOK), 28687367 (1 adult + 1 child, 13828 NOK), 28688208 (1 adult + 1 child, 13828 NOK) — return rooms as a 3-element array. Top-level confirmationCode should be the FIRST room's code (28686792), totalCost should be the sum (41232), guestNames should be the union of all room guests.
 - legs: For flights ONLY. Extract EVERY individual flight segment as a separate leg object, INCLUDING intermediate stops like layovers or stopovers. A Tokyo→Singapore→Colombo itinerary has 2 legs: TYO→SIN and SIN→CMB. A Seattle→Keflavík→Bergen itinerary has 2 legs: SEA→KEF and KEF→BGO. NEVER consolidate segments — if the email mentions a ticketed segment, it MUST appear in legs. Always populate this array for flights even if only one segment. Include arrival datetime per leg when visible in the email.
 - outboundDestination / outboundDestinationAirport: For round-trip flights that depart from and return to a home airport (NRT, HND, LHR, LGW), identify the furthest destination city/airport — NOT the return airport. Example: NRT→SIN→CMB→LHR→NRT has outboundDestination="Colombo" and outboundDestinationAirport="CMB". For one-way or simple round trips, this is just toCity/toAirport.
 - fromAirport/toAirport/fromCity/toCity: Keep these for backward compatibility. fromAirport = first leg departure, toAirport = outboundDestinationAirport (NOT the return leg airport), fromCity = first leg departure city, toCity = outboundDestination city.`,
@@ -1127,15 +1130,29 @@ Field notes:
 
       const checkInDayIndex = checkInDate ? await getDayIndex(resolvedTripId, checkInDate) : null;
 
-      // FIX 1: Check-in ItineraryItem — upsert by confirmationCode + title prefix
+      // Multi-room support: rooms[] present → use it; otherwise null (single room)
+      const extractedRooms = Array.isArray(extracted.rooms) && (extracted.rooms as unknown[]).length > 0
+        ? extracted.rooms as Array<{ confirmationCode: string; guests: string[]; cost?: number }>
+        : null;
+
+      // Derive total cost: prefer Claude's extracted value; fall back to summing rooms[].cost
+      let derivedTotalCost = parsedCost;
+      if (!derivedTotalCost && extractedRooms) {
+        const roomSum = extractedRooms
+          .map((r) => typeof r.cost === "number" ? r.cost : 0)
+          .reduce((a, b) => a + b, 0);
+        if (roomSum > 0) derivedTotalCost = roomSum;
+      }
+
+      // Check-in ItineraryItem — upsert by confirmationCode + title prefix
       const hotelConf = (extracted.confirmationCode as string | null) ?? null;
       const existingCheckIn = hotelConf ? await db.itineraryItem.findFirst({
         where: { tripId: resolvedTripId, confirmationCode: hotelConf, type: "LODGING", title: { startsWith: "Check-in:" } },
       }) : null;
       const checkInItem = existingCheckIn
-        ? await db.itineraryItem.update({ where: { id: existingCheckIn.id }, data: { title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex: checkInDayIndex } })
+        ? await db.itineraryItem.update({ where: { id: existingCheckIn.id }, data: { title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, address: (extracted.address as string | null) ?? null, totalCost: derivedTotalCost, currency: detectedCurrency, passengers, dayIndex: checkInDayIndex, rooms: extractedRooms ?? Prisma.JsonNull } })
         : await db.itineraryItem.create({
-            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: "LODGING", title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, confirmationCode: hotelConf, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, notes: null, passengers, dayIndex: checkInDayIndex },
+            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: "LODGING", title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, confirmationCode: hotelConf, address: (extracted.address as string | null) ?? null, totalCost: derivedTotalCost, currency: detectedCurrency, notes: null, passengers, dayIndex: checkInDayIndex, rooms: extractedRooms ?? Prisma.JsonNull },
           });
       // Geocode hotel by name + city
       const hotelCity = (extracted.city as string | null) ?? (extracted.toCity as string | null) ?? "";
@@ -1143,16 +1160,16 @@ Field notes:
       if (hotelGeo) {
         await db.itineraryItem.update({ where: { id: checkInItem.id }, data: { latitude: hotelGeo.lat, longitude: hotelGeo.lng } });
       }
-      console.log("[email-inbound] created hotel check-in ItineraryItem:", checkInItem.id, "dayIndex:", checkInDayIndex);
+      console.log("[email-inbound] created hotel check-in ItineraryItem:", checkInItem.id, "dayIndex:", checkInDayIndex, "rooms:", extractedRooms ? extractedRooms.length : null);
 
-      // FIX 1: Check-out ItineraryItem — upsert by confirmationCode + title prefix
+      // Check-out ItineraryItem — upsert by confirmationCode + title prefix
       if (checkOutDate) {
         const checkOutDayIndex = await getDayIndex(resolvedTripId, checkOutDate);
         const existingCheckOut = hotelConf ? await db.itineraryItem.findFirst({
           where: { tripId: resolvedTripId, confirmationCode: hotelConf, type: "LODGING", title: { startsWith: "Check-out:" } },
         }) : null;
         const checkOutItem = existingCheckOut
-          ? await db.itineraryItem.update({ where: { id: existingCheckOut.id }, data: { title: `Check-out: ${hotelName}`, scheduledDate: checkOutDate, departureTime: "11:00", address: (extracted.address as string | null) ?? null, passengers, dayIndex: checkOutDayIndex } })
+          ? await db.itineraryItem.update({ where: { id: existingCheckOut.id }, data: { title: `Check-out: ${hotelName}`, scheduledDate: checkOutDate, departureTime: "11:00", address: (extracted.address as string | null) ?? null, passengers, dayIndex: checkOutDayIndex, rooms: extractedRooms ?? Prisma.JsonNull } })
           : await db.itineraryItem.create({
           data: {
             tripId: resolvedTripId,
@@ -1163,11 +1180,12 @@ Field notes:
             departureTime: "11:00",
             confirmationCode: hotelConf,
             address: (extracted.address as string | null) ?? null,
-            totalCost: parsedCost,
+            totalCost: derivedTotalCost,
             currency: detectedCurrency,
             notes: null,
             passengers,
             dayIndex: checkOutDayIndex,
+            rooms: extractedRooms ?? Prisma.JsonNull,
           },
         });
         if (hotelGeo) await db.itineraryItem.update({ where: { id: checkOutItem.id }, data: { latitude: hotelGeo.lat, longitude: hotelGeo.lng } });
@@ -1206,15 +1224,16 @@ Field notes:
               checkIn: extracted.checkIn, checkOut: extracted.checkOut,
               address: extracted.address, city: extracted.city, country: extracted.country,
               confirmationCode: extracted.confirmationCode,
-              totalCost: extracted.totalCost, currency: extracted.currency,
+              totalCost: derivedTotalCost, currency: extracted.currency,
               contactPhone: extracted.contactPhone, contactEmail: extracted.contactEmail,
               guestNames: extracted.guestNames,
+              rooms: extractedRooms ?? Prisma.JsonNull,
             }),
           },
         });
       }
 
-      await incrementBudget(resolvedTripId, parsedCost);
+      await incrementBudget(resolvedTripId, derivedTotalCost);
       return NextResponse.json({ received: true, status: "success", type: "hotel", tripId: resolvedTripId });
 
     // ── Train / activity / other (replaces SavedItem) ─────────────────────────
