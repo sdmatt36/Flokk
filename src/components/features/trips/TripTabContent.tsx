@@ -79,6 +79,7 @@ import { EditFlightModal } from "@/components/flights/EditFlightModal";
 import { AddActivityModal, type ExistingActivity } from "@/components/activities/AddActivityModal";
 import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
 import { parseDateForDisplay } from "@/lib/dates";
+import { toTitleCase } from "@/lib/utils";
 import { getTripCoverImage, getItemImage } from "@/lib/destination-images";
 import { BookingIntelCard } from "@/components/features/trips/BookingIntelCard";
 import { BudgetPanel } from "@/components/features/trips/BudgetPanel";
@@ -6995,26 +6996,31 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                 onClick={async () => {
                   setVaultDocSaving(true);
                   try {
+                    const isHotelType = String(doc.content.type ?? "").toLowerCase() === "lodging";
+                    const normalizedVendor = isHotelType
+                      ? (toTitleCase(doc.content.vendorName as string | null) || (doc.content.vendorName as string | null) || "")
+                      : null;
                     const contentWithActivity = isActivityType && editActivityName
                       ? { ...doc.content, activityName: editActivityName }
-                      : doc.content;
+                      : isHotelType && normalizedVendor
+                        ? { ...doc.content, vendorName: normalizedVendor }
+                        : doc.content;
                     const updatedContent = JSON.stringify(contentWithActivity);
                     const patchBody: Record<string, unknown> = { content: updatedContent };
                     if (isActivityType && editActivityName) patchBody.label = editActivityName;
+                    if (isHotelType && normalizedVendor) patchBody.label = normalizedVendor;
                     await fetch(`/api/trips/${tripId}/vault/documents/${doc.id}`, {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify(patchBody),
                     });
                     // Update vault documents state
-                    const newLabel = (isActivityType && editActivityName) ? editActivityName : doc.label;
+                    const newLabel = (isActivityType && editActivityName) ? editActivityName : (isHotelType && normalizedVendor) ? normalizedVendor : doc.label;
                     setDocuments(prev => prev.map(d => d.id === doc.id ? { ...d, label: newLabel, content: updatedContent } : d));
-                    // If activity type, also update the linked itinerary item title via API
-                    // localItineraryItems is in ItineraryContent scope — use confirmationCode to find and PATCH
+                    // Activity: update linked itinerary item title
                     if (isActivityType && editActivityName && tripId) {
                       const confCode = doc.content.confirmationCode as string | null;
                       if (confCode) {
-                        // Fetch itinerary items to find the linked item by confirmationCode
                         const itinRes = await fetch(`/api/trips/${tripId}/itinerary`);
                         if (itinRes.ok) {
                           const itinData = (await itinRes.json()) as { id: string; confirmationCode?: string | null }[];
@@ -7028,7 +7034,26 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                           }
                         }
                       }
-                      // Force ItineraryContent to refetch by bumping itineraryVersion
+                      setItineraryVersion(v => v + 1);
+                    }
+                    // Hotel: update both check-in and check-out itinerary item titles
+                    if (isHotelType && normalizedVendor && tripId) {
+                      const confCode = doc.content.confirmationCode as string | null;
+                      if (confCode) {
+                        const itinRes = await fetch(`/api/trips/${tripId}/itinerary-items`);
+                        if (itinRes.ok) {
+                          const itinData = (await itinRes.json()) as { items: { id: string; title?: string | null; confirmationCode?: string | null; type?: string | null }[] };
+                          const linkedItems = itinData.items.filter(it => it.confirmationCode === confCode && it.type === "LODGING");
+                          for (const item of linkedItems) {
+                            const prefix = (item.title ?? "").startsWith("Check-out:") ? "Check-out:" : "Check-in:";
+                            await fetch(`/api/trips/${tripId}/itinerary/${item.id}`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ title: `${prefix} ${normalizedVendor}` }),
+                            });
+                          }
+                        }
+                      }
                       setItineraryVersion(v => v + 1);
                     }
                     setEditingVaultDoc(null);
