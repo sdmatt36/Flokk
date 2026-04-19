@@ -16,6 +16,7 @@ export async function GET(request: Request) {
 
   const spots = await db.communitySpot.findMany({
     where: {
+      averageRating: { gte: 3 },
       ...(city ? { city: { equals: city, mode: "insensitive" } } : {}),
       ...(category ? { category } : {}),
       ...(q ? { name: { contains: q, mode: "insensitive" } } : {}),
