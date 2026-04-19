@@ -261,6 +261,7 @@ model Trip {
   isPlacesLibrary           Boolean           @default(false)
   cities                    String[]          @default([])
   country                   String?
+  countries                 String[]          @default([])
   placeRatings              PlaceRating[]
 }
 

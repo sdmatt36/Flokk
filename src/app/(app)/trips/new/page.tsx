@@ -27,7 +27,6 @@ function NewTripForm() {
     return [];
   });
   const [citySuggestOpen, setCitySuggestOpen] = useState(false);
-  const [multiCountryError, setMultiCountryError] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [loading, setLoading] = useState(false);
@@ -68,23 +67,17 @@ function NewTripForm() {
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
-  function addCity(s: DestinationSuggestion) {
-    if (selectedCities.length > 0 && s.countryName !== selectedCities[0].countryName) {
-      setMultiCountryError(true);
-      return;
-    }
+  const addCity = (s: DestinationSuggestion) => {
     if (selectedCities.some((c) => c.placeId === s.placeId)) return;
     setSelectedCities((prev) => [...prev, s]);
     setCityInput("");
     setCitySuggestions([]);
     setCitySuggestOpen(false);
-    setMultiCountryError(false);
-  }
+  };
 
-  function removeCity(placeId: string) {
+  const removeCity = (placeId: string) => {
     setSelectedCities((prev) => prev.filter((c) => c.placeId !== placeId));
-    setMultiCountryError(false);
-  }
+  };
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -101,6 +94,7 @@ function NewTripForm() {
         body: JSON.stringify({
           cities: selectedCities.map((c) => c.cityName),
           country: selectedCities[0].countryName,
+          countries: Array.from(new Set(selectedCities.map((c) => c.countryName))),
           startDate,
           endDate,
         }),
@@ -209,6 +203,10 @@ function NewTripForm() {
               )}
             </div>
 
+            <p style={{ fontSize: "12px", color: "#9CA3AF", fontStyle: "italic", margin: 0 }}>
+              For multi-stop trips, add multiple cities.
+            </p>
+
             {selectedCities.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "4px" }}>
                 {selectedCities.map((c) => (
@@ -249,17 +247,15 @@ function NewTripForm() {
               </div>
             )}
 
-            {selectedCities.length > 0 && (
-              <p style={{ fontSize: "12px", color: "#717171", margin: 0 }}>
-                Country: {selectedCities[0].countryName || "—"}
-              </p>
-            )}
-
-            {multiCountryError && (
-              <p style={{ fontSize: "12px", color: "#C4664A", margin: 0 }}>
-                Pick cities from one country. Start a separate trip for other destinations.
-              </p>
-            )}
+            {selectedCities.length > 0 && (() => {
+              const uniqueCountries = Array.from(new Set(selectedCities.map((c) => c.countryName).filter(Boolean)));
+              const label = uniqueCountries.length === 1 ? "Country" : "Countries";
+              return (
+                <p style={{ fontSize: "12px", color: "#717171", margin: 0 }}>
+                  {label}: {uniqueCountries.join(", ") || "—"}
+                </p>
+              );
+            })()}
           </div>
 
           {/* Dates */}

@@ -63,6 +63,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing destination" }, { status: 400 });
   }
 
+  let countries: string[] = [];
+  if (Array.isArray(body.countries) && body.countries.length > 0) {
+    countries = Array.from(new Set(
+      (body.countries as unknown[])
+        .filter((c): c is string => typeof c === "string" && c.trim().length > 0)
+        .map((c) => c.trim())
+    ));
+  } else if (country) {
+    countries = [country];
+  }
+
   const startDate: string = body.startDate;
   const endDate: string = body.endDate;
 
@@ -89,6 +100,7 @@ export async function POST(req: Request) {
       destinationCountry,
       cities,
       country,
+      countries,
       startDate: new Date(startDate),
       endDate: new Date(endDate),
       status: (status === "COMPLETED" ? "COMPLETED" : "PLANNING") as "PLANNING" | "COMPLETED",

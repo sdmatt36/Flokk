@@ -160,3 +160,47 @@ export function deservesUrl(rawName: string): boolean {
   const normalized = normalizePlaceName(rawName);
   return !isJunkPlaceName(normalized);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Country resolution via Places text search + address_components.
+// Used by backfill scripts to populate SavedItem.destinationCountry and
+// CommunitySpot.country. Separate from lookupPlace to avoid modifying the
+// URL-resolution path.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Resolve the country for a known place name + city.
+ * Performs a text search to get a place_id, then fetches address_components
+ * to extract the country long_name.
+ * Returns null on any failure — callers must treat null as "unresolvable".
+ */
+export async function resolveCountry(
+  name: string,
+  city: string
+): Promise<string | null> {
+  if (!API_KEY || !name?.trim() || !city?.trim()) return null;
+
+  try {
+    const query = [normalizePlaceName(name), city.trim()].filter(Boolean).join(" ");
+    const searchRes = await fetch(
+      `${PLACES_TEXT_SEARCH}?query=${encodeURIComponent(query)}&key=${API_KEY}`
+    );
+    const searchData = (await searchRes.json()) as { results?: { place_id: string }[] };
+    const placeId = searchData.results?.[0]?.place_id;
+    if (!placeId) return null;
+
+    const detailsRes = await fetch(
+      `${PLACES_DETAILS}?place_id=${placeId}&fields=address_components&key=${API_KEY}`
+    );
+    const detailsData = (await detailsRes.json()) as {
+      result?: {
+        address_components?: Array<{ long_name: string; types: string[] }>;
+      };
+    };
+    const components = detailsData.result?.address_components ?? [];
+    const countryComp = components.find((c) => c.types.includes("country"));
+    return countryComp?.long_name ?? null;
+  } catch {
+    return null;
+  }
+}
