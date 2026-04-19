@@ -77,7 +77,7 @@ function getAirportFuse(): Fuse<IndexedAirport> {
         { name: 'name_n', weight: 1 },
         { name: 'country_n', weight: 0.5 },
       ],
-      threshold: 0.3,
+      threshold: 0.2,
       includeScore: true,
       ignoreLocation: true,
       minMatchCharLength: 2,
@@ -133,11 +133,18 @@ export function searchAirports(query: string, limit = 10): Airport[] {
   }
 
   const airportResults = getAirportFuse().search(normalized);
-  for (const r of airportResults) {
+  const ranked = airportResults
+    .map(r => ({
+      airport: r.item.airport,
+      adjustedScore: (r.score ?? 0) + (r.item.airport.size === 'medium' ? 0.05 : 0),
+    }))
+    .sort((a, b) => a.adjustedScore - b.adjustedScore);
+
+  for (const r of ranked) {
     if (merged.length >= limit) break;
-    if (!seen.has(r.item.airport.iata)) {
-      seen.add(r.item.airport.iata);
-      merged.push(r.item.airport);
+    if (!seen.has(r.airport.iata)) {
+      seen.add(r.airport.iata);
+      merged.push(r.airport);
     }
   }
 
