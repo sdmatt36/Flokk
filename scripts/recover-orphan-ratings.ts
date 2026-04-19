@@ -20,7 +20,7 @@ dotenv.config({ path: ".env.local" });
 import { PrismaClient, SourceType } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
-import { cleanVenueName } from "./lib/clean-venue-name";
+import { normalizePlaceName as cleanVenueName } from "../src/lib/google-places";
 
 // ── Env ───────────────────────────────────────────────────────────────────────
 

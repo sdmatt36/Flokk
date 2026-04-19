@@ -2,19 +2,9 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { normalizePlaceName } from "@/lib/google-places";
 
 export const dynamic = "force-dynamic";
-
-// Inline copy — canonical source: scripts/lib/clean-venue-name.ts
-function cleanVenueName(raw: string): string {
-  if (!raw) return raw;
-  let name = raw;
-  name = name.replace(/\s*\|\s*Tabelog.*$/i, "");
-  name = name.replace(/\s+-\s+[^|]+\/[^|]+$/i, "");
-  name = name.replace(/\s*\([^)]*\/[^)]*\)\s*$/u, "");
-  name = name.replace(/\s+/g, " ").trim();
-  return name;
-}
 
 export async function GET(
   _req: Request,
@@ -97,7 +87,7 @@ export async function PATCH(
           // Nothing to contribute yet — wait for an actual rating or note
         } else {
           const rawName = updated.rawTitle ?? "";
-          const cleanedName = cleanVenueName(rawName);
+          const cleanedName = normalizePlaceName(rawName);
 
           await db.$transaction(async (tx) => {
             // Find or create CommunitySpot by normalized name+city (insensitive)

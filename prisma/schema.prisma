@@ -875,6 +875,7 @@ model CommunitySpot {
   author            FamilyProfile        @relation("CommunitySpotAuthor", fields: [authorProfileId], references: [id], onDelete: Restrict)
   contributions     SpotContribution[]
   savedItems        SavedItem[]          @relation("SavedItemToCommunitySpot")
+  needsUrlReview    Boolean              @default(false)
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 

@@ -3,8 +3,9 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { getOrCreatePlacesLibrary } from "@/lib/places-library";
-import { writeThroughCommunitySpot, cleanVenueName } from "@/lib/community-write-through";
+import { writeThroughCommunitySpot } from "@/lib/community-write-through";
 import { ensureSavedItemForRating } from "@/lib/ensure-saved-item-for-rating";
+import { normalizePlaceName } from "@/lib/google-places";
 
 export const dynamic = "force-dynamic";
 
@@ -98,7 +99,7 @@ export async function POST(request: Request) {
         await ensureSavedItemForRating(tx, {
           familyProfileId: profileId,
           communitySpotId: spotId,
-          placeName: cleanVenueName(created.title),
+          placeName: normalizePlaceName(created.title),
           city: created.city ?? "",
           country: null,
           lat: created.lat ?? null,

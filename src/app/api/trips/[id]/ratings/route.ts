@@ -3,8 +3,9 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { sendRatingsCompleteEvent } from "@/lib/loops";
-import { writeThroughCommunitySpot, cleanVenueName } from "@/lib/community-write-through";
+import { writeThroughCommunitySpot } from "@/lib/community-write-through";
 import { ensureSavedItemForRating } from "@/lib/ensure-saved-item-for-rating";
+import { normalizePlaceName } from "@/lib/google-places";
 
 export const dynamic = "force-dynamic";
 
@@ -125,7 +126,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
 
       if (rawName && city) {
-        const cleanedName = cleanVenueName(rawName);
+        const cleanedName = normalizePlaceName(rawName);
         try {
           await db.$transaction(async (tx) => {
             const spotId = await writeThroughCommunitySpot(tx, {

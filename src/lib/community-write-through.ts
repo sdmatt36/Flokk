@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { normalizePlaceName, resolvePlaceUrl, deservesUrl } from "./google-places";
 
 type Tx = Prisma.TransactionClient;
 
@@ -19,21 +20,15 @@ export interface CommunityWriteThroughContext {
   note?: string | null;
 }
 
-// Inline copy — canonical source: scripts/lib/clean-venue-name.ts
-export function cleanVenueName(raw: string): string {
-  if (!raw) return raw;
-  let name = raw;
-  name = name.replace(/\s*\|\s*Tabelog.*$/i, "");
-  name = name.replace(/\s+-\s+[^|]+\/[^|]+$/i, "");
-  name = name.replace(/\s*\([^)]*\/[^)]*\)\s*$/u, "");
-  name = name.replace(/\s+/g, " ").trim();
-  return name;
-}
-
 /**
  * Upsert CommunitySpot + SpotContribution for a rating/note write.
  * No-ops if city missing or if both rating and note are absent.
  * MUST be called inside a Prisma $transaction.
+ *
+ * Note: callers pass tx. The Places URL lookup happens inside this function
+ * before the CommunitySpot create, which means it runs during the caller's
+ * open transaction (~1-2s worst case). Acceptable given the 10s tx timeout.
+ * URL is only resolved for new spots — matched spots are untouched.
  */
 export async function writeThroughCommunitySpot(
   tx: Tx,
@@ -42,7 +37,7 @@ export async function writeThroughCommunitySpot(
   if (!ctx.city || !ctx.city.trim()) return null;
   if (ctx.rating == null && !ctx.note) return null;
 
-  const cleanedName = cleanVenueName(ctx.name);
+  const cleanedName = normalizePlaceName(ctx.name);
   if (!cleanedName) return null;
 
   let spot: { id: string } | null = null;
@@ -65,6 +60,19 @@ export async function writeThroughCommunitySpot(
   }
 
   if (!spot) {
+    // Resolve URL only for new spots. ctx.websiteUrl takes precedence.
+    let resolvedUrl: string | null = ctx.websiteUrl ?? null;
+    let needsUrlReview = false;
+
+    if (!resolvedUrl && deservesUrl(cleanedName)) {
+      try {
+        resolvedUrl = await resolvePlaceUrl(cleanedName, ctx.city);
+      } catch {
+        resolvedUrl = null;
+      }
+      if (!resolvedUrl) needsUrlReview = true;
+    }
+
     spot = await tx.communitySpot.create({
       data: {
         name: cleanedName,
@@ -73,7 +81,8 @@ export async function writeThroughCommunitySpot(
         lat: ctx.lat ?? null,
         lng: ctx.lng ?? null,
         photoUrl: ctx.photoUrl ?? null,
-        websiteUrl: ctx.websiteUrl ?? null,
+        websiteUrl: resolvedUrl,
+        needsUrlReview,
         description: ctx.description ?? null,
         category: ctx.category ?? null,
         googlePlaceId: ctx.googlePlaceId ?? null,

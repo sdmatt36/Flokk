@@ -2,8 +2,9 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
-import { writeThroughCommunitySpot, cleanVenueName } from "@/lib/community-write-through";
+import { writeThroughCommunitySpot } from "@/lib/community-write-through";
 import { ensureSavedItemForRating } from "@/lib/ensure-saved-item-for-rating";
+import { normalizePlaceName } from "@/lib/google-places";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         }
 
         if (rawName && city) {
-          const cleanedName = cleanVenueName(rawName);
+          const cleanedName = normalizePlaceName(rawName);
           try {
             await db.$transaction(async (tx) => {
               const spotId = await writeThroughCommunitySpot(tx, {
