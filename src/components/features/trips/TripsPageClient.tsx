@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { MapPin, Calendar, Plus, Map, Search, Plane, Globe, Pencil, Trash2, Sparkles } from "lucide-react";
 import { getTripCoverImage } from "@/lib/destination-images";
+import { DeleteTripConfirmModal } from "./DeleteTripConfirmModal";
 
 type Trip = {
   id: string;
@@ -102,6 +103,7 @@ function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => vo
   const [draftTitle, setDraftTitle] = useState(trip.title);
   const inputRef = useRef<HTMLInputElement>(null);
   const [shareStep, setShareStep] = useState<"idle" | "choose" | "copied">("idle");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   function handleShareClick(e: React.MouseEvent) {
     e.stopPropagation();
@@ -164,6 +166,7 @@ function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => vo
   const segmentCount = totalDays ? Math.min(totalDays, 20) : 0;
 
   return (
+    <>
     <Link href={`/trips/${trip.id}`} style={{ textDecoration: "none", display: "block" }}>
       <div className="group hover:shadow-lg transition-shadow" style={{ backgroundColor: "#fff", borderRadius: "20px", overflow: "hidden", border: "1.5px solid #EEEEEE", boxShadow: "0 2px 8px rgba(0,0,0,0.07)" }}>
         {/* Hero image */}
@@ -231,12 +234,10 @@ function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => vo
 
           {/* Delete button — visible on hover */}
           <button
-            onClick={async (e) => {
+            onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              if (!confirm("Delete this trip? This cannot be undone.")) return;
-              const res = await fetch(`/api/trips/${trip.id}`, { method: "DELETE" });
-              if (res.ok) onDelete(trip.id);
+              setShowDeleteConfirm(true);
             }}
             className="absolute bottom-3 right-3 w-8 h-8 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80 z-10"
             style={{ backgroundColor: "rgba(0,0,0,0.4)", color: "#fff", border: "none", cursor: "pointer" }}
@@ -373,6 +374,17 @@ function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => vo
       </div>
     </div>
     </Link>
+    <DeleteTripConfirmModal
+      tripId={trip.id}
+      tripTitle={trip.title}
+      isOpen={showDeleteConfirm}
+      onClose={() => setShowDeleteConfirm(false)}
+      onDeleted={() => {
+        setShowDeleteConfirm(false);
+        onDelete(trip.id);
+      }}
+    />
+    </>
   );
 }
 
