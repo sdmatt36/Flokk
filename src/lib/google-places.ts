@@ -162,6 +162,71 @@ export function deservesUrl(rawName: string): boolean {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Find place by name + city — returns placeId, photoUrl, websiteUrl.
+// Used by the admin spot queue to auto-fetch a Google photo for spots that
+// have no photoUrl. Photo URL is resolved via redirect-follow (Places Photo API
+// returns an HTTP redirect to the final CDN URL).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PlacePhotoResult {
+  placeId: string;
+  photoUrl: string | null;
+  websiteUrl: string | null;
+}
+
+export async function findPlaceByNameCity(
+  name: string,
+  city: string | null
+): Promise<PlacePhotoResult | null> {
+  if (!API_KEY || !name?.trim()) return null;
+
+  const normalized = normalizePlaceName(name);
+  if (isJunkPlaceName(normalized)) return null;
+
+  try {
+    const query = [normalized, city?.trim()].filter(Boolean).join(" ");
+    const searchRes = await fetch(
+      `${PLACES_TEXT_SEARCH}?query=${encodeURIComponent(query)}&key=${API_KEY}`
+    );
+    const searchData = (await searchRes.json()) as { results?: { place_id: string }[] };
+    const placeId = searchData.results?.[0]?.place_id;
+    if (!placeId) return null;
+
+    const detailsRes = await fetch(
+      `${PLACES_DETAILS}?place_id=${placeId}&fields=name,website,photos&key=${API_KEY}`
+    );
+    const detailsData = (await detailsRes.json()) as {
+      result?: {
+        name?: string;
+        website?: string;
+        photos?: Array<{ photo_reference: string }>;
+      };
+    };
+
+    const placesName = detailsData.result?.name;
+    if (!placesName || !nameSimilar(normalized, placesName)) return null;
+
+    const websiteUrl = detailsData.result?.website ?? null;
+    const photoRef = detailsData.result?.photos?.[0]?.photo_reference ?? null;
+
+    let photoUrl: string | null = null;
+    if (photoRef) {
+      const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${encodeURIComponent(photoRef)}&key=${API_KEY}`;
+      const photoRes = await fetch(photoApiUrl, { redirect: "follow" });
+      // The Places Photo API responds with a redirect to the final CDN URL.
+      // After redirect:follow, photoRes.url is the resolved CDN URL.
+      if (photoRes.ok && photoRes.url && photoRes.url !== photoApiUrl) {
+        photoUrl = photoRes.url;
+      }
+    }
+
+    return { placeId, photoUrl, websiteUrl };
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Country resolution via Places text search + address_components.
 // Used by backfill scripts to populate SavedItem.destinationCountry and
 // CommunitySpot.country. Separate from lookupPlace to avoid modifying the
