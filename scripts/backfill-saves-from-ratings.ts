@@ -28,18 +28,13 @@ const LIVE = process.argv.includes("--live");
 
 /**
  * Filter out PlaceRating rows that are not clean single-place records.
+ * Receives the already-normalized place name (normalizePlaceName applied by caller).
  */
 function shouldSkipForBackfill(placeName: string, city: string | null): { skip: boolean; reason: string | null } {
   if (!placeName?.trim()) return { skip: true, reason: "empty name" };
   if (!city?.trim()) return { skip: true, reason: "empty city" };
 
   const name = placeName.trim();
-
-  // Check-in events — booking records, not place ratings worth backfilling.
-  // NOTE: normalizePlaceName strips "Check-in:" prefix, so these reach the community layer
-  // correctly when processed through writeThroughCommunitySpot. In the backfill however,
-  // we still skip pure check-in events since they describe the booking, not the venue as a place.
-  if (/^check[-\s]?in\s*[:\-]\s*/i.test(name)) return { skip: true, reason: "check-in event" };
 
   // Composite items — semicolons indicate multi-stop days
   if (name.includes(";")) return { skip: true, reason: "composite (semicolon)" };
@@ -178,15 +173,15 @@ async function main() {
   const skipList: { name: string; city: string | null; reason: string }[] = [];
 
   for (const pr of orphanPlaceRatings) {
-    const skipCheck = shouldSkipForBackfill(pr.placeName, pr.destinationCity);
-    if (skipCheck.skip) {
-      pass2Skipped += 1;
-      skipList.push({ name: pr.placeName, city: pr.destinationCity, reason: skipCheck.reason ?? "unknown" });
-      continue;
-    }
-
     const cleanedName = normalizePlaceName(pr.placeName);
     const city = pr.destinationCity!;
+
+    const skipCheck = shouldSkipForBackfill(cleanedName, pr.destinationCity);
+    if (skipCheck.skip) {
+      pass2Skipped += 1;
+      skipList.push({ name: cleanedName, city: pr.destinationCity, reason: skipCheck.reason ?? "unknown" });
+      continue;
+    }
 
     if (!LIVE) {
       // Dry-run: query without writing
