@@ -104,6 +104,7 @@ type TripRow = {
   destinationCity: string | null;
   cities: string[];
   country: string | null;
+  countries: string[];
   startDate: string | null;
   endDate: string | null;
 };
@@ -180,10 +181,16 @@ function groupTabbedSaves(saves: Save[], allTrips: TripRow[]): TabbedSavesState 
     }
   }
 
-  // Build past country set from country field
+  // Build past country set from countries[] (falls back to country for legacy rows)
   const pastTripCountries = new Set<string>();
   for (const t of pastTrips) {
-    if (t.country) pastTripCountries.add(t.country.trim().toLowerCase());
+    const tripCountries = (t.countries && t.countries.length > 0)
+      ? t.countries
+      : (t.country ? [t.country] : []);
+    for (const c of tripCountries) {
+      const key = c.trim().toLowerCase();
+      if (key) pastTripCountries.add(key);
+    }
   }
 
   // Build upcoming city index: city key → [tripId, ...]
@@ -199,14 +206,19 @@ function groupTabbedSaves(saves: Save[], allTrips: TripRow[]): TabbedSavesState 
     }
   }
 
-  // Build upcoming country index: country key → [tripId, ...]
+  // Build upcoming country index: country key → [tripId, ...] — iterates countries[] with fallback to country
   const upcomingCountryIndex = new Map<string, string[]>();
   for (const t of upcomingTrips) {
-    if (!t.country) continue;
-    const key = t.country.trim().toLowerCase();
-    const existing = upcomingCountryIndex.get(key) ?? [];
-    existing.push(t.id);
-    upcomingCountryIndex.set(key, existing);
+    const tripCountries = (t.countries && t.countries.length > 0)
+      ? t.countries
+      : (t.country ? [t.country] : []);
+    for (const c of tripCountries) {
+      const key = c.trim().toLowerCase();
+      if (!key) continue;
+      const existing = upcomingCountryIndex.get(key) ?? [];
+      if (!existing.includes(t.id)) existing.push(t.id);
+      upcomingCountryIndex.set(key, existing);
+    }
   }
 
   const upcomingSections: UpcomingTripSection[] = upcomingTrips.map((t) => ({
@@ -1070,7 +1082,7 @@ export function SavesScreen() {
   const [dietaryFilter, setDietaryFilter] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [saves, setSaves] = useState<Save[]>([]);
-  const [availableTrips, setAvailableTrips] = useState<{ id: string; title: string; destinationCity: string | null; destinationCountry: string | null; cities: string[]; country: string | null; startDate: string | null; endDate: string | null; isPlacesLibrary?: boolean }[]>([]);
+  const [availableTrips, setAvailableTrips] = useState<{ id: string; title: string; destinationCity: string | null; destinationCountry: string | null; cities: string[]; country: string | null; countries: string[]; startDate: string | null; endDate: string | null; isPlacesLibrary?: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [showFabModal, setShowFabModal] = useState(false);
