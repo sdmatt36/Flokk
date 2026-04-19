@@ -33,6 +33,7 @@ type Save = {
   userRating?: number | null;
   destinationCity: string | null;
   destinationCountry: string | null;
+  communitySpotId: string | null;
 };
 
 type PlaceResult = {
@@ -59,6 +60,7 @@ type ApiItem = {
   trip: { id: string; title: string } | null;
   needsPlaceConfirmation: boolean;
   userRating?: number | null;
+  communitySpotId: string | null;
 };
 
 const SOURCE_LABEL_MAP: Record<string, string> = {
@@ -90,6 +92,7 @@ function mapApiItem(item: ApiItem): Save {
     userRating: item.userRating ?? undefined,
     destinationCity: item.destinationCity ?? null,
     destinationCountry: item.destinationCountry ?? null,
+    communitySpotId: item.communitySpotId ?? null,
   };
 }
 
@@ -325,6 +328,40 @@ function groupTabbedSaves(saves: Save[], allTrips: TripRow[]): TabbedSavesState 
   };
 }
 
+// ─── ShareActivityButton ──────────────────────────────────────────────────────
+
+function ShareActivityButton({ communitySpotId }: { communitySpotId: string | null }) {
+  const [copied, setCopied] = useState(false);
+  if (!communitySpotId) return null;
+  return (
+    <button
+      type="button"
+      onClick={async (e) => {
+        e.stopPropagation();
+        const url = `${window.location.origin}/places/${communitySpotId}`;
+        try {
+          await navigator.clipboard.writeText(url);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+          console.warn("Clipboard copy failed", err);
+        }
+      }}
+      style={{
+        fontSize: 11,
+        color: "#C4664A",
+        background: "transparent",
+        border: "none",
+        padding: 0,
+        cursor: "pointer",
+        fontFamily: "inherit",
+      }}
+    >
+      {copied ? "Copied!" : "Share activity"}
+    </button>
+  );
+}
+
 // ─── SaveCard ─────────────────────────────────────────────────────────────────
 
 type SaveCardProps = {
@@ -342,9 +379,10 @@ type SaveCardProps = {
   onAssignCity?: (id: string) => void;
   suggestedForOptions?: Array<{ id: string; name: string }>;
   onAddToTrip?: (saveId: string, options: Array<{ id: string; name: string }>) => void;
+  cardContext?: "upcoming_explicit" | "past";
 };
 
-function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId, onAssignCity, suggestedForOptions, onAddToTrip }: SaveCardProps) {
+function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId, onAssignCity, suggestedForOptions, onAddToTrip, cardContext }: SaveCardProps) {
   const filteredTags = save.tags.filter(t => {
     if (t.toLowerCase() === "other" && save.tags.some(t2 =>
       !["other", "vg", "vgn"].includes(t2.toLowerCase()) && t2.toLowerCase() !== t.toLowerCase()
@@ -554,100 +592,109 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
         </div>
 
         {/* Assignment row */}
-        <div style={{ position: "relative" }}>
-          {save.tripId ? (
-            <a
-              href={`/trips/${save.tripId}`}
-              onClick={(e) => e.stopPropagation()}
-              style={{ display: "inline-block", fontSize: "11px", fontWeight: 600, color: "#fff", backgroundColor: "#C4664A", borderRadius: "999px", padding: "2px 8px", textDecoration: "none" }}
-            >
-              {save.assigned ?? "Trip assigned"}
-            </a>
-          ) : (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setOpenDropdown(isDropdownOpen ? null : save.id);
-              }}
-              style={{
-                background: "none",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
-                fontSize: "11px",
-                color: "#C4664A",
-                fontWeight: 500,
-                display: "flex",
-                alignItems: "center",
-                gap: "3px",
-              }}
-            >
-              <Plus size={11} style={{ color: "#C4664A" }} />
-              Assign to trip
-            </button>
-          )}
+        {cardContext === "past" ? (
+          <ShareActivityButton communitySpotId={save.communitySpotId} />
+        ) : (
+          <div style={{ position: "relative" }}>
+            {save.tripId ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <a
+                  href={`/trips/${save.tripId}`}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ display: "inline-block", fontSize: "11px", fontWeight: 600, color: "#fff", backgroundColor: "#C4664A", borderRadius: "999px", padding: "2px 8px", textDecoration: "none" }}
+                >
+                  {save.assigned ?? "Trip assigned"}
+                </a>
+                {cardContext === "upcoming_explicit" && (
+                  <ShareActivityButton communitySpotId={save.communitySpotId} />
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpenDropdown(isDropdownOpen ? null : save.id);
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  fontSize: "11px",
+                  color: "#C4664A",
+                  fontWeight: 500,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "3px",
+                }}
+              >
+                <Plus size={11} style={{ color: "#C4664A" }} />
+                Assign to trip
+              </button>
+            )}
 
-          {/* Dropdown */}
-          {isDropdownOpen && (
-            <div
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                marginTop: "4px",
-                backgroundColor: "#fff",
-                border: "1px solid rgba(0,0,0,0.1)",
-                boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-                borderRadius: "8px",
-                zIndex: 50,
-                minWidth: "180px",
-                overflow: "hidden",
-                maxHeight: "280px",
-                overflowY: "auto",
-              }}
-            >
-              {(() => {
-                const todayStr = new Date().toISOString();
-                // TODO: move isPlacesLibrary filter server-side in a future cleanup prompt
-                const upcoming = availableTrips.filter(t => !t.endDate || t.endDate >= todayStr);
-                const past = availableTrips.filter(t => t.endDate && t.endDate < todayStr);
-                const tripBtn = (title: string, key: string, isLast: boolean) => (
-                  <button
-                    key={key}
-                    onClick={(e) => { e.stopPropagation(); assignTrip(save.id, title); }}
-                    style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "13px", color: "#1a1a1a", fontWeight: 400, background: "none", border: "none", cursor: "pointer", borderBottom: isLast ? "none" : "1px solid rgba(0,0,0,0.06)" }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9F9F9"; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
-                  >
-                    {title}
-                  </button>
-                );
-                return (
-                  <>
-                    {upcoming.map((t, i) => tripBtn(t.title, t.id, i === upcoming.length - 1 && past.length === 0))}
-                    {past.length > 0 && (
-                      <>
-                        <div style={{ padding: "5px 14px", fontSize: "11px", fontWeight: 600, color: "#AAAAAA", backgroundColor: "#F9F9F9", borderTop: "1px solid rgba(0,0,0,0.06)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-                          Past trips
-                        </div>
-                        {past.map((t, i) => tripBtn(t.title, t.id, i === past.length - 1))}
-                      </>
-                    )}
+            {/* Dropdown */}
+            {isDropdownOpen && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  marginTop: "4px",
+                  backgroundColor: "#fff",
+                  border: "1px solid rgba(0,0,0,0.1)",
+                  boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+                  borderRadius: "8px",
+                  zIndex: 50,
+                  minWidth: "180px",
+                  overflow: "hidden",
+                  maxHeight: "280px",
+                  overflowY: "auto",
+                }}
+              >
+                {(() => {
+                  const todayStr = new Date().toISOString();
+                  // TODO: move isPlacesLibrary filter server-side in a future cleanup prompt
+                  const upcoming = availableTrips.filter(t => !t.endDate || t.endDate >= todayStr);
+                  const past = availableTrips.filter(t => t.endDate && t.endDate < todayStr);
+                  const tripBtn = (title: string, key: string, isLast: boolean) => (
                     <button
-                      onClick={(e) => { e.stopPropagation(); assignTrip(save.id, "+ Create new trip"); }}
-                      style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "13px", color: "#C4664A", fontWeight: 600, background: "none", border: "none", cursor: "pointer", borderTop: "1px solid rgba(0,0,0,0.06)" }}
+                      key={key}
+                      onClick={(e) => { e.stopPropagation(); assignTrip(save.id, title); }}
+                      style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "13px", color: "#1a1a1a", fontWeight: 400, background: "none", border: "none", cursor: "pointer", borderBottom: isLast ? "none" : "1px solid rgba(0,0,0,0.06)" }}
                       onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9F9F9"; }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
                     >
-                      + Create new trip
+                      {title}
                     </button>
-                  </>
-                );
-              })()}
-            </div>
-          )}
-        </div>
+                  );
+                  return (
+                    <>
+                      {upcoming.map((t, i) => tripBtn(t.title, t.id, i === upcoming.length - 1 && past.length === 0))}
+                      {past.length > 0 && (
+                        <>
+                          <div style={{ padding: "5px 14px", fontSize: "11px", fontWeight: 600, color: "#AAAAAA", backgroundColor: "#F9F9F9", borderTop: "1px solid rgba(0,0,0,0.06)", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
+                            Past trips
+                          </div>
+                          {past.map((t, i) => tripBtn(t.title, t.id, i === past.length - 1))}
+                        </>
+                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); assignTrip(save.id, "+ Create new trip"); }}
+                        style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", fontSize: "13px", color: "#C4664A", fontWeight: 600, background: "none", border: "none", cursor: "pointer", borderTop: "1px solid rgba(0,0,0,0.06)" }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9F9F9"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
+                      >
+                        + Create new trip
+                      </button>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Distance */}
         {save.distance && (
@@ -909,7 +956,7 @@ function UpcomingTabContent({ sections, expandedSections, setExpandedSections, s
             </div>
             <div className="grid grid-cols-3 lg:grid-cols-3 md:grid-cols-2 sm:grid-cols-1" style={{ gap: 16 }}>
               {explicitShown.map((save) => (
-                <SaveCard key={save.id} save={save} {...sharedProps} onTripClick={() => {}} />
+                <SaveCard key={save.id} save={save} {...sharedProps} onTripClick={() => {}} cardContext="upcoming_explicit" />
               ))}
               {suggestedShown.map((save) => (
                 <SaveCard
@@ -965,7 +1012,7 @@ function PastTabContent({ sections, expandedSections, setExpandedSections, share
             </div>
             <div className="grid grid-cols-3 lg:grid-cols-3 md:grid-cols-2 sm:grid-cols-1" style={{ gap: 16 }}>
               {shown.map((save) => (
-                <SaveCard key={save.id} save={save} {...sharedProps} onTripClick={() => {}} />
+                <SaveCard key={save.id} save={save} {...sharedProps} onTripClick={() => {}} cardContext="past" />
               ))}
             </div>
             {section.saves.length > 3 && (
