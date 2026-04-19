@@ -259,6 +259,8 @@ model Trip {
   postTripCaptureComplete   Boolean           @default(false)
   postTripModalVisitCount   Int               @default(0)
   isPlacesLibrary           Boolean           @default(false)
+  cities                    String[]          @default([])
+  country                   String?
   placeRatings              PlaceRating[]
 }
 
