@@ -27,9 +27,9 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const { tripType, budgetRange, title, privacy, isAnonymous, isPublic, startDate, endDate, postTripModalVisitCount } = body as { tripType?: string; budgetRange?: string; title?: string; privacy?: string; isAnonymous?: boolean; isPublic?: boolean; startDate?: string; endDate?: string; postTripModalVisitCount?: number };
+  const { tripType, budgetRange, title, privacy, isAnonymous, isPublic, startDate, endDate, postTripModalVisitCount, cities, countries } = body as { tripType?: string; budgetRange?: string; title?: string; privacy?: string; isAnonymous?: boolean; isPublic?: boolean; startDate?: string; endDate?: string; postTripModalVisitCount?: number; cities?: string[]; countries?: string[] };
 
-  const data: Record<string, string | boolean | Date | null | number> = {};
+  const data: Record<string, string | boolean | Date | null | number | string[]> = {};
   if (tripType !== undefined) data.tripType = tripType;
   if (budgetRange !== undefined) data.budgetRange = budgetRange;
   if (title !== undefined) data.title = title.trim() || trip.title;
@@ -39,6 +39,8 @@ export async function PATCH(
   if (startDate !== undefined) data.startDate = startDate ? new Date(startDate) : null;
   if (endDate !== undefined) data.endDate = endDate ? new Date(endDate) : null;
   if (postTripModalVisitCount !== undefined) data.postTripModalVisitCount = postTripModalVisitCount;
+  if (Array.isArray(cities)) data.cities = cities;
+  if (Array.isArray(countries)) data.countries = countries;
 
   const updated = await db.trip.update({ where: { id }, data });
 

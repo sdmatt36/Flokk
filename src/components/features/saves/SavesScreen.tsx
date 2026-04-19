@@ -113,6 +113,7 @@ interface UpcomingTripSection {
   tripId: string;
   tripName: string;
   destinationCity: string | null;
+  cities: string[];
   startDate: string | null;
   endDate: string | null;
   explicitSaves: Save[];
@@ -225,6 +226,7 @@ function groupTabbedSaves(saves: Save[], allTrips: TripRow[]): TabbedSavesState 
     tripId: t.id,
     tripName: t.title,
     destinationCity: t.destinationCity,
+    cities: t.cities,
     startDate: t.startDate,
     endDate: t.endDate,
     explicitSaves: [],
@@ -391,10 +393,12 @@ type SaveCardProps = {
   onAssignCity?: (id: string) => void;
   suggestedForOptions?: Array<{ id: string; name: string }>;
   onAddToTrip?: (saveId: string, options: Array<{ id: string; name: string }>) => void;
+  onGrowTripCity?: (saveId: string) => void;
+  growTripCityLabel?: string;
   cardContext?: "upcoming_explicit" | "past";
 };
 
-function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId, onAssignCity, suggestedForOptions, onAddToTrip, cardContext }: SaveCardProps) {
+function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId, onAssignCity, suggestedForOptions, onAddToTrip, onGrowTripCity, growTripCityLabel, cardContext }: SaveCardProps) {
   const filteredTags = save.tags.filter(t => {
     if (t.toLowerCase() === "other" && save.tags.some(t2 =>
       !["other", "vg", "vgn"].includes(t2.toLowerCase()) && t2.toLowerCase() !== t.toLowerCase()
@@ -755,6 +759,18 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
           </div>
         )}
 
+        {/* Grow-trip-city CTA — single-match save where city not yet in trip */}
+        {onGrowTripCity && growTripCityLabel && (
+          <div style={{ marginTop: "8px" }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); onGrowTripCity(save.id); }}
+              style={{ background: "#C4664A", border: "none", borderRadius: "999px", padding: "4px 12px", fontSize: "11px", color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}
+            >
+              {growTripCityLabel}
+            </button>
+          </div>
+        )}
+
         {/* Add to trip — for suggested saves */}
         {onAddToTrip && suggestedForOptions && suggestedForOptions.length > 0 && (
           <div style={{ marginTop: "8px" }}>
@@ -931,12 +947,13 @@ const SHOW_MORE_STYLE: React.CSSProperties = {
   fontFamily: "inherit",
 };
 
-function UpcomingTabContent({ sections, expandedSections, setExpandedSections, suggestedTripMap, onAddToTrip, sharedProps }: {
+function UpcomingTabContent({ sections, expandedSections, setExpandedSections, suggestedTripMap, onAddToTrip, onGrowTripCities, sharedProps }: {
   sections: UpcomingTripSection[];
   expandedSections: Set<string>;
   setExpandedSections: (s: Set<string>) => void;
   suggestedTripMap: Map<string, Array<{ id: string; name: string }>>;
   onAddToTrip: (saveId: string, options: Array<{ id: string; name: string }>) => void;
+  onGrowTripCities: (saveId: string, tripId: string, newCity: string, currentCities: string[]) => void;
   sharedProps: SharedCardGridProps;
 }) {
   if (sections.every((s) => s.explicitSaves.length + s.suggestedSaves.length === 0)) {
@@ -970,16 +987,33 @@ function UpcomingTabContent({ sections, expandedSections, setExpandedSections, s
               {explicitShown.map((save) => (
                 <SaveCard key={save.id} save={save} {...sharedProps} onTripClick={() => {}} cardContext="upcoming_explicit" />
               ))}
-              {suggestedShown.map((save) => (
-                <SaveCard
-                  key={save.id}
-                  save={save}
-                  {...sharedProps}
-                  onTripClick={() => {}}
-                  suggestedForOptions={suggestedTripMap.get(save.id)}
-                  onAddToTrip={onAddToTrip}
-                />
-              ))}
+              {suggestedShown.map((save) => {
+                const options = suggestedTripMap.get(save.id) ?? [];
+                const isSingleMatch = options.length === 1;
+                const cityNotInTrip = isSingleMatch && !!save.destinationCity && !section.cities.map(c => c.toLowerCase()).includes(save.destinationCity.toLowerCase());
+                if (cityNotInTrip) {
+                  return (
+                    <SaveCard
+                      key={save.id}
+                      save={save}
+                      {...sharedProps}
+                      onTripClick={() => {}}
+                      onGrowTripCity={(saveId) => onGrowTripCities(saveId, options[0].id, save.destinationCity!, section.cities)}
+                      growTripCityLabel={`+ Add ${save.destinationCity} to trip`}
+                    />
+                  );
+                }
+                return (
+                  <SaveCard
+                    key={save.id}
+                    save={save}
+                    {...sharedProps}
+                    onTripClick={() => {}}
+                    suggestedForOptions={options.length > 0 ? options : undefined}
+                    onAddToTrip={options.length > 0 ? onAddToTrip : undefined}
+                  />
+                );
+              })}
             </div>
             {totalCount > 3 && (
               <button
@@ -1283,6 +1317,27 @@ export function SavesScreen() {
     }
   };
 
+  const handleGrowTripCities = async (saveId: string, tripId: string, newCity: string, currentCities: string[]) => {
+    const newCities = [...currentCities, newCity];
+    // Optimistic: assign save to trip and expand trip's city list
+    setSaves(prev => prev.map(s => s.id === saveId ? { ...s, tripId, assigned: newCity } : s));
+    setAvailableTrips(prev => prev.map(t => t.id === tripId ? { ...t, cities: newCities } : t));
+    setSavedToast(`${newCity} added to trip`);
+    setTimeout(() => setSavedToast(null), 3000);
+    try {
+      await fetch(`/api/trips/${tripId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cities: newCities }),
+      });
+      await fetch(`/api/saves/${saveId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tripId }),
+      });
+    } catch { /* silent */ }
+  };
+
   const handleManualSave = async () => {
     if (!manualName.trim()) return;
     setManualSubmitting(true);
@@ -1539,6 +1594,7 @@ Your saved places, all in one spot
                   setExpandedSections={setExpandedSections}
                   suggestedTripMap={tabbed.suggestedTripMap}
                   onAddToTrip={handleAddToTrip}
+                  onGrowTripCities={handleGrowTripCities}
                   sharedProps={sharedGrid}
                 />
               )}
