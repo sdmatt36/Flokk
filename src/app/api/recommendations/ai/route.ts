@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import Anthropic from "@anthropic-ai/sdk";
+import { normalizeCategorySlug } from "@/lib/categories";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -128,7 +129,7 @@ export async function GET(req: NextRequest) {
   const systemPrompt = `You are a family travel recommendation engine. You receive structured data about a real family and their destination. Return ONLY valid JSON -- no markdown, no preamble. Return an array of 10 recommendations. Each recommendation must be:
 {
   "name": string,
-  "category": string (one of: Food & Drink, Culture, Experiences, Nature, Adventure, Kids Camps, Shopping, Lodging, Entertainment, Wellness),
+  "category": string (exactly one of these slugs: food_and_drink, culture, nature_and_outdoors, adventure, experiences, sports_and_entertainment, shopping, kids_and_family, lodging, nightlife, wellness, other),
   "whyThisFamily": string (one sentence, specific to this family's profile -- reference their ages, interests, or style),
   "ageAppropriate": boolean,
   "budgetTier": string (one of: Free, Budget, Mid, Premium, Luxury),
@@ -151,6 +152,10 @@ Base recommendations on the destination. Prioritize activities matching travelSt
   try {
     recommendations = JSON.parse(cleaned);
     if (!Array.isArray(recommendations)) recommendations = [];
+    recommendations = (recommendations as Array<Record<string, unknown>>).map(r => ({
+      ...r,
+      category: normalizeCategorySlug(r.category as string | null) ?? "other",
+    }));
   } catch {
     console.error("[recommendations/ai] JSON parse failed, raw:", raw.slice(0, 300));
     return NextResponse.json({ recommendations: [], context, error: "parse_failed" });
