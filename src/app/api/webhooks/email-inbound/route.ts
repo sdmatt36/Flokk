@@ -6,6 +6,7 @@ import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
 import { nanoid } from "nanoid";
 import { getTripCoverImage } from "@/lib/destination-images";
+import { toTitleCase } from "@/lib/utils";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -458,7 +459,7 @@ Email content: ${emailContent}
 Return this exact JSON structure:
 {
   "type": "hotel" | "flight" | "activity" | "restaurant" | "car_rental" | "train" | "unknown",
-  "vendorName": "string or null",
+  "vendorName": "string or null — for hotel bookings, this is the SPECIFIC PROPERTY name (e.g., 'Home Hotel Havnekontoret'), NOT the parent brand or chain (e.g., not 'Strawberry Hotels'). The brand may appear in the email header or footer for marketing purposes; ignore it. Look in the booking confirmation block for the specific property. Common hotel brands to watch for: Marriott, Hilton, Hyatt, Strawberry, Accor, IHG, Four Seasons, Ritz-Carlton, Scandic, Radisson, Best Western, Nobis, SLH. If the email is from one of these brands, the actual property name will be in the confirmation details (e.g., 'W Barcelona', 'Le Meridien Kuala Lumpur', 'Home Hotel Havnekontoret'). For flights, activities, and other types, use the airline or tour operator or vendor name as normal.",
   "activityName": "string or null — for activity/tour bookings only: the specific tour or experience name, never the platform name (GetYourGuide, Viator, Klook)",
   "confirmationCode": "string or null",
   "checkIn": "YYYY-MM-DD or null",
@@ -1120,7 +1121,7 @@ Field notes:
 
     // ── Hotels ────────────────────────────────────────────────────────────────
     } else if (extracted.type === "hotel" && extracted.vendorName) {
-      const hotelName = extracted.vendorName as string;
+      const hotelName = toTitleCase(extracted.vendorName as string | null) || (extracted.vendorName as string);
       const checkInDate = (extracted.checkIn as string | null) ?? null;
       const checkOutDate = (extracted.checkOut as string | null) ?? null;
 
