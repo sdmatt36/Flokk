@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
 import { getItemImage } from "@/lib/destination-images";
+import { CATEGORIES } from "@/lib/categories";
 import {
   Search,
   MapPin,
@@ -42,7 +43,6 @@ type PlaceResult = {
   photos?: { photo_reference: string }[];
 };
 
-const FILTER_PILLS = ["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Kids Camps", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other", "Unorganized"];
 
 type ApiItem = {
   id: string;
@@ -980,7 +980,7 @@ export function SavesScreen() {
   const placeSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showManualModal, setShowManualModal] = useState(false);
   const [manualName, setManualName] = useState("");
-  const [manualCategory, setManualCategory] = useState("food");
+  const [manualCategory, setManualCategory] = useState("food_and_drink");
   const [manualCity, setManualCity] = useState("");
   const [manualRegion, setManualRegion] = useState("");
   const [manualCountry, setManualCountry] = useState("");
@@ -1199,7 +1199,7 @@ export function SavesScreen() {
         setSaves((prev) => [mapApiItem({ ...data.savedItem, trip: tripForItem, needsPlaceConfirmation: false }), ...prev]);
         setShowManualModal(false);
         setManualName("");
-        setManualCategory("food");
+        setManualCategory("food_and_drink");
         setManualCity("");
         setManualRegion("");
         setManualCountry("");
@@ -1217,21 +1217,6 @@ export function SavesScreen() {
     } finally {
       setManualSubmitting(false);
     }
-  };
-
-  const CATEGORY_ALIASES: Record<string, string[]> = {
-    "Food & Drink": ["food", "food & drink"],
-    "Culture": ["culture"],
-    "Experiences": ["experiences", "activity"],
-    "Lodging": ["lodging"],
-    "Adventure": ["adventure"],
-    "Kids Camps": ["kids camps", "kids_camps"],
-    "Nature": ["nature", "outdoor"],
-    "Shopping": ["shopping"],
-    "Entertainment": ["entertainment"],
-    "Wellness": ["wellness"],
-    "Nightlife": ["nightlife"],
-    "Other": ["other"],
   };
 
   // Unique cities derived from saves, alphabetical — used for city pill row
@@ -1258,9 +1243,7 @@ export function SavesScreen() {
     const matchesCategory =
       activeFilter === "All" || activeFilter === "Unorganized"
         ? true
-        : (CATEGORY_ALIASES[activeFilter] ?? [activeFilter]).some(alias =>
-            s.tags.some(t => t.toLowerCase() === alias.toLowerCase())
-          );
+        : s.tags.some(t => t === activeFilter);
     const matchesDietary =
       dietaryFilter === "Vegetarian"
         ? s.tags.includes("VG") || s.tags.includes("VGN")
@@ -1339,12 +1322,12 @@ Your saved places, all in one spot
 
         {/* FILTER STRIP */}
         <div style={{ display: "flex", overflowX: "auto", gap: "8px", marginBottom: "24px", paddingBottom: "4px", scrollbarWidth: "none" }}>
-          {FILTER_PILLS.map((pill) => {
+          {(["All", "Unorganized"] as const).map((pill) => {
             const isActive = activeFilter === pill;
             return (
               <button
                 key={pill}
-                onClick={(e) => { e.stopPropagation(); setActiveFilter(pill); if (pill !== "Food & Drink") setDietaryFilter(null); }}
+                onClick={(e) => { e.stopPropagation(); setActiveFilter(pill); }}
                 style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: "5px", padding: "7px 16px", borderRadius: "999px", fontSize: "13px", fontWeight: isActive ? 600 : 400, color: isActive ? "#fff" : "#717171", backgroundColor: isActive ? "#C4664A" : "#fff", border: isActive ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease" }}
               >
                 {pill}
@@ -1356,9 +1339,21 @@ Your saved places, all in one spot
               </button>
             );
           })}
+          {CATEGORIES.map(({ slug, label }) => {
+            const isActive = activeFilter === slug;
+            return (
+              <button
+                key={slug}
+                onClick={(e) => { e.stopPropagation(); setActiveFilter(slug); if (slug !== "food_and_drink") setDietaryFilter(null); }}
+                style={{ flexShrink: 0, padding: "7px 16px", borderRadius: "999px", fontSize: "13px", fontWeight: isActive ? 600 : 400, color: isActive ? "#fff" : "#717171", backgroundColor: isActive ? "#C4664A" : "#fff", border: isActive ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease" }}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
 
-        {activeFilter === "Food & Drink" && (
+        {activeFilter === "food_and_drink" && (
           <div style={{ display: 'flex', gap: '8px', marginTop: '-16px', marginBottom: '24px' }}>
             {["All Food", "Vegetarian", "Vegan"].map(sub => (
               <button
@@ -1710,21 +1705,8 @@ Your saved places, all in one spot
                 onChange={(e) => setManualCategory(e.target.value)}
                 style={{ border: "1px solid #E8E8E8", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "#0A1628", outline: "none", fontFamily: "Inter, sans-serif", backgroundColor: "#fff" }}
               >
-                {[
-                  { value: "food", label: "Food & Drink" },
-                  { value: "culture", label: "Culture" },
-                  { value: "experiences", label: "Experiences" },
-                  { value: "lodging", label: "Lodging" },
-                  { value: "adventure", label: "Adventure" },
-                  { value: "kids_camps", label: "Kids Camps" },
-                  { value: "nature", label: "Nature" },
-                  { value: "shopping", label: "Shopping" },
-                  { value: "entertainment", label: "Entertainment" },
-                  { value: "wellness", label: "Wellness" },
-                  { value: "nightlife", label: "Nightlife" },
-                  { value: "other", label: "Other" },
-                ].map(({ value, label }) => (
-                  <option key={value} value={value}>{label}</option>
+                {CATEGORIES.map(({ slug, label }) => (
+                  <option key={slug} value={slug}>{label}</option>
                 ))}
               </select>
             </div>
@@ -1768,7 +1750,7 @@ Your saved places, all in one spot
               />
             </div>
 
-            {manualCategory === "food" && (
+            {manualCategory === "food_and_drink" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <label style={{ fontSize: 11, fontWeight: 600, color: "#666", letterSpacing: "0.05em", textTransform: "uppercase" }}>Dietary</label>
                 <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>

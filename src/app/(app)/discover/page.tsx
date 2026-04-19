@@ -5,6 +5,7 @@ import Link from "next/link";
 import { MapPin, ChevronRight, X, Search, Plus, CalendarPlus } from "lucide-react";
 import { Playfair_Display } from "next/font/google";
 import { getTripCoverImage } from "@/lib/destination-images";
+import { CATEGORIES } from "@/lib/categories";
 import { AddToItineraryModal } from "@/components/places/AddToItineraryModal";
 import type { AddToItinerarySpot } from "@/components/places/AddToItineraryModal";
 import { PlaceActionRow } from "@/components/features/places/PlaceActionRow";
@@ -161,7 +162,7 @@ const PICKS_CATEGORY_MAP: Record<string, { types: string[]; keywords: string[] }
     types: [],
     keywords: ["hike", "trail", "climb", "surf", "ski", "kayak", "bike", "cycle", "trek", "dive", "bungee", "rafting", "adventure"],
   },
-  "Nature": {
+  "Nature & Outdoors": {
     types: ["OUTDOOR"],
     keywords: ["beach", "park", "garden", "mountain", "waterfall", "grove", "nature", "walk", "lake", "river", "forest", "canyon", "cliff", "island"],
   },
@@ -169,7 +170,7 @@ const PICKS_CATEGORY_MAP: Record<string, { types: string[]; keywords: string[] }
     types: ["SHOPPING"],
     keywords: ["market", "mall", "shop", "boutique", "street", "takeshita", "boqueria", "chatuchak", "coex", "myeongdong"],
   },
-  "Entertainment": {
+  "Sports & Entertainment": {
     types: ["SPORT"],
     keywords: ["game", "stadium", "arena", "match", "baseball", "football", "soccer", "basketball", "cricket", "rugby", "tennis", "golf", "cable car", "sky cab", "observation", "crossing"],
   },
@@ -799,12 +800,9 @@ function PlacesTab() {
               style={{ fontFamily: "inherit" }}
             >
               <option value="">Type of spot</option>
-              <option value="Food">Food</option>
-              <option value="Activity">Activity</option>
-              <option value="Culture">Culture</option>
-              <option value="Outdoor">Outdoor</option>
-              <option value="Shopping">Shopping</option>
-              <option value="Lodging">Lodging</option>
+              {CATEGORIES.map(({ slug, label }) => (
+                <option key={slug} value={slug}>{label}</option>
+              ))}
             </select>
 
             {/* Rating */}
@@ -1555,7 +1553,7 @@ export default function DiscoverPage() {
           </div>
 
           <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "28px", scrollbarWidth: "none", msOverflowStyle: "none" }} className="hide-scrollbar">
-            {["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Kids Camps", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other"].map((f) => (
+            {(["All", ...CATEGORIES.map(c => c.label)] as string[]).map((f) => (
               <button
                 key={f}
                 onClick={() => { setPicksFilter(f); setShowAllPicks(false); }}

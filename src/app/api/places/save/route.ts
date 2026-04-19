@@ -6,6 +6,7 @@ import { getOrCreatePlacesLibrary } from "@/lib/places-library";
 import { writeThroughCommunitySpot } from "@/lib/community-write-through";
 import { ensureSavedItemForRating } from "@/lib/ensure-saved-item-for-rating";
 import { normalizePlaceName } from "@/lib/google-places";
+import { normalizeCategorySlug } from "@/lib/categories";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
         title: body.name.trim(),
         date: new Date().toISOString().split("T")[0],
         city: body.city.trim(),
-        type: body.type.toLowerCase(),
+        type: normalizeCategorySlug(body.type) ?? body.type.toLowerCase(),
         address: body.address?.trim() ?? null,
         lat: body.lat ?? null,
         lng: body.lng ?? null,
@@ -139,7 +140,7 @@ export async function POST(request: Request) {
           title: body.name.trim(),
           date,
           city: body.city.trim(),
-          type: body.type.toLowerCase(),
+          type: normalizeCategorySlug(body.type) ?? body.type.toLowerCase(),
           address: body.address?.trim() ?? null,
           lat: body.lat ?? null,
           lng: body.lng ?? null,
