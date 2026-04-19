@@ -104,6 +104,30 @@ function getMetroFuse(): Fuse<IndexedMetro> {
   return metroFuse;
 }
 
+let relaxedFuse: Fuse<IndexedAirport> | null = null;
+function getRelaxedFuse(): Fuse<IndexedAirport> {
+  if (!relaxedFuse) {
+    const indexed: IndexedAirport[] = AIRPORTS.map(a => ({
+      airport: a,
+      iata_n: normalize(a.iata),
+      city_n: normalize(a.city),
+      name_n: normalize(a.name),
+      country_n: normalize(a.country),
+    }));
+    relaxedFuse = new Fuse(indexed, {
+      keys: [
+        { name: 'city_n', weight: 1.5 },
+        { name: 'name_n', weight: 1 },
+      ],
+      threshold: 0.4,
+      includeScore: true,
+      ignoreLocation: true,
+      minMatchCharLength: 3,
+    });
+  }
+  return relaxedFuse;
+}
+
 export function searchAirports(query: string, limit = 10): Airport[] {
   const q = query.trim();
   if (!q) {
@@ -120,6 +144,7 @@ export function searchAirports(query: string, limit = 10): Airport[] {
   const seen = new Set<string>();
 
   const metroResults = getMetroFuse().search(normalized).slice(0, 2);
+  const topMetroScore = metroResults[0]?.score ?? 1;
   for (const mr of metroResults) {
     for (const code of mr.item.metro.airports) {
       if (merged.length >= limit) break;
@@ -130,6 +155,12 @@ export function searchAirports(query: string, limit = 10): Airport[] {
       }
     }
     if (merged.length >= limit) break;
+  }
+
+  // Strong metro match ("tokyo" -> TYO metro at score ~0): return metro airports only.
+  // Prevents fuzzy fallback from adding unrelated airports (NGO/TJH/LFW etc.)
+  if (topMetroScore < 0.1 && merged.length > 0) {
+    return merged;
   }
 
   const airportResults = getAirportFuse().search(normalized);
@@ -145,6 +176,18 @@ export function searchAirports(query: string, limit = 10): Airport[] {
     if (!seen.has(r.airport.iata)) {
       seen.add(r.airport.iata);
       merged.push(r.airport);
+    }
+  }
+
+  // Typo fallback: if nothing matched (e.g., "rekyjavik"), retry at a looser
+  // threshold against city/name only. Kept out of the primary pass so normal
+  // queries stay precise.
+  if (merged.length === 0) {
+    for (const r of getRelaxedFuse().search(normalized).slice(0, limit)) {
+      if (!seen.has(r.item.airport.iata)) {
+        seen.add(r.item.airport.iata);
+        merged.push(r.item.airport);
+      }
     }
   }
 
