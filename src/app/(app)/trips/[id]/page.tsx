@@ -6,6 +6,7 @@ import { resolveProfileId } from "@/lib/profile-access";
 import { MapPin, Calendar, ChevronLeft } from "lucide-react";
 import { TripTabContent } from "@/components/features/trips/TripTabContent";
 import { CommunityTripView } from "@/components/features/trips/CommunityTripView";
+import { DeleteTripButton } from "@/components/features/trips/DeleteTripButton";
 import { getTripCoverImage } from "@/lib/destination-images";
 
 function formatDateRange(start: Date | null, end: Date | null) {
@@ -236,23 +237,26 @@ export default async function TripDetailPage({
           isOwner={isOwner}
         />
       ) : (
-        <TripTabContent
-          initialTab={initialTab}
-          tripId={trip.id}
-          tripTitle={trip.title}
-          tripStartDate={trip.startDate ? trip.startDate.toISOString() : null}
-          tripEndDate={trip.endDate ? trip.endDate.toISOString() : null}
-          destinationCity={trip.destinationCity ?? null}
-          destinationCountry={trip.destinationCountry ?? null}
-          initialIsAnonymous={trip.isAnonymous}
-          initialIsPublic={trip.isPublic}
-          shareToken={trip.shareToken ?? undefined}
-          tripStatus={trip.status}
-          initialPostTripCaptureStarted={trip.postTripCaptureStarted}
-          initialPostTripCaptureComplete={trip.postTripCaptureComplete}
-          initialPostTripModalVisitCount={trip.postTripModalVisitCount ?? 0}
-          viewerMembers={viewerMembers}
-        />
+        <>
+          <TripTabContent
+            initialTab={initialTab}
+            tripId={trip.id}
+            tripTitle={trip.title}
+            tripStartDate={trip.startDate ? trip.startDate.toISOString() : null}
+            tripEndDate={trip.endDate ? trip.endDate.toISOString() : null}
+            destinationCity={trip.destinationCity ?? null}
+            destinationCountry={trip.destinationCountry ?? null}
+            initialIsAnonymous={trip.isAnonymous}
+            initialIsPublic={trip.isPublic}
+            shareToken={trip.shareToken ?? undefined}
+            tripStatus={trip.status}
+            initialPostTripCaptureStarted={trip.postTripCaptureStarted}
+            initialPostTripCaptureComplete={trip.postTripCaptureComplete}
+            initialPostTripModalVisitCount={trip.postTripModalVisitCount ?? 0}
+            viewerMembers={viewerMembers}
+          />
+          <DeleteTripButton tripId={trip.id} tripTitle={trip.title} />
+        </>
       )}
 
     </div>

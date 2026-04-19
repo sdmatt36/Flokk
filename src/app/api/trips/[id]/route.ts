@@ -77,6 +77,15 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  await db.trip.delete({ where: { id } });
+  await db.$transaction(async (tx) => {
+    // Null out non-cascading nullable FKs before deleting the trip
+    await tx.savedItem.updateMany({ where: { tripId: id }, data: { tripId: null } });
+    await tx.recommendationScore.updateMany({ where: { tripId: id }, data: { tripId: null } });
+    await tx.question.updateMany({ where: { tripId: id }, data: { tripId: null } });
+    await tx.placeRating.updateMany({ where: { tripId: id }, data: { tripId: null } });
+    // DB cascade handles: ItineraryItem (SetNull), and all Cascade-configured models
+    await tx.trip.delete({ where: { id } });
+  });
+
   return NextResponse.json({ success: true });
 }
