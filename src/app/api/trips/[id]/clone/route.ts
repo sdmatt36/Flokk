@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
-import { nanoid } from "nanoid";
+import { buildTripFromExtraction } from "@/lib/trip-builder";
 
 export const dynamic = "force-dynamic";
 
@@ -37,20 +37,23 @@ export async function POST(
   }
 
   // Create the cloned trip
+  const builtData = buildTripFromExtraction({
+    cities: source.cities.length > 0 ? source.cities : (source.destinationCity ? [source.destinationCity] : []),
+    country: source.country ?? source.destinationCountry ?? null,
+    countries: source.countries.length > 0 ? source.countries : undefined,
+    startDate: source.startDate ? source.startDate.toISOString().substring(0, 10) : null,
+    endDate: source.endDate ? source.endDate.toISOString().substring(0, 10) : null,
+    statusOverride: "PLANNING",
+    isAnonymous: true,
+  });
+
   const newTrip = await db.trip.create({
     data: {
-      familyProfileId: profileId,
+      ...builtData,
       title: source.title,
-      destinationCity: source.destinationCity,
-      destinationCountry: source.destinationCountry,
-      startDate: source.startDate,
-      endDate: source.endDate,
-      status: "PLANNING",
-      privacy: "PRIVATE",
-      heroImageUrl: source.heroImageUrl,
+      heroImageUrl: source.heroImageUrl ?? builtData.heroImageUrl,
       tripType: source.tripType,
-      isAnonymous: true,
-      shareToken: nanoid(12),
+      familyProfileId: profileId,
     },
   });
 

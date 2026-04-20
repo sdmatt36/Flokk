@@ -2,13 +2,9 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { buildTripFromExtraction } from "@/lib/trip-builder";
 
 export const maxDuration = 60;
-
-function generateToken(): string {
-  return Math.random().toString(36).substring(2, 15) +
-    Math.random().toString(36).substring(2, 15);
-}
 
 function getCategoryTags(title: string, notes: string | null): string[] {
   const text = (title + " " + (notes ?? "")).toLowerCase();
@@ -50,27 +46,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Cannot steal your own trip" }, { status: 400 });
   }
 
-  const destinationCity = sourceTrip.destinationCity ?? "New";
-
   // Only carry dates forward if they are in the future — past dates are not useful to the new owner
   const now = new Date();
-  const startDate = sourceTrip.startDate && sourceTrip.startDate > now ? sourceTrip.startDate : null;
-  const endDate = sourceTrip.endDate && sourceTrip.endDate > now ? sourceTrip.endDate : null;
+  const startDate = sourceTrip.startDate && sourceTrip.startDate > now ? sourceTrip.startDate.toISOString().substring(0, 10) : null;
+  const endDate = sourceTrip.endDate && sourceTrip.endDate > now ? sourceTrip.endDate.toISOString().substring(0, 10) : null;
+
+  const builtData = buildTripFromExtraction({
+    cities: sourceTrip.cities.length > 0 ? sourceTrip.cities : (sourceTrip.destinationCity ? [sourceTrip.destinationCity] : []),
+    country: sourceTrip.country ?? sourceTrip.destinationCountry ?? null,
+    countries: sourceTrip.countries.length > 0 ? sourceTrip.countries : undefined,
+    startDate,
+    endDate,
+    isAnonymous: true,
+  });
 
   // Create new trip for this user
   const newTrip = await db.trip.create({
-    data: {
-      familyProfileId: profileId,
-      title: `${destinationCity} Trip`,
-      destinationCity: sourceTrip.destinationCity,
-      destinationCountry: sourceTrip.destinationCountry,
-      startDate,
-      endDate,
-      status: "PLANNING",
-      shareToken: generateToken(),
-      isPublic: false,
-      isAnonymous: true,
-    },
+    data: { ...builtData, familyProfileId: profileId },
   });
 
   type SaveInput = {

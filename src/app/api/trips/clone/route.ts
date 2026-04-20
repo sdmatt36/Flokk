@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { getVenueImage } from "@/lib/destination-images";
+import { buildTripFromExtraction } from "@/lib/trip-builder";
 
 export async function POST(request: Request) {
   try {
@@ -41,17 +42,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Trip not found" }, { status: 404 });
     }
 
+    const builtData = buildTripFromExtraction({
+      cities: source.cities.length > 0 ? source.cities : (source.destinationCity ? [source.destinationCity] : []),
+      country: source.country ?? source.destinationCountry ?? null,
+      countries: source.countries.length > 0 ? source.countries : undefined,
+      startDate: startDate ?? null,
+      endDate: endDate ?? null,
+      statusOverride: "PLANNING",
+      isAnonymous: true,
+    });
+
     const newTrip = await db.trip.create({
       data: {
-        familyProfileId: profileId,
+        ...builtData,
         title: title.trim(),
-        destinationCity: source.destinationCity,
-        destinationCountry: source.destinationCountry,
-        heroImageUrl: source.heroImageUrl,
-        startDate: startDate ? new Date(startDate) : null,
-        endDate: endDate ? new Date(endDate) : null,
-        status: "PLANNING",
-        privacy: "PRIVATE",
+        heroImageUrl: source.heroImageUrl ?? builtData.heroImageUrl,
+        familyProfileId: profileId,
       },
     });
 
