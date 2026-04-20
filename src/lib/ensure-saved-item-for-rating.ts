@@ -83,7 +83,8 @@ export async function ensureSavedItemForRating(
     data: {
       familyProfileId: ctx.familyProfileId,
       communitySpotId: ctx.communitySpotId,
-      sourceType: "MANUAL",
+      sourceMethod: "IN_APP_SAVE",
+      sourcePlatform: "direct",
       extractionStatus: "ENRICHED",
       status: "UNORGANIZED",
       rawTitle: ctx.placeName,

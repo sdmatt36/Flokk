@@ -644,7 +644,7 @@ function PlacesTab() {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({
-                            sourceType: "MANUAL",
+                            sourceMethod: "URL_PASTE",
                             title: place.name,
                             city: place.city ?? null,
                             category: place.placeType ?? null,

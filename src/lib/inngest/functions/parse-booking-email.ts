@@ -435,7 +435,8 @@ Field notes:
           data: {
             familyProfileId,
             tripId: matchedTrip?.id ?? null,
-            sourceType: "EMAIL_IMPORT",
+            sourceMethod: "EMAIL_FORWARD",
+            sourcePlatform: "direct",
             rawTitle: extracted.vendorName as string,
             destinationCity: (extracted.city as string) ?? null,
             destinationCountry: (extracted.country as string) ?? null,
@@ -525,7 +526,8 @@ Field notes:
           data: {
             familyProfileId,
             tripId: matchedTrip?.id ?? null,
-            sourceType: "EMAIL_IMPORT",
+            sourceMethod: "EMAIL_FORWARD",
+            sourcePlatform: "direct",
             rawTitle: trainTitle,
             rawDescription: autoDescription,
             destinationCity: ((extracted.city ?? extracted.toCity) as string) ?? null,

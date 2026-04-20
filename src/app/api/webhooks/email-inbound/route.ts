@@ -10,6 +10,7 @@ import { resolveProfileByEmail } from "@/lib/profile-access";
 import { logExtraction } from "@/lib/extraction-log";
 import { extractOperatorPlan, looksLikeOperatorPlan } from "@/lib/operator-plan-extractor";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
+import { inferPlatformFromUrl } from "@/lib/saved-item-types";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -561,7 +562,8 @@ Field notes:
         const savedItem = await db.savedItem.create({
           data: {
             familyProfileId: familyProfile.id,
-            sourceType: 'EMAIL_IMPORT',
+            sourceMethod: "EMAIL_FORWARD",
+            sourcePlatform: inferPlatformFromUrl(rawUrl),
             sourceUrl: rawUrl,
             rawTitle: rawUrl,
             categoryTags: [],
@@ -1419,7 +1421,8 @@ Field notes:
         const savedItem = await db.savedItem.create({
           data: {
             familyProfileId: familyProfile.id,
-            sourceType: 'EMAIL_IMPORT',
+            sourceMethod: "EMAIL_FORWARD",
+            sourcePlatform: inferPlatformFromUrl(sourceUrlForSave),
             sourceUrl: sourceUrlForSave,
             rawTitle: placeTitle,
             categoryTags: [],

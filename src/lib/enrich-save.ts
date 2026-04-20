@@ -329,7 +329,8 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
       destinationCity: true,
       destinationCountry: true,
       sourceUrl: true,
-      sourceType: true,
+      sourceMethod: true,
+      sourcePlatform: true,
       lat: true,
       mediaThumbnailUrl: true,
     },
@@ -356,7 +357,7 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
 
   // Step 0: Google Maps — extract place name from URL, skip OG title, go straight to Places API
   const isGoogleMaps =
-    item.sourceType === "GOOGLE_MAPS" ||
+    item.sourcePlatform === "google_maps" ||
     /maps\.google\.com|google\.com\/maps|maps\.app\.goo\.gl/.test(item.sourceUrl ?? "");
 
   if (isGoogleMaps && item.sourceUrl) {
@@ -382,7 +383,7 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
 
   if (!skipNormalEnrichment) {
     // Step 1: Extract clean title/description from Instagram captions
-    if (item.sourceType === "INSTAGRAM" || isInstagramCaption(cleanTitle)) {
+    if (item.sourcePlatform === "instagram" || isInstagramCaption(cleanTitle)) {
       const extracted = await extractInstagramTitle(cleanTitle, item.destinationCity, item.destinationCountry);
       if (extracted) {
         workingTitle = extracted.title;
@@ -469,7 +470,7 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   if (description && !workingDescription) updateData.rawDescription = description;
   if (mapsCategory) updateData.categoryTags = [mapsCategory];
   // Flag Instagram saves where Claude couldn't identify a specific place — prompt user to identify
-  if ((item.sourceType === "INSTAGRAM" || isInstagramCaption(cleanTitle)) && !instagramPlaceFound && !skipNormalEnrichment) {
+  if ((item.sourcePlatform === "instagram" || isInstagramCaption(cleanTitle)) && !instagramPlaceFound && !skipNormalEnrichment) {
     updateData.needsPlaceConfirmation = true;
   }
   updateData.extractionStatus = "ENRICHED";

@@ -63,7 +63,8 @@ export async function POST(
       data: source.savedItems.map((item) => ({
         familyProfileId: profileId,
         tripId: newTrip.id,
-        sourceType: item.sourceType,
+        sourceMethod: item.sourceMethod ?? "IN_APP_SAVE",
+        sourcePlatform: item.sourcePlatform ?? "direct",
         sourceUrl: item.sourceUrl,
         rawTitle: item.rawTitle,
         rawDescription: item.rawDescription,

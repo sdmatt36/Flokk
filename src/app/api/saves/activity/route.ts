@@ -35,7 +35,8 @@ export async function POST(request: Request) {
     const savedItem = await db.savedItem.create({
       data: {
         familyProfileId: profileId,
-        sourceType: "IN_APP",
+        sourceMethod: "IN_APP_SAVE",
+        sourcePlatform: "direct",
         rawTitle: source.rawTitle,
         rawDescription: source.rawDescription,
         categoryTags: source.categoryTags,

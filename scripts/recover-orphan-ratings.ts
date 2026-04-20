@@ -17,7 +17,7 @@
 import * as dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
-import { PrismaClient, SourceType } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { normalizePlaceName as cleanVenueName } from "../src/lib/google-places";
@@ -352,7 +352,8 @@ async function main() {
             await tx.savedItem.create({
               data: {
                 familyProfileId: plan.familyProfileId,
-                sourceType: SourceType.IN_APP,
+                sourceMethod: "IN_APP_SAVE",
+                sourcePlatform: "direct",
                 rawTitle: cleanVenueName(a.orphan.placeName),
                 userRating: a.orphan.rating,
                 notes: a.orphan.notes,

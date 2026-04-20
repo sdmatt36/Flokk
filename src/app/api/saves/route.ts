@@ -27,7 +27,7 @@ import { resolveProfileId } from "@/lib/profile-access";
 import he from "he";
 import { z, ZodError } from "zod";
 import { extractOgMetadata } from "@/lib/og-extract";
-import type { SourceType } from "@prisma/client";
+import { inferPlatformFromUrl } from "@/lib/saved-item-types";
 import { getVenueImage } from "@/lib/destination-images";
 import { sendTransactional, sendSaveMilestoneEvent } from "@/lib/loops";
 import { enrichSavedItem } from "@/lib/enrich-save";
@@ -36,7 +36,7 @@ import { findMatchingTrip } from "@/lib/find-matching-trip";
 import { writeThroughCommunitySpot } from "@/lib/community-write-through";
 
 const ManualSaveSchema = z.object({
-  sourceType: z.literal("MANUAL"),
+  sourceMethod: z.literal("URL_PASTE"),
   title: z.string().min(1),
   category: z.string().optional().nullable(),
   city: z.string().optional().nullable(),
@@ -63,14 +63,6 @@ const SaveSchema = z.object({
   destinationCity: z.string().optional().nullable(),
 });
 
-function detectSourceType(url: string): SourceType {
-  if (/instagram\.com/.test(url)) return "INSTAGRAM";
-  if (/tiktok\.com/.test(url)) return "TIKTOK";
-  if (/youtube\.com|youtu\.be/.test(url)) return "YOUTUBE";
-  if (/maps\.google\.com|maps\.app\.goo\.gl|goo\.gl\/maps/.test(url))
-    return "GOOGLE_MAPS";
-  return "MANUAL";
-}
 
 export async function POST(request: Request) {
   try {
@@ -81,7 +73,7 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     // Manual activity save — no URL required
-    if (body.sourceType === "MANUAL") {
+    if (body.sourceMethod === "URL_PASTE") {
       const parsed = ManualSaveSchema.parse(body);
       const profileId = await resolveProfileId(userId);
       if (!profileId) return NextResponse.json({ error: "Complete onboarding first" }, { status: 400 });
@@ -90,7 +82,8 @@ export async function POST(request: Request) {
       const savedItem = await db.savedItem.create({
         data: {
           familyProfileId: saveProfile.id,
-          sourceType: "MANUAL",
+          sourceMethod: "URL_PASTE",
+          sourcePlatform: inferPlatformFromUrl(parsed.website ?? null),
           rawTitle: parsed.title,
           destinationCity: parsed.city?.trim() || null,
           categoryTags: parsed.category ? [parsed.category] : [],
@@ -145,7 +138,7 @@ export async function POST(request: Request) {
     const saveProfile = await db.familyProfile.findUnique({ where: { id: profileId } });
     if (!saveProfile) return NextResponse.json({ error: "Complete onboarding first" }, { status: 400 });
 
-    const sourceType = detectSourceType(url);
+    const sourcePlatform = inferPlatformFromUrl(url);
 
     // Reject template placeholders and non-http image values
     function sanitizeImageUrl(img: string | undefined | null): string | null {
@@ -212,7 +205,8 @@ export async function POST(request: Request) {
         data: {
           familyProfileId: saveProfile.id,
           tripId: tripId ?? null,
-          sourceType,
+          sourceMethod: "URL_PASTE",
+          sourcePlatform,
           sourceUrl: url,
           rawTitle,
           rawDescription,

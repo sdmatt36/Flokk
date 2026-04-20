@@ -14,7 +14,8 @@ type SaveItem = {
   destinationCity: string | null;
   destinationCountry: string | null;
   categoryTags: string[];
-  sourceType: string;
+  sourceMethod: string | null;
+  sourcePlatform: string | null;
   savedAt: string;
   notes: string | null;
   lat: number | null;
@@ -31,8 +32,11 @@ type SaveItem = {
 type Trip = { id: string; title: string; status?: string };
 
 const SOURCE_LABEL: Record<string, string> = {
+  URL_PASTE: "URL save", EMAIL_FORWARD: "Email", IN_APP_SAVE: "Saved in app", SHARED_TRIP_IMPORT: "Flokk share",
+  instagram: "Instagram", tiktok: "TikTok", youtube: "YouTube", google_maps: "Google Maps",
+  airbnb: "Airbnb", getyourguide: "GetYourGuide", viator: "Viator", klook: "Klook",
   INSTAGRAM: "Instagram", TIKTOK: "TikTok", GOOGLE_MAPS: "Google Maps",
-  MANUAL: "Manually added", IN_APP: "In-app", EMAIL_IMPORT: "Email", PHOTO_IMPORT: "Photo",
+  MANUAL: "URL save", IN_APP: "Saved in app", EMAIL_IMPORT: "Email", PHOTO_IMPORT: "URL save",
 };
 
 const TAG_GRADIENT: Record<string, string> = {
@@ -402,7 +406,7 @@ export function SaveDetailModal({
             )}
 
             <p style={{ fontSize: "12px", color: "#aaa", marginBottom: "16px" }}>
-              {item.sourceType === "MANUAL" ? "Saved manually" : `Saved from ${SOURCE_LABEL[item.sourceType] ?? item.sourceType}`} · {formatDate(item.savedAt)}
+              {item.sourceMethod === "IN_APP_SAVE" ? "Saved in app" : `Saved from ${SOURCE_LABEL[item.sourcePlatform ?? ""] || SOURCE_LABEL[item.sourceMethod ?? ""] || item.sourceMethod || "URL"}`} · {formatDate(item.savedAt)}
             </p>
 
             {/* Match reason */}

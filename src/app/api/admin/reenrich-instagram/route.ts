@@ -9,7 +9,7 @@ export async function POST() {
   const items = await db.savedItem.findMany({
     where: {
       OR: [
-        { sourceType: "INSTAGRAM" },
+        { sourcePlatform: "instagram" },
         { rawTitle: { contains: "on Instagram" } },
       ],
     },

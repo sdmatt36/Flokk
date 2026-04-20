@@ -132,7 +132,8 @@ export const enrichSavedItem = inngest.createFunction(
           mediaThumbnailUrl: true,
           placePhotoUrl: true,
           sourceUrl: true,
-          sourceType: true,
+          sourceMethod: true,
+          sourcePlatform: true,
           lat: true,
         },
       });
@@ -150,7 +151,7 @@ export const enrichSavedItem = inngest.createFunction(
 
     // Step 1: Extract clean title/description from Instagram captions
     const instagramExtracted = await step.run("extract-instagram-title", async () => {
-      if (item.sourceType !== "INSTAGRAM" && !isInstagramCaption(cleanTitle)) return null;
+      if (item.sourcePlatform !== "instagram" && !isInstagramCaption(cleanTitle)) return null;
       return await extractInstagramTitle(cleanTitle, item.destinationCity, item.destinationCountry);
     });
 

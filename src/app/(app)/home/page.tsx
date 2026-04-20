@@ -334,7 +334,8 @@ export default async function HomePage() {
                 destinationCity: item.destinationCity,
                 destinationCountry: item.destinationCountry,
                 categoryTags: item.categoryTags,
-                sourceType: item.sourceType,
+                sourceMethod: item.sourceMethod,
+                sourcePlatform: item.sourcePlatform,
               }))}
               trips={allTrips.map(t => ({ id: t.id, title: t.title, startDate: t.startDate ? t.startDate.toISOString() : null, endDate: t.endDate ? t.endDate.toISOString() : null, status: t.status }))}
               itineraryItemCount={itineraryItemCount}

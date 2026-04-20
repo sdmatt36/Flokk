@@ -53,7 +53,8 @@ type ApiItem = {
   destinationCity: string | null;
   destinationCountry: string | null;
   categoryTags: string[];
-  sourceType: string;
+  sourceMethod: string | null;
+  sourcePlatform: string | null;
   savedAt: string;
   tripId: string | null;
   dayIndex: number | null;
@@ -64,8 +65,14 @@ type ApiItem = {
 };
 
 const SOURCE_LABEL_MAP: Record<string, string> = {
+  // sourceMethod values
+  URL_PASTE: "URL save", EMAIL_FORWARD: "Email", IN_APP_SAVE: "Saved in app", SHARED_TRIP_IMPORT: "Flokk share",
+  // sourcePlatform values
+  instagram: "Instagram", tiktok: "TikTok", youtube: "YouTube", google_maps: "Google Maps",
+  airbnb: "Airbnb", getyourguide: "GetYourGuide", viator: "Viator", klook: "Klook",
+  // legacy fallbacks (pre-backfill rows)
   INSTAGRAM: "Instagram", TIKTOK: "TikTok", GOOGLE_MAPS: "Google Maps",
-  MANUAL: "Manually added", IN_APP: "In-app", EMAIL_IMPORT: "Email", PHOTO_IMPORT: "Photo",
+  MANUAL: "URL save", IN_APP: "Saved in app", EMAIL_IMPORT: "Email", PHOTO_IMPORT: "URL save",
 };
 
 function resolveTitle(rawTitle: string | null, city: string | null): string {
@@ -81,7 +88,7 @@ function mapApiItem(item: ApiItem): Save {
     id: item.id,
     title: resolveTitle(item.rawTitle, item.destinationCity),
     location: [item.destinationCity, item.destinationCountry].filter(Boolean).join(", "),
-    source: SOURCE_LABEL_MAP[item.sourceType] ?? item.sourceType,
+    source: SOURCE_LABEL_MAP[item.sourcePlatform ?? ""] || SOURCE_LABEL_MAP[item.sourceMethod ?? ""] || item.sourceMethod || "",
     tags: item.categoryTags,
     assigned: item.trip?.title ?? null,
     tripId: item.tripId ?? null,
@@ -1370,7 +1377,7 @@ export function SavesScreen() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sourceType: "MANUAL",
+          sourceMethod: "URL_PASTE",
           title: manualName.trim(),
           category: manualCategory || null,
           city: manualCity.trim() || null,

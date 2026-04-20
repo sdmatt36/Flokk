@@ -73,7 +73,8 @@ export async function POST(
     mediaThumbnailUrl: string | null;
     placePhotoUrl: string | null;
     status: "UNORGANIZED";
-    sourceType: "IN_APP";
+    sourceMethod: "SHARED_TRIP_IMPORT";
+    sourcePlatform: "direct";
     categoryTags: string[];
   };
 
@@ -92,7 +93,8 @@ export async function POST(
       mediaThumbnailUrl: null,
       placePhotoUrl: null,
       status: "UNORGANIZED",
-      sourceType: "IN_APP",
+      sourceMethod: "SHARED_TRIP_IMPORT",
+      sourcePlatform: "direct",
       categoryTags: [item.type.toLowerCase()],
     });
   }
@@ -110,7 +112,8 @@ export async function POST(
       mediaThumbnailUrl: null,
       placePhotoUrl: null,
       status: "UNORGANIZED",
-      sourceType: "IN_APP",
+      sourceMethod: "SHARED_TRIP_IMPORT",
+      sourcePlatform: "direct",
       categoryTags: ["activity"],
     });
   }

@@ -13,7 +13,7 @@ const SOURCE_PILLS: { label: string; filter: SourceFilter; icon: React.ReactNode
   { label: "YouTube",   filter: "YOUTUBE",   icon: <Youtube size={13} style={{ color: "#FF0000" }} />,  color: "#FF0000" },
 ];
 
-export type SourceSaveItem = RecentSaveItem & { sourceType: string };
+export type SourceSaveItem = RecentSaveItem & { sourceMethod: string | null; sourcePlatform: string | null };
 
 export function SourceFilterSaves({
   items,

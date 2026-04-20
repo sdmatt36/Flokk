@@ -17,14 +17,6 @@ export type TripStatus = "PLANNING" | "ACTIVE" | "COMPLETED";
 export type SubTier = "FREE" | "PREMIUM";
 export type CommunityTier = "EXPLORER" | "NAVIGATOR" | "PIONEER";
 export type MemberRole = "ADULT" | "CHILD";
-export type SourceType =
-  | "INSTAGRAM"
-  | "TIKTOK"
-  | "GOOGLE_MAPS"
-  | "MANUAL"
-  | "IN_APP"
-  | "EMAIL_IMPORT"
-  | "PHOTO_IMPORT";
 
 export interface Interest {
   key: string;

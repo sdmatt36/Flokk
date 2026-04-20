@@ -504,7 +504,8 @@ type TripSavedItemForDisplay = {
   placePhotoUrl: string | null;
   mediaThumbnailUrl: string | null;
   categoryTags: string[];
-  sourceType: string;
+  sourceMethod: string | null;
+  sourcePlatform: string | null;
   savedAt: string;
   destinationCity: string | null;
   destinationCountry: string | null;
@@ -1087,7 +1088,8 @@ function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDel
 
 type ApiSavedItem = {
   id: string;
-  sourceType: string;
+  sourceMethod: string | null;
+  sourcePlatform: string | null;
   sourceUrl: string | null;
   rawTitle: string | null;
   rawDescription: string | null;
@@ -1103,9 +1105,12 @@ type ApiSavedItem = {
 };
 
 const SAVED_SOURCE_LABEL: Record<string, string> = {
+  URL_PASTE: "URL save", EMAIL_FORWARD: "Email", IN_APP_SAVE: "Saved in app", SHARED_TRIP_IMPORT: "Flokk share",
+  instagram: "Instagram", tiktok: "TikTok", youtube: "YouTube", google_maps: "Google Maps",
+  airbnb: "Airbnb", getyourguide: "GetYourGuide", viator: "Viator", klook: "Klook",
   INSTAGRAM: "Instagram", TIKTOK: "TikTok", GOOGLE_MAPS: "Google Maps",
-  MANUAL: "Manually added", IN_APP: "In-app", EMAIL_IMPORT: "Email",
-  PHOTO_IMPORT: "Photo", FROM_SHARE: "Flokk share",
+  MANUAL: "URL save", IN_APP: "Saved in app", EMAIL_IMPORT: "Email",
+  PHOTO_IMPORT: "URL save", FROM_SHARE: "Flokk share",
 };
 
 function inferSavedCategory(item: ApiSavedItem): string {
@@ -1151,7 +1156,7 @@ function apiToDisplayItem(item: ApiSavedItem): SavedDisplayItem {
     isLodging,
     lodgingDates: { checkin: item.extractedCheckin, checkout: item.extractedCheckout },
     categoryTags: item.categoryTags,
-    source: SAVED_SOURCE_LABEL[item.sourceType] ?? undefined,
+    source: SAVED_SOURCE_LABEL[item.sourcePlatform ?? ""] || SAVED_SOURCE_LABEL[item.sourceMethod ?? ""] || undefined,
   };
 }
 
@@ -4895,7 +4900,7 @@ function RecommendedContent({
                         const res = await fetch("/api/saves", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ sourceType: "MANUAL", title: rec.name, category: rec.category, city: destinationCity ?? undefined, tripId, source: "AI_RECOMMENDATION" }),
+                          body: JSON.stringify({ sourceMethod: "URL_PASTE", title: rec.name, category: rec.category, city: destinationCity ?? undefined, tripId, source: "AI_RECOMMENDATION" }),
                         });
                         if (!res.ok) throw new Error();
                         setSaveStates(prev => ({ ...prev, [rec.name]: "done" }));

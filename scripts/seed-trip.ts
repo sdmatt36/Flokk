@@ -44,7 +44,8 @@ async function main() {
           create: [
             {
               familyProfileId: profile.id,
-              sourceType: "MANUAL",
+              sourceMethod: "URL_PASTE",
+              sourcePlatform: "direct",
               sourceUrl: "https://churaumi.okinawa/en",
               rawTitle: "Churaumi Aquarium",
               rawDescription:
@@ -55,7 +56,8 @@ async function main() {
             },
             {
               familyProfileId: profile.id,
-              sourceType: "GOOGLE_MAPS",
+              sourceMethod: "URL_PASTE",
+              sourcePlatform: "google_maps",
               rawTitle: "Katsuren Castle Ruins",
               rawDescription:
                 "UNESCO World Heritage site — 14th-century Ryukyu castle perched on a hill with panoramic ocean views. Stunning at golden hour.",
@@ -65,7 +67,8 @@ async function main() {
             },
             {
               familyProfileId: profile.id,
-              sourceType: "INSTAGRAM",
+              sourceMethod: "URL_PASTE",
+              sourcePlatform: "instagram",
               rawTitle: "Naha Kokusai-dori Street Food",
               rawDescription:
                 "Okinawa's main strip — sata andagi doughnuts, taco rice, Orion beer, and Blue Seal ice cream. Walk it in the evening.",

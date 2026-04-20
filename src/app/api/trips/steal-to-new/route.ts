@@ -77,7 +77,8 @@ export async function POST(req: Request) {
     mediaThumbnailUrl: string | null;
     placePhotoUrl: string | null;
     status: "UNORGANIZED";
-    sourceType: "IN_APP";
+    sourceMethod: "SHARED_TRIP_IMPORT";
+    sourcePlatform: "direct";
     categoryTags: string[];
     extractionStatus: "ENRICHED";
   };
@@ -99,7 +100,8 @@ export async function POST(req: Request) {
       mediaThumbnailUrl: null,
       placePhotoUrl: null,
       status: "UNORGANIZED",
-      sourceType: "IN_APP",
+      sourceMethod: "SHARED_TRIP_IMPORT",
+      sourcePlatform: "direct",
       categoryTags: getCategoryTags(item.title, item.notes ?? null),
       extractionStatus: "ENRICHED",
     });
@@ -119,7 +121,8 @@ export async function POST(req: Request) {
       mediaThumbnailUrl: null,
       placePhotoUrl: null,
       status: "UNORGANIZED",
-      sourceType: "IN_APP",
+      sourceMethod: "SHARED_TRIP_IMPORT",
+      sourcePlatform: "direct",
       categoryTags: getCategoryTags(item.title, item.notes ?? null),
       extractionStatus: "ENRICHED",
     });

@@ -26,7 +26,8 @@ export async function POST() {
         create: [
           {
             familyProfileId: profileId,
-            sourceType: "MANUAL",
+            sourceMethod: "URL_PASTE",
+            sourcePlatform: "direct",
             sourceUrl: "https://www.okinawatravelinfo.com",
             rawTitle: "Churaumi Aquarium",
             rawDescription: "One of the world's largest aquariums — massive whale shark tank, manta ray lagoon, and deep-sea exhibits. Perfect for a family half-day.",
@@ -36,7 +37,8 @@ export async function POST() {
           },
           {
             familyProfileId: profileId,
-            sourceType: "GOOGLE_MAPS",
+            sourceMethod: "URL_PASTE",
+            sourcePlatform: "google_maps",
             sourceUrl: "https://maps.google.com/?q=Katsuren+Castle",
             rawTitle: "Katsuren Castle Ruins",
             rawDescription: "UNESCO World Heritage site — 14th-century Ryukyu castle perched on a hill with panoramic ocean views. Stunning at golden hour.",
@@ -46,7 +48,8 @@ export async function POST() {
           },
           {
             familyProfileId: profileId,
-            sourceType: "INSTAGRAM",
+            sourceMethod: "URL_PASTE",
+            sourcePlatform: "instagram",
             sourceUrl: "https://www.instagram.com/p/example",
             rawTitle: "Naha Kokusai-dori Street Food",
             rawDescription: "Okinawa's main strip — sata andagi doughnuts, taco rice, Orion beer, and Blue Seal ice cream. Walk it in the evening.",

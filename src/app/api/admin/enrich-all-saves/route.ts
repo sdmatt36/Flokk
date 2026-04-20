@@ -22,7 +22,7 @@ export async function POST() {
           AND: [
             { placePhotoUrl: null },
             { mediaThumbnailUrl: null },
-            { sourceType: { not: "MANUAL" } },
+            { sourceMethod: "URL_PASTE" },
           ],
         },
       ],

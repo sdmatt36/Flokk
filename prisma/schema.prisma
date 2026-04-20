@@ -303,7 +303,8 @@ model SavedItem {
   familyProfile       FamilyProfile @relation(fields: [familyProfileId], references: [id], onDelete: Cascade)
   tripId              String?
   trip                Trip?         @relation(fields: [tripId], references: [id])
-  sourceType          SourceType
+  sourceMethod        String?
+  sourcePlatform      String?
   sourceUrl           String?
   rawTitle            String?
   rawDescription      String?
@@ -337,17 +338,6 @@ model SavedItem {
   communitySpot            CommunitySpot? @relation("SavedItemToCommunitySpot", fields: [communitySpotId], references: [id], onDelete: SetNull)
 
   @@index([communitySpotId])
-}
-
-enum SourceType {
-  INSTAGRAM
-  TIKTOK
-  YOUTUBE
-  GOOGLE_MAPS
-  MANUAL
-  IN_APP
-  EMAIL_IMPORT
-  PHOTO_IMPORT
 }
 
 enum SavedItemStatus {

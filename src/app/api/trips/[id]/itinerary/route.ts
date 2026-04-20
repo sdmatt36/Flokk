@@ -92,7 +92,8 @@ export async function POST(
     data: {
       familyProfileId: profileId,
       tripId,
-      sourceType: "IN_APP",
+      sourceMethod: "IN_APP_SAVE",
+      sourcePlatform: "direct",
       rawTitle: title,
       rawDescription: location ?? null,
       mediaThumbnailUrl: imageUrl ?? null,
