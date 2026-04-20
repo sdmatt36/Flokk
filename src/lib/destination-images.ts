@@ -57,16 +57,16 @@ export const VENUE_IMAGES: Record<string, string> = {
   "kuromon market":             "https://images.unsplash.com/photo-1590559899731-a382839e5549?w=800&q=80",
 
   // Marrakesh
-  "djemaa el-fna":              "https://images.unsplash.com/photo-1597212618440-806262de4f2b?w=800&q=80",
-  "djemaa":                     "https://images.unsplash.com/photo-1597212618440-806262de4f2b?w=800&q=80",
-  "jemaa el fnaa":              "https://images.unsplash.com/photo-1597212618440-806262de4f2b?w=800&q=80",
+  "djemaa el-fna":              "https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=800&q=80",
+  "djemaa":                     "https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=800&q=80",
+  "jemaa el fnaa":              "https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=800&q=80",
   "medina souks":               "https://images.unsplash.com/photo-1548013146-72479768bada?w=800&q=80",
   "souks":                      "https://images.unsplash.com/photo-1548013146-72479768bada?w=800&q=80",
   "majorelle garden":           "https://images.unsplash.com/photo-1548531853-2ac7d6d0b5af?w=800&q=80",
   "majorelle":                  "https://images.unsplash.com/photo-1548531853-2ac7d6d0b5af?w=800&q=80",
   "atlas mountains":            "https://images.unsplash.com/photo-1531176175280-dd4f6b261d60?w=800&q=80",
   "atlas":                      "https://images.unsplash.com/photo-1531176175280-dd4f6b261d60?w=800&q=80",
-  "bahia palace":               "https://images.unsplash.com/photo-1597212618440-806262de4f2b?w=800&q=80",
+  "bahia palace":               "https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=800&q=80",
 
   // Okinawa
   "shuri castle":               "https://images.unsplash.com/photo-1580640810088-1ac1d5f0ffe2?w=800&q=80",
@@ -187,8 +187,13 @@ export const DESTINATION_IMAGES: Record<string, string> = {
   "scotland": "https://images.unsplash.com/photo-1506377585622-bedcbb027afc?w=800&q=80",
 
   // Africa / Middle East
-  "marrakech": "https://images.unsplash.com/photo-1597212618440-806262de4f2b?w=800&q=80",
-  "marrakesh": "https://images.unsplash.com/photo-1597212618440-806262de4f2b?w=800&q=80",
+  "marrakech": "https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=800&q=80",
+  "marrakesh": "https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=800&q=80",
+  "tangier": "https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=800&q=80",
+  "fez": "https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=800&q=80",
+  "casablanca": "https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=800&q=80",
+  "chefchaouen": "https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=800&q=80",
+  "merzouga": "https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=800&q=80",
   "cairo": "https://images.unsplash.com/photo-1572252009286-268acec5ca0a?w=800&q=80",
   "cape town": "https://images.unsplash.com/photo-1580060839134-75a5edca2e99?w=800&q=80",
 
@@ -223,7 +228,7 @@ export const DESTINATION_IMAGES: Record<string, string> = {
   "korea": "https://images.unsplash.com/photo-1538485399081-7191377e8241?w=800&q=80",
   "south korea": "https://images.unsplash.com/photo-1538485399081-7191377e8241?w=800&q=80",
   "sri lanka": "https://images.unsplash.com/photo-1567591370078-c3a7f7c91b88?w=800&q=80",
-  "morocco": "https://images.unsplash.com/photo-1597212618440-806262de4f2b?w=800&q=80",
+  "morocco": "https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=800&q=80",
   "italy": "https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=800&q=80",
   "france": "https://images.unsplash.com/photo-1499856871958-5b9627545d1a?w=800&q=80",
   "spain": "https://images.unsplash.com/photo-1583422409516-2895a77efded?w=800&q=80",
