@@ -9,6 +9,7 @@ import { nanoid } from "nanoid";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { toTitleCase } from "@/lib/utils";
 import { resolveProfileByEmail } from "@/lib/profile-access";
+import { logExtraction } from "@/lib/extraction-log";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -357,6 +358,31 @@ async function getDayIndex(tripId: string | null, dateStr: string): Promise<numb
 // ── Route handler ──────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
+  const logCtx: {
+    senderEmail: string;
+    subject: string | null;
+    resolutionPath: "profile_member" | "direct_user" | "delegate" | "none";
+    familyProfileId: string | null;
+    extractedType: string | null;
+    matchedTripId: string | null;
+    autoCreatedTripId: string | null;
+    itineraryItemIds: string[];
+    tripDocumentId: string | null;
+    confidenceScore: number | null;
+    rawEmailSize: number | null;
+  } = {
+    senderEmail: "",
+    subject: null,
+    resolutionPath: "none",
+    familyProfileId: null,
+    extractedType: null,
+    matchedTripId: null,
+    autoCreatedTripId: null,
+    itineraryItemIds: [],
+    tripDocumentId: null,
+    confidenceScore: null,
+    rawEmailSize: null,
+  };
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const payload = await req.json() as Record<string, any>;
@@ -378,6 +404,8 @@ export async function POST(req: NextRequest) {
       text    = String(payload.text    ?? "");
     }
 
+    logCtx.subject = subject || null;
+    logCtx.rawEmailSize = (text || html || "").length;
     console.log('[email-inbound] body length:', (text || html || '').length);
     console.log("[email-inbound] from:", from, "| to:", to, "| subject:", subject);
 
@@ -403,16 +431,21 @@ export async function POST(req: NextRequest) {
 
     if (!from || !subject) {
       console.warn("[email-inbound] missing from or subject — dropping");
+      await logExtraction({ senderEmail: from || "", subject: subject || null, resolutionPath: "none", outcome: "dropped", errorMessage: "missing from or subject" });
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     const senderEmailMatch = from.match(/<(.+?)>/);
     const senderEmail = senderEmailMatch?.[1]?.trim() ?? from.trim();
+    logCtx.senderEmail = senderEmail;
 
     const { familyProfile, path: pathTaken } = await resolveProfileByEmail(senderEmail);
+    logCtx.resolutionPath = pathTaken;
+    logCtx.familyProfileId = familyProfile?.id ?? null;
 
     if (!familyProfile) {
       console.log("[email-inbound] no profile for sender", senderEmail, "- dropping");
+      await logExtraction({ ...logCtx, outcome: "dropped", errorMessage: "no profile for sender" });
       return NextResponse.json({ received: true });
     }
 
@@ -502,6 +535,7 @@ Field notes:
     const content = response.content[0];
     if (content.type !== "text") {
       console.error("[email-inbound] unexpected Claude response type");
+      await logExtraction({ ...logCtx, outcome: "error", errorMessage: "unexpected Claude response type" });
       return NextResponse.json({ received: true, status: "claude_error" });
     }
 
@@ -511,8 +545,12 @@ Field notes:
       extracted = JSON.parse(clean) as Record<string, unknown>;
     } catch {
       console.error("[email-inbound] JSON parse failed:", content.text);
+      await logExtraction({ ...logCtx, outcome: "error", errorMessage: "JSON parse failed" });
       return NextResponse.json({ received: true, status: "parse_error" });
     }
+
+    logCtx.extractedType = (extracted?.type as string | null) ?? null;
+    logCtx.confidenceScore = (extracted?.confidence as number | null) ?? null;
 
     if (!extracted || (extracted.confidence as number) < 0.5) {
       console.log("[email-inbound] low confidence:", extracted?.confidence);
@@ -616,6 +654,7 @@ Field notes:
       } else {
         console.log('[trips-save] no URL found in low-confidence email, skipping');
       }
+      await logExtraction({ ...logCtx, outcome: "dropped", errorMessage: `low confidence: ${extracted?.confidence ?? "null"}` });
       return NextResponse.json({ received: true, status: "low_confidence" });
     }
 
@@ -763,6 +802,7 @@ Field notes:
       (matchedTrip && confidenceScore >= 0.8) ? matchedTrip.id : null;
     console.log(`[email-match] result: tripId = ${resolvedTripId ?? "null — unassigned"} | matched: "${matchedTrip?.title ?? "none"}" | confidence: ${confidenceScore}`);
     console.log(`[email-inbound] trip match: "${matchedTrip?.title ?? "UNASSIGNED"}" | resolvedTripId: ${resolvedTripId ?? "null"} | confidence: ${confidenceScore}`);
+    logCtx.matchedTripId = resolvedTripId;
 
     // Auto-create trip when no match found, confidence >= 0.9, type is flight or hotel, and destination is known
     if (!matchedTrip && confidenceScore >= 0.9) {
@@ -807,6 +847,8 @@ Field notes:
           });
           matchedTrip = autoTrip as typeof trips[0];
           resolvedTripId = autoTrip.id;
+          logCtx.autoCreatedTripId = autoTrip.id;
+          logCtx.matchedTripId = autoTrip.id;
           console.log(`[email-inbound] auto-created trip: "${autoTitle}" id: ${autoTrip.id}`);
         }
       }
@@ -824,6 +866,7 @@ Field notes:
       });
       if (existing) {
         console.log(`[email-inbound] duplicate detected globally — confirmationCode: ${incomingConfCode} already exists as "${existing.title}" on trip ${existing.tripId ?? "unassigned"} — skipping`);
+        await logExtraction({ ...logCtx, outcome: "dropped", errorMessage: `duplicate confirmationCode: ${incomingConfCode}` });
         return NextResponse.json({ received: true, skipped: "duplicate" });
       }
     }
@@ -1096,7 +1139,7 @@ Field notes:
         if (existingVaultDoc) {
           console.log("[vault] Skipping duplicate tripDocument:", vaultLabel);
         } else {
-          await db.tripDocument.create({
+          const flightDoc = await db.tripDocument.create({
             data: {
               tripId: resolvedTripId,
               label: vaultLabel,
@@ -1114,11 +1157,14 @@ Field notes:
               }),
             },
           });
+          logCtx.tripDocumentId = flightDoc.id;
           console.log("[email-inbound] created vault doc for trip:", resolvedTripId);
         }
       }
 
       await incrementBudget(resolvedTripId, parsedCost);
+      logCtx.itineraryItemIds = createdLegItemIds;
+      await logExtraction({ ...logCtx, outcome: "success" });
       return NextResponse.json({ received: true, status: "success", type: "flight", tripId: resolvedTripId });
 
     // ── Hotels ────────────────────────────────────────────────────────────────
@@ -1213,7 +1259,7 @@ Field notes:
         });
       }
       if (matchedTrip) {
-        await db.tripDocument.create({
+        const hotelDoc = await db.tripDocument.create({
           data: {
             tripId: matchedTrip.id,
             label: hotelName,
@@ -1230,9 +1276,12 @@ Field notes:
             }),
           },
         });
+        logCtx.tripDocumentId = hotelDoc.id;
       }
 
       await incrementBudget(resolvedTripId, derivedTotalCost);
+      logCtx.itineraryItemIds = [checkInItem.id];
+      await logExtraction({ ...logCtx, outcome: "success" });
       return NextResponse.json({ received: true, status: "success", type: "hotel", tripId: resolvedTripId });
 
     // ── Train / activity / other (replaces SavedItem) ─────────────────────────
@@ -1303,6 +1352,7 @@ Field notes:
         } catch (e) {
           console.error('[email-inbound] confirmation email failed:', e);
         }
+        await logExtraction({ ...logCtx, outcome: "partial", errorMessage: "saved_as_place: non-booking low confidence" });
         return NextResponse.json({ status: 'saved_as_place' });
       }
 
@@ -1330,6 +1380,7 @@ Field notes:
           });
           if (existingByTitle) {
             console.log(`[dedup] skipped title match: "${itemTitle}" ~ "${existingByTitle.title}"`);
+            await logExtraction({ ...logCtx, outcome: "dropped", errorMessage: `title_duplicate: "${itemTitle}" ~ "${existingByTitle.title}"` });
             return NextResponse.json({ received: true, skipped: 'title_duplicate' });
           }
         }
@@ -1354,7 +1405,7 @@ Field notes:
         });
       }
       if (matchedTrip) {
-        await db.tripDocument.create({
+        const catchAllDoc = await db.tripDocument.create({
           data: {
             tripId: matchedTrip.id,
             label: itemTitle,
@@ -1372,6 +1423,7 @@ Field notes:
             }),
           },
         });
+        logCtx.tripDocumentId = catchAllDoc.id;
       }
 
       // Geocode: trains → departure station; others → vendor name + city
@@ -1390,11 +1442,14 @@ Field notes:
       }
       console.log("[email-inbound] created ItineraryItem:", item.id, "type:", itemTypeStr, "dayIndex:", dayIndex);
       await incrementBudget(resolvedTripId, parsedCost);
+      logCtx.itineraryItemIds = [item.id];
+      await logExtraction({ ...logCtx, outcome: "success" });
       return NextResponse.json({ received: true, status: "success", type: itemTypeStr, tripId: resolvedTripId });
     }
 
   } catch (err) {
     console.error("[email-inbound] error:", err);
+    await logExtraction({ ...logCtx, outcome: "error", errorMessage: err instanceof Error ? err.message : String(err) });
     return NextResponse.json({ error: "Failed to process" }, { status: 500 });
   }
 }

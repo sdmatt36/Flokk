@@ -904,3 +904,25 @@ model SpotContribution {
   @@index([familyProfileId])
   @@index([communitySpotId])
 }
+
+model ExtractionLog {
+  id                  String    @id @default(cuid())
+  createdAt           DateTime  @default(now())
+  senderEmail         String
+  subject             String?
+  resolutionPath      String    // "profile_member" | "direct_user" | "delegate" | "none"
+  familyProfileId     String?
+  extractedType       String?   // "hotel" | "flight" | "activity" | "train" | "car_rental" | "unknown" | "none"
+  matchedTripId       String?
+  autoCreatedTripId   String?
+  itineraryItemIds    String[]  @default([])
+  tripDocumentId      String?
+  confidenceScore     Float?
+  outcome             String    // "success" | "partial" | "dropped" | "error"
+  errorMessage        String?
+  rawEmailSize        Int?
+
+  @@index([senderEmail, createdAt])
+  @@index([familyProfileId, createdAt])
+  @@index([outcome])
+}
