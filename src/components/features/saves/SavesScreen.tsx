@@ -1631,7 +1631,7 @@ Your saved places, all in one spot
         </div>
 
         {/* FILTER STRIP */}
-        <div style={{ display: "flex", overflowX: "auto", overscrollBehaviorX: "contain", gap: "8px", marginBottom: "24px", paddingBottom: "4px", scrollbarWidth: "none", width: "100%" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", rowGap: 8, marginBottom: "24px", paddingBottom: "4px", width: "100%" }}>
           <button
             onClick={(e) => { e.stopPropagation(); setActiveFilter("All"); }}
             style={{ flexShrink: 0, padding: "6px 12px", borderRadius: "999px", fontSize: "13px", fontWeight: activeFilter === "All" ? 600 : 400, color: activeFilter === "All" ? "#fff" : "#717171", backgroundColor: activeFilter === "All" ? "#C4664A" : "#fff", border: activeFilter === "All" ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease" }}
