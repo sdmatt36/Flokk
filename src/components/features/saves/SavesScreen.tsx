@@ -1122,6 +1122,11 @@ export function SavesScreen() {
   const [activeFilter, setActiveFilter] = useState("All");
   const [dietaryFilter, setDietaryFilter] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
+  const [activeCountry, setActiveCountry] = useState<string>("all");
+  const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
+  const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
+  const [countrySearch, setCountrySearch] = useState("");
+  const [citySearch, setCitySearch] = useState("");
   const [saves, setSaves] = useState<Save[]>([]);
   const [availableTrips, setAvailableTrips] = useState<{ id: string; title: string; destinationCity: string | null; destinationCountry: string | null; cities: string[]; country: string | null; countries: string[]; startDate: string | null; endDate: string | null; isPlacesLibrary?: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1205,6 +1210,27 @@ export function SavesScreen() {
     }, 400);
     return () => { if (manualCityDebounceRef.current) clearTimeout(manualCityDebounceRef.current); };
   }, [manualCityQuery]);
+
+  // Cascading reset: changing country resets city selection
+  useEffect(() => {
+    setSelectedCity(null);
+    setCitySearch("");
+  }, [activeCountry]);
+
+  // Click-outside dismissal for country + city dropdowns
+  useEffect(() => {
+    if (!countryDropdownOpen && !cityDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-saves-filter-dropdown]")) {
+        setCountryDropdownOpen(false);
+        setCityDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [countryDropdownOpen, cityDropdownOpen]);
+
 
   function selectManualCity(cityName: string, countryName: string, region: string) {
     setManualCity(cityName);
@@ -1414,19 +1440,45 @@ export function SavesScreen() {
     }
   };
 
-  // Unique cities derived from saves, alphabetical — used for city pill row
-  const availableCities = useMemo(() => {
-    const cities = new Set<string>();
-    saves.forEach(s => {
-      if (s.destinationCity && s.destinationCity.trim()) cities.add(s.destinationCity.trim());
-    });
-    return Array.from(cities).sort((a, b) => a.localeCompare(b));
+  // Count saves per country, sorted desc
+  const countryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const s of saves) {
+      const c = s.destinationCountry?.trim();
+      if (c) counts.set(c, (counts.get(c) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count }));
   }, [saves]);
 
+  // Count saves per city, scoped to activeCountry
+  const cityCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const s of saves) {
+      if (activeCountry !== "all" && s.destinationCountry?.trim() !== activeCountry) continue;
+      const c = s.destinationCity?.trim();
+      if (c) counts.set(c, (counts.get(c) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count }));
+  }, [saves, activeCountry]);
+
+  // Filtered dropdown lists based on search input
+  const filteredCountries = countryCounts.filter(c =>
+    c.name.toLowerCase().includes(countrySearch.trim().toLowerCase())
+  );
+  const filteredCities = cityCounts.filter(c =>
+    c.name.toLowerCase().includes(citySearch.trim().toLowerCase())
+  );
+
   // City filter — applied before category/search
-  const cityFiltered = selectedCity
-    ? saves.filter(s => s.destinationCity?.trim() === selectedCity)
-    : saves;
+  const cityFiltered = saves.filter(s => {
+    if (activeCountry !== "all" && s.destinationCountry !== activeCountry) return false;
+    if (selectedCity !== null && s.destinationCity?.trim() !== selectedCity) return false;
+    return true;
+  });
 
   // Card matching: search + category filter (ignores assigned/unassigned axis)
   const matchesFilter = (s: Save): boolean => {
@@ -1485,34 +1537,98 @@ Your saved places, all in one spot
           </div>
         </div>
 
-        {/* CITY PILL ROW */}
-        {availableCities.length > 0 && (
-          <div style={{ marginBottom: "12px", width: "100%" }}>
-            <div
-              style={{ display: "flex", gap: "8px", overflowX: "auto", overscrollBehaviorX: "contain", paddingBottom: "8px", scrollbarWidth: "none", msOverflowStyle: "none", width: "100%" }}
-              className="hide-scrollbar"
+        {/* COUNTRY + CITY DROPDOWNS */}
+        <div
+          data-saves-filter-dropdown=""
+          style={{ display: "flex", gap: 12, marginBottom: 16, position: "relative", flexWrap: "wrap" }}
+        >
+          {/* COUNTRY DROPDOWN */}
+          <div style={{ position: "relative", minWidth: 200 }}>
+            <button
+              type="button"
+              onClick={() => { setCountryDropdownOpen(o => !o); setCityDropdownOpen(false); }}
+              style={{ padding: "8px 14px", fontSize: 14, fontWeight: 500, color: "#1B3A5C", background: "#fff", border: "1px solid #D4C4B8", borderRadius: 20, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, minWidth: 200, justifyContent: "space-between" }}
             >
-              <button
-                onClick={() => setSelectedCity(null)}
-                style={{ flexShrink: 0, padding: "6px 12px", borderRadius: "999px", border: selectedCity === null ? "none" : "1.5px solid #E0E0E0", backgroundColor: selectedCity === null ? "#1B3A5C" : "#fff", color: selectedCity === null ? "#fff" : "#1B3A5C", fontSize: "13px", fontWeight: selectedCity === null ? 700 : 500, lineHeight: "1", cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit" }}
-              >
-                All cities
-              </button>
-              {availableCities.map(city => {
-                const isSelected = selectedCity === city;
-                return (
-                  <button
-                    key={city}
-                    onClick={() => setSelectedCity(isSelected ? null : city)}
-                    style={{ flexShrink: 0, padding: "6px 12px", borderRadius: "999px", border: isSelected ? "none" : "1.5px solid #E0E0E0", backgroundColor: isSelected ? "#1B3A5C" : "#fff", color: isSelected ? "#fff" : "#1B3A5C", fontSize: "13px", fontWeight: isSelected ? 700 : 500, lineHeight: "1", cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit" }}
+              <span>{activeCountry === "all" ? `All countries (${saves.length})` : `${activeCountry} (${countryCounts.find(c => c.name === activeCountry)?.count ?? 0})`}</span>
+              <span style={{ fontSize: 10, color: "#666" }}>▾</span>
+            </button>
+            {countryDropdownOpen && (
+              <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#fff", border: "1px solid #D4C4B8", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", zIndex: 20, maxHeight: 320, overflowY: "auto", overscrollBehaviorY: "contain" }}>
+                <input
+                  type="text"
+                  value={countrySearch}
+                  onChange={e => setCountrySearch(e.target.value)}
+                  placeholder="Search countries..."
+                  style={{ width: "100%", padding: "8px 12px", fontSize: 13, border: "none", borderBottom: "1px solid #E8D5C8", outline: "none", boxSizing: "border-box" }}
+                />
+                <div
+                  onClick={() => { setActiveCountry("all"); setCountryDropdownOpen(false); setCountrySearch(""); }}
+                  style={{ padding: "8px 14px", fontSize: 13, cursor: "pointer", background: activeCountry === "all" ? "#F5EDE5" : "transparent", fontWeight: activeCountry === "all" ? 600 : 400, color: "#1B3A5C" }}
+                >
+                  All countries ({saves.length})
+                </div>
+                {filteredCountries.map(c => (
+                  <div
+                    key={c.name}
+                    onClick={() => { setActiveCountry(c.name); setCountryDropdownOpen(false); setCountrySearch(""); }}
+                    style={{ padding: "8px 14px", fontSize: 13, cursor: "pointer", background: activeCountry === c.name ? "#F5EDE5" : "transparent", fontWeight: activeCountry === c.name ? 600 : 400, color: "#1B3A5C", display: "flex", justifyContent: "space-between" }}
                   >
-                    {city}
-                  </button>
-                );
-              })}
-            </div>
+                    <span>{c.name}</span>
+                    <span style={{ color: "#999", fontSize: 12 }}>{c.count}</span>
+                  </div>
+                ))}
+                {filteredCountries.length === 0 && countrySearch && (
+                  <div style={{ padding: "12px 14px", fontSize: 13, color: "#999", fontStyle: "italic" }}>No matches</div>
+                )}
+              </div>
+            )}
           </div>
-        )}
+
+          {/* CITY DROPDOWN */}
+          <div style={{ position: "relative", minWidth: 200 }}>
+            <button
+              type="button"
+              onClick={() => { setCityDropdownOpen(o => !o); setCountryDropdownOpen(false); }}
+              style={{ padding: "8px 14px", fontSize: 14, fontWeight: 500, color: "#1B3A5C", background: "#fff", border: "1px solid #D4C4B8", borderRadius: 20, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, minWidth: 200, justifyContent: "space-between" }}
+            >
+              <span>{selectedCity === null
+                ? (activeCountry === "all" ? `All cities (${cityCounts.length})` : `All cities in ${activeCountry}`)
+                : `${selectedCity} (${cityCounts.find(c => c.name === selectedCity)?.count ?? 0})`
+              }</span>
+              <span style={{ fontSize: 10, color: "#666" }}>▾</span>
+            </button>
+            {cityDropdownOpen && (
+              <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "#fff", border: "1px solid #D4C4B8", borderRadius: 8, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", zIndex: 20, maxHeight: 320, overflowY: "auto", overscrollBehaviorY: "contain" }}>
+                <input
+                  type="text"
+                  value={citySearch}
+                  onChange={e => setCitySearch(e.target.value)}
+                  placeholder="Search cities..."
+                  style={{ width: "100%", padding: "8px 12px", fontSize: 13, border: "none", borderBottom: "1px solid #E8D5C8", outline: "none", boxSizing: "border-box" }}
+                />
+                <div
+                  onClick={() => { setSelectedCity(null); setCityDropdownOpen(false); setCitySearch(""); }}
+                  style={{ padding: "8px 14px", fontSize: 13, cursor: "pointer", background: selectedCity === null ? "#F5EDE5" : "transparent", fontWeight: selectedCity === null ? 600 : 400, color: "#1B3A5C" }}
+                >
+                  All cities{activeCountry !== "all" ? ` in ${activeCountry}` : ""}
+                </div>
+                {filteredCities.map(c => (
+                  <div
+                    key={c.name}
+                    onClick={() => { setSelectedCity(c.name); setCityDropdownOpen(false); setCitySearch(""); }}
+                    style={{ padding: "8px 14px", fontSize: 13, cursor: "pointer", background: selectedCity === c.name ? "#F5EDE5" : "transparent", fontWeight: selectedCity === c.name ? 600 : 400, color: "#1B3A5C", display: "flex", justifyContent: "space-between" }}
+                  >
+                    <span>{c.name}</span>
+                    <span style={{ color: "#999", fontSize: 12 }}>{c.count}</span>
+                  </div>
+                ))}
+                {filteredCities.length === 0 && citySearch && (
+                  <div style={{ padding: "12px 14px", fontSize: 13, color: "#999", fontStyle: "italic" }}>No matches</div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* FILTER STRIP */}
         <div style={{ display: "flex", overflowX: "auto", overscrollBehaviorX: "contain", gap: "8px", marginBottom: "24px", paddingBottom: "4px", scrollbarWidth: "none", width: "100%" }}>
