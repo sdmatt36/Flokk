@@ -1445,6 +1445,19 @@ export function SavesScreen() {
   const tabbed = groupTabbedSaves(filteredSaves, availableTrips);
   const hasNoResults = !loading && tabbed.counts.upcoming === 0 && tabbed.counts.past === 0 && tabbed.counts.unassigned === 0;
 
+  // Auto-switch tab when search returns 0 results on the active tab
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!search) return;
+    if (tabbed.counts[activeTab] === 0) {
+      setActiveTab(
+        tabbed.counts.upcoming > 0 ? "upcoming" :
+        tabbed.counts.past > 0 ? "past" :
+        "unassigned"
+      );
+    }
+  }, [search]); // intentionally omits tabbed/activeTab — fires only when search changes
+
   return (
     <div
       onClick={() => setOpenDropdown(null)}
