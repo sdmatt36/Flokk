@@ -3,13 +3,6 @@ export interface Airline {
   name: string;
 }
 
-export interface Airport {
-  code: string;
-  name: string;
-  city: string;
-  country: string;
-}
-
 export const AIRLINES: Airline[] = [
   { code: "AA", name: "American Airlines" },
   { code: "AC", name: "Air Canada" },
@@ -70,100 +63,6 @@ export const AIRLINES: Airline[] = [
   { code: "ZH", name: "Shenzhen Airlines" },
 ];
 
-export const AIRPORTS: Airport[] = [
-  { code: "ATL", name: "Hartsfield-Jackson Atlanta International", city: "Atlanta", country: "US" },
-  { code: "AMS", name: "Amsterdam Schiphol", city: "Amsterdam", country: "NL" },
-  { code: "BCN", name: "Barcelona-El Prat", city: "Barcelona", country: "ES" },
-  { code: "BKK", name: "Suvarnabhumi Airport", city: "Bangkok", country: "TH" },
-  { code: "BNE", name: "Brisbane Airport", city: "Brisbane", country: "AU" },
-  { code: "BOG", name: "El Dorado International", city: "Bogotá", country: "CO" },
-  { code: "BOM", name: "Chhatrapati Shivaji Maharaj International", city: "Mumbai", country: "IN" },
-  { code: "BOS", name: "Logan International", city: "Boston", country: "US" },
-  { code: "BRU", name: "Brussels Airport", city: "Brussels", country: "BE" },
-  { code: "BSB", name: "Presidente Juscelino Kubitschek International", city: "Brasília", country: "BR" },
-  { code: "BUE", name: "Ezeiza Ministro Pistarini International", city: "Buenos Aires", country: "AR" },
-  { code: "CAI", name: "Cairo International", city: "Cairo", country: "EG" },
-  { code: "CAN", name: "Guangzhou Baiyun International", city: "Guangzhou", country: "CN" },
-  { code: "CDG", name: "Charles de Gaulle Airport", city: "Paris", country: "FR" },
-  { code: "CGK", name: "Soekarno-Hatta International", city: "Jakarta", country: "ID" },
-  { code: "CLT", name: "Charlotte Douglas International", city: "Charlotte", country: "US" },
-  { code: "CMB", name: "Bandaranaike International", city: "Colombo", country: "LK" },
-  { code: "CPT", name: "Cape Town International", city: "Cape Town", country: "ZA" },
-  { code: "CTU", name: "Chengdu Tianfu International", city: "Chengdu", country: "CN" },
-  { code: "DEL", name: "Indira Gandhi International", city: "Delhi", country: "IN" },
-  { code: "DEN", name: "Denver International", city: "Denver", country: "US" },
-  { code: "DFW", name: "Dallas/Fort Worth International", city: "Dallas", country: "US" },
-  { code: "DOH", name: "Hamad International", city: "Doha", country: "QA" },
-  { code: "DUB", name: "Dublin Airport", city: "Dublin", country: "IE" },
-  { code: "DUS", name: "Düsseldorf Airport", city: "Düsseldorf", country: "DE" },
-  { code: "DXB", name: "Dubai International", city: "Dubai", country: "AE" },
-  { code: "EWR", name: "Newark Liberty International", city: "Newark", country: "US" },
-  { code: "FCO", name: "Leonardo da Vinci–Fiumicino Airport", city: "Rome", country: "IT" },
-  { code: "FRA", name: "Frankfurt Airport", city: "Frankfurt", country: "DE" },
-  { code: "GIG", name: "Rio de Janeiro–Galeão International", city: "Rio de Janeiro", country: "BR" },
-  { code: "GRU", name: "São Paulo–Guarulhos International", city: "São Paulo", country: "BR" },
-  { code: "GVA", name: "Geneva Airport", city: "Geneva", country: "CH" },
-  { code: "HKG", name: "Hong Kong International", city: "Hong Kong", country: "HK" },
-  { code: "HND", name: "Haneda Airport", city: "Tokyo", country: "JP" },
-  { code: "HNL", name: "Daniel K. Inouye International", city: "Honolulu", country: "US" },
-  { code: "HOU", name: "William P. Hobby Airport", city: "Houston", country: "US" },
-  { code: "IAD", name: "Washington Dulles International", city: "Washington DC", country: "US" },
-  { code: "IAH", name: "George Bush Intercontinental", city: "Houston", country: "US" },
-  { code: "ICN", name: "Incheon International", city: "Seoul", country: "KR" },
-  { code: "IST", name: "Istanbul Airport", city: "Istanbul", country: "TR" },
-  { code: "JFK", name: "John F. Kennedy International", city: "New York", country: "US" },
-  { code: "JNB", name: "O.R. Tambo International", city: "Johannesburg", country: "ZA" },
-  { code: "KIX", name: "Kansai International", city: "Osaka", country: "JP" },
-  { code: "KUL", name: "Kuala Lumpur International", city: "Kuala Lumpur", country: "MY" },
-  { code: "LAX", name: "Los Angeles International", city: "Los Angeles", country: "US" },
-  { code: "LGW", name: "Gatwick Airport", city: "London", country: "GB" },
-  { code: "LHR", name: "Heathrow Airport", city: "London", country: "GB" },
-  { code: "LIM", name: "Jorge Chávez International", city: "Lima", country: "PE" },
-  { code: "LIS", name: "Humberto Delgado Airport", city: "Lisbon", country: "PT" },
-  { code: "MAD", name: "Adolfo Suárez Madrid-Barajas", city: "Madrid", country: "ES" },
-  { code: "MEL", name: "Melbourne Airport", city: "Melbourne", country: "AU" },
-  { code: "MEX", name: "Mexico City International", city: "Mexico City", country: "MX" },
-  { code: "MIA", name: "Miami International", city: "Miami", country: "US" },
-  { code: "MNL", name: "Ninoy Aquino International", city: "Manila", country: "PH" },
-  { code: "MUC", name: "Munich Airport", city: "Munich", country: "DE" },
-  { code: "NRT", name: "Narita International", city: "Tokyo", country: "JP" },
-  { code: "OKA", name: "Naha Airport", city: "Okinawa", country: "JP" },
-  { code: "ORD", name: "O'Hare International", city: "Chicago", country: "US" },
-  { code: "ORY", name: "Orly Airport", city: "Paris", country: "FR" },
-  { code: "OSA", name: "Osaka (all airports)", city: "Osaka", country: "JP" },
-  { code: "PEK", name: "Beijing Capital International", city: "Beijing", country: "CN" },
-  { code: "PHL", name: "Philadelphia International", city: "Philadelphia", country: "US" },
-  { code: "PKX", name: "Beijing Daxing International", city: "Beijing", country: "CN" },
-  { code: "PPT", name: "Faa'a International", city: "Papeete", country: "PF" },
-  { code: "PVG", name: "Shanghai Pudong International", city: "Shanghai", country: "CN" },
-  { code: "SAN", name: "San Diego International", city: "San Diego", country: "US" },
-  { code: "SCL", name: "Arturo Merino Benítez International", city: "Santiago", country: "CL" },
-  { code: "SEA", name: "Seattle-Tacoma International", city: "Seattle", country: "US" },
-  { code: "SFO", name: "San Francisco International", city: "San Francisco", country: "US" },
-  { code: "SGN", name: "Tan Son Nhat International", city: "Ho Chi Minh City", country: "VN" },
-  { code: "SIN", name: "Changi Airport", city: "Singapore", country: "SG" },
-  { code: "SYD", name: "Sydney Kingsford Smith", city: "Sydney", country: "AU" },
-  { code: "TLV", name: "Ben Gurion International", city: "Tel Aviv", country: "IL" },
-  { code: "TPE", name: "Taiwan Taoyuan International", city: "Taipei", country: "TW" },
-  { code: "VIE", name: "Vienna International", city: "Vienna", country: "AT" },
-  { code: "YUL", name: "Montréal–Trudeau International", city: "Montreal", country: "CA" },
-  { code: "YVR", name: "Vancouver International", city: "Vancouver", country: "CA" },
-  { code: "YYZ", name: "Toronto Pearson International", city: "Toronto", country: "CA" },
-  { code: "ZRH", name: "Zurich Airport", city: "Zurich", country: "CH" },
-  // Scandinavia & Iceland — added for KEF/Nordic coverage
-  { code: "ARN", name: "Stockholm Arlanda Airport", city: "Stockholm", country: "SE" },
-  { code: "BGO", name: "Bergen Airport Flesland", city: "Bergen", country: "NO" },
-  { code: "CPH", name: "Copenhagen Airport", city: "Copenhagen", country: "DK" },
-  { code: "HEL", name: "Helsinki-Vantaa Airport", city: "Helsinki", country: "FI" },
-  { code: "KEF", name: "Keflavík International Airport", city: "Reykjavík", country: "IS" },
-  { code: "OSL", name: "Oslo Gardermoen Airport", city: "Oslo", country: "NO" },
-  { code: "TRD", name: "Trondheim Værnes Airport", city: "Trondheim", country: "NO" },
-];
-
-export function getAirportCity(code: string): string {
-  const airport = AIRPORTS.find((a) => a.code === code.toUpperCase());
-  return airport ? airport.city : code;
-}
 
 export function parseFlightNumber(raw: string): { airline: string; number: string } {
   const match = raw.trim().toUpperCase().match(/^([A-Z]{2,3})(\d+)$/);

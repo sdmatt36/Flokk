@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { AIRLINES, AIRPORTS } from "@/lib/airlines";
+import { AIRLINES } from "@/lib/airlines";
+import { getAirportByCode } from "@/lib/airports";
+import { AirportAutocomplete } from "@/components/shared/AirportAutocomplete";
 
 type Flight = {
   id: string;
@@ -68,8 +70,8 @@ export function EditFlightModal({ flight, tripId, onClose, onSaved }: EditFlight
 
   const canSave = flightNumber.trim() !== "" && fromAirport !== "" && toAirport !== "" && departureDate !== "" && departureTime !== "";
 
-  const fromCity = AIRPORTS.find((a) => a.code === fromAirport)?.city ?? fromAirport;
-  const toCity = AIRPORTS.find((a) => a.code === toAirport)?.city ?? toAirport;
+  const fromCity = getAirportByCode(fromAirport)?.city ?? fromAirport;
+  const toCity = getAirportByCode(toAirport)?.city ?? toAirport;
 
   async function handleSave() {
     if (!canSave) {
@@ -173,17 +175,21 @@ export function EditFlightModal({ flight, tripId, onClose, onSaved }: EditFlight
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
           <div>
             <label style={labelStyle}>From *</label>
-            <select value={fromAirport} onChange={(e) => setFromAirport(e.target.value)} style={selectStyle}>
-              <option value="">Airport</option>
-              {AIRPORTS.map((a) => <option key={a.code} value={a.code}>{a.code} — {a.city}</option>)}
-            </select>
+            <AirportAutocomplete
+              value={fromAirport}
+              onChange={setFromAirport}
+              ariaLabel="From airport"
+              placeholder="From airport or city"
+            />
           </div>
           <div>
             <label style={labelStyle}>To *</label>
-            <select value={toAirport} onChange={(e) => setToAirport(e.target.value)} style={selectStyle}>
-              <option value="">Airport</option>
-              {AIRPORTS.map((a) => <option key={a.code} value={a.code}>{a.code} — {a.city}</option>)}
-            </select>
+            <AirportAutocomplete
+              value={toAirport}
+              onChange={setToAirport}
+              ariaLabel="To airport"
+              placeholder="To airport or city"
+            />
           </div>
         </div>
 
