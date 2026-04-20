@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { isAdmin } from "@/lib/admin";
+import { resolveProfileId } from "@/lib/profile-access";
 
 export const dynamic = "force-dynamic";
 
@@ -36,20 +38,49 @@ export async function GET(request: Request) {
     },
   });
 
-  const places = spots.map(spot => ({
-    id: spot.id,
-    name: spot.name,
-    city: spot.city,
-    placeType: spot.category ?? "other",
-    image: spot.photoUrl ?? null,
-    address: null,
-    website: spot.websiteUrl ?? null,
-    lat: spot.lat,
-    lng: spot.lng,
-    ratingCount: spot.ratingCount,
-    avgRating: spot.averageRating ?? 0,
-    sampleNote: spot.contributions[0]?.note ?? null,
-  }));
+  // Resolve admin + contributor membership for canEdit/canDelete
+  const admin = await isAdmin(userId);
+  const profileId = admin ? null : await resolveProfileId(userId);
+
+  // Batch-fetch contributions for this viewer across all returned spots
+  const spotIds = spots.map(s => s.id);
+  const viewerContribs = profileId
+    ? await db.spotContribution.findMany({
+        where: {
+          communitySpotId: { in: spotIds },
+          familyProfileId: profileId,
+        },
+        select: { communitySpotId: true },
+      })
+    : [];
+  const contribSet = new Set(viewerContribs.map(c => c.communitySpotId));
+
+  const places = spots.map(spot => {
+    const isContributor = contribSet.has(spot.id);
+    const canEdit = admin || isContributor;
+    // canDelete: admin always; contributor only if they're the sole contributor
+    const canDelete = admin || (isContributor && spot.contributionCount === 1);
+    return {
+      id: spot.id,
+      name: spot.name,
+      city: spot.city,
+      placeType: spot.category ?? "other",
+      category: spot.category ?? null,
+      description: spot.description ?? null,
+      image: spot.photoUrl ?? null,
+      photoUrl: spot.photoUrl ?? null,
+      address: null,
+      website: spot.websiteUrl ?? null,
+      websiteUrl: spot.websiteUrl ?? null,
+      lat: spot.lat,
+      lng: spot.lng,
+      ratingCount: spot.ratingCount,
+      avgRating: spot.averageRating ?? 0,
+      sampleNote: spot.contributions[0]?.note ?? null,
+      canEdit,
+      canDelete,
+    };
+  });
 
   // Aggregate distinct cities from this filtered result set
   const cityMap = new Map<string, number>();

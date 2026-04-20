@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { MapPin, ChevronRight, X, Search, Plus, CalendarPlus } from "lucide-react";
+import { MapPin, ChevronRight, X, Search, Plus, CalendarPlus, Pencil } from "lucide-react";
+import { EditSpotModal, type EditableSpot } from "@/components/features/discover/EditSpotModal";
 import { Playfair_Display } from "next/font/google";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { CATEGORIES } from "@/lib/categories";
@@ -247,14 +248,20 @@ type CommunityPlace = {
   name: string;
   city: string | null;
   placeType: string | null;
+  category: string | null;
+  description: string | null;
   image: string | null;
+  photoUrl: string | null;
   address: string | null;
   website: string | null;
+  websiteUrl: string | null;
   lat: number | null;
   lng: number | null;
   ratingCount: number;
   avgRating: number | null;
   sampleNote: string | null;
+  canEdit?: boolean;
+  canDelete?: boolean;
 };
 
 // Spot type filter: slug is sent to the API, label is displayed in the pill button.
@@ -322,6 +329,7 @@ function PlacesTab() {
   const [clipCopiedId, setClipCopiedId] = useState<string | null>(null);
   const [itineraryModalSpot, setItineraryModalSpot] = useState<AddToItinerarySpot | null>(null);
   const [itineraryConfirmation, setItineraryConfirmation] = useState<{ placeId: string; tripName: string; day: number } | null>(null);
+  const [editingSpot, setEditingSpot] = useState<EditableSpot | null>(null);
   const itineraryConfirmTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [apSaving, setApSaving] = useState(false);
   const [apAddToTrip, setApAddToTrip] = useState(false);
@@ -685,6 +693,27 @@ function PlacesTab() {
                   >
                     {clipCopiedId === place.id ? "Copied!" : "Share"}
                   </button>
+                  {place.canEdit && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingSpot({
+                          id: place.id,
+                          name: place.name,
+                          city: place.city ?? "",
+                          category: place.category ?? null,
+                          description: place.description ?? null,
+                          photoUrl: place.photoUrl ?? null,
+                          websiteUrl: place.websiteUrl ?? null,
+                        });
+                      }}
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", color: "#717171", marginLeft: "auto" }}
+                      aria-label="Edit spot"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  )}
                 </div>
                 {itineraryConfirmation?.placeId === place.id && (
                   <p className="text-[#1B3A5C] text-xs font-medium mt-2">
@@ -713,6 +742,33 @@ function PlacesTab() {
         }}
         spot={itineraryModalSpot ?? { name: "", city: null }}
       />
+
+      {editingSpot && (
+        <EditSpotModal
+          spot={editingSpot}
+          canDelete={places.find(p => p.id === editingSpot.id)?.canDelete ?? false}
+          onClose={() => setEditingSpot(null)}
+          onSaved={(updated) => {
+            setPlaces(prev => prev.map(p => p.id === updated.id ? {
+              ...p,
+              name: updated.name,
+              city: updated.city,
+              category: updated.category,
+              placeType: updated.category ?? p.placeType,
+              description: updated.description,
+              photoUrl: updated.photoUrl,
+              image: updated.photoUrl,
+              websiteUrl: updated.websiteUrl,
+              website: updated.websiteUrl,
+            } : p));
+            setEditingSpot(null);
+          }}
+          onDeleted={() => {
+            setPlaces(prev => prev.filter(p => p.id !== editingSpot.id));
+            setEditingSpot(null);
+          }}
+        />
+      )}
 
       {/* ── Add Place Modal ── */}
       {showAddPlaceModal && (
