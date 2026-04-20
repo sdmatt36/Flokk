@@ -1480,9 +1480,9 @@ Your saved places, all in one spot
 
         {/* CITY PILL ROW */}
         {availableCities.length > 0 && (
-          <div style={{ marginBottom: "12px" }}>
+          <div style={{ marginBottom: "12px", width: "100%" }}>
             <div
-              style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "8px", scrollbarWidth: "none", msOverflowStyle: "none" }}
+              style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "8px", scrollbarWidth: "none", msOverflowStyle: "none", width: "100%" }}
               className="hide-scrollbar"
             >
               <button
