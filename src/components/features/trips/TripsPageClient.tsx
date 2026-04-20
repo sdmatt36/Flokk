@@ -408,8 +408,8 @@ export function TripsPageClient({
   const [unassigned, setUnassigned] = useState<UnassignedItem[]>([]);
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
-  const [formDestination, setFormDestination] = useState("");
   const [formCountry, setFormCountry] = useState("");
+  const [formCities, setFormCities] = useState("");
   const [formStartDate, setFormStartDate] = useState("");
   const [formEndDate, setFormEndDate] = useState("");
 
@@ -437,13 +437,13 @@ export function TripsPageClient({
 
   async function handleCreateTripAndAssign(
     itemId: string,
-    payload: { destination: string; country: string; startDate: string | null; endDate: string | null }
+    payload: { country: string; cities: string[]; startDate: string | null; endDate: string | null }
   ) {
     const createRes = await fetch("/api/trips", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        cities: [payload.destination],
+        cities: payload.cities,
         country: payload.country,
         countries: payload.country ? [payload.country] : [],
         startDate: payload.startDate,
@@ -471,22 +471,26 @@ export function TripsPageClient({
 
   function openCreateForm(item: UnassignedItem) {
     setExpandedItemId(item.id);
-    const dest = item.toCity ?? item.fromCity ?? "";
-    setFormDestination(dest);
+    // Country from address trailing segment (e.g. "Merzouga desert, 52202, Morocco" → "Morocco")
     let country = "";
     if (item.address) {
       const parts = item.address.split(",").map(s => s.trim()).filter(Boolean);
       if (parts.length > 0) country = parts[parts.length - 1];
     }
     setFormCountry(country);
+    // Cities from fromCity + toCity when both exist (multi-city tour), else whichever exists
+    const cityList: string[] = [];
+    if (item.fromCity) cityList.push(item.fromCity);
+    if (item.toCity && item.toCity !== item.fromCity) cityList.push(item.toCity);
+    setFormCities(cityList.join(", "));
     setFormStartDate("");
     setFormEndDate("");
   }
 
   function closeCreateForm() {
     setExpandedItemId(null);
-    setFormDestination("");
     setFormCountry("");
+    setFormCities("");
     setFormStartDate("");
     setFormEndDate("");
   }
@@ -638,22 +642,22 @@ export function TripsPageClient({
                     <div style={{ marginTop: "12px", padding: "12px", background: "#FFF8F3", borderRadius: "8px", border: "1px solid #E8D5C8" }}>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" }}>
                         <label style={{ fontSize: "12px", color: "#1B3A5C" }}>
-                          Destination
-                          <input
-                            type="text"
-                            value={formDestination}
-                            onChange={e => setFormDestination(e.target.value)}
-                            placeholder="City"
-                            style={{ width: "100%", padding: "6px 8px", marginTop: "2px", border: "1px solid #D4C4B8", borderRadius: "4px", fontSize: "14px", boxSizing: "border-box" }}
-                          />
-                        </label>
-                        <label style={{ fontSize: "12px", color: "#1B3A5C" }}>
                           Country
                           <input
                             type="text"
                             value={formCountry}
                             onChange={e => setFormCountry(e.target.value)}
-                            placeholder="Country"
+                            placeholder="Morocco"
+                            style={{ width: "100%", padding: "6px 8px", marginTop: "2px", border: "1px solid #D4C4B8", borderRadius: "4px", fontSize: "14px", boxSizing: "border-box" }}
+                          />
+                        </label>
+                        <label style={{ fontSize: "12px", color: "#1B3A5C" }}>
+                          Cities (comma-separated)
+                          <input
+                            type="text"
+                            value={formCities}
+                            onChange={e => setFormCities(e.target.value)}
+                            placeholder="Tangier, Marrakech"
                             style={{ width: "100%", padding: "6px 8px", marginTop: "2px", border: "1px solid #D4C4B8", borderRadius: "4px", fontSize: "14px", boxSizing: "border-box" }}
                           />
                         </label>
@@ -687,13 +691,14 @@ export function TripsPageClient({
                         <button
                           type="button"
                           onClick={() => {
-                            if (!formDestination.trim() || !formCountry.trim()) {
-                              alert("Destination and country are required.");
+                            const cityList = formCities.split(",").map(s => s.trim()).filter(Boolean);
+                            if (!formCountry.trim() || cityList.length === 0) {
+                              alert("Country and at least one city are required.");
                               return;
                             }
                             handleCreateTripAndAssign(item.id, {
-                              destination: formDestination.trim(),
                               country: formCountry.trim(),
+                              cities: cityList,
                               startDate: formStartDate || null,
                               endDate: formEndDate || null,
                             });

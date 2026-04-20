@@ -82,14 +82,16 @@ export async function POST(req: Request) {
   const destinationCity = cities[0];
   const destinationCountry = country;
 
-  // Build a readable title
-  let title = destinationCity;
+  // Title root: prefer country when it covers multiple cities, otherwise use the single city.
+  // Multi-city country trips (Morocco: Tangier + Marrakech) read more naturally as the country.
+  const titleRoot = (country && cities.length >= 2) ? country : destinationCity;
+  let title = titleRoot;
   if (startDate) {
     try {
       const start = new Date(startDate);
       const monthYear = start.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
-      title = `${destinationCity} ${monthYear.replace(" ", " '")}`;
-    } catch { /* fall back to city only */ }
+      title = `${titleRoot} ${monthYear.replace(" ", " '")}`;
+    } catch { /* fall back to root only */ }
   }
 
   // Pre-populate heroImageUrl from static map (instant, no API call needed)
