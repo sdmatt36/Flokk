@@ -1508,7 +1508,7 @@ Your saved places, all in one spot
         )}
 
         {/* FILTER STRIP */}
-        <div style={{ display: "flex", overflowX: "auto", gap: "8px", marginBottom: "24px", paddingBottom: "4px", scrollbarWidth: "none" }}>
+        <div style={{ display: "flex", overflowX: "auto", gap: "8px", marginBottom: "24px", paddingBottom: "4px", scrollbarWidth: "none", width: "100%" }}>
           <button
             onClick={(e) => { e.stopPropagation(); setActiveFilter("All"); }}
             style={{ flexShrink: 0, padding: "7px 16px", borderRadius: "999px", fontSize: "13px", fontWeight: activeFilter === "All" ? 600 : 400, color: activeFilter === "All" ? "#fff" : "#717171", backgroundColor: activeFilter === "All" ? "#C4664A" : "#fff", border: activeFilter === "All" ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease" }}

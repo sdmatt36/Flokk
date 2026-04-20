@@ -502,7 +502,7 @@ function PlacesTab() {
       {/* City pills */}
       {availablePillCities.length > 0 && (
         <div
-          style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "8px", marginBottom: "12px", scrollbarWidth: "none", msOverflowStyle: "none" }}
+          style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "8px", marginBottom: "12px", scrollbarWidth: "none", msOverflowStyle: "none", width: "100%" }}
           className="hide-scrollbar"
         >
           <button
@@ -554,7 +554,7 @@ function PlacesTab() {
 
       {/* Type filter pills */}
       <div
-        style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "20px", scrollbarWidth: "none", msOverflowStyle: "none", position: "relative", zIndex: 10 }}
+        style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "20px", scrollbarWidth: "none", msOverflowStyle: "none", position: "relative", zIndex: 10, width: "100%" }}
         className="hide-scrollbar"
       >
           <button
@@ -1633,7 +1633,7 @@ export default function DiscoverPage() {
             />
           </div>
 
-          <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "28px", scrollbarWidth: "none", msOverflowStyle: "none" }} className="hide-scrollbar">
+          <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "28px", scrollbarWidth: "none", msOverflowStyle: "none", width: "100%" }} className="hide-scrollbar">
             {(["All", ...CATEGORIES.map(c => c.label)] as string[]).map((f) => (
               <button
                 key={f}
@@ -1762,7 +1762,7 @@ export default function DiscoverPage() {
 
           {/* Filter pills */}
           <div
-            style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "32px", scrollbarWidth: "none", msOverflowStyle: "none" }}
+            style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "12px", marginBottom: "32px", scrollbarWidth: "none", msOverflowStyle: "none", width: "100%" }}
             className="hide-scrollbar"
           >
             {FILTERS.map((f) => (

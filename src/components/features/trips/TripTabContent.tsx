@@ -1346,7 +1346,7 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
   return (
     <div>
       {/* FILTER STRIP */}
-      <div style={{ display: "flex", overflowX: "auto", gap: "8px", marginBottom: "16px", paddingBottom: "4px", scrollbarWidth: "none" }}>
+      <div style={{ display: "flex", overflowX: "auto", gap: "8px", marginBottom: "16px", paddingBottom: "4px", scrollbarWidth: "none", width: "100%" }}>
         {SAVED_FILTER_PILLS.map((pill) => {
           const isActive = activeFilter === pill;
           return (
