@@ -876,7 +876,10 @@ Field notes:
             } catch { /* fallback to root */ }
           }
           const planStatus = plan.endDate && new Date(plan.endDate) < new Date() ? "COMPLETED" : "PLANNING";
-          const planHero = getTripCoverImage(planCities[0] ?? planCountry ?? "", planCountry ?? "");
+          // Country-level trips get country hero; single-city gets city hero. Matches title logic.
+          const planHero = (planCountry && planCities.length >= 2)
+            ? getTripCoverImage(planCountry, planCountry)
+            : getTripCoverImage(planCities[0] ?? planCountry ?? "", planCountry ?? "");
           const planShare = nanoid(12);
 
           const planTrip = await db.trip.create({
@@ -911,8 +914,18 @@ Field notes:
           };
 
           // Write N day-level ACTIVITY items
+          // Geocode each day's primary city so TripMap renders pins instead of Seoul fallback.
           const dayItemIds: string[] = [];
           for (const day of plan.days) {
+            let dayLat: number | null = null;
+            let dayLng: number | null = null;
+            const dayCityGuess = planCities[day.dayIndex] ?? planCities[0] ?? planCountry ?? null;
+            if (dayCityGuess) {
+              try {
+                const geo = await geocodePlace(`${dayCityGuess}${planCountry ? " " + planCountry : ""}`);
+                if (geo) { dayLat = geo.lat; dayLng = geo.lng; }
+              } catch { /* geocoding failure must not block item write */ }
+            }
             const created = await db.itineraryItem.create({
               data: {
                 tripId: planTrip.id,
@@ -922,6 +935,8 @@ Field notes:
                 notes: day.description,
                 dayIndex: day.dayIndex,
                 scheduledDate: computeScheduledDate(day.dayIndex),
+                latitude: dayLat,
+                longitude: dayLng,
                 sourceType: "EMAIL_IMPORT",
                 sortOrder: day.dayIndex * 100,
               },
@@ -932,6 +947,14 @@ Field notes:
           // Write M lodging items
           const lodgingItemIds: string[] = [];
           for (const lodging of plan.accommodations) {
+            let lodgingLat: number | null = null;
+            let lodgingLng: number | null = null;
+            if (lodging.city || lodging.name) {
+              try {
+                const geo = await geocodePlace(`${lodging.name}${lodging.city ? " " + lodging.city : ""}${planCountry ? " " + planCountry : ""}`);
+                if (geo) { lodgingLat = geo.lat; lodgingLng = geo.lng; }
+              } catch { /* geocoding failure must not block item write */ }
+            }
             const created = await db.itineraryItem.create({
               data: {
                 tripId: planTrip.id,
@@ -941,6 +964,8 @@ Field notes:
                 notes: lodging.city ? `${lodging.name} · ${lodging.city}` : lodging.name,
                 dayIndex: lodging.checkInDayIndex,
                 scheduledDate: computeScheduledDate(lodging.checkInDayIndex),
+                latitude: lodgingLat,
+                longitude: lodgingLng,
                 sourceType: "EMAIL_IMPORT",
                 sortOrder: lodging.checkInDayIndex * 100 + 50,
               },

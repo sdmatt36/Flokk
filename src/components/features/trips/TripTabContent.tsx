@@ -6669,21 +6669,54 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               <p style={{ fontSize: "13px", color: "#bbb", fontStyle: "italic" }}>Save booking confirmations, visa copies, tickets…</p>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {documents.filter(d => d.type !== "booking").map(d => (
-                  <div key={d.id} style={{ backgroundColor: "#fff", border: "1px solid #EEEEEE", borderRadius: "12px", padding: "14px 16px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                        <span style={{ fontSize: "13px" }}>{d.type === "link" ? "🔗" : "📝"}</span>
-                        <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{d.label}</span>
+                {documents.filter(d => d.type !== "booking").map(d => {
+                  // Parse content for operator_plan type; fall back to raw string for all others
+                  let planContent: Record<string, unknown> | null = null;
+                  if (d.type === "operator_plan" && d.content) {
+                    try { planContent = JSON.parse(d.content) as Record<string, unknown>; } catch { /* fall through to raw */ }
+                  }
+                  return (
+                    <div key={d.id} style={{ backgroundColor: "#fff", border: "1px solid #EEEEEE", borderRadius: "12px", padding: "14px 16px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                          <span style={{ fontSize: "13px" }}>{d.type === "operator_plan" ? "🗺️" : d.type === "link" ? "🔗" : "📝"}</span>
+                          <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{d.label}</span>
+                        </div>
+                        {d.url && <a href={d.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#1B3A5C", wordBreak: "break-all" }}>{d.url}</a>}
+                        {planContent ? (
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", fontSize: "13px", marginTop: "8px" }}>
+                            {!!planContent.operatorName && (
+                              <div><span style={{ color: "#999", fontWeight: 600, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Operator</span><br />{String(planContent.operatorName)}</div>
+                            )}
+                            {!!planContent.operatorWebsite && (
+                              <div><span style={{ color: "#999", fontWeight: 600, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Website</span><br /><a href={String(planContent.operatorWebsite).startsWith("http") ? String(planContent.operatorWebsite) : `https://${planContent.operatorWebsite}`} target="_blank" rel="noopener noreferrer" style={{ color: "#C4664A" }}>{String(planContent.operatorWebsite)}</a></div>
+                            )}
+                            {!!planContent.operatorEmail && (
+                              <div><span style={{ color: "#999", fontWeight: 600, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Email</span><br /><a href={`mailto:${planContent.operatorEmail}`} style={{ color: "#C4664A" }}>{String(planContent.operatorEmail)}</a></div>
+                            )}
+                            {!!planContent.operatorPhone && (
+                              <div><span style={{ color: "#999", fontWeight: 600, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Phone</span><br />{String(planContent.operatorPhone)}</div>
+                            )}
+                            {planContent.totalCost != null && !!planContent.currency && (
+                              <div><span style={{ color: "#999", fontWeight: 600, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Quote</span><br />{Number(planContent.totalCost).toLocaleString()} {String(planContent.currency)}</div>
+                            )}
+                            {Array.isArray(planContent.cities) && (planContent.cities as string[]).length > 0 && (
+                              <div style={{ gridColumn: "1 / -1" }}><span style={{ color: "#999", fontWeight: 600, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Cities</span><br />{(planContent.cities as string[]).join(" · ")}</div>
+                            )}
+                            {Array.isArray(planContent.bundledActivities) && (planContent.bundledActivities as Array<{ name: string }>).length > 0 && (
+                              <div style={{ gridColumn: "1 / -1" }}><span style={{ color: "#999", fontWeight: 600, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Included</span><br />{(planContent.bundledActivities as Array<{ name: string }>).map(a => a.name).join(" · ")}</div>
+                            )}
+                          </div>
+                        ) : (
+                          d.content && <p style={{ fontSize: "12px", color: "#555", marginTop: "4px", whiteSpace: "pre-wrap" }}>{d.content}</p>
+                        )}
                       </div>
-                      {d.url && <a href={d.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "#1B3A5C", wordBreak: "break-all" }}>{d.url}</a>}
-                      {d.content && <p style={{ fontSize: "12px", color: "#555", marginTop: "4px", whiteSpace: "pre-wrap" }}>{d.content}</p>}
+                      <button onClick={async () => { await fetch(`/api/trips/${tripId}/vault/documents/${d.id}`, { method: "DELETE" }); setDocuments(p => p.filter(x => x.id !== d.id)); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px", flexShrink: 0 }} title="Delete">
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                    <button onClick={async () => { await fetch(`/api/trips/${tripId}/vault/documents/${d.id}`, { method: "DELETE" }); setDocuments(p => p.filter(x => x.id !== d.id)); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px", flexShrink: 0 }} title="Delete">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

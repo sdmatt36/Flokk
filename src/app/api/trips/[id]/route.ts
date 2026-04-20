@@ -44,6 +44,37 @@ export async function PATCH(
 
   const updated = await db.trip.update({ where: { id }, data });
 
+  // Fix 4: backfill scheduledDate on EMAIL_IMPORT items when startDate changes
+  if (startDate !== undefined && startDate) {
+    try {
+      const items = await db.itineraryItem.findMany({
+        where: { tripId: id, sourceType: "EMAIL_IMPORT", dayIndex: { not: null } },
+        select: { id: true, dayIndex: true },
+      });
+      console.log(`[trip-patch] backfilling scheduledDate for ${items.length} items on trip ${id}`);
+      for (const item of items) {
+        if (item.dayIndex === null) continue;
+        const base = new Date(startDate);
+        base.setDate(base.getDate() + item.dayIndex);
+        const scheduledDate = base.toISOString().substring(0, 10);
+        await db.itineraryItem.update({ where: { id: item.id }, data: { scheduledDate } });
+      }
+    } catch (e) {
+      console.error("[trip-patch] scheduledDate backfill error:", e);
+    }
+  }
+
+  // Recompute trip status after date change
+  if (startDate !== undefined || endDate !== undefined) {
+    const finalEndDate = updated.endDate;
+    if (finalEndDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const newStatus = finalEndDate < today ? "COMPLETED" : "PLANNING";
+      await db.trip.update({ where: { id }, data: { status: newStatus } });
+    }
+  }
+
   // Loops: fire trip_made_public when isPublic flips from false → true
   if (isPublic === true && !trip.isPublic) {
     try {
