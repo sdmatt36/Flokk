@@ -408,28 +408,38 @@ export async function POST(req: NextRequest) {
     const senderEmailMatch = from.match(/<(.+?)>/);
     const senderEmail = senderEmailMatch?.[1]?.trim() ?? from.trim();
 
-    // ── Look up FamilyProfile via verified sender email ────────────────────────
-    let familyProfile = await db.familyProfile.findFirst({
-      where: {
-        senderEmails: { has: senderEmail },
-        senderEmailVerifications: { some: { email: senderEmail, verifiedAt: { not: null } } },
-      },
-      include: { trips: true, members: true },
+    // ── Look up FamilyProfile via sender email ────────────────────────────────
+    // Priority 1: direct Flokk user (registered account with this email wins).
+    // A registered user forwarding their own bookings must land on their own profile.
+    // senderEmails delegation is for non-Flokk users forwarding to a family account.
+    let pathTaken: "direct_user" | "delegate" | "none" = "none";
+    const directUser = await db.user.findFirst({
+      where: { email: senderEmail },
+      include: { familyProfile: { include: { trips: true, members: true } } },
     });
-
-    // Fallback: user's primary email
-    if (!familyProfile) {
-      const user = await db.user.findFirst({
-        where: { email: senderEmail },
-        include: { familyProfile: { include: { trips: true, members: true } } },
+    let familyProfile = directUser?.familyProfile ?? null;
+    if (familyProfile) {
+      pathTaken = "direct_user";
+    } else {
+      // Priority 2: senderEmails delegation (non-Flokk users forwarding to a Flokk account)
+      const delegate = await db.familyProfile.findFirst({
+        where: {
+          senderEmails: { has: senderEmail },
+          senderEmailVerifications: { some: { email: senderEmail, verifiedAt: { not: null } } },
+        },
+        include: { trips: true, members: true },
       });
-      if (user?.familyProfile) familyProfile = user.familyProfile;
+      if (delegate) {
+        familyProfile = delegate;
+        pathTaken = "delegate";
+      }
     }
 
     if (!familyProfile) {
       console.log("[email-inbound] no verified sender match for:", senderEmail, "— dropping silently");
       return NextResponse.json({ received: true });
     }
+    console.log("[email-inbound] resolved sender", senderEmail, "-> profile", familyProfile.id, "via", pathTaken);
 
     let trips = familyProfile.trips;
     if (trips.length === 0) {
