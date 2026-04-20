@@ -10,6 +10,7 @@ import { getTripCoverImage } from "@/lib/destination-images";
 import { toTitleCase } from "@/lib/utils";
 import { resolveProfileByEmail } from "@/lib/profile-access";
 import { logExtraction } from "@/lib/extraction-log";
+import { extractOperatorPlan, looksLikeOperatorPlan } from "@/lib/operator-plan-extractor";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -850,6 +851,137 @@ Field notes:
           logCtx.autoCreatedTripId = autoTrip.id;
           logCtx.matchedTripId = autoTrip.id;
           console.log(`[email-inbound] auto-created trip: "${autoTitle}" id: ${autoTrip.id}`);
+        }
+      }
+
+      // Path 2: operator plan detection + structured extraction + day-level writes
+      // Fires only when Path 1 classified as "activity" AND the body looks like multi-day prose.
+      if (autoType === "activity" && looksLikeOperatorPlan(text || html)) {
+        console.log("[email-inbound] Path 2: operator plan heuristic triggered, running structured extraction");
+        const rawBodyForExtraction = (text || html).substring(0, 12000);
+        const plan = await extractOperatorPlan(rawBodyForExtraction, subject);
+        if (plan && plan.confidence >= 0.8 && plan.days.length >= 2) {
+          console.log(`[email-inbound] Path 2: extracted ${plan.days.length} days, ${plan.accommodations.length} lodgings`);
+
+          // Build the trip from plan-level metadata
+          const planCountry = plan.destinationCountry ?? null;
+          const planCities = plan.cities.length > 0 ? plan.cities : [];
+          const planTitleRoot = (planCountry && planCities.length >= 2) ? planCountry : (planCities[0] ?? plan.tripTitle);
+          let planTitle = planTitleRoot;
+          if (plan.startDate) {
+            try {
+              const s = new Date(plan.startDate);
+              const monthYear = s.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+              planTitle = `${planTitleRoot} ${monthYear.replace(" ", " '")}`;
+            } catch { /* fallback to root */ }
+          }
+          const planStatus = plan.endDate && new Date(plan.endDate) < new Date() ? "COMPLETED" : "PLANNING";
+          const planHero = getTripCoverImage(planCities[0] ?? planCountry ?? "", planCountry ?? "");
+          const planShare = nanoid(12);
+
+          const planTrip = await db.trip.create({
+            data: {
+              title: planTitle,
+              destinationCity: planCities[0] ?? null,
+              destinationCountry: planCountry,
+              cities: planCities,
+              country: planCountry,
+              countries: planCountry ? [planCountry] : [],
+              startDate: plan.startDate ? new Date(plan.startDate) : null,
+              endDate: plan.endDate ? new Date(plan.endDate) : null,
+              status: planStatus,
+              privacy: "PRIVATE",
+              isAnonymous: true,
+              heroImageUrl: planHero,
+              shareToken: planShare,
+              familyProfileId: familyProfile.id,
+            },
+          });
+          logCtx.autoCreatedTripId = planTrip.id;
+          logCtx.matchedTripId = planTrip.id;
+
+          // Helper: compute scheduledDate (YYYY-MM-DD string) from trip startDate + dayIndex offset
+          const computeScheduledDate = (dayIndex: number): string | null => {
+            if (!plan.startDate) return null;
+            try {
+              const start = new Date(plan.startDate);
+              start.setDate(start.getDate() + dayIndex);
+              return start.toISOString().substring(0, 10);
+            } catch { return null; }
+          };
+
+          // Write N day-level ACTIVITY items
+          const dayItemIds: string[] = [];
+          for (const day of plan.days) {
+            const created = await db.itineraryItem.create({
+              data: {
+                tripId: planTrip.id,
+                familyProfileId: familyProfile.id,
+                type: "ACTIVITY",
+                title: day.title,
+                notes: day.description,
+                dayIndex: day.dayIndex,
+                scheduledDate: computeScheduledDate(day.dayIndex),
+                sourceType: "EMAIL_IMPORT",
+                sortOrder: day.dayIndex * 100,
+              },
+            });
+            dayItemIds.push(created.id);
+          }
+
+          // Write M lodging items
+          const lodgingItemIds: string[] = [];
+          for (const lodging of plan.accommodations) {
+            const created = await db.itineraryItem.create({
+              data: {
+                tripId: planTrip.id,
+                familyProfileId: familyProfile.id,
+                type: "LODGING",
+                title: lodging.name,
+                notes: lodging.city ? `${lodging.name} · ${lodging.city}` : lodging.name,
+                dayIndex: lodging.checkInDayIndex,
+                scheduledDate: computeScheduledDate(lodging.checkInDayIndex),
+                sourceType: "EMAIL_IMPORT",
+                sortOrder: lodging.checkInDayIndex * 100 + 50,
+              },
+            });
+            lodgingItemIds.push(created.id);
+          }
+
+          // Write TripDocument with operator-plan metadata (content is String in schema)
+          const planDoc = await db.tripDocument.create({
+            data: {
+              tripId: planTrip.id,
+              label: plan.operatorName ?? "Operator plan",
+              type: "operator_plan",
+              content: JSON.stringify({
+                operatorName: plan.operatorName,
+                operatorEmail: plan.operatorEmail,
+                operatorPhone: plan.operatorPhone,
+                operatorWebsite: plan.operatorWebsite,
+                totalCost: plan.totalCost,
+                currency: plan.currency,
+                cities: plan.cities,
+                bundledActivities: plan.bundledActivities,
+              }),
+            },
+          });
+          logCtx.tripDocumentId = planDoc.id;
+          logCtx.itineraryItemIds = [...dayItemIds, ...lodgingItemIds];
+
+          // Completeness check
+          const expected = plan.days.length + plan.accommodations.length + 1; // +1 for TripDocument
+          const actual = dayItemIds.length + lodgingItemIds.length + 1;
+          const completenessOutcome: "success" | "partial" = expected === actual ? "success" : "partial";
+          const completenessError = expected === actual ? null : `expected ${expected} entities, wrote ${actual}`;
+
+          console.log(`[email-inbound] Path 2: auto-created trip "${planTitle}" id: ${planTrip.id} | days: ${dayItemIds.length} | lodgings: ${lodgingItemIds.length} | completeness: ${completenessOutcome}`);
+
+          await logExtraction({ ...logCtx, outcome: completenessOutcome, errorMessage: completenessError });
+          return NextResponse.json({ received: true, operator_plan: true, tripId: planTrip.id, completeness: completenessOutcome });
+        } else {
+          console.log(`[email-inbound] Path 2: extraction declined (confidence ${plan?.confidence ?? 0}, days ${plan?.days?.length ?? 0})`);
+          // Fall through to existing activity handling (creates the single flat orphan)
         }
       }
     }
