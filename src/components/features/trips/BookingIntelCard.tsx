@@ -103,6 +103,7 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewObservations, setReviewObservations] = useState<string[] | null>(null);
   const [reviewError, setReviewError] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   const STATUS_ORDER: Record<IntelItem["status"], number> = { missing: 0, saved: 1, booked: 2 };
   const { activeItems, bookedItems } = useMemo(() => {
@@ -191,27 +192,38 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
 
         <div style={{ flex: 1, padding: "18px 20px" }}>
           {/* Header */}
-          <div style={{ marginBottom: "14px" }}>
-            <span style={{
-              fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em",
-              color: "#C4664A", textTransform: "uppercase", display: "block", marginBottom: "4px",
-            }}>
-              Trip Intelligence
-            </span>
-            <h3 style={{
-              fontSize: "17px", fontWeight: 800, color: "#1B3A5C", margin: "0 0 4px",
-              fontFamily: '"Playfair Display", Georgia, "Times New Roman", serif',
-              lineHeight: 1.2,
-            }}>
-              {cardHeading}
-            </h3>
-            {cardSubheading && (
-              <p style={{ fontSize: "12px", color: "#888", margin: 0 }}>
-                {cardSubheading}
-              </p>
-            )}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: collapsed ? 0 : 14 }}>
+            <div>
+              <span style={{
+                fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em",
+                color: "#C4664A", textTransform: "uppercase", display: "block", marginBottom: "4px",
+              }}>
+                Trip Intelligence
+              </span>
+              <h3 style={{
+                fontSize: "17px", fontWeight: 800, color: "#1B3A5C", margin: "0 0 4px",
+                fontFamily: '"Playfair Display", Georgia, "Times New Roman", serif',
+                lineHeight: 1.2,
+              }}>
+                {cardHeading}
+              </h3>
+              {cardSubheading && (
+                <p style={{ fontSize: "12px", color: "#888", margin: 0 }}>
+                  {cardSubheading}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setCollapsed(c => !c)}
+              style={{ padding: "4px 10px", fontSize: 12, color: "#666", background: "transparent", border: "1px solid #D4C4B8", borderRadius: 4, cursor: "pointer", flexShrink: 0, marginLeft: 8 }}
+            >
+              {collapsed ? "Expand" : "Collapse"}
+            </button>
           </div>
 
+          {!collapsed && (
+          <>
           {/* Body */}
           {state === "loading" ? (
             <div>
@@ -398,6 +410,8 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
               </div>
             )}
           </div>
+          </>
+          )}
         </div>
       </div>
     </>

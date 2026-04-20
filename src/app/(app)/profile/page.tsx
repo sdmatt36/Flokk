@@ -172,7 +172,7 @@ function ProfilePageContent() {
       {/* Horizontal tab strip */}
       <div style={{
         backgroundColor: "#fff", borderBottom: "1px solid #E8E8E8",
-        overflowX: "auto", WebkitOverflowScrolling: "touch" as unknown as undefined,
+        overflowX: "auto", overscrollBehaviorX: "contain", WebkitOverflowScrolling: "touch" as unknown as undefined,
         scrollbarWidth: "none" as "none",
         display: "flex", position: "sticky", top: 0, zIndex: 20,
       }}>

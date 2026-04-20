@@ -309,7 +309,7 @@ function MemoryBoard({ stats }: { stats: TravelStats }) {
         </div>
 
         <div
-          style={{ display: "flex", gap: "12px", overflowX: "auto", padding: "0 18px 18px", scrollbarWidth: "none", msOverflowStyle: "none" }}
+          style={{ display: "flex", gap: "12px", overflowX: "auto", overscrollBehaviorX: "contain", padding: "0 18px 18px", scrollbarWidth: "none", msOverflowStyle: "none" }}
           className="hide-scrollbar"
         >
           {stats.countriesVisited.map((c) => {

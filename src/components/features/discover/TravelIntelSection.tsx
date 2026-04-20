@@ -368,7 +368,7 @@ export function TravelIntelSection({ submitOpen, onSubmitClose }: { submitOpen?:
 
       {/* Category pills */}
       <div
-        style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "24px", scrollbarWidth: "none", msOverflowStyle: "none", width: "100%" }}
+        style={{ display: "flex", gap: "8px", overflowX: "auto", overscrollBehaviorX: "contain", paddingBottom: "24px", scrollbarWidth: "none", msOverflowStyle: "none", width: "100%" }}
         className="hide-scrollbar"
       >
         {INTEL_CATEGORIES.map((cat) => (

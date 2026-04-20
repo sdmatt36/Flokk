@@ -1351,7 +1351,7 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
   return (
     <div>
       {/* FILTER STRIP */}
-      <div style={{ display: "flex", overflowX: "auto", gap: "8px", marginBottom: "16px", paddingBottom: "4px", scrollbarWidth: "none", width: "100%" }}>
+      <div style={{ display: "flex", overflowX: "auto", overscrollBehaviorX: "contain", gap: "8px", marginBottom: "16px", paddingBottom: "4px", scrollbarWidth: "none", width: "100%" }}>
         {SAVED_FILTER_PILLS.map((pill) => {
           const isActive = activeFilter === pill;
           return (
@@ -6034,6 +6034,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         style={{
           display: "flex",
           overflowX: "auto",
+          overscrollBehaviorX: "contain",
           WebkitOverflowScrolling: "touch" as const,
           scrollbarWidth: "none" as const,
           msOverflowStyle: "none" as const,

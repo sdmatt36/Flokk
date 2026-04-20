@@ -28,7 +28,7 @@ const FAQS = [
   },
   {
     q: "What does Pro cost?",
-    a: "Pro is $4.99 / month or $59.99 / year (save 17%). Pricing is per household, not per traveler.",
+    a: "Pro is $10.99 / month or $98 / year (save 25%). Pricing is per household, not per traveler.",
   },
   {
     q: "Can I cancel at any time?",
@@ -90,10 +90,10 @@ export default function PricingPage() {
               <div style={{ position: "absolute", top: "20px", right: "20px", backgroundColor: "#C4664A", color: "#fff", fontSize: "11px", fontWeight: 700, padding: "4px 10px", borderRadius: "999px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Most popular</div>
               <p style={{ fontSize: "13px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#C4664A", margin: "0 0 16px" }}>Pro</p>
               <div style={{ display: "flex", alignItems: "baseline", gap: "4px", marginBottom: "8px" }}>
-                <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "48px", fontWeight: 700, color: "#1B3A5C" }}>$4.99</span>
+                <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "48px", fontWeight: 700, color: "#1B3A5C" }}>$10.99</span>
                 <span style={{ fontSize: "14px", color: "#717171" }}>/ month</span>
               </div>
-              <p style={{ fontSize: "14px", color: "#717171", margin: "0 0 32px" }}>Or $59.99 / year — save 17%.</p>
+              <p style={{ fontSize: "14px", color: "#717171", margin: "0 0 32px" }}>Or $98 / year — save 25%.</p>
               <button disabled style={{ display: "block", width: "100%", textAlign: "center", backgroundColor: "rgba(196,102,74,0.5)", color: "#fff", padding: "12px 24px", borderRadius: "999px", fontSize: "15px", fontWeight: 700, border: "none", cursor: "not-allowed", marginBottom: "32px", opacity: 0.6 }}>Notify me at launch</button>
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 {PRO_FEATURES.map((f) => (

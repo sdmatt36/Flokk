@@ -436,6 +436,20 @@ export function TripsPageClient({
     }
   }
 
+  async function handleDeleteUnassigned(itemId: string) {
+    if (!confirm("Delete this unassigned booking? This cannot be undone.")) return;
+    const res = await fetch("/api/itinerary/unassigned", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemId }),
+    });
+    if (!res.ok) {
+      alert("Failed to delete.");
+      return;
+    }
+    setUnassigned(prev => prev.filter(i => i.id !== itemId));
+  }
+
   async function handleCreateTripAndAssign(
     itemId: string,
     payload: { country: string; cities: string[]; startDate: string | null; endDate: string | null }
@@ -641,6 +655,14 @@ export function TripsPageClient({
                         style={{ padding: "6px 10px", fontSize: "13px", fontWeight: 500, color: "#C4664A", background: "transparent", border: "1px solid #C4664A", borderRadius: "6px", cursor: "pointer", whiteSpace: "nowrap" }}
                       >
                         {expandedItemId === item.id ? "Cancel" : "Create new trip"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteUnassigned(item.id)}
+                        title="Delete unassigned booking"
+                        style={{ padding: "6px 8px", fontSize: 13, color: "#999", background: "transparent", border: "1px solid #D4C4B8", borderRadius: 6, cursor: "pointer" }}
+                      >
+                        ×
                       </button>
                     </div>
                   </div>

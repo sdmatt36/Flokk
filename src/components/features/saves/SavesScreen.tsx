@@ -1489,12 +1489,12 @@ Your saved places, all in one spot
         {availableCities.length > 0 && (
           <div style={{ marginBottom: "12px", width: "100%" }}>
             <div
-              style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "8px", scrollbarWidth: "none", msOverflowStyle: "none", width: "100%" }}
+              style={{ display: "flex", gap: "8px", overflowX: "auto", overscrollBehaviorX: "contain", paddingBottom: "8px", scrollbarWidth: "none", msOverflowStyle: "none", width: "100%" }}
               className="hide-scrollbar"
             >
               <button
                 onClick={() => setSelectedCity(null)}
-                style={{ flexShrink: 0, padding: "7px 16px", borderRadius: "999px", border: selectedCity === null ? "none" : "1.5px solid #E0E0E0", backgroundColor: selectedCity === null ? "#1B3A5C" : "#fff", color: selectedCity === null ? "#fff" : "#1B3A5C", fontSize: "13px", fontWeight: selectedCity === null ? 700 : 500, lineHeight: "1", cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit" }}
+                style={{ flexShrink: 0, padding: "6px 12px", borderRadius: "999px", border: selectedCity === null ? "none" : "1.5px solid #E0E0E0", backgroundColor: selectedCity === null ? "#1B3A5C" : "#fff", color: selectedCity === null ? "#fff" : "#1B3A5C", fontSize: "13px", fontWeight: selectedCity === null ? 700 : 500, lineHeight: "1", cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit" }}
               >
                 All cities
               </button>
@@ -1504,7 +1504,7 @@ Your saved places, all in one spot
                   <button
                     key={city}
                     onClick={() => setSelectedCity(isSelected ? null : city)}
-                    style={{ flexShrink: 0, padding: "7px 16px", borderRadius: "999px", border: isSelected ? "none" : "1.5px solid #E0E0E0", backgroundColor: isSelected ? "#1B3A5C" : "#fff", color: isSelected ? "#fff" : "#1B3A5C", fontSize: "13px", fontWeight: isSelected ? 700 : 500, lineHeight: "1", cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit" }}
+                    style={{ flexShrink: 0, padding: "6px 12px", borderRadius: "999px", border: isSelected ? "none" : "1.5px solid #E0E0E0", backgroundColor: isSelected ? "#1B3A5C" : "#fff", color: isSelected ? "#fff" : "#1B3A5C", fontSize: "13px", fontWeight: isSelected ? 700 : 500, lineHeight: "1", cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit" }}
                   >
                     {city}
                   </button>
@@ -1515,10 +1515,10 @@ Your saved places, all in one spot
         )}
 
         {/* FILTER STRIP */}
-        <div style={{ display: "flex", overflowX: "auto", gap: "8px", marginBottom: "24px", paddingBottom: "4px", scrollbarWidth: "none", width: "100%" }}>
+        <div style={{ display: "flex", overflowX: "auto", overscrollBehaviorX: "contain", gap: "8px", marginBottom: "24px", paddingBottom: "4px", scrollbarWidth: "none", width: "100%" }}>
           <button
             onClick={(e) => { e.stopPropagation(); setActiveFilter("All"); }}
-            style={{ flexShrink: 0, padding: "7px 16px", borderRadius: "999px", fontSize: "13px", fontWeight: activeFilter === "All" ? 600 : 400, color: activeFilter === "All" ? "#fff" : "#717171", backgroundColor: activeFilter === "All" ? "#C4664A" : "#fff", border: activeFilter === "All" ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease" }}
+            style={{ flexShrink: 0, padding: "6px 12px", borderRadius: "999px", fontSize: "13px", fontWeight: activeFilter === "All" ? 600 : 400, color: activeFilter === "All" ? "#fff" : "#717171", backgroundColor: activeFilter === "All" ? "#C4664A" : "#fff", border: activeFilter === "All" ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease" }}
           >
             All
           </button>
@@ -1528,7 +1528,7 @@ Your saved places, all in one spot
               <button
                 key={slug}
                 onClick={(e) => { e.stopPropagation(); setActiveFilter(slug); if (slug !== "food_and_drink") setDietaryFilter(null); }}
-                style={{ flexShrink: 0, padding: "7px 16px", borderRadius: "999px", fontSize: "13px", fontWeight: isActive ? 600 : 400, color: isActive ? "#fff" : "#717171", backgroundColor: isActive ? "#C4664A" : "#fff", border: isActive ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease" }}
+                style={{ flexShrink: 0, padding: "6px 12px", borderRadius: "999px", fontSize: "13px", fontWeight: isActive ? 600 : 400, color: isActive ? "#fff" : "#717171", backgroundColor: isActive ? "#C4664A" : "#fff", border: isActive ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease" }}
               >
                 {label}
               </button>

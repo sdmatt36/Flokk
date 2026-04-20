@@ -52,3 +52,24 @@ export async function PATCH(req: NextRequest) {
 
   return NextResponse.json({ item: updated });
 }
+
+// DELETE /api/itinerary/unassigned — delete an unassigned itinerary item
+export async function DELETE(req: NextRequest) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "No profile" }, { status: 400 });
+
+  const { itemId } = await req.json() as { itemId: string };
+  if (!itemId) return NextResponse.json({ error: "itemId required" }, { status: 400 });
+
+  // Verify ownership before deletion
+  const item = await db.itineraryItem.findFirst({
+    where: { id: itemId, familyProfileId: profileId, tripId: null },
+  });
+  if (!item) return NextResponse.json({ error: "Item not found" }, { status: 404 });
+
+  await db.itineraryItem.delete({ where: { id: itemId } });
+  return NextResponse.json({ ok: true });
+}

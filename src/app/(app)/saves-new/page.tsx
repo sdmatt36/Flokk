@@ -104,7 +104,7 @@ export default function SavesNewPage() {
 
         {/* Filter strip */}
         <div style={{
-          display: "flex", gap: "8px", overflowX: "auto",
+          display: "flex", gap: "8px", overflowX: "auto", overscrollBehaviorX: "contain",
           marginBottom: "20px", paddingBottom: "4px", scrollbarWidth: "none",
           marginLeft: "-20px", marginRight: "-20px",
           paddingLeft: "20px", paddingRight: "40px",
