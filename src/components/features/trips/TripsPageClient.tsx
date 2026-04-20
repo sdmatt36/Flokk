@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { MapPin, Calendar, Plus, Map, Search, Plane, Globe, Pencil, Trash2, Sparkles } from "lucide-react";
 import { getTripCoverImage } from "@/lib/destination-images";
+import { inferCountryFromCities } from "@/lib/city-country-lookup";
 import { DeleteTripConfirmModal } from "./DeleteTripConfirmModal";
 
 type Trip = {
@@ -471,18 +472,23 @@ export function TripsPageClient({
 
   function openCreateForm(item: UnassignedItem) {
     setExpandedItemId(item.id);
-    // Country from address trailing segment (e.g. "Merzouga desert, 52202, Morocco" → "Morocco")
-    let country = "";
-    if (item.address) {
-      const parts = item.address.split(",").map(s => s.trim()).filter(Boolean);
-      if (parts.length > 0) country = parts[parts.length - 1];
-    }
-    setFormCountry(country);
-    // Cities from fromCity + toCity when both exist (multi-city tour), else whichever exists
     const cityList: string[] = [];
     if (item.fromCity) cityList.push(item.fromCity);
     if (item.toCity && item.toCity !== item.fromCity) cityList.push(item.toCity);
     setFormCities(cityList.join(", "));
+    // Country priority: city lookup first (covers Tokyo → Japan), then address trailing segment
+    // (covers "Merzouga desert, 52202, Morocco"), then empty.
+    let country = inferCountryFromCities(cityList) ?? "";
+    if (!country && item.address) {
+      const parts = item.address.split(",").map(s => s.trim()).filter(Boolean);
+      if (parts.length > 0) {
+        const candidate = parts[parts.length - 1];
+        if (!/^\d/.test(candidate) && candidate.length >= 2) {
+          country = candidate;
+        }
+      }
+    }
+    setFormCountry(country);
     setFormStartDate("");
     setFormEndDate("");
   }
