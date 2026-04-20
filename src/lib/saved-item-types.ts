@@ -72,18 +72,26 @@ const DOMAIN_TO_PLATFORM: Record<string, string> = {
   "www.hotpepper.jp":   "hotpepper",
   "jalan.net":          "jalan",
   "www.jalan.net":      "jalan",
+  "share.google":       "google_maps",
+  "google.com":         "google_maps",
+  "flokk.app":          "direct",
+  "flokktravel.com":    "direct",
+  "example.com":        "direct",
 };
 
 /**
  * Infer a platform slug from a URL string.
  * Returns "direct" for null/empty input.
- * Falls back to the bare hostname for unregistered domains.
+ * Strips www. and m. prefixes before registry lookup so both
+ * "www.google.com/maps/..." and "google.com/maps/..." resolve identically.
+ * Falls back to the bare (stripped) hostname for unregistered domains.
  */
 export function inferPlatformFromUrl(url: string | null | undefined): string {
   if (!url) return "direct";
   try {
-    const { hostname } = new URL(url);
-    return DOMAIN_TO_PLATFORM[hostname] ?? hostname;
+    const raw = new URL(url).hostname;
+    const hostname = raw.replace(/^(www\.|m\.)/, "");
+    return DOMAIN_TO_PLATFORM[raw] ?? DOMAIN_TO_PLATFORM[hostname] ?? "direct_website";
   } catch {
     return "direct";
   }
