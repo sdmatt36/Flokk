@@ -6996,7 +6996,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                 onClick={async () => {
                   setVaultDocSaving(true);
                   try {
-                    const isHotelType = String(doc.content.type ?? "").toLowerCase() === "lodging";
+                    const isHotelType = ["lodging", "hotel"].includes(String(doc.content.type ?? "").toLowerCase());
                     const normalizedVendor = isHotelType
                       ? (toTitleCase(doc.content.vendorName as string | null) || (doc.content.vendorName as string | null) || "")
                       : null;

@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { isAdmin } from "@/lib/admin";
+import { normalizeCategorySlug } from "@/lib/categories";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,8 @@ export async function PATCH(
     const v = (body as Record<EditableField, unknown>)[field];
     if (typeof v !== "string" && v !== null) continue;
     const cleaned = typeof v === "string" ? v.trim() : null;
-    data[field] = cleaned === "" ? null : cleaned;
+    const rawValue = cleaned === "" ? null : cleaned;
+    data[field] = field === "category" ? (normalizeCategorySlug(rawValue) ?? rawValue) : rawValue;
   }
 
   // Auto-clear needsUrlReview when websiteUrl transitions from empty → non-empty

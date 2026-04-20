@@ -1445,19 +1445,6 @@ export function SavesScreen() {
   const tabbed = groupTabbedSaves(filteredSaves, availableTrips);
   const hasNoResults = !loading && tabbed.counts.upcoming === 0 && tabbed.counts.past === 0 && tabbed.counts.unassigned === 0;
 
-  // Auto-switch tab when search returns 0 results on the active tab
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (!search) return;
-    if (tabbed.counts[activeTab] === 0) {
-      setActiveTab(
-        tabbed.counts.upcoming > 0 ? "upcoming" :
-        tabbed.counts.past > 0 ? "past" :
-        "unassigned"
-      );
-    }
-  }, [search]); // intentionally omits tabbed/activeTab — fires only when search changes
-
   return (
     <div
       onClick={() => setOpenDropdown(null)}
@@ -1620,7 +1607,7 @@ Your saved places, all in one spot
           };
           return (
             <>
-              {activeTab === "upcoming" && (
+              {(search.trim() || activeTab === "upcoming") && (
                 <UpcomingTabContent
                   sections={tabbed.upcoming}
                   expandedSections={expandedSections}
@@ -1631,7 +1618,7 @@ Your saved places, all in one spot
                   sharedProps={sharedGrid}
                 />
               )}
-              {activeTab === "past" && (
+              {(search.trim() || activeTab === "past") && (
                 <PastTabContent
                   sections={tabbed.past}
                   expandedSections={expandedSections}
@@ -1639,7 +1626,7 @@ Your saved places, all in one spot
                   sharedProps={sharedGrid}
                 />
               )}
-              {activeTab === "unassigned" && (
+              {(search.trim() || activeTab === "unassigned") && (
                 <UnassignedTabContent
                   items={tabbed.unassigned}
                   sharedProps={sharedGrid}

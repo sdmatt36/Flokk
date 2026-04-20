@@ -2,6 +2,9 @@
 // All writes to ManualActivity.type, CommunitySpot.category, and
 // SavedItem.categoryTags must use these slugs.
 
+/** Transport markers — excluded from user-facing discovery surfaces. Never normalized away. */
+export const TRANSPORT_CATEGORIES = ["train", "flight", "airline", "transport", "transit"] as const;
+
 export type CategorySlug =
   | "food_and_drink"
   | "culture"

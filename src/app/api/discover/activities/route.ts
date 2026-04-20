@@ -25,7 +25,7 @@ export type DiscoverActivity = {
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
   const minRatingParam = req.nextUrl.searchParams.get("minRating");
-  const minRating = minRatingParam ? Math.max(1, Math.min(5, parseInt(minRatingParam))) : null;
+  const minRating = minRatingParam !== null ? Math.max(0, Math.min(5, parseInt(minRatingParam))) : 3;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let rows: any[];
@@ -55,6 +55,7 @@ export async function GET(req: NextRequest) {
         JOIN "Trip" t ON t.id = ma."tripId"
         JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
         LEFT JOIN "PlaceRating" pr ON pr."manualActivityId" = ma.id
+        WHERE LOWER(COALESCE(ma.type, '')) NOT IN ('flight', 'train', 'airline', 'transport', 'transit')
 
         UNION ALL
 
@@ -170,6 +171,7 @@ export async function GET(req: NextRequest) {
         JOIN "FamilyProfile" fp ON fp.id = t."familyProfileId"
         LEFT JOIN "PlaceRating" pr ON pr."manualActivityId" = ma.id
         WHERE pr.rating IS NOT NULL AND pr.rating >= 3
+          AND LOWER(COALESCE(ma.type, '')) NOT IN ('flight', 'train', 'airline', 'transport', 'transit')
 
         UNION ALL
 

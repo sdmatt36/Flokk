@@ -363,9 +363,16 @@ export async function GET(request: Request) {
             ...(category && category !== "all" ? { categoryTags: { has: category } } : {}),
           },
           orderBy: { savedAt: "desc" },
-          include: { trip: { select: { id: true, title: true } } },
+          include: {
+            trip: { select: { id: true, title: true } },
+            communitySpot: { select: { photoUrl: true } },
+          },
         });
-        const sanitizedPublic = saves.map(s => ({ ...s, mediaThumbnailUrl: sanitizeThumbnailUrl(s.mediaThumbnailUrl) }));
+        const sanitizedPublic = saves.map(s => ({
+          ...s,
+          mediaThumbnailUrl: sanitizeThumbnailUrl(s.mediaThumbnailUrl),
+          placePhotoUrl: s.placePhotoUrl || s.communitySpot?.photoUrl || null,
+        }));
         console.log("[GET /api/saves] public trip", tripId, "returning", sanitizedPublic.length, "saves");
         return NextResponse.json({ saves: sanitizedPublic }, { headers: { "Cache-Control": "no-store" } });
       }
@@ -404,11 +411,18 @@ export async function GET(request: Request) {
         ],
       },
       orderBy: { savedAt: "desc" },
-      include: { trip: { select: { id: true, title: true } } },
+      include: {
+        trip: { select: { id: true, title: true } },
+        communitySpot: { select: { photoUrl: true } },
+      },
     });
 
     console.log("[GET /api/saves] tripId param:", tripId ?? "none");
-    const sanitized = saves.map(s => ({ ...s, mediaThumbnailUrl: sanitizeThumbnailUrl(s.mediaThumbnailUrl) }));
+    const sanitized = saves.map(s => ({
+      ...s,
+      mediaThumbnailUrl: sanitizeThumbnailUrl(s.mediaThumbnailUrl),
+      placePhotoUrl: s.placePhotoUrl || s.communitySpot?.photoUrl || null,
+    }));
     console.log("[GET /api/saves] returning", sanitized.length, "saves for familyProfile", getProfileId);
 
     return NextResponse.json(

@@ -13,7 +13,9 @@ export async function GET(req: NextRequest) {
   if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const needsUrlReviewParam = req.nextUrl.searchParams.get("needsUrlReview");
-  const where: { needsUrlReview?: boolean } = {};
+  const where: { needsUrlReview?: boolean; category?: { notIn: string[] } } = {
+    category: { notIn: ["train", "flight", "airline", "transport", "transit"] },
+  };
   if (needsUrlReviewParam === "true") where.needsUrlReview = true;
 
   const spots = await db.communitySpot.findMany({
