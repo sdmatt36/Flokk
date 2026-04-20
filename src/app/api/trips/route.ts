@@ -74,20 +74,23 @@ export async function POST(req: Request) {
     countries = [country];
   }
 
-  const startDate: string = body.startDate;
-  const endDate: string = body.endDate;
-
-  if (!startDate || !endDate) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-  }
+  const startDate: string | null = typeof body.startDate === "string" && body.startDate.length > 0
+    ? body.startDate : null;
+  const endDate: string | null = typeof body.endDate === "string" && body.endDate.length > 0
+    ? body.endDate : null;
 
   const destinationCity = cities[0];
   const destinationCountry = country;
 
   // Build a readable title
-  const start = new Date(startDate);
-  const monthYear = start.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
-  const title = `${destinationCity} ${monthYear.replace(" ", " '")}`;
+  let title = destinationCity;
+  if (startDate) {
+    try {
+      const start = new Date(startDate);
+      const monthYear = start.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+      title = `${destinationCity} ${monthYear.replace(" ", " '")}`;
+    } catch { /* fall back to city only */ }
+  }
 
   // Pre-populate heroImageUrl from static map (instant, no API call needed)
   const staticCover = getTripCoverImage(destinationCity, destinationCountry);
@@ -101,8 +104,8 @@ export async function POST(req: Request) {
       cities,
       country,
       countries,
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
+      startDate: startDate ? new Date(startDate) : null,
+      endDate: endDate ? new Date(endDate) : null,
       status: (status === "COMPLETED" ? "COMPLETED" : "PLANNING") as "PLANNING" | "COMPLETED",
       privacy: "PRIVATE",
       heroImageUrl: staticCover ?? null,

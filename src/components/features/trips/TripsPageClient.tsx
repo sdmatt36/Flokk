@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { MapPin, Calendar, Plus, Map, Search, Plane, Globe, Pencil, Trash2, Sparkles } from "lucide-react";
 import { getTripCoverImage } from "@/lib/destination-images";
@@ -395,6 +396,7 @@ export function TripsPageClient({
   trips: Trip[];
   defaultTab?: "upcoming" | "past";
 }) {
+  const router = useRouter();
   const [trips, setTrips] = useState<Trip[]>(initialTrips);
   const upcoming = trips.filter((t) => t.status !== "COMPLETED");
   const past = trips.filter((t) => t.status === "COMPLETED").sort((a, b) => new Date(b.endDate ?? 0).getTime() - new Date(a.endDate ?? 0).getTime());
@@ -405,6 +407,11 @@ export function TripsPageClient({
 
   const [unassigned, setUnassigned] = useState<UnassignedItem[]>([]);
   const [assigningId, setAssigningId] = useState<string | null>(null);
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [formDestination, setFormDestination] = useState("");
+  const [formCountry, setFormCountry] = useState("");
+  const [formStartDate, setFormStartDate] = useState("");
+  const [formEndDate, setFormEndDate] = useState("");
 
   useEffect(() => {
     fetch("/api/itinerary/unassigned")
@@ -426,6 +433,62 @@ export function TripsPageClient({
     } catch { /* ignore */ } finally {
       setAssigningId(null);
     }
+  }
+
+  async function handleCreateTripAndAssign(
+    itemId: string,
+    payload: { destination: string; country: string; startDate: string | null; endDate: string | null }
+  ) {
+    const createRes = await fetch("/api/trips", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cities: [payload.destination],
+        country: payload.country,
+        countries: payload.country ? [payload.country] : [],
+        startDate: payload.startDate,
+        endDate: payload.endDate,
+      }),
+    });
+    if (!createRes.ok) {
+      const err = await createRes.json().catch(() => ({})) as { error?: string };
+      alert(`Could not create trip: ${err.error ?? "unknown error"}`);
+      return;
+    }
+    const { trip } = await createRes.json() as { trip: { id: string } };
+    const assignRes = await fetch("/api/itinerary/unassigned", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemId, tripId: trip.id }),
+    });
+    if (!assignRes.ok) {
+      alert("Trip created but item could not be attached. Open the trip and try assigning manually.");
+      return;
+    }
+    setUnassigned(prev => prev.filter(i => i.id !== itemId));
+    router.refresh();
+  }
+
+  function openCreateForm(item: UnassignedItem) {
+    setExpandedItemId(item.id);
+    const dest = item.toCity ?? item.fromCity ?? "";
+    setFormDestination(dest);
+    let country = "";
+    if (item.address) {
+      const parts = item.address.split(",").map(s => s.trim()).filter(Boolean);
+      if (parts.length > 0) country = parts[parts.length - 1];
+    }
+    setFormCountry(country);
+    setFormStartDate("");
+    setFormEndDate("");
+  }
+
+  function closeCreateForm() {
+    setExpandedItemId(null);
+    setFormDestination("");
+    setFormCountry("");
+    setFormStartDate("");
+    setFormEndDate("");
   }
 
   const handleDelete = (id: string) => setTrips((prev) => prev.filter((t) => t.id !== id));
@@ -542,24 +605,107 @@ export function TripsPageClient({
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               {unassigned.map(item => (
-                <div key={item.id} style={{ backgroundColor: "#fff", borderLeft: "3px solid #C4664A", borderRadius: "8px", padding: "12px 14px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: "14px", fontWeight: 600, color: "#1B3A5C", marginBottom: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</p>
-                    <p style={{ fontSize: "12px", color: "#717171" }}>
-                      {[item.type, item.scheduledDate, item.fromCity && item.toCity ? `${item.fromCity} → ${item.toCity}` : (item.fromCity ?? item.toCity)].filter(Boolean).join(" · ")}
-                    </p>
+                <div key={item.id} style={{ backgroundColor: "#fff", borderLeft: "3px solid #C4664A", borderRadius: "8px", padding: "12px 14px" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: "14px", fontWeight: 600, color: "#1B3A5C", marginBottom: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</p>
+                      <p style={{ fontSize: "12px", color: "#717171" }}>
+                        {[item.type, item.scheduledDate, item.fromCity && item.toCity ? `${item.fromCity} → ${item.toCity}` : (item.fromCity ?? item.toCity)].filter(Boolean).join(" · ")}
+                      </p>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0, flexWrap: "wrap" }}>
+                      <select
+                        disabled={assigningId === item.id}
+                        defaultValue=""
+                        onChange={(e) => { if (e.target.value) handleAssign(item.id, e.target.value); }}
+                        style={{ fontSize: "13px", color: "#1B3A5C", border: "1px solid #DDDDDD", borderRadius: "8px", padding: "6px 10px", backgroundColor: "#fff", cursor: "pointer" }}
+                      >
+                        <option value="" disabled>Assign to trip…</option>
+                        {trips.map(t => (
+                          <option key={t.id} value={t.id}>{t.title}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => expandedItemId === item.id ? closeCreateForm() : openCreateForm(item)}
+                        style={{ padding: "6px 10px", fontSize: "13px", fontWeight: 500, color: "#C4664A", background: "transparent", border: "1px solid #C4664A", borderRadius: "6px", cursor: "pointer", whiteSpace: "nowrap" }}
+                      >
+                        {expandedItemId === item.id ? "Cancel" : "Create new trip"}
+                      </button>
+                    </div>
                   </div>
-                  <select
-                    disabled={assigningId === item.id}
-                    defaultValue=""
-                    onChange={(e) => { if (e.target.value) handleAssign(item.id, e.target.value); }}
-                    style={{ fontSize: "13px", color: "#1B3A5C", border: "1px solid #DDDDDD", borderRadius: "8px", padding: "6px 10px", backgroundColor: "#fff", cursor: "pointer", flexShrink: 0 }}
-                  >
-                    <option value="" disabled>Assign to trip</option>
-                    {trips.map(t => (
-                      <option key={t.id} value={t.id}>{t.title}</option>
-                    ))}
-                  </select>
+                  {expandedItemId === item.id && (
+                    <div style={{ marginTop: "12px", padding: "12px", background: "#FFF8F3", borderRadius: "8px", border: "1px solid #E8D5C8" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "8px" }}>
+                        <label style={{ fontSize: "12px", color: "#1B3A5C" }}>
+                          Destination
+                          <input
+                            type="text"
+                            value={formDestination}
+                            onChange={e => setFormDestination(e.target.value)}
+                            placeholder="City"
+                            style={{ width: "100%", padding: "6px 8px", marginTop: "2px", border: "1px solid #D4C4B8", borderRadius: "4px", fontSize: "14px", boxSizing: "border-box" }}
+                          />
+                        </label>
+                        <label style={{ fontSize: "12px", color: "#1B3A5C" }}>
+                          Country
+                          <input
+                            type="text"
+                            value={formCountry}
+                            onChange={e => setFormCountry(e.target.value)}
+                            placeholder="Country"
+                            style={{ width: "100%", padding: "6px 8px", marginTop: "2px", border: "1px solid #D4C4B8", borderRadius: "4px", fontSize: "14px", boxSizing: "border-box" }}
+                          />
+                        </label>
+                        <label style={{ fontSize: "12px", color: "#1B3A5C" }}>
+                          Start date (optional)
+                          <input
+                            type="date"
+                            value={formStartDate}
+                            onChange={e => setFormStartDate(e.target.value)}
+                            style={{ width: "100%", padding: "6px 8px", marginTop: "2px", border: "1px solid #D4C4B8", borderRadius: "4px", fontSize: "14px", boxSizing: "border-box" }}
+                          />
+                        </label>
+                        <label style={{ fontSize: "12px", color: "#1B3A5C" }}>
+                          End date (optional)
+                          <input
+                            type="date"
+                            value={formEndDate}
+                            onChange={e => setFormEndDate(e.target.value)}
+                            style={{ width: "100%", padding: "6px 8px", marginTop: "2px", border: "1px solid #D4C4B8", borderRadius: "4px", fontSize: "14px", boxSizing: "border-box" }}
+                          />
+                        </label>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+                        <button
+                          type="button"
+                          onClick={closeCreateForm}
+                          style={{ padding: "6px 12px", fontSize: "13px", color: "#555", background: "transparent", border: "1px solid #D4C4B8", borderRadius: "4px", cursor: "pointer" }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!formDestination.trim() || !formCountry.trim()) {
+                              alert("Destination and country are required.");
+                              return;
+                            }
+                            handleCreateTripAndAssign(item.id, {
+                              destination: formDestination.trim(),
+                              country: formCountry.trim(),
+                              startDate: formStartDate || null,
+                              endDate: formEndDate || null,
+                            });
+                            closeCreateForm();
+                          }}
+                          style={{ padding: "6px 12px", fontSize: "13px", fontWeight: 500, color: "#fff", background: "#C4664A", border: "1px solid #C4664A", borderRadius: "4px", cursor: "pointer" }}
+                        >
+                          Create and attach
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
