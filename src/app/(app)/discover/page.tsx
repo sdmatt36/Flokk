@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { MapPin, ChevronRight, X, Search, Plus, CalendarPlus, Pencil } from "lucide-react";
 import { EditSpotModal, type EditableSpot } from "@/components/features/discover/EditSpotModal";
+import { SpotImage } from "@/components/shared/SpotImage";
 import { Playfair_Display } from "next/font/google";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { CATEGORIES } from "@/lib/categories";
@@ -610,11 +611,13 @@ function PlacesTab() {
           {places.map(place => (
             <div key={place.id} className="border border-gray-100 rounded-2xl overflow-hidden shadow-sm bg-white">
               <div className="bg-gray-100 overflow-hidden" style={{ height: "140px" }}>
-                {place.image ? (
-                  <img src={place.image} alt={place.name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-gray-100" />
-                )}
+                <SpotImage
+                  spotId={place.id}
+                  src={place.image}
+                  category={place.category}
+                  alt={place.name}
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div className="p-3">
                 <p className="text-sm font-semibold text-[#1B3A5C] leading-snug">{place.name}</p>
@@ -1670,11 +1673,13 @@ export default function DiscoverPage() {
                 return (
                 <div key={act.id} onClick={() => setSelectedActivity(act)} style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", cursor: "pointer" }}>
                   <div style={{ height: "160px", backgroundColor: "#1B3A5C1A", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
-                    {act.imageUrl ? (
-                      <img src={act.imageUrl} alt={act.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                    ) : (
-                      <div style={{ width: "100%", height: "100%", backgroundColor: "#F5F5F4" }} />
-                    )}
+                    <SpotImage
+                      src={act.imageUrl}
+                      category={act.type}
+                      alt={act.title}
+                      allowResolve={false}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    />
                     {act.rating !== null && act.rating >= 3 && (
                       <span className="absolute bottom-3 left-3 bg-[#C4664A] text-white text-xs px-2 py-1 rounded-full font-medium">
                         Flokk Approved
@@ -1939,7 +1944,13 @@ export default function DiscoverPage() {
             {/* Image */}
             {selectedActivity.imageUrl && (
               <div style={{ height: "220px", flexShrink: 0, position: "relative", overflow: "hidden" }}>
-                <img src={selectedActivity.imageUrl} alt={selectedActivity.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                <SpotImage
+                  src={selectedActivity.imageUrl}
+                  category={selectedActivity.type}
+                  alt={selectedActivity.title}
+                  allowResolve={false}
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
                 {selectedActivity.rating !== null && selectedActivity.rating >= 3 && (
                   <span style={{ position: "absolute", bottom: "12px", left: "12px", backgroundColor: "#C4664A", color: "#fff", fontSize: "11px", fontWeight: 700, padding: "4px 10px", borderRadius: "999px" }}>
                     Flokk Approved

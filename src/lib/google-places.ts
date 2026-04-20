@@ -227,6 +227,36 @@ export async function findPlaceByNameCity(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Text search photo: run a text query and return the first result's photo URL.
+// Used by the AI-crafted resolve-image endpoint to backfill CommunitySpot photos.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function textSearchPhoto(query: string): Promise<string | null> {
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  if (!key) return null;
+
+  try {
+    const searchRes = await fetch(
+      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${key}`
+    );
+    if (!searchRes.ok) return null;
+    const searchData = await searchRes.json() as { results?: Array<{ photos?: Array<{ photo_reference: string }> }> };
+    const first = searchData.results?.[0];
+    if (!first?.photos?.[0]?.photo_reference) return null;
+
+    const photoRef = first.photos[0].photo_reference;
+    const photoUrlBuilder = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photoRef}&key=${key}`;
+
+    // Resolve the redirect to lh3.googleusercontent.com final URL for stable storage
+    const resolvedRes = await fetch(photoUrlBuilder, { redirect: "follow" });
+    if (!resolvedRes.ok) return null;
+    return resolvedRes.url;
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Country resolution via Places text search + address_components.
 // Used by backfill scripts to populate SavedItem.destinationCountry and
 // CommunitySpot.country. Separate from lookupPlace to avoid modifying the
