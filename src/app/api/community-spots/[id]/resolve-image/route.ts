@@ -13,19 +13,29 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const { id } = await context.params;
+  const url = new URL(req.url);
+  const forceRefresh = url.searchParams.get("forceRefresh") === "true";
+
   const spot = await db.communitySpot.findUnique({
     where: { id },
-    select: { id: true, name: true, city: true, country: true, category: true, photoUrl: true },
+    select: { id: true, name: true, city: true, country: true, category: true, photoUrl: true, address: true, websiteUrl: true, googlePlaceId: true },
   });
   if (!spot) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (spot.photoUrl) return NextResponse.json({ photoUrl: spot.photoUrl, cached: true });
+  if (spot.photoUrl && !forceRefresh) return NextResponse.json({ photoUrl: spot.photoUrl, cached: true });
 
-  const prompt = `You help find representative photos for travel spots. Given a spot, generate 3 specific Google Places text search queries that would return a relevant photo. Bias toward specific known landmarks, neighborhoods, or iconic features of the location. Avoid generic queries.
+  const contextLines = [
+    `Name: ${spot.name}`,
+    spot.city ? `City: ${spot.city}` : null,
+    spot.country ? `Country: ${spot.country}` : null,
+    spot.category ? `Category: ${spot.category}` : null,
+    spot.address ? `Address: ${spot.address}` : null,
+    spot.websiteUrl ? `Website: ${spot.websiteUrl}` : null,
+    spot.googlePlaceId ? `Google Place ID: ${spot.googlePlaceId}` : null,
+  ].filter(Boolean).join("\n");
 
-Name: ${spot.name}
-City: ${spot.city}
-Country: ${spot.country ?? "(unknown)"}
-Category: ${spot.category ?? "(unknown)"}
+  const prompt = `You help find representative photos for travel spots. Given a spot, generate 3 specific Google Places text search queries that would return a relevant photo. Use address, website domain, and landmark specifics when present — these strongly disambiguate hotels, restaurants, and specific venues from generic results. Bias toward specific known landmarks, neighborhoods, or iconic features of the location. Avoid generic queries.
+
+${contextLines}
 
 Return ONLY a JSON object: {"queries": ["<query1>", "<query2>", "<query3>"]}`;
 

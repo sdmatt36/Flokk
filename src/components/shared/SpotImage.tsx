@@ -31,10 +31,12 @@ export function SpotImage({
   const [currentSrc, setCurrentSrc] = useState<string | null>(src ?? null);
   const [errored, setErrored] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [retriedSrc, setRetriedSrc] = useState<string | null>(null);
 
   useEffect(() => {
     setCurrentSrc(src ?? null);
     setErrored(false);
+    setRetriedSrc(null);
   }, [src, spotId]);
 
   // Lazy backfill: if no src and we have a spotId, try resolve-image once
@@ -56,13 +58,36 @@ export function SpotImage({
     : "/images/fallbacks/other.svg";
   const finalSrc = errored || !currentSrc ? fallbackSrc : currentSrc;
 
+  async function handleError() {
+    if (spotId && currentSrc && retriedSrc !== currentSrc) {
+      setRetriedSrc(currentSrc);
+      try {
+        const res = await fetch(
+          `/api/community-spots/${spotId}/resolve-image?forceRefresh=true`,
+          { method: "POST" }
+        );
+        if (res.ok) {
+          const data = await res.json() as { photoUrl?: string | null };
+          if (data.photoUrl && data.photoUrl !== currentSrc) {
+            setCurrentSrc(data.photoUrl);
+            setErrored(false);
+            return;
+          }
+        }
+      } catch {
+        // fall through to SVG fallback
+      }
+    }
+    setErrored(true);
+  }
+
   return (
     <img
       src={finalSrc}
       alt={alt}
       className={className}
       style={style}
-      onError={() => setErrored(true)}
+      onError={handleError}
       loading="lazy"
     />
   );
