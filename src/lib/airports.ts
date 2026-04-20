@@ -181,12 +181,19 @@ export function searchAirports(query: string, limit = 10): Airport[] {
 
   // Typo fallback: if nothing matched (e.g., "rekyjavik"), retry at a looser
   // threshold against city/name only. Kept out of the primary pass so normal
-  // queries stay precise.
+  // queries stay precise. Apply the same size preference as the primary pass.
   if (merged.length === 0) {
-    for (const r of getRelaxedFuse().search(normalized).slice(0, limit)) {
-      if (!seen.has(r.item.airport.iata)) {
-        seen.add(r.item.airport.iata);
-        merged.push(r.item.airport);
+    const relaxedRanked = getRelaxedFuse().search(normalized)
+      .map(r => ({
+        airport: r.item.airport,
+        adjustedScore: (r.score ?? 0) + (r.item.airport.size === 'medium' ? 0.05 : 0),
+      }))
+      .sort((a, b) => a.adjustedScore - b.adjustedScore);
+
+    for (const r of relaxedRanked.slice(0, limit)) {
+      if (!seen.has(r.airport.iata)) {
+        seen.add(r.airport.iata);
+        merged.push(r.airport);
       }
     }
   }
