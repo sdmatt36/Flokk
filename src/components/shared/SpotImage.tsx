@@ -35,10 +35,6 @@ export function SpotImage({
   useEffect(() => {
     setCurrentSrc(src ?? null);
     setErrored(false);
-    // TEMP DEBUG — remove after Prompt 14
-    if (typeof window !== 'undefined') {
-      console.log('[SpotImage]', { spotId, src, srcType: typeof src, willResolve: !src && !!spotId });
-    }
   }, [src, spotId]);
 
   // Lazy backfill: if no src and we have a spotId, try resolve-image once
