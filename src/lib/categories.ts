@@ -25,16 +25,16 @@ export interface Category {
 }
 
 export const CATEGORIES: Category[] = [
-  { slug: "food_and_drink",          label: "Food & Drink" },
-  { slug: "culture",                  label: "Culture" },
-  { slug: "nature_and_outdoors",      label: "Nature & Outdoors" },
   { slug: "adventure",                label: "Adventure" },
+  { slug: "culture",                  label: "Culture" },
   { slug: "experiences",              label: "Experiences" },
-  { slug: "sports_and_entertainment", label: "Sports & Entertainment" },
-  { slug: "shopping",                 label: "Shopping" },
+  { slug: "food_and_drink",          label: "Food & Drink" },
   { slug: "kids_and_family",          label: "Kids & Family" },
   { slug: "lodging",                  label: "Lodging" },
+  { slug: "nature_and_outdoors",      label: "Nature & Outdoors" },
   { slug: "nightlife",                label: "Nightlife" },
+  { slug: "shopping",                 label: "Shopping" },
+  { slug: "sports_and_entertainment", label: "Sports & Entertainment" },
   { slug: "wellness",                 label: "Wellness" },
   { slug: "other",                    label: "Other" },
 ];

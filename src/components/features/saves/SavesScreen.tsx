@@ -1634,7 +1634,7 @@ Your saved places, all in one spot
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", rowGap: 8, marginBottom: "24px", paddingBottom: "4px", width: "100%" }}>
           <button
             onClick={(e) => { e.stopPropagation(); setActiveFilter("All"); }}
-            style={{ flexShrink: 0, padding: "6px 12px", borderRadius: "999px", fontSize: "13px", fontWeight: activeFilter === "All" ? 600 : 400, color: activeFilter === "All" ? "#fff" : "#717171", backgroundColor: activeFilter === "All" ? "#C4664A" : "#fff", border: activeFilter === "All" ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease" }}
+            style={{ flexShrink: 0, padding: "4px 10px", borderRadius: "999px", fontSize: "12px", fontWeight: activeFilter === "All" ? 600 : 400, color: activeFilter === "All" ? "#fff" : "#717171", backgroundColor: activeFilter === "All" ? "#C4664A" : "#fff", border: activeFilter === "All" ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease" }}
           >
             All
           </button>
@@ -1644,7 +1644,7 @@ Your saved places, all in one spot
               <button
                 key={slug}
                 onClick={(e) => { e.stopPropagation(); setActiveFilter(slug); if (slug !== "food_and_drink") setDietaryFilter(null); }}
-                style={{ flexShrink: 0, padding: "6px 12px", borderRadius: "999px", fontSize: "13px", fontWeight: isActive ? 600 : 400, color: isActive ? "#fff" : "#717171", backgroundColor: isActive ? "#C4664A" : "#fff", border: isActive ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease" }}
+                style={{ flexShrink: 0, padding: "4px 10px", borderRadius: "999px", fontSize: "12px", fontWeight: isActive ? 600 : 400, color: isActive ? "#fff" : "#717171", backgroundColor: isActive ? "#C4664A" : "#fff", border: isActive ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease" }}
               >
                 {label}
               </button>
