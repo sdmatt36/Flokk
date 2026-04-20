@@ -807,7 +807,8 @@ Field notes:
     logCtx.matchedTripId = resolvedTripId;
 
     // Auto-create trip when no match found, confidence >= 0.9, type is flight or hotel, and destination is known
-    if (!matchedTrip && confidenceScore >= 0.9) {
+    // Lowered from 0.9 to 0.85 (Chat 32 P5) — Unassigned Bookings fallback catches misses.
+    if (!matchedTrip && confidenceScore >= 0.85) {
       const autoType = (extracted.type as string | null) ?? null;
       if (autoType === "flight" || autoType === "hotel") {
         const rawToCity = (extracted.toCity as string | null)?.trim() ?? null;
