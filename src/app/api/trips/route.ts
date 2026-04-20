@@ -2,9 +2,8 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
-import { getTripCoverImage } from "@/lib/destination-images";
+import { buildTripFromExtraction } from "@/lib/trip-builder";
 import { sendTransactional } from "@/lib/loops";
-import { nanoid } from "nanoid";
 
 export const dynamic = "force-dynamic";
 
@@ -79,41 +78,18 @@ export async function POST(req: Request) {
   const endDate: string | null = typeof body.endDate === "string" && body.endDate.length > 0
     ? body.endDate : null;
 
-  const destinationCity = cities[0];
-  const destinationCountry = country;
-
-  // Title root: prefer country when it covers multiple cities, otherwise use the single city.
-  // Multi-city country trips (Morocco: Tangier + Marrakech) read more naturally as the country.
-  const titleRoot = (country && cities.length >= 2) ? country : destinationCity;
-  let title = titleRoot;
-  if (startDate) {
-    try {
-      const start = new Date(startDate);
-      const monthYear = start.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
-      title = `${titleRoot} ${monthYear.replace(" ", " '")}`;
-    } catch { /* fall back to root only */ }
-  }
-
-  // Pre-populate heroImageUrl from static map (instant, no API call needed)
-  const staticCover = getTripCoverImage(destinationCity, destinationCountry);
+  const builtData = buildTripFromExtraction({
+    cities,
+    country,
+    countries,
+    startDate,
+    endDate,
+    statusOverride: status === "COMPLETED" ? "COMPLETED" : "PLANNING",
+    isAnonymous: isAnonymous ?? true,
+  });
 
   const trip = await db.trip.create({
-    data: {
-      familyProfileId: familyProfile.id,
-      title,
-      destinationCity,
-      destinationCountry,
-      cities,
-      country,
-      countries,
-      startDate: startDate ? new Date(startDate) : null,
-      endDate: endDate ? new Date(endDate) : null,
-      status: (status === "COMPLETED" ? "COMPLETED" : "PLANNING") as "PLANNING" | "COMPLETED",
-      privacy: "PRIVATE",
-      heroImageUrl: staticCover ?? null,
-      isAnonymous: isAnonymous ?? true,
-      shareToken: nanoid(12),
-    },
+    data: { ...builtData, familyProfileId: familyProfile.id },
   });
 
   // Loops: fire first-trip-created if this is their first trip

@@ -5,12 +5,11 @@ import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
-import { nanoid } from "nanoid";
-import { getTripCoverImage } from "@/lib/destination-images";
 import { toTitleCase } from "@/lib/utils";
 import { resolveProfileByEmail } from "@/lib/profile-access";
 import { logExtraction } from "@/lib/extraction-log";
 import { extractOperatorPlan, looksLikeOperatorPlan } from "@/lib/operator-plan-extractor";
+import { buildTripFromExtraction } from "@/lib/trip-builder";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -814,43 +813,22 @@ Field notes:
         const autoDestCity = (rawToCity || rawCity || null)?.replace(/,\s*[A-Z]{2}$/, "").trim() ?? null;
         if (autoDestCity) {
           const autoDestCountry = (extracted.country as string | null) ?? null;
-          const rawDate = (extracted.departureDate as string | null) ?? (extracted.checkIn as string | null) ?? null;
-          let autoTitle = autoDestCity;
-          if (rawDate) {
-            try {
-              const [y, m] = rawDate.split("-").map(Number);
-              const monthName = new Date(y, m - 1, 1).toLocaleString("en-US", { month: "long" });
-              autoTitle = `${autoDestCity} - ${monthName} ${y}`;
-            } catch { /* use city only */ }
-          }
           const autoStart = (extracted.departureDate as string | null) ?? (extracted.checkIn as string | null) ?? null;
           const autoEnd = (extracted.returnDepartureDate as string | null) ?? (extracted.checkOut as string | null) ?? null;
-          const autoStatus = autoEnd && new Date(autoEnd) < new Date() ? "COMPLETED" : "PLANNING";
-          const autoHeroImage = getTripCoverImage(autoDestCity, autoDestCountry ?? "");
-          const autoShareToken = nanoid(12);
+          const autoData = buildTripFromExtraction({
+            cities: [autoDestCity],
+            country: autoDestCountry,
+            startDate: autoStart,
+            endDate: autoEnd,
+          });
           const autoTrip = await db.trip.create({
-            data: {
-              title: autoTitle,
-              destinationCity: autoDestCity,
-              destinationCountry: autoDestCountry,
-              cities: autoDestCity ? [autoDestCity] : [],
-              country: autoDestCountry ?? null,
-              countries: autoDestCountry ? [autoDestCountry] : [],
-              startDate: autoStart ? new Date(autoStart) : null,
-              endDate: autoEnd ? new Date(autoEnd) : null,
-              status: autoStatus,
-              privacy: "PRIVATE",
-              isAnonymous: true,
-              heroImageUrl: autoHeroImage,
-              shareToken: autoShareToken,
-              familyProfileId: familyProfile.id,
-            },
+            data: { ...autoData, familyProfileId: familyProfile.id },
           });
           matchedTrip = autoTrip as typeof trips[0];
           resolvedTripId = autoTrip.id;
           logCtx.autoCreatedTripId = autoTrip.id;
           logCtx.matchedTripId = autoTrip.id;
-          console.log(`[email-inbound] auto-created trip: "${autoTitle}" id: ${autoTrip.id}`);
+          console.log(`[email-inbound] auto-created trip: "${autoData.title}" id: ${autoTrip.id}`);
         }
       }
 
@@ -866,39 +844,15 @@ Field notes:
           // Build the trip from plan-level metadata
           const planCountry = plan.destinationCountry ?? null;
           const planCities = plan.cities.length > 0 ? plan.cities : [];
-          const planTitleRoot = (planCountry && planCities.length >= 2) ? planCountry : (planCities[0] ?? plan.tripTitle);
-          let planTitle = planTitleRoot;
-          if (plan.startDate) {
-            try {
-              const s = new Date(plan.startDate);
-              const monthYear = s.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
-              planTitle = `${planTitleRoot} ${monthYear.replace(" ", " '")}`;
-            } catch { /* fallback to root */ }
-          }
-          const planStatus = plan.endDate && new Date(plan.endDate) < new Date() ? "COMPLETED" : "PLANNING";
-          // Country-level trips get country hero; single-city gets city hero. Matches title logic.
-          const planHero = (planCountry && planCities.length >= 2)
-            ? getTripCoverImage(planCountry, planCountry)
-            : getTripCoverImage(planCities[0] ?? planCountry ?? "", planCountry ?? "");
-          const planShare = nanoid(12);
+          const planData = buildTripFromExtraction({
+            cities: planCities,
+            country: planCountry,
+            startDate: plan.startDate,
+            endDate: plan.endDate,
+          });
 
           const planTrip = await db.trip.create({
-            data: {
-              title: planTitle,
-              destinationCity: planCities[0] ?? null,
-              destinationCountry: planCountry,
-              cities: planCities,
-              country: planCountry,
-              countries: planCountry ? [planCountry] : [],
-              startDate: plan.startDate ? new Date(plan.startDate) : null,
-              endDate: plan.endDate ? new Date(plan.endDate) : null,
-              status: planStatus,
-              privacy: "PRIVATE",
-              isAnonymous: true,
-              heroImageUrl: planHero,
-              shareToken: planShare,
-              familyProfileId: familyProfile.id,
-            },
+            data: { ...planData, familyProfileId: familyProfile.id },
           });
           logCtx.autoCreatedTripId = planTrip.id;
           logCtx.matchedTripId = planTrip.id;
@@ -1000,7 +954,7 @@ Field notes:
           const completenessOutcome: "success" | "partial" = expected === actual ? "success" : "partial";
           const completenessError = expected === actual ? null : `expected ${expected} entities, wrote ${actual}`;
 
-          console.log(`[email-inbound] Path 2: auto-created trip "${planTitle}" id: ${planTrip.id} | days: ${dayItemIds.length} | lodgings: ${lodgingItemIds.length} | completeness: ${completenessOutcome}`);
+          console.log(`[email-inbound] Path 2: auto-created trip "${planData.title}" id: ${planTrip.id} | days: ${dayItemIds.length} | lodgings: ${lodgingItemIds.length} | completeness: ${completenessOutcome}`);
 
           await logExtraction({ ...logCtx, outcome: completenessOutcome, errorMessage: completenessError });
           return NextResponse.json({ received: true, operator_plan: true, tripId: planTrip.id, completeness: completenessOutcome });
