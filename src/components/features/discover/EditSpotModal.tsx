@@ -37,12 +37,27 @@ export function EditSpotModal({ spot, canDelete, onClose, onSaved, onDeleted }: 
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
+  const [suggestion, setSuggestion] = useState<{ suggestedCategory: string; confidence: number; reason: string } | null>(null);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/community-spots/${spot.id}/suggest-category`, { method: "POST" })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (cancelled || !data || data.error) return;
+        if (data.suggestedCategory !== (spot.category ?? "Other") && data.confidence >= 0.7) {
+          setSuggestion(data);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [spot.id, spot.category]);
 
   async function handleSave() {
     if (!name.trim() || !city.trim()) {
@@ -150,6 +165,21 @@ export function EditSpotModal({ spot, canDelete, onClose, onSaved, onDeleted }: 
               );
             })}
           </div>
+          {suggestion && category !== suggestion.suggestedCategory && (
+            <div style={{ marginTop: "8px", padding: "10px 12px", background: "rgba(196,102,74,0.08)", borderRadius: "8px", border: "1px solid rgba(196,102,74,0.2)" }}>
+              <div style={{ fontSize: "13px", color: NAVY, marginBottom: "6px" }}>
+                Claude thinks this is <strong>{suggestion.suggestedCategory}</strong>. {suggestion.reason}
+              </div>
+              <button type="button" onClick={() => { setCategory(suggestion.suggestedCategory); setSuggestion(null); }}
+                style={{ background: TERRA, color: "#fff", border: "none", borderRadius: "6px", padding: "6px 12px", fontSize: "12px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}>
+                Switch to {suggestion.suggestedCategory}
+              </button>
+              <button type="button" onClick={() => setSuggestion(null)}
+                style={{ marginLeft: "8px", background: "none", border: "none", color: "#717171", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>
+                Keep {category}
+              </button>
+            </div>
+          )}
         </div>
 
         <div style={{ marginBottom: "14px" }}>
