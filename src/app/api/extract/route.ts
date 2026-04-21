@@ -79,7 +79,6 @@ function sanitizeImageUrl(url: string | null): string | null {
   if (!url) return null;
   if (!url.startsWith("http")) return null;
   if (url.includes("{") || url.includes("}")) return null;
-  if (url.includes("cdninstagram.com") || url.includes("fbcdn.net")) return null;
   return url;
 }
 

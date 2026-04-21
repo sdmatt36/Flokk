@@ -26,7 +26,8 @@ async function fetchWithScrapingBee(url: string): Promise<string | null> {
 function extractOgImageFromHtml(html: string): string | null {
   const match = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
     || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-  return match?.[1] ?? null;
+  const url = match?.[1] ?? null;
+  return url ? he.decode(url) : null;
 }
 
 const PLACE_TYPE_MAP: Record<string, string> = {
@@ -354,6 +355,7 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   let mapsCategory: string | null = null;
   let skipNormalEnrichment = false;
   let instagramPlaceFound = false;
+  let sbThumbnail: string | null = null;
 
   // Step 0: Google Maps — extract place name from URL, skip OG title, go straight to Places API
   const isGoogleMaps =
@@ -384,7 +386,27 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   if (!skipNormalEnrichment) {
     // Step 1: Extract clean title/description from Instagram captions
     if (item.sourcePlatform === "instagram" || isInstagramCaption(cleanTitle)) {
-      const extracted = await extractInstagramTitle(cleanTitle, item.destinationCity, item.destinationCountry);
+      // Fetch real caption via ScrapingBee — og:title contains the full Instagram caption.
+      // Direct fetch is blocked by Instagram auth; ScrapingBee bypasses this.
+      let instagramCaption = cleanTitle;
+      if (item.sourceUrl?.includes("instagram.com") && process.env.SCRAPINGBEE_API_KEY) {
+        console.log("[enrich-save] Fetching Instagram caption via ScrapingBee:", item.sourceUrl);
+        const html = await fetchWithScrapingBee(item.sourceUrl);
+        if (html) {
+          const ogTitleRaw = (
+            html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) ||
+            html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i)
+          )?.[1] ?? null;
+          const ogTitle = ogTitleRaw ? he.decode(ogTitleRaw) : null;
+          if (ogTitle && ogTitle.length > 20) {
+            instagramCaption = ogTitle;
+            console.log("[enrich-save] Instagram caption from og:title:", instagramCaption.slice(0, 100));
+          }
+          const sbImg = extractOgImageFromHtml(html);
+          if (sbImg) sbThumbnail = sbImg;
+        }
+      }
+      const extracted = await extractInstagramTitle(instagramCaption, item.destinationCity, item.destinationCountry);
       if (extracted) {
         workingTitle = extracted.title;
         workingDescription = extracted.description || cleanDescription;
@@ -426,11 +448,10 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
     }
   }
 
-  // Step 3c: ScrapingBee fallback for Airbnb and Instagram when no photo found
-  // Note: Instagram og:image URLs (cdninstagram.com) are blocked by sanitizeThumbnailUrl()
-  // at display time — ScrapingBee is most useful for Airbnb where the CDN is not blocked.
+  // Step 3c: ScrapingBee fallback for Airbnb when no photo found
+  // Instagram caption + image are fetched in Step 1 — sbThumbnail holds the og:image result.
   if (!place.photoUrl && !item.mediaThumbnailUrl &&
-      (item.sourceUrl?.includes("airbnb.com") || item.sourceUrl?.includes("instagram.com")) &&
+      item.sourceUrl?.includes("airbnb.com") &&
       process.env.SCRAPINGBEE_API_KEY) {
     console.log("[enrich-save] Trying ScrapingBee for:", item.sourceUrl);
     const html = await fetchWithScrapingBee(item.sourceUrl!);
@@ -466,6 +487,7 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   if (coords) { updateData.lat = coords.lat; updateData.lng = coords.lng; }
   if (place.website && !item.sourceUrl) updateData.sourceUrl = place.website;
   if (place.photoUrl) updateData.placePhotoUrl = place.photoUrl;
+  if (sbThumbnail) updateData.mediaThumbnailUrl = sbThumbnail;
   if (typeof place.rating === "number") updateData.relevanceScore = place.rating;
   if (description && !workingDescription) updateData.rawDescription = description;
   if (mapsCategory) updateData.categoryTags = [mapsCategory];

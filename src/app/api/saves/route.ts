@@ -1,6 +1,5 @@
 function sanitizeThumbnailUrl(url: string | null | undefined): string | null {
   if (!url) return null;
-  if (url.includes("cdninstagram.com") || url.includes("fbcdn.net") || url.includes("scontent")) return null;
   return url;
 }
 

@@ -28,9 +28,20 @@ Signature verification incompatible with Vercel serverless. Do not re-enable.
 CloudMailin → /api/webhooks/email-inbound/route.ts → Claude API → DB
 maxDuration = 60. Never route through Inngest. Never route through a queue.
 
-### Instagram/Airbnb
-Both block web scraping. Never fetch cdninstagram.com, fbcdn.net, scontent.
-Null them via sanitizeThumbnailUrl(). Mobile share sheet is the permanent fix.
+### Airbnb
+Airbnb blocks web scraping. Direct fetch returns login walls. ScrapingBee may help
+but is not yet implemented for Airbnb URLs.
+
+### Instagram
+Instagram CAN be scraped via ScrapingBee (not direct fetch). The enrich-save Instagram
+branch uses fetchWithScrapingBee to retrieve og:title (caption), og:description, and
+og:image from reel URLs. cdninstagram.com is Instagram's legitimate image CDN — do NOT
+null these URLs.
+
+Past issues with "Instagram blocks scraping" referred to direct fetch only. The mobile
+share sheet remains the ideal path for in-app iOS/Android saves (better caption access
+before Instagram auth walls), but ScrapingBee works for email-forward and URL-paste
+pipelines today.
 
 ## Tech Stack
 - Next.js 14 App Router, TypeScript, Tailwind CSS, Shadcn/ui

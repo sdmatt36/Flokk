@@ -108,9 +108,7 @@ export function DropLinkModal({
           data.imageUrl &&
           typeof data.imageUrl === "string" &&
           data.imageUrl.startsWith("http") &&
-          !data.imageUrl.includes("{") &&
-          !data.imageUrl.includes("cdninstagram.com") &&
-          !data.imageUrl.includes("fbcdn.net")
+          !data.imageUrl.includes("{")
             ? data.imageUrl
             : "";
         const card: ExtractedCard = {
