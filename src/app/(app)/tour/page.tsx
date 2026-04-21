@@ -24,6 +24,7 @@ type Stop = {
 type TourResponse = {
   stops: Stop[];
   destinationCity: string;
+  destinationCountry?: string | null;
   prompt: string;
   durationLabel: string;
   transport: string;
@@ -49,6 +50,7 @@ const VIBE_CHIPS = [
 export default function TourPage() {
   const [prompt, setPrompt] = useState("");
   const [destinationCity, setDestinationCity] = useState("");
+  const [destinationCountry, setDestinationCountry] = useState<string | null>(null);
   const [durationLabel, setDurationLabel] = useState("");
   const [transport, setTransport] = useState("");
   const [loading, setLoading] = useState(false);
@@ -168,6 +170,7 @@ export default function TourPage() {
   function selectSuggestion(cityName: string, countryName: string) {
     const value = countryName ? `${cityName}, ${countryName}` : cityName;
     setDestinationCity(value);
+    setDestinationCountry(countryName || null);
     setSuggestions([]);
     setShowSuggestions(false);
     setTouched(true);
@@ -175,6 +178,7 @@ export default function TourPage() {
 
   function handleCityChange(value: string) {
     setDestinationCity(value);
+    setDestinationCountry(null);
     setShowSuggestions(true);
     setTouched(true);
   }
@@ -210,7 +214,7 @@ export default function TourPage() {
       if (!res.ok || data.error) {
         setError(data.error ?? "Something went wrong. Please try again.");
       } else {
-        setResults(data);
+        setResults({ ...data, destinationCountry });
         // Refresh library in background so the new tour appears next time
         fetchSavedTours();
       }
@@ -225,6 +229,7 @@ export default function TourPage() {
     setResults(null);
     setPrompt("");
     setDestinationCity("");
+    setDestinationCountry(null);
     setDurationLabel("");
     setTransport("");
     setError("");
@@ -253,6 +258,7 @@ export default function TourPage() {
           <TourResults
             stops={results.stops}
             destinationCity={results.destinationCity}
+            destinationCountry={results.destinationCountry ?? null}
             prompt={results.prompt}
             durationLabel={results.durationLabel}
             transport={results.transport}

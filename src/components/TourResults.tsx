@@ -27,12 +27,13 @@ type TripOption = {
 type Props = {
   stops: Stop[];
   destinationCity: string;
+  destinationCountry?: string | null;
   prompt: string;
   durationLabel: string;
   transport: string;
 };
 
-export default function TourResults({ stops, destinationCity, prompt, durationLabel, transport }: Props) {
+export default function TourResults({ stops, destinationCity, destinationCountry, prompt, durationLabel, transport }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<{ remove: () => void } | null>(null);
 
@@ -159,7 +160,7 @@ export default function TourResults({ stops, destinationCity, prompt, durationLa
           tourMeta: {
             prompt,
             destinationCity,
-            destinationCountry: null,
+            destinationCountry: destinationCountry ?? null,
             durationLabel,
             transport,
           },

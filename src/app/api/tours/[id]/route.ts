@@ -29,6 +29,7 @@ export async function GET(
     id: tour.id,
     title: tour.title,
     destinationCity: tour.destinationCity,
+    destinationCountry: tour.destinationCountry,
     prompt: tour.prompt,
     durationLabel: tour.durationLabel,
     transport: tour.transport,
