@@ -521,6 +521,7 @@ Return this exact JSON structure:
   "legs": [{ "from": "IATA", "to": "IATA", "fromCity": "string", "toCity": "string", "departure": "YYYY-MM-DDTHH:MM", "arrival": "YYYY-MM-DDTHH:MM" }] or [],
   "outboundDestination": "string or null — the furthest non-home city in the itinerary (the actual trip destination, not the return airport)",
   "outboundDestinationAirport": "IATA code or null — airport code for outboundDestination",
+  "bookingUrl": "string or null — the URL in the email to view or manage the booking. Look for phrases like 'View booking', 'Manage reservation', 'Booking details', or any vendor link that lets the user return to the booking on the vendor's site. If no such URL is present, return null.",
   "confidence": "0.0 to 1.0"
 }
 
@@ -1267,7 +1268,7 @@ Field notes:
                 confirmationCode: extracted.confirmationCode,
                 totalCost: extracted.totalCost, currency: extracted.currency,
                 guestNames: extracted.guestNames, returnDepartureDate: extracted.returnDepartureDate,
-                legs: extracted.legs,
+                legs: extracted.legs, bookingUrl: (extracted.bookingUrl as string | null) ?? null,
               }),
             },
           });
@@ -1387,6 +1388,7 @@ Field notes:
               contactPhone: extracted.contactPhone, contactEmail: extracted.contactEmail,
               guestNames: extracted.guestNames,
               rooms: extractedRooms ?? Prisma.JsonNull,
+              bookingUrl: (extracted.bookingUrl as string | null) ?? null,
             }),
           },
         });
@@ -1535,6 +1537,7 @@ Field notes:
               totalCost: extracted.totalCost, currency: extracted.currency,
               contactPhone: extracted.contactPhone, contactEmail: extracted.contactEmail,
               guestNames: extracted.guestNames, address: extracted.address,
+              bookingUrl: (extracted.bookingUrl as string | null) ?? null,
             }),
           },
         });

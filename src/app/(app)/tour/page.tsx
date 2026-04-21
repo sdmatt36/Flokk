@@ -205,8 +205,9 @@ export default function TourPage() {
         </div>
       </div>
 
-      {/* Form card — floats up over hero */}
-      <div className="max-w-2xl mx-auto px-4">
+      {/* Content — centered */}
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 24px", width: "100%" }}>
+        {/* Form card — floats up over hero */}
         <div className="bg-white rounded-2xl shadow-lg p-6 relative z-10 -mt-10">
           <textarea
             rows={4}
@@ -290,10 +291,9 @@ export default function TourPage() {
 
           {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
         </div>
-      </div>
 
-      {/* How to Build a Flokkin' Great Tour */}
-      <div className="max-w-2xl mx-auto px-4 mt-8 mb-12">
+        {/* How to Build a Flokkin' Great Tour */}
+        <div className="mt-8 mb-12">
         <h2 className="font-serif text-xl font-semibold text-[#1B3A5C] mb-2">How to Build a Flokkin&apos; Great Tour</h2>
         <p className="text-sm text-gray-500 mb-5">Who&apos;s coming along?</p>
 
@@ -310,6 +310,7 @@ export default function TourPage() {
           ))}
         </div>
         <p className="text-xs text-gray-400 italic mt-4">Try: &apos;Best sushi near Tsukiji&apos; · &apos;Street art walk in Shoreditch&apos; · &apos;Castle hopping in Edinburgh&apos;</p>
+        </div>
       </div>
     </div>
   );

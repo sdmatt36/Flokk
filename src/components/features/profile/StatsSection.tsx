@@ -297,7 +297,7 @@ function MemoryBoard({ stats }: { stats: TravelStats }) {
       </div>
 
       {/* ── PASSPORT STAMPS ── */}
-      <div style={{ backgroundColor: "#fff", borderRadius: "16px", border: "1px solid #E8E8E8", overflow: "hidden" }}>
+      <div style={{ backgroundColor: "#fff", borderRadius: "16px", border: "1px solid #E8E8E8" }}>
         <div style={{ padding: "16px 18px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <p style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", margin: 0 }}>Your passport stamps</p>
