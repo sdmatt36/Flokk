@@ -84,6 +84,7 @@ import { getTripCoverImage, getItemImage } from "@/lib/destination-images";
 import { BookingIntelCard } from "@/components/features/trips/BookingIntelCard";
 import { BudgetPanel } from "@/components/features/trips/BudgetPanel";
 import { ShareTripButton } from "@/components/features/trips/ShareTripButton";
+import { sharePlace } from "@/lib/share";
 
 type Tab = "saved" | "itinerary" | "recommended" | "packing" | "notes" | "vault" | "howwasit";
 
@@ -1785,7 +1786,7 @@ function ActivityDetailModal({ activity, onClose, onEdit, onDelete, onMarkBooked
   );
 }
 
-function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onEditSavedActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onDeleteActivity, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight, budgetTotal, trackedTotal, budgetCurrency, budgetLoaded, onBudgetChange }: {
+function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onEditSavedActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onDeleteActivity, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight, budgetTotal, trackedTotal, budgetCurrency, budgetLoaded, onBudgetChange, shareToken }: {
   flyTarget: { lat: number; lng: number } | null;
   onFlyTargetConsumed: () => void;
   tripId?: string;
@@ -1809,6 +1810,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   budgetCurrency: string;
   budgetLoaded: boolean;
   onBudgetChange: (total: number | null, currency: string) => void;
+  shareToken?: string;
 }) {
   const isDesktop = useIsDesktop();
   const [openDay, setOpenDay] = useState(0); // -1 = all collapsed
@@ -1824,6 +1826,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
   const [verificationIndex, setVerificationIndex] = useState(0);
   const [expandedSlotKey, setExpandedSlotKey] = useState<string | null>(null);
+  const [shareToast, setShareToast] = useState(false);
+  const shareToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selectedItineraryItem, setSelectedItineraryItem] = useState<ItineraryItemLocal | null>(null);
   const [editActivityTitle, setEditActivityTitle] = useState("");
   const [editingItinFields, setEditingItinFields] = useState(false);
@@ -2879,6 +2883,17 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                     <button
                                                       onClick={async e => {
                                                         e.stopPropagation();
+                                                        const result = await sharePlace({ name: a.title, city: destinationCity ?? null, sourceTripId: tripId, sourceShareToken: shareToken });
+                                                        if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); }
+                                                      }}
+                                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#bbb", padding: "2px", lineHeight: 1 }}
+                                                      title="Share"
+                                                    >
+                                                      <Share2 size={14} />
+                                                    </button>
+                                                    <button
+                                                      onClick={async e => {
+                                                        e.stopPropagation();
                                                         const isLodging = /lodging|accommodation|hotel|airbnb|hostel/i.test((a.categoryTags ?? []).join(" "));
                                                         try {
                                                           const res = await fetch(`/api/saves/${a.savedItemId}`);
@@ -3003,15 +3018,28 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
                                                 <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{a.title}</p>
-                                                {onEditActivity && (
+                                                <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
                                                   <button
-                                                    onClick={e => { e.stopPropagation(); onEditActivity(a); }}
-                                                    style={{ background: "none", border: "none", cursor: "pointer", color: "#666", padding: "2px", lineHeight: 1, flexShrink: 0 }}
-                                                    title="Edit activity"
+                                                    onClick={async e => {
+                                                      e.stopPropagation();
+                                                      const result = await sharePlace({ name: a.title, city: destinationCity ?? null, sourceTripId: tripId, sourceShareToken: shareToken });
+                                                      if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); }
+                                                    }}
+                                                    style={{ background: "none", border: "none", cursor: "pointer", color: "#bbb", padding: "2px", lineHeight: 1 }}
+                                                    title="Share"
                                                   >
-                                                    <Pencil size={16} />
+                                                    <Share2 size={14} />
                                                   </button>
-                                                )}
+                                                  {onEditActivity && (
+                                                    <button
+                                                      onClick={e => { e.stopPropagation(); onEditActivity(a); }}
+                                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#666", padding: "2px", lineHeight: 1 }}
+                                                      title="Edit activity"
+                                                    >
+                                                      <Pencil size={16} />
+                                                    </button>
+                                                  )}
+                                                </div>
                                               </div>
                                               {(a.time || a.venueName) && (
                                                 <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }}>{a.time ?? ""}{a.endTime ? ` – ${a.endTime}` : ""}{a.venueName ? ` · ${a.venueName}` : ""}</p>
@@ -3050,6 +3078,11 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                         const pencilBtn = (onClick: () => void) => (
                                           <button onClick={e => { e.stopPropagation(); onClick(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px", flexShrink: 0 }} title="Edit">
                                             <Pencil size={14} />
+                                          </button>
+                                        );
+                                        const shareBtn = (title: string) => (
+                                          <button onClick={async e => { e.stopPropagation(); const result = await sharePlace({ name: title, city: destinationCity ?? null, sourceTripId: tripId, sourceShareToken: shareToken }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } }} style={{ background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px", flexShrink: 0 }} title="Share">
+                                            <Share2 size={14} />
                                           </button>
                                         );
                                         function formatDateShort(d: string | null): string | null {
@@ -3096,7 +3129,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                     <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                                   </div>
                                                 </div>
-                                                {matchFlight && pencilBtn(() => setEditingFlight(matchFlight))}
+                                                <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
+                                                  {shareBtn(it.title ?? "")}
+                                                  {matchFlight && pencilBtn(() => setEditingFlight(matchFlight))}
+                                                </div>
                                               </div>
                                             </div>
                                           );
@@ -3126,7 +3162,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                     <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                                   </div>
                                                 </div>
-                                                {pencilBtn(() => setSelectedItineraryItem(it))}
+                                                <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
+                                                  {shareBtn(hotelName)}
+                                                  {pencilBtn(() => setSelectedItineraryItem(it))}
+                                                </div>
                                               </div>
                                             </div>
                                           );
@@ -3156,7 +3195,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                     <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                                   </div>
                                                 </div>
-                                                {pencilBtn(() => setSelectedItineraryItem(it))}
+                                                <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
+                                                  {shareBtn(trainRoute)}
+                                                  {pencilBtn(() => setSelectedItineraryItem(it))}
+                                                </div>
                                               </div>
                                             </div>
                                           );
@@ -3179,7 +3221,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                   <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                                 </div>
                                               </div>
-                                              {pencilBtn(() => { if (it.type === "ACTIVITY") setEditActivityTitle(it.title ?? ""); setSelectedItineraryItem(it); })}
+                                              <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
+                                                {shareBtn(it.title ?? "")}
+                                                {pencilBtn(() => { if (it.type === "ACTIVITY") setEditActivityTitle(it.title ?? ""); setSelectedItineraryItem(it); })}
+                                              </div>
                                             </div>
                                           </div>
                                         );
@@ -3846,6 +3891,11 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           </div>
         );
       })()}
+      {shareToast && (
+        <div style={{ position: "fixed", bottom: "80px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#1B3A5C", color: "#fff", fontSize: "13px", fontWeight: 600, padding: "10px 20px", borderRadius: "999px", zIndex: 9999, pointerEvents: "none" }}>
+          Link copied
+        </div>
+      )}
     </div>
   );
 }
@@ -6215,7 +6265,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       {tab === "saved" && (
         <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} />
       )}
-      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} onEditSavedActivity={(a) => { setEditingActivity(a); setEditingActivityIsSavedItem(true); }} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onDeleteActivity={handleDeleteActivity} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} budgetTotal={budgetTotal} trackedTotal={trackedTotal} budgetCurrency={budgetCurrency} budgetLoaded={budgetLoaded} onBudgetChange={handleBudgetChange} />}
+      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} onEditSavedActivity={(a) => { setEditingActivity(a); setEditingActivityIsSavedItem(true); }} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onDeleteActivity={handleDeleteActivity} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} budgetTotal={budgetTotal} trackedTotal={trackedTotal} budgetCurrency={budgetCurrency} budgetLoaded={budgetLoaded} onBudgetChange={handleBudgetChange} shareToken={shareToken} />}
       {tab === "packing" && <PackingContent tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} tripStartDate={tripStartDate} tripEndDate={tripEndDate} />}
       {tab === "notes" && (
         <div style={{ maxWidth: "600px" }}>
