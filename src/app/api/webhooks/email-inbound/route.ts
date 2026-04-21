@@ -4,6 +4,7 @@ import { Resend } from "resend";
 import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
+import { enrichSavedItem } from "@/lib/enrich-save";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
 import { toTitleCase } from "@/lib/utils";
 import { resolveProfileByEmail } from "@/lib/profile-access";
@@ -569,7 +570,7 @@ Field notes:
             rawTitle: rawUrl,
             categoryTags: [],
             status: 'UNORGANIZED',
-            extractionStatus: 'ENRICHED',
+            extractionStatus: 'PENDING',
             tripId: null,
             destinationCity: null,
           },
@@ -630,6 +631,7 @@ Field notes:
         } catch (e) {
           console.error('[trips-save] enrichment failed:', e);
         }
+        enrichSavedItem(savedItem.id).catch(e => console.error('[trips-save] enrichSavedItem failed:', e));
         // Re-read latest rawTitle (may have been updated by title extraction)
         const latestItem = await db.savedItem.findUnique({ where: { id: savedItem.id }, select: { rawTitle: true } });
         const confirmTitle = latestItem?.rawTitle ?? rawUrl;
@@ -1430,7 +1432,7 @@ Field notes:
             rawTitle: placeTitle,
             categoryTags: [],
             status: 'UNORGANIZED',
-            extractionStatus: 'ENRICHED',
+            extractionStatus: 'PENDING',
             tripId: null,
             destinationCity: placeCity,
           }
@@ -1448,6 +1450,7 @@ Field notes:
         } catch (e) {
           console.error('[email-inbound] enrichment failed:', e);
         }
+        enrichSavedItem(savedItem.id).catch(e => console.error('[email-inbound] enrichSavedItem failed:', e));
         let nonBookingTrip: { id: string; title: string } | null = null;
         try {
           const nonBookingCountry = await getCountryForCity(placeCity ?? '');
