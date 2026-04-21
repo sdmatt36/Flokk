@@ -15,6 +15,7 @@ import {
   X,
   Trash2,
 } from "lucide-react";
+import { sharePlace } from "@/lib/share";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -416,6 +417,19 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
   const extraTags = filteredTags.length - visibleTags.length;
   const isDropdownOpen = openDropdown === save.id;
   const [deleting, setDeleting] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+  const shareTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleShareSave = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const sourceTripId = save.tripId ?? suggestedForOptions?.[0]?.id ?? null;
+    const result = await sharePlace({ name: save.title, city: save.destinationCity ?? null, sourceTripId });
+    if (result.ok) {
+      if (shareTimerRef.current) clearTimeout(shareTimerRef.current);
+      setShareCopied(true);
+      shareTimerRef.current = setTimeout(() => setShareCopied(false), 2000);
+    }
+  };
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -786,6 +800,17 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
               style={{ background: "#C4664A", border: "none", borderRadius: "999px", padding: "4px 12px", fontSize: "11px", color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}
             >
               + Add to trip
+            </button>
+          </div>
+        )}
+        {(save.tripId || (suggestedForOptions && suggestedForOptions.length > 0)) && (
+          <div style={{ marginTop: "6px" }}>
+            <button
+              type="button"
+              onClick={handleShareSave}
+              style={{ fontSize: "11px", color: "#C4664A", background: "transparent", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              {shareCopied ? "Copied!" : "Share"}
             </button>
           </div>
         )}

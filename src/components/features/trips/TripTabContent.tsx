@@ -997,8 +997,8 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
           )}
           <button type="button" onClick={e => { e.stopPropagation(); onLearnMore(); }} style={{ fontSize: "11px", fontWeight: 600, padding: "4px 10px", borderRadius: "999px", border: "1px solid #E0E0E0", backgroundColor: "transparent", color: "#555", cursor: "pointer", whiteSpace: "nowrap" }}>Learn more</button>
           {onShare && (
-            <button type="button" onClick={e => { e.stopPropagation(); onShare(); }} style={{ padding: "4px 7px", borderRadius: "999px", border: "1px solid rgba(0,0,0,0.1)", backgroundColor: "transparent", color: "#9ca3af", cursor: "pointer", display: "flex", alignItems: "center", marginLeft: "auto" }}>
-              <Share2 size={11} />
+            <button type="button" onClick={e => { e.stopPropagation(); onShare(); }} style={{ fontSize: "11px", color: "#C4664A", background: "transparent", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", marginLeft: "auto" }}>
+              Share
             </button>
           )}
           {onDelete && (
@@ -1036,7 +1036,7 @@ function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDel
         <div className="absolute top-2 right-2 z-10 flex gap-1">
           {onShare && (
             <button onClick={(e) => { e.stopPropagation(); onShare(); }} className="bg-white/90 backdrop-blur-sm rounded-full shadow-sm border border-gray-100" style={{ padding: "5px", lineHeight: 0, cursor: "pointer" }}>
-              <Share2 size={13} style={{ color: "#9ca3af" }} />
+              <Share2 size={13} style={{ color: "#C4664A" }} />
             </button>
           )}
           {onDelete && (
@@ -2913,10 +2913,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                         const result = await sharePlace({ name: a.title, city: destinationCity ?? null, sourceTripId: tripId, sourceShareToken: shareToken });
                                                         if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); }
                                                       }}
-                                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#bbb", padding: "2px", lineHeight: 1 }}
+                                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#C4664A", padding: "2px", lineHeight: 1, fontSize: "11px", fontFamily: "inherit" }}
                                                       title="Share"
                                                     >
-                                                      <Share2 size={14} />
+                                                      Share
                                                     </button>
                                                     <button
                                                       onClick={async e => {
@@ -3052,10 +3052,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                       const result = await sharePlace({ name: a.title, city: destinationCity ?? null, sourceTripId: tripId, sourceShareToken: shareToken });
                                                       if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); }
                                                     }}
-                                                    style={{ background: "none", border: "none", cursor: "pointer", color: "#bbb", padding: "2px", lineHeight: 1 }}
+                                                    style={{ background: "none", border: "none", cursor: "pointer", color: "#C4664A", padding: "2px", lineHeight: 1, fontSize: "11px", fontFamily: "inherit" }}
                                                     title="Share"
                                                   >
-                                                    <Share2 size={14} />
+                                                    Share
                                                   </button>
                                                   {onEditActivity && (
                                                     <button
@@ -3108,8 +3108,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                           </button>
                                         );
                                         const shareBtn = (title: string) => (
-                                          <button onClick={async e => { e.stopPropagation(); const result = await sharePlace({ name: title, city: destinationCity ?? null, sourceTripId: tripId, sourceShareToken: shareToken }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } }} style={{ background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px", flexShrink: 0 }} title="Share">
-                                            <Share2 size={14} />
+                                          <button onClick={async e => { e.stopPropagation(); const result = await sharePlace({ name: title, city: destinationCity ?? null, sourceTripId: tripId, sourceShareToken: shareToken }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } }} style={{ background: "none", border: "none", cursor: "pointer", color: "#C4664A", padding: "2px", flexShrink: 0, fontSize: "11px", fontFamily: "inherit" }} title="Share">
+                                            Share
                                           </button>
                                         );
                                         function formatDateShort(d: string | null): string | null {
