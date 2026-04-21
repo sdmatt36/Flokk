@@ -44,12 +44,12 @@ export function WelcomeBanner() {
     {
       num: "02",
       title: "Paste a link",
-      body: <>Spotted something on Instagram, TikTok, or a blog? Drop the link in Saves.</>,
+      body: <>See a place on a map, a restaurant in a reel, a hotel in a listing. Drop the link in Saves. We file it by city and activity for your next trip.</>,
     },
     {
       num: "03",
       title: "Save in-app",
-      body: <>Tap any spot or recommendation inside Flokk to bookmark it for later.</>,
+      body: <>Tap Save on any spot, recommendation, or trip you want to steal. Add your own favorite places to Spots whenever you find one.</>,
     },
   ];
 

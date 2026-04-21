@@ -75,6 +75,9 @@ export default async function LandingPage() {
                 <div className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-1.5 rounded-full" style={{ backgroundColor: "#6B8F71", color: "#fff" }}>
                   Now in early access
                 </div>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "#C4664A", marginBottom: 16 }}>
+                  What inspires you?
+                </div>
                 <h1 className="text-5xl md:text-6xl font-bold leading-tight" style={{ color: "#1a1a1a" }}>
                   Your family&apos;s next great trip —{" "}
                   <span style={{ color: "#C4664A" }}>finally in one place.</span>
@@ -527,12 +530,13 @@ export default async function LandingPage() {
 
       {/* Testimonial */}
       <section style={{ padding: "100px 24px", background: "#FFF8F3" }}>
-        <div style={{ maxWidth: 680, margin: "0 auto" }}>
+        <div style={{ maxWidth: 860, margin: "0 auto" }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "#C4664A", marginBottom: 24, textAlign: "center" }}>
             What families are saying
           </div>
           <div style={{ background: "#fff", borderRadius: 20, padding: "48px 52px", boxShadow: "0 8px 40px rgba(27,58,92,0.08)", position: "relative" }}>
-            <div style={{ fontSize: 96, lineHeight: 0.7, fontFamily: "'Playfair Display', Georgia, serif", color: "#F0E4D8", marginBottom: 24, userSelect: "none" }}>&ldquo;</div>
+            <div style={{ fontSize: 96, lineHeight: 0.7, fontFamily: "'Playfair Display', Georgia, serif", color: "#C4664A", marginBottom: 24, userSelect: "none", opacity: 0.35 }}>&ldquo;</div>
+            <div style={{ position: "absolute", bottom: 16, right: 32, fontSize: 96, lineHeight: 1, color: "#C4664A", fontFamily: "Georgia, serif", fontWeight: 700, opacity: 0.35, pointerEvents: "none", transform: "scaleX(-1)" }}>&ldquo;</div>
             <blockquote style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: 22, lineHeight: 1.5, color: "#1B3A5C", margin: "0 0 32px 0" }}>
               Holy Crap, I just got a shiver it&rsquo;s so amazing. The packing section alone is so
               helpful and how it knows the temp where you are going and what to pack for kids...Love love

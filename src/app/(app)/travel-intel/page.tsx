@@ -666,20 +666,20 @@ export default function TravelIntelPage() {
         </div>
 
         {/* ── Filter pills — topics ── */}
-        <div style={{ display: "flex", gap: "6px", marginBottom: "28px", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "6px", marginBottom: "28px", flexWrap: "wrap", rowGap: 8 }}>
           <button
             onClick={() => { setActiveTopic(null); setCurrentPage(1); }}
-            style={{ padding: "5px 14px", borderRadius: "999px", border: `1.5px solid ${activeTopic === null ? "#1B3A5C" : "#E0E0E0"}`, backgroundColor: activeTopic === null ? "#1B3A5C" : "#fff", color: activeTopic === null ? "#fff" : "#717171", fontSize: "12px", fontWeight: activeTopic === null ? 700 : 500, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
+            style={{ padding: "4px 10px", borderRadius: "999px", border: `1.5px solid ${activeTopic === null ? "#1B3A5C" : "#E0E0E0"}`, backgroundColor: activeTopic === null ? "#1B3A5C" : "#fff", color: activeTopic === null ? "#fff" : "#717171", fontSize: "12px", fontWeight: activeTopic === null ? 700 : 500, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
           >
             All Topics
           </button>
-          {TOPIC_TAGS.filter(t => t !== "Cruises").map((tag) => {
+          {[...TOPIC_TAGS].sort((a, b) => a.localeCompare(b)).map((tag) => {
             const active = activeTopic === tag;
             return (
               <button
                 key={tag}
                 onClick={() => { setActiveTopic(active ? null : tag); setCurrentPage(1); }}
-                style={{ padding: "5px 14px", borderRadius: "999px", border: `1.5px solid ${active ? "#1B3A5C" : "#E0E0E0"}`, backgroundColor: active ? "#1B3A5C" : "#fff", color: active ? "#fff" : "#717171", fontSize: "12px", fontWeight: active ? 700 : 500, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
+                style={{ padding: "4px 10px", borderRadius: "999px", border: `1.5px solid ${active ? "#1B3A5C" : "#E0E0E0"}`, backgroundColor: active ? "#1B3A5C" : "#fff", color: active ? "#fff" : "#717171", fontSize: "12px", fontWeight: active ? 700 : 500, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
               >
                 {tag}
               </button>

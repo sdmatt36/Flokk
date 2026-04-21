@@ -1502,7 +1502,8 @@ export function SavesScreen() {
 
   const filteredSaves = cityFiltered.filter(matchesFilter);
   const tabbed = groupTabbedSaves(filteredSaves, availableTrips);
-  const hasNoResults = !loading && tabbed.counts.upcoming === 0 && tabbed.counts.past === 0 && tabbed.counts.unassigned === 0;
+  const isEmptyLibrary = !loading && saves.length === 0;
+  const hasNoResults = !loading && !isEmptyLibrary && tabbed.counts.upcoming === 0 && tabbed.counts.past === 0 && tabbed.counts.unassigned === 0;
 
   return (
     <div
@@ -1707,6 +1708,13 @@ Your saved places, all in one spot
         {loading && (
           <div style={{ textAlign: "center", padding: "48px 24px", color: "#999", fontSize: "14px" }}>
             Loading your saves…
+          </div>
+        )}
+
+        {isEmptyLibrary && (
+          <div style={{ textAlign: "center", padding: "64px 24px" }}>
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 28, fontWeight: 700, color: "#1B3A5C", marginBottom: 8 }}>What inspires you?</h2>
+            <p style={{ color: "#666", fontSize: 14 }}>Paste any link and Flokk files it by city and activity. Your Saves live here.</p>
           </div>
         )}
 
