@@ -23,12 +23,20 @@ async function fetchWithScrapingBee(url: string): Promise<string | null> {
   }
 }
 
-function extractOgImageFromHtml(html: string): string | null {
-  const match = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-    || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-  const url = match?.[1] ?? null;
-  return url ? he.decode(url) : null;
+function extractOgMeta(html: string, field: string): string | null {
+  const match =
+    html.match(new RegExp(`<meta[^>]+property=["']og:${field}["'][^>]+content=["']([^"']+)["']`, "i")) ||
+    html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:${field}["']`, "i"));
+  const raw = match?.[1] ?? null;
+  return raw ? he.decode(raw) : null;
 }
+
+function extractOgImageFromHtml(html: string): string | null {
+  return extractOgMeta(html, "image");
+}
+
+const SOCIAL_PLATFORMS = ["instagram", "tiktok", "youtube", "pinterest", "threads"] as const;
+type SocialPlatform = typeof SOCIAL_PLATFORMS[number];
 
 const PLACE_TYPE_MAP: Record<string, string> = {
   restaurant: "food",
@@ -149,8 +157,9 @@ function cleanInstagramFallback(rawTitle: string | null): string {
   return clean || "Instagram save";
 }
 
-async function extractInstagramTitle(
-  caption: string
+async function extractSocialCaption(
+  caption: string,
+  platform: SocialPlatform | "blog" | "unknown"
 ): Promise<{ title: string | null; description: string; destinationCity: string | null; destinationCountry: string | null; category: string | null } | null> {
   try {
     const response = await anthropic.messages.create({
@@ -158,7 +167,7 @@ async function extractInstagramTitle(
       max_tokens: 400,
       messages: [{
         role: "user",
-        content: `You are reading an Instagram caption to help a family travel app organize the save.
+        content: `You are reading a ${platform} caption/description to help a family travel app organize the save.
 Extract these fields from the caption and return as JSON.
 
 TITLE — the specific place, venue, or landmark being shown. Use hashtags, account handles, and
@@ -387,11 +396,11 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   let place: { website?: string; photoUrl?: string; rating?: number } = {};
   let mapsCategory: string | null = null;
   let skipNormalEnrichment = false;
-  let instagramPlaceFound = false;
+  let socialPlaceFound = false;
   let sbThumbnail: string | null = null;
-  let instagramCity: string | null = null;
-  let instagramCountry: string | null = null;
-  let instagramCategory: string | null = null;
+  let socialCity: string | null = null;
+  let socialCountry: string | null = null;
+  let socialCategory: string | null = null;
 
   // Step 0: Google Maps — extract place name from URL, skip OG title, go straight to Places API
   const isGoogleMaps =
@@ -420,41 +429,48 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   }
 
   if (!skipNormalEnrichment) {
-    // Step 1: Extract clean title/description from Instagram captions
-    if (item.sourcePlatform === "instagram" || isInstagramCaption(cleanTitle)) {
-      // Fetch real caption via ScrapingBee — og:title contains the full Instagram caption.
-      // Direct fetch is blocked by Instagram auth; ScrapingBee bypasses this.
-      let instagramCaption = cleanTitle;
-      if (item.sourceUrl?.includes("instagram.com") && process.env.SCRAPINGBEE_API_KEY) {
-        console.log("[enrich-save] Fetching Instagram caption via ScrapingBee:", item.sourceUrl);
+    // Step 1: Extract caption and place data for social platform saves
+    const platform = (item.sourcePlatform ?? "unknown") as SocialPlatform | "unknown";
+    if ((SOCIAL_PLATFORMS as readonly string[]).includes(platform) || isInstagramCaption(cleanTitle)) {
+      // Fetch caption via ScrapingBee — og:title/og:description has the full caption.
+      // Direct fetch is blocked by Instagram/TikTok auth; ScrapingBee bypasses this.
+      let socialCaption = cleanTitle;
+      if (item.sourceUrl && process.env.SCRAPINGBEE_API_KEY) {
+        console.log(`[enrich-save] Fetching ${platform} caption via ScrapingBee:`, item.sourceUrl);
         const html = await fetchWithScrapingBee(item.sourceUrl);
         if (html) {
-          const ogTitleRaw = (
-            html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i) ||
-            html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i)
-          )?.[1] ?? null;
-          const ogTitle = ogTitleRaw ? he.decode(ogTitleRaw) : null;
-          if (ogTitle && ogTitle.length > 20) {
-            instagramCaption = ogTitle;
-            console.log("[enrich-save] Instagram caption from og:title:", instagramCaption.slice(0, 100));
+          const ogTitle = extractOgMeta(html, "title");
+          const ogDesc = extractOgMeta(html, "description");
+          // YouTube: prefer og:description (richer) over og:title (short video title)
+          const captionSource = platform === "youtube" && ogDesc && ogDesc.length > (ogTitle?.length ?? 0)
+            ? ogDesc
+            : (ogTitle && ogTitle.length > 20 ? ogTitle : null);
+          if (captionSource) {
+            socialCaption = captionSource;
+            console.log(`[enrich-save] ${platform} caption:`, socialCaption.slice(0, 100));
           }
           const sbImg = extractOgImageFromHtml(html);
           if (sbImg) sbThumbnail = sbImg;
         }
       }
-      const extracted = await extractInstagramTitle(instagramCaption);
+      const extracted = await extractSocialCaption(
+        socialCaption,
+        (SOCIAL_PLATFORMS as readonly string[]).includes(platform)
+          ? platform as SocialPlatform
+          : "unknown"
+      );
       if (extracted) {
         if (extracted.title) {
           workingTitle = extracted.title;
-          instagramPlaceFound = true;
+          socialPlaceFound = true;
         } else {
           // Claude couldn't identify a specific place — clean the caption and flag for user confirmation
           workingTitle = cleanInstagramFallback(item.rawTitle);
         }
         workingDescription = extracted.description || cleanDescription;
-        if (extracted.destinationCity) instagramCity = extracted.destinationCity;
-        if (extracted.destinationCountry) instagramCountry = extracted.destinationCountry;
-        if (extracted.category) instagramCategory = extracted.category;
+        if (extracted.destinationCity) socialCity = extracted.destinationCity;
+        if (extracted.destinationCountry) socialCountry = extracted.destinationCountry;
+        if (extracted.category) socialCategory = extracted.category;
       } else {
         workingTitle = cleanInstagramFallback(item.rawTitle);
       }
@@ -534,13 +550,13 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   if (typeof place.rating === "number") updateData.relevanceScore = place.rating;
   if (description && !workingDescription) updateData.rawDescription = description;
   if (mapsCategory) updateData.categoryTags = [mapsCategory];
-  if (!item.destinationCity && instagramCity) updateData.destinationCity = instagramCity;
-  if (!item.destinationCountry && instagramCountry) updateData.destinationCountry = instagramCountry;
-  if (instagramCategory && (!item.categoryTags || item.categoryTags.length === 0) && !mapsCategory) {
-    updateData.categoryTags = [instagramCategory];
+  if (!item.destinationCity && socialCity) updateData.destinationCity = socialCity;
+  if (!item.destinationCountry && socialCountry) updateData.destinationCountry = socialCountry;
+  if (socialCategory && (!item.categoryTags || item.categoryTags.length === 0) && !mapsCategory) {
+    updateData.categoryTags = [socialCategory];
   }
-  // Flag Instagram saves where Claude couldn't identify a specific place — prompt user to identify
-  if ((item.sourcePlatform === "instagram" || isInstagramCaption(cleanTitle)) && !instagramPlaceFound && !skipNormalEnrichment) {
+  // Flag social saves where Claude couldn't identify a specific place — prompt user to identify
+  if (((SOCIAL_PLATFORMS as readonly string[]).includes(item.sourcePlatform ?? "") || isInstagramCaption(cleanTitle)) && !socialPlaceFound && !skipNormalEnrichment) {
     updateData.needsPlaceConfirmation = true;
   }
   updateData.extractionStatus = "ENRICHED";
