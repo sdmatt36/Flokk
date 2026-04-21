@@ -530,6 +530,7 @@ type SavedDisplayItem = {
   lodgingDates?: { checkin: string | null; checkout: string | null };
   categoryTags?: string[];
   source?: string;
+  destinationCity?: string | null;
 };
 
 
@@ -934,7 +935,7 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
 // Renders ALL savedItem types including URL saves,
 // manual saves, and activity saves created via the Activity button.
 // ActivityCard is for manualActivity DB rows only.
-function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook, onLearnMore, assignedDay, onDelete }: {
+function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook, onLearnMore, assignedDay, onDelete, onShare }: {
   item: SavedDisplayItem;
   isDesktop: boolean;
   onAddToItinerary: () => void;
@@ -942,6 +943,7 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
   onLearnMore: () => void;
   assignedDay?: number;
   onDelete?: () => void;
+  onShare?: () => void;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   const hasImg = !!item.img && !imgFailed;
@@ -994,8 +996,13 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
             <button type="button" onClick={e => { e.stopPropagation(); onBook(); }} style={{ fontSize: "11px", fontWeight: 600, padding: "4px 10px", borderRadius: "999px", border: "1px solid #E0E0E0", backgroundColor: "transparent", color: "#555", cursor: "pointer", whiteSpace: "nowrap" }}>Book</button>
           )}
           <button type="button" onClick={e => { e.stopPropagation(); onLearnMore(); }} style={{ fontSize: "11px", fontWeight: 600, padding: "4px 10px", borderRadius: "999px", border: "1px solid #E0E0E0", backgroundColor: "transparent", color: "#555", cursor: "pointer", whiteSpace: "nowrap" }}>Learn more</button>
+          {onShare && (
+            <button type="button" onClick={e => { e.stopPropagation(); onShare(); }} style={{ padding: "4px 7px", borderRadius: "999px", border: "1px solid rgba(0,0,0,0.1)", backgroundColor: "transparent", color: "#9ca3af", cursor: "pointer", display: "flex", alignItems: "center", marginLeft: "auto" }}>
+              <Share2 size={11} />
+            </button>
+          )}
           {onDelete && (
-            <button type="button" onClick={e => { e.stopPropagation(); onDelete(); }} style={{ fontSize: "10px", padding: "4px 7px", borderRadius: "999px", border: "1px solid rgba(220,53,69,0.25)", backgroundColor: "transparent", color: "#dc3545", cursor: "pointer", display: "flex", alignItems: "center", marginLeft: "auto" }}>
+            <button type="button" onClick={e => { e.stopPropagation(); onDelete(); }} style={{ fontSize: "10px", padding: "4px 7px", borderRadius: "999px", border: "1px solid rgba(220,53,69,0.25)", backgroundColor: "transparent", color: "#dc3545", cursor: "pointer", display: "flex", alignItems: "center", marginLeft: onShare ? "4px" : "auto" }}>
               <Trash2 size={11} />
             </button>
           )}
@@ -1007,12 +1014,13 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
 
 const SAVED_FILTER_PILLS = ["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Kids Camps", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other", "Unorganized"];
 
-function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDelete }: {
+function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDelete, onShare }: {
   item: SavedDisplayItem;
   onAddToItinerary: () => void;
   onLearnMore: () => void;
   assignedDay?: number;
   onDelete?: () => void;
+  onShare?: () => void;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   const hasImg = !!item.img && !imgFailed;
@@ -1023,15 +1031,20 @@ function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDel
       onClick={onLearnMore}
       style={{ cursor: "pointer", position: "relative", backgroundColor: "#FAFAFA", borderRadius: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", overflow: "hidden" }}
     >
-      {/* Delete button */}
-      {onDelete && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          className="absolute top-2 right-2 z-10 bg-white/90 backdrop-blur-sm rounded-full shadow-sm border border-gray-100"
-          style={{ padding: "5px", lineHeight: 0, cursor: "pointer" }}
-        >
-          <Trash2 size={13} style={{ color: "#9ca3af" }} />
-        </button>
+      {/* Share + Delete buttons */}
+      {(onShare || onDelete) && (
+        <div className="absolute top-2 right-2 z-10 flex gap-1">
+          {onShare && (
+            <button onClick={(e) => { e.stopPropagation(); onShare(); }} className="bg-white/90 backdrop-blur-sm rounded-full shadow-sm border border-gray-100" style={{ padding: "5px", lineHeight: 0, cursor: "pointer" }}>
+              <Share2 size={13} style={{ color: "#9ca3af" }} />
+            </button>
+          )}
+          {onDelete && (
+            <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="bg-white/90 backdrop-blur-sm rounded-full shadow-sm border border-gray-100" style={{ padding: "5px", lineHeight: 0, cursor: "pointer" }}>
+              <Trash2 size={13} style={{ color: "#9ca3af" }} />
+            </button>
+          )}
+        </div>
       )}
 
       {/* Image */}
@@ -1158,11 +1171,14 @@ function apiToDisplayItem(item: ApiSavedItem): SavedDisplayItem {
     lodgingDates: { checkin: item.extractedCheckin, checkout: item.extractedCheckout },
     categoryTags: item.categoryTags,
     source: SAVED_SOURCE_LABEL[item.sourcePlatform ?? ""] || SAVED_SOURCE_LABEL[item.sourceMethod ?? ""] || undefined,
+    destinationCity: item.destinationCity,
   };
 }
 
-function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitle, onSwitchToItinerary }: { tripId?: string; tripStartDate?: string | null; tripEndDate?: string | null; tripTitle?: string; onSwitchToItinerary?: () => void }) {
+function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitle, onSwitchToItinerary, shareToken }: { tripId?: string; tripStartDate?: string | null; tripEndDate?: string | null; tripTitle?: string; onSwitchToItinerary?: () => void; shareToken?: string }) {
   const isDesktop = useIsDesktop();
+  const [shareToast, setShareToast] = useState(false);
+  const shareToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dayPickerItem, setDayPickerItem] = useState<SavedDisplayItem | null>(null);
   const [lodgingDateItem, setLodgingDateItem] = useState<SavedDisplayItem | null>(null);
   const [detailItem, setDetailItem] = useState<SavedDisplayItem | null>(null);
@@ -1254,6 +1270,10 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
       .then(() => fetchSaves())
       .catch(e => console.error("[delete save]", e));
   }
+  async function handleShare(item: SavedDisplayItem) {
+    const result = await sharePlace({ name: item.title, city: item.destinationCity ?? null, sourceTripId: tripIdProp, sourceShareToken: shareToken });
+    if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); }
+  }
 
   function renderSection(section: { category: string; items: SavedDisplayItem[] }) {
     return (
@@ -1272,6 +1292,7 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
             onLearnMore={() => handleLearnMore(item)}
             assignedDay={assignedDays[item.title]}
             onDelete={() => handleDeleteSave(item)}
+            onShare={() => handleShare(item)}
           />
         ))}
       </div>
@@ -1382,6 +1403,7 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
               onLearnMore={() => handleLearnMore(item)}
               assignedDay={assignedDays[item.title]}
               onDelete={() => handleDeleteSave(item)}
+              onShare={() => handleShare(item)}
             />
           ))}
         </div>
@@ -1499,6 +1521,11 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
             setRightSections(prev => prev.map(s => ({ ...s, items: s.items.map(i => i.id === itemId ? { ...i, categoryTags: tags } : i) })));
           }}
         />
+      )}
+      {shareToast && (
+        <div style={{ position: "fixed", bottom: "80px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#1B3A5C", color: "#fff", fontSize: "13px", fontWeight: 600, padding: "10px 20px", borderRadius: "999px", zIndex: 9999, pointerEvents: "none" }}>
+          Link copied
+        </div>
       )}
     </div>
   );
@@ -6263,7 +6290,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       )}
 
       {tab === "saved" && (
-        <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} />
+        <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} shareToken={shareToken} />
       )}
       {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} onEditSavedActivity={(a) => { setEditingActivity(a); setEditingActivityIsSavedItem(true); }} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onDeleteActivity={handleDeleteActivity} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} budgetTotal={budgetTotal} trackedTotal={trackedTotal} budgetCurrency={budgetCurrency} budgetLoaded={budgetLoaded} onBudgetChange={handleBudgetChange} shareToken={shareToken} />}
       {tab === "packing" && <PackingContent tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} tripStartDate={tripStartDate} tripEndDate={tripEndDate} />}
