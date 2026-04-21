@@ -526,18 +526,26 @@ export default async function LandingPage() {
       </section>
 
       {/* Testimonial */}
-      <section style={{ padding: "80px 24px", background: "#FFF8F3" }}>
-        <div style={{ maxWidth: 720, margin: "0 auto", textAlign: "center" }}>
-          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#C4664A", marginBottom: 16 }}>
+      <section style={{ padding: "100px 24px", background: "#FFF8F3" }}>
+        <div style={{ maxWidth: 680, margin: "0 auto" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "#C4664A", marginBottom: 24, textAlign: "center" }}>
             What families are saying
           </div>
-          <blockquote style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: 28, lineHeight: 1.35, color: "#1B3A5C", margin: "0 0 24px 0" }}>
-            &ldquo;Holy Crap, I just got a shiver it&rsquo;s so amazing. The packing section alone is so
-            helpful and how it knows the temp where you are going and what to pack for kids...Love love
-            love it!&rdquo;
-          </blockquote>
-          <div style={{ fontSize: 14, fontWeight: 600, color: "#1B3A5C" }}>Kristin</div>
-          <div style={{ fontSize: 13, color: "#666" }}>Washington State</div>
+          <div style={{ background: "#fff", borderRadius: 20, padding: "48px 52px", boxShadow: "0 8px 40px rgba(27,58,92,0.08)", position: "relative" }}>
+            <div style={{ fontSize: 96, lineHeight: 0.7, fontFamily: "'Playfair Display', Georgia, serif", color: "#F0E4D8", marginBottom: 24, userSelect: "none" }}>&ldquo;</div>
+            <blockquote style={{ fontFamily: "'Playfair Display', Georgia, serif", fontStyle: "italic", fontSize: 22, lineHeight: 1.5, color: "#1B3A5C", margin: "0 0 32px 0" }}>
+              Holy Crap, I just got a shiver it&rsquo;s so amazing. The packing section alone is so
+              helpful and how it knows the temp where you are going and what to pack for kids...Love love
+              love it!
+            </blockquote>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#1B3A5C", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, color: "#fff", fontFamily: "'Playfair Display', Georgia, serif", flexShrink: 0 }}>K</div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#1B3A5C" }}>Kristin</div>
+                <div style={{ fontSize: 13, color: "#888" }}>Washington State</div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

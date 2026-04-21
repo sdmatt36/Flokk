@@ -40,7 +40,7 @@ type UserTrip = {
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const INTEL_CATEGORIES = ["All", "Restaurants", "Culture", "Outdoors", "Kids & Family", "Shopping", "Hotels", "Christmas Markets", "Food Markets"];
+const INTEL_CATEGORIES = ["All", "Restaurants", "Culture", "Outdoors", "Kids & Family", "Shopping", "Hotels"];
 
 const TIP_LABELS: Record<string, string> = {
   secret:       "Best kept secret",
