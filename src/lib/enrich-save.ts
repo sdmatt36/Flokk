@@ -150,35 +150,67 @@ function cleanInstagramFallback(rawTitle: string | null): string {
 }
 
 async function extractInstagramTitle(
-  caption: string,
-  city: string | null,
-  country: string | null
-): Promise<{ title: string; description: string } | null> {
+  caption: string
+): Promise<{ title: string | null; description: string; destinationCity: string | null; destinationCountry: string | null; category: string | null } | null> {
   try {
-    const location = [city, country].filter(Boolean).join(", ");
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 150,
+      max_tokens: 400,
       messages: [{
         role: "user",
-        content: `Extract the place name from this Instagram caption and write a one-sentence description.
+        content: `You are reading an Instagram caption to help a family travel app organize the save.
+Extract these fields from the caption and return as JSON.
 
-Caption: "${caption}"
-${location ? `Known location context: ${location}` : ""}
+TITLE — the specific place, venue, or landmark being shown. Use hashtags, account handles, and
+context as strong signals. Example: caption mentions "the coolest stadium in Hokkaido" with
+#nipponhamfighters → title should be "Es Con Field Hokkaido" because the Nippon-Ham Fighters
+play there. Caption mentions "best sushi in Tokyo" with #sukiyabashi → title "Sukiyabashi Jiro".
+If you are genuinely unsure even after considering hashtags and context, return null. Format:
+"Place Name" or "Place Name, City". Never include usernames, "on Instagram", quotes, hashtags,
+or @mentions.
 
-Rules:
-- Title: the place name only, max 5 words. Format "Place Name, City" if the city is clear from context. Never include the Instagram username, the phrase "on Instagram", quote marks, hashtags (#), @ mentions, or engagement text like "Would you visit".
-- Description: one sentence about the place for family travelers. No hashtags, no usernames, no engagement bait.
-- If you cannot identify a specific named place, return null for both.
+DESCRIPTION — a 1-2 sentence clean summary. Strip all hashtags and @mentions.
 
-Respond with JSON only: {"title":"...","description":"..."} or {"title":null,"description":null}`,
+DESTINATIONCITY — the city if mentioned or clearly inferred. Example: caption says "Hokkaido"
+and mentions a stadium → "Kitahiroshima" (where Es Con Field is). If only the region is named,
+return the region or nearest major city. Return null if no location context at all.
+
+DESTINATIONCOUNTRY — the country if mentioned, inferred from city, or inferred from hashtags
+like #livinginjapan, #lifeinspain, #visittokyo.
+
+CATEGORY — one of: food, culture, outdoor, lodging, sports, shopping, nightlife, wellness,
+kids_and_family, experiences, other. Pick the best fit based on the caption's subject matter.
+
+Return ONLY a JSON object. No other text.
+{
+  "title": string or null,
+  "description": string,
+  "destinationCity": string or null,
+  "destinationCountry": string or null,
+  "category": string or null
+}
+
+Caption:
+${caption}`,
       }],
     });
     const content = response.content[0];
     if (content.type !== "text") return null;
-    const parsed = JSON.parse(content.text.trim()) as { title: string | null; description: string | null };
-    if (!parsed.title) return null;
-    return { title: parsed.title, description: parsed.description ?? "" };
+    const text = content.text.trim().replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
+    const parsed = JSON.parse(text) as {
+      title: string | null;
+      description: string;
+      destinationCity: string | null;
+      destinationCountry: string | null;
+      category: string | null;
+    };
+    return {
+      title: parsed.title ?? null,
+      description: parsed.description ?? "",
+      destinationCity: parsed.destinationCity ?? null,
+      destinationCountry: parsed.destinationCountry ?? null,
+      category: parsed.category ?? null,
+    };
   } catch {
     return null;
   }
@@ -334,6 +366,7 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
       sourcePlatform: true,
       lat: true,
       mediaThumbnailUrl: true,
+      categoryTags: true,
     },
   });
 
@@ -356,6 +389,9 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   let skipNormalEnrichment = false;
   let instagramPlaceFound = false;
   let sbThumbnail: string | null = null;
+  let instagramCity: string | null = null;
+  let instagramCountry: string | null = null;
+  let instagramCategory: string | null = null;
 
   // Step 0: Google Maps — extract place name from URL, skip OG title, go straight to Places API
   const isGoogleMaps =
@@ -406,13 +442,20 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
           if (sbImg) sbThumbnail = sbImg;
         }
       }
-      const extracted = await extractInstagramTitle(instagramCaption, item.destinationCity, item.destinationCountry);
+      const extracted = await extractInstagramTitle(instagramCaption);
       if (extracted) {
-        workingTitle = extracted.title;
+        if (extracted.title) {
+          workingTitle = extracted.title;
+          instagramPlaceFound = true;
+        } else {
+          // Claude couldn't identify a specific place — clean the caption and flag for user confirmation
+          workingTitle = cleanInstagramFallback(item.rawTitle);
+        }
         workingDescription = extracted.description || cleanDescription;
-        instagramPlaceFound = true;
+        if (extracted.destinationCity) instagramCity = extracted.destinationCity;
+        if (extracted.destinationCountry) instagramCountry = extracted.destinationCountry;
+        if (extracted.category) instagramCategory = extracted.category;
       } else {
-        // Claude couldn't identify a specific place — clean the caption and flag for user confirmation
         workingTitle = cleanInstagramFallback(item.rawTitle);
       }
     }
@@ -491,6 +534,11 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   if (typeof place.rating === "number") updateData.relevanceScore = place.rating;
   if (description && !workingDescription) updateData.rawDescription = description;
   if (mapsCategory) updateData.categoryTags = [mapsCategory];
+  if (!item.destinationCity && instagramCity) updateData.destinationCity = instagramCity;
+  if (!item.destinationCountry && instagramCountry) updateData.destinationCountry = instagramCountry;
+  if (instagramCategory && (!item.categoryTags || item.categoryTags.length === 0) && !mapsCategory) {
+    updateData.categoryTags = [instagramCategory];
+  }
   // Flag Instagram saves where Claude couldn't identify a specific place — prompt user to identify
   if ((item.sourcePlatform === "instagram" || isInstagramCaption(cleanTitle)) && !instagramPlaceFound && !skipNormalEnrichment) {
     updateData.needsPlaceConfirmation = true;
