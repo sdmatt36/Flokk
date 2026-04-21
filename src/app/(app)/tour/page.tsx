@@ -121,10 +121,12 @@ export default function TourPage() {
     };
   }, [destinationCity]);
 
-  // Load tour library on mount
+  // Load tour library on mount; load specific tour if ?id= is present
   useEffect(() => {
     fetchSavedTours();
-  }, []);
+    const idParam = new URLSearchParams(window.location.search).get("id");
+    if (idParam) loadSavedTour(idParam);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchSavedTours() {
     try {

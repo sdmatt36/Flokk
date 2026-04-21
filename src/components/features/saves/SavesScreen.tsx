@@ -1114,6 +1114,93 @@ function UnassignedTabContent({ items, sharedProps, onAssignCity }: {
   );
 }
 
+type SavedTourEntry = {
+  id: string;
+  title: string;
+  createdAt: string;
+  stopCount: number;
+  destinationCountry?: string | null;
+};
+
+function ToursTabContent({ tours, search, activeCountry, selectedCity, onDelete }: {
+  tours: Record<string, SavedTourEntry[]>;
+  search: string;
+  activeCountry: string;
+  selectedCity: string | null;
+  onDelete: (id: string, city: string) => void;
+}) {
+  const router = useRouter();
+
+  const filteredCities = Object.entries(tours)
+    .map(([city, cityTours]): [string, SavedTourEntry[]] => {
+      const filtered = cityTours.filter(t => {
+        if (activeCountry !== "all" && t.destinationCountry !== activeCountry) return false;
+        if (selectedCity !== null && city.trim() !== selectedCity) return false;
+        if (search.trim()) {
+          const q = search.toLowerCase();
+          if (!t.title.toLowerCase().includes(q) && !city.toLowerCase().includes(q)) return false;
+        }
+        return true;
+      });
+      return [city, filtered];
+    })
+    .filter(([, cityTours]) => cityTours.length > 0);
+
+  const totalCount = filteredCities.reduce((sum, [, t]) => sum + t.length, 0);
+
+  return (
+    <section>
+      <button
+        type="button"
+        onClick={() => router.push("/tour")}
+        style={{ display: "block", width: "100%", background: "#1B3A5C", color: "#fff", border: "none", borderRadius: 12, padding: "12px 24px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 20, textAlign: "center" }}
+      >
+        Create a new tour
+      </button>
+      {totalCount === 0 ? (
+        <p style={{ color: "#6B7280", fontSize: 14, textAlign: "center", padding: "20px 0" }}>
+          {search.trim() || activeCountry !== "all" || selectedCity ? "No tours match your search." : "No saved tours yet."}
+        </p>
+      ) : (
+        filteredCities.map(([city, cityTours]) => (
+          <div key={city} style={{ marginBottom: 24 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
+              {city} ({cityTours.length})
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {cityTours.map(tour => (
+                <div
+                  key={tour.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => router.push(`/tour?id=${tour.id}`)}
+                  onKeyDown={(e) => { if (e.key === "Enter") router.push(`/tour?id=${tour.id}`); }}
+                  style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", border: "1px solid #E5E7EB", borderRadius: 12, padding: "12px 16px", cursor: "pointer" }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: "#1B3A5C", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tour.title}</p>
+                    <p style={{ fontSize: 12, color: "#9CA3AF", margin: "2px 0 0" }}>
+                      {tour.stopCount} stop{tour.stopCount !== 1 ? "s" : ""} · {new Date(tour.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onDelete(tour.id, city); }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "#D1D5DB", fontSize: 20, lineHeight: 1, padding: "4px", flexShrink: 0 }}
+                    aria-label="Delete tour"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
+      )}
+    </section>
+  );
+}
+
 // ─── SavesScreen ──────────────────────────────────────────────────────────────
 
 export function SavesScreen() {
@@ -1162,7 +1249,8 @@ export function SavesScreen() {
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [ratedItemId, setRatedItemId] = useState<string | null>(null);
   const [assignCityItemId, setAssignCityItemId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"upcoming" | "past" | "unassigned">("upcoming");
+  const [activeTab, setActiveTab] = useState<"upcoming" | "past" | "unassigned" | "tours">("upcoming");
+  const [savedTours, setSavedTours] = useState<Record<string, SavedTourEntry[]>>({});
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [addToTripModal, setAddToTripModal] = useState<{ saveId: string; options: Array<{ id: string; name: string }> } | null>(null);
 
@@ -1170,11 +1258,13 @@ export function SavesScreen() {
     Promise.all([
       fetch("/api/saves").then(r => r.json()),
       fetch("/api/trips?status=ALL").then(r => r.json()),
-    ]).then(([savesData, tripsData]) => {
+      fetch("/api/tours/my-tours").then(r => r.json()),
+    ]).then(([savesData, tripsData, toursData]) => {
       setSaves((savesData.saves ?? []).map(mapApiItem));
       // TODO: move isPlacesLibrary filter server-side in a future cleanup prompt
       const allTrips = (tripsData.trips ?? []).filter((t: { isPlacesLibrary?: boolean }) => !t.isPlacesLibrary);
       setAvailableTrips(allTrips);
+      setSavedTours(toursData && typeof toursData === "object" && !toursData.error ? toursData : {});
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
@@ -1508,8 +1598,9 @@ export function SavesScreen() {
 
   const filteredSaves = cityFiltered.filter(matchesFilter);
   const tabbed = groupTabbedSaves(filteredSaves, availableTrips);
+  const toursCount = Object.values(savedTours).reduce((sum, arr) => sum + arr.length, 0);
   const isEmptyLibrary = !loading && saves.length === 0;
-  const hasNoResults = !loading && !isEmptyLibrary && tabbed.counts.upcoming === 0 && tabbed.counts.past === 0 && tabbed.counts.unassigned === 0;
+  const hasNoResults = !loading && !isEmptyLibrary && activeTab !== "tours" && tabbed.counts.upcoming === 0 && tabbed.counts.past === 0 && tabbed.counts.unassigned === 0;
 
   return (
     <div
@@ -1688,6 +1779,7 @@ Your saved places, all in one spot
             { id: "upcoming", label: "Upcoming", count: tabbed.counts.upcoming },
             { id: "past", label: "Past", count: tabbed.counts.past },
             { id: "unassigned", label: "Unassigned", count: tabbed.counts.unassigned },
+            { id: "tours", label: "Tours", count: toursCount },
           ] as const).map((tab) => (
             <button
               key={tab.id}
@@ -1768,6 +1860,23 @@ Your saved places, all in one spot
                   items={tabbed.unassigned}
                   sharedProps={sharedGrid}
                   onAssignCity={(id) => { setAssignCityItemId(id); setManualCityQuery(""); setManualCity(""); setManualCountry(""); setManualCitySuggestions([]); setManualCityShowDropdown(false); }}
+                />
+              )}
+              {activeTab === "tours" && (
+                <ToursTabContent
+                  tours={savedTours}
+                  search={search}
+                  activeCountry={activeCountry}
+                  selectedCity={selectedCity}
+                  onDelete={async (id, city) => {
+                    await fetch(`/api/tours/${id}`, { method: "DELETE" });
+                    setSavedTours(prev => {
+                      const updated = { ...prev };
+                      updated[city] = (updated[city] ?? []).filter(t => t.id !== id);
+                      if (updated[city].length === 0) delete updated[city];
+                      return updated;
+                    });
+                  }}
                 />
               )}
             </>
