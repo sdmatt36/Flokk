@@ -28,7 +28,6 @@ type TourResponse = {
   durationLabel: string;
   transport: string;
   generatedAt: string;
-  tourId?: string | null;
 };
 
 type SavedTourEntry = {
@@ -130,8 +129,8 @@ export default function TourPage() {
     try {
       const res = await fetch(`/api/tours/${id}`);
       if (!res.ok) { setError("Could not load tour."); return; }
-      const data = await res.json() as { id: string; stops: Stop[]; destinationCity: string; prompt: string; durationLabel: string; transport: string; generatedAt: string };
-      setResults({ ...data, tourId: data.id });
+      const data = await res.json() as { stops: Stop[]; destinationCity: string; prompt: string; durationLabel: string; transport: string; generatedAt: string };
+      setResults(data);
     } catch {
       setError("Could not load tour.");
     } finally {
@@ -243,7 +242,8 @@ export default function TourPage() {
             stops={results.stops}
             destinationCity={results.destinationCity}
             prompt={results.prompt}
-            tourId={results.tourId ?? undefined}
+            durationLabel={results.durationLabel}
+            transport={results.transport}
           />
         </div>
       </div>

@@ -10,6 +10,7 @@ type Stop = {
   lat: number;
   lng: number;
   duration: number;
+  travelTime: number;
   why: string;
   familyNote: string;
 };
@@ -27,10 +28,11 @@ type Props = {
   stops: Stop[];
   destinationCity: string;
   prompt: string;
-  tourId?: string;
+  durationLabel: string;
+  transport: string;
 };
 
-export default function TourResults({ stops, destinationCity, prompt, tourId }: Props) {
+export default function TourResults({ stops, destinationCity, prompt, durationLabel, transport }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<{ remove: () => void } | null>(null);
 
@@ -149,41 +151,25 @@ export default function TourResults({ stops, destinationCity, prompt, tourId }: 
     setSaving(true);
     setSaveError("");
     try {
-      let date: string;
-      if (trip.startDate) {
-        const tripStart = new Date(trip.startDate.split("T")[0] + "T12:00:00");
-        tripStart.setDate(tripStart.getDate() + (selectedDay - 1));
-        date = tripStart.toISOString().split("T")[0];
-      } else {
-        date = new Date().toISOString().split("T")[0];
-      }
-
-      const results = await Promise.all(
-        stops.map(stop =>
-          fetch(`/api/trips/${selectedTripId}/activities`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              title: stop.name,
-              date,
-              address: stop.address,
-              lat: stop.lat,
-              lng: stop.lng,
-              notes: stop.why,
-              website: null,
-              time: null,
-              endTime: null,
-              price: null,
-              currency: null,
-              status: "interested",
-              tourId: tourId ?? undefined,
-            }),
-          })
-        )
-      );
-      const allOk = results.every(r => r.ok);
-      if (!allOk) {
-        setSaveError("Some stops failed to save. Please try again.");
+      const res = await fetch("/api/tours/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tourMeta: {
+            prompt,
+            destinationCity,
+            destinationCountry: null,
+            durationLabel,
+            transport,
+          },
+          stops,
+          tripId: selectedTripId,
+          dayIndex: selectedDay - 1,
+        }),
+      });
+      const data = await res.json() as { tourId?: string; error?: string };
+      if (!res.ok || data.error) {
+        setSaveError(data.error ?? "Some stops failed to save. Please try again.");
         return;
       }
       setSaveSuccess({ tripTitle: trip.title, tripId: trip.id, day: selectedDay });

@@ -4,13 +4,6 @@ import { db } from "@/lib/db";
 import { classifyActivityType } from "@/lib/activity-intelligence";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { normalizeCategorySlug } from "@/lib/categories";
-import { resolveProfileId } from "@/lib/profile-access";
-import { haversineMeters } from "@/lib/geo";
-import { PLATFORM_FLOKK_TOURS } from "@/lib/saved-item-types";
-
-function normalizeTitle(s: string): string {
-  return s.toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
-}
 
 // Returns the city the traveler is in on a given date by looking at the most recent
 // LODGING check-in on or before that day. Falls back to trip destinationCity.
@@ -77,7 +70,6 @@ export async function POST(
     lat: clientLat,
     lng: clientLng,
     type: clientType,
-    tourId,
   } = body;
 
   if (!title || !date) {
@@ -146,87 +138,6 @@ export async function POST(
       ...(resolvedType && { type: resolvedType }),
     },
   });
-
-  // Phase C — Tour stop SavedItem dedupe + link
-  if (tourId) {
-    try {
-      const profileId = await resolveProfileId(userId);
-      if (profileId) {
-        const stopCity = [trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", ") || null;
-
-        let matchedSavedItemId: string | null = null;
-
-        // 1. Coordinate-based dedupe (within 50m)
-        if (lat != null && lng != null) {
-          const nearby = await db.savedItem.findMany({
-            where: {
-              familyProfileId: profileId,
-              lat: { gte: lat - 0.001, lte: lat + 0.001 },
-              lng: { gte: lng - 0.001, lte: lng + 0.001 },
-            },
-            select: { id: true, lat: true, lng: true },
-          });
-          for (const item of nearby) {
-            if (item.lat != null && item.lng != null && haversineMeters(lat, lng, item.lat, item.lng) <= 50) {
-              matchedSavedItemId = item.id;
-              break;
-            }
-          }
-        }
-
-        // 2. Title + city fallback
-        if (!matchedSavedItemId) {
-          const titleNorm = normalizeTitle(title);
-          const candidates = await db.savedItem.findMany({
-            where: { familyProfileId: profileId, destinationCity: stopCity ?? undefined },
-            select: { id: true, rawTitle: true },
-          });
-          for (const item of candidates) {
-            if (item.rawTitle && normalizeTitle(item.rawTitle) === titleNorm) {
-              matchedSavedItemId = item.id;
-              break;
-            }
-          }
-        }
-
-        if (matchedSavedItemId) {
-          // Update existing SavedItem
-          await db.savedItem.update({
-            where: { id: matchedSavedItemId },
-            data: { tripId, dayIndex, status: "SCHEDULED" },
-          });
-        } else {
-          // Create new SavedItem for this tour stop
-          const newItem = await db.savedItem.create({
-            data: {
-              familyProfileId: profileId,
-              tripId,
-              dayIndex,
-              sourceMethod: "IN_APP_SAVE",
-              sourcePlatform: PLATFORM_FLOKK_TOURS,
-              rawTitle: title,
-              destinationCity: trip?.destinationCity ?? null,
-              destinationCountry: trip?.destinationCountry ?? null,
-              lat: lat ?? null,
-              lng: lng ?? null,
-              notes: notes ?? null,
-              status: "SCHEDULED",
-              extractionStatus: "ENRICHED",
-            },
-          });
-          matchedSavedItemId = newItem.id;
-        }
-
-        // Link TourStop → SavedItem
-        await db.tourStop.updateMany({
-          where: { tourId, name: title, savedItemId: null },
-          data: { savedItemId: matchedSavedItemId },
-        });
-      }
-    } catch (err) {
-      console.error("[activities/POST] tour stop SavedItem link failed (non-fatal):", err);
-    }
-  }
 
   // Enrich with Google Places photo at save time (synchronous — result in same response)
   let activityEnrichedImageUrl: string | null = null;
