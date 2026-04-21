@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Sparkles, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import TourResults from "@/components/TourResults";
 
 type DestinationSuggestion = {
@@ -28,6 +28,14 @@ type TourResponse = {
   durationLabel: string;
   transport: string;
   generatedAt: string;
+  tourId?: string | null;
+};
+
+type SavedTourEntry = {
+  id: string;
+  title: string;
+  createdAt: string;
+  stopCount: number;
 };
 
 const VIBE_CHIPS = [
@@ -48,6 +56,10 @@ export default function TourPage() {
   const [error, setError] = useState("");
   const [results, setResults] = useState<TourResponse | null>(null);
   const [touched, setTouched] = useState(false);
+
+  // Library state
+  const [savedTours, setSavedTours] = useState<Record<string, SavedTourEntry[]>>({});
+  const [expandedCity, setExpandedCity] = useState<string | null>(null);
 
   // Autocomplete
   const [suggestions, setSuggestions] = useState<DestinationSuggestion[]>([]);
@@ -96,6 +108,52 @@ export default function TourPage() {
     };
   }, [destinationCity]);
 
+  // Load tour library on mount
+  useEffect(() => {
+    fetchSavedTours();
+  }, []);
+
+  async function fetchSavedTours() {
+    try {
+      const res = await fetch("/api/tours/my-tours");
+      if (res.ok) {
+        const data = await res.json() as Record<string, SavedTourEntry[]>;
+        setSavedTours(data);
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  async function loadSavedTour(id: string) {
+    setExpandedCity(null);
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/tours/${id}`);
+      if (!res.ok) { setError("Could not load tour."); return; }
+      const data = await res.json() as { id: string; stops: Stop[]; destinationCity: string; prompt: string; durationLabel: string; transport: string; generatedAt: string };
+      setResults({ ...data, tourId: data.id });
+    } catch {
+      setError("Could not load tour.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteTour(id: string, city: string) {
+    try {
+      await fetch(`/api/tours/${id}`, { method: "DELETE" });
+      setSavedTours(prev => {
+        const updated = { ...prev };
+        updated[city] = updated[city].filter(t => t.id !== id);
+        if (updated[city].length === 0) {
+          delete updated[city];
+          if (expandedCity === city) setExpandedCity(null);
+        }
+        return updated;
+      });
+    } catch { /* non-fatal */ }
+  }
+
   function selectSuggestion(cityName: string, countryName: string) {
     const value = countryName ? `${cityName}, ${countryName}` : cityName;
     setDestinationCity(value);
@@ -142,6 +200,8 @@ export default function TourPage() {
         setError(data.error ?? "Something went wrong. Please try again.");
       } else {
         setResults(data);
+        // Refresh library in background so the new tour appears next time
+        fetchSavedTours();
       }
     } catch {
       setError("Something went wrong. Please try again.");
@@ -160,10 +220,13 @@ export default function TourPage() {
     setTouched(false);
     setSuggestions([]);
     setShowSuggestions(false);
+    setExpandedCity(null);
   }
 
   const inputClass =
     "w-full border border-gray-200 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C]";
+
+  const hasSavedTours = Object.keys(savedTours).length > 0;
 
   if (results) {
     return (
@@ -180,6 +243,7 @@ export default function TourPage() {
             stops={results.stops}
             destinationCity={results.destinationCity}
             prompt={results.prompt}
+            tourId={results.tourId ?? undefined}
           />
         </div>
       </div>
@@ -292,24 +356,67 @@ export default function TourPage() {
           {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
         </div>
 
+        {/* Tour Library */}
+        {hasSavedTours && (
+          <div className="mt-6">
+            <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-3">Your tours</p>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(savedTours).map(([city, tours]) => (
+                <div key={city} className="relative">
+                  <button
+                    onClick={() => setExpandedCity(expandedCity === city ? null : city)}
+                    className="border border-gray-200 rounded-full px-3 py-1.5 text-sm text-[#1B3A5C] bg-white hover:border-[#1B3A5C] transition-colors"
+                    style={{ fontFamily: "inherit" }}
+                  >
+                    {city} ({tours.length})
+                  </button>
+                  {expandedCity === city && (
+                    <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-2 min-w-[220px]">
+                      {tours.map(tour => (
+                        <div key={tour.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded-lg">
+                          <button
+                            onClick={() => loadSavedTour(tour.id)}
+                            className="text-sm text-[#1B3A5C] text-left flex-1 truncate"
+                            style={{ background: "none", border: "none", fontFamily: "inherit", cursor: "pointer" }}
+                          >
+                            {tour.title}
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deleteTour(tour.id, city); }}
+                            className="text-gray-300 hover:text-red-400 text-base leading-none shrink-0"
+                            style={{ background: "none", border: "none", cursor: "pointer" }}
+                            aria-label="Delete tour"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* How to Build a Flokkin' Great Tour */}
         <div className="mt-8 mb-12">
-        <h2 className="font-serif text-xl font-semibold text-[#1B3A5C] mb-2">How to Build a Flokkin&apos; Great Tour</h2>
-        <p className="text-sm text-gray-500 mb-5">Who&apos;s coming along?</p>
+          <h2 className="font-serif text-xl font-semibold text-[#1B3A5C] mb-2">How to Build a Flokkin&apos; Great Tour</h2>
+          <p className="text-sm text-gray-500 mb-5">Who&apos;s coming along?</p>
 
-        <div className="flex flex-wrap gap-2">
-          {VIBE_CHIPS.map((vibe) => (
-            <button
-              key={vibe}
-              onClick={() => appendVibe(vibe)}
-              className="border border-gray-200 rounded-full px-4 py-2 text-sm text-gray-600 cursor-pointer hover:border-[#1B3A5C] hover:text-[#1B3A5C] transition-colors bg-white"
-              style={{ fontFamily: "inherit" }}
-            >
-              {vibe}
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-gray-400 italic mt-4">Try: &apos;Best sushi near Tsukiji&apos; · &apos;Street art walk in Shoreditch&apos; · &apos;Castle hopping in Edinburgh&apos;</p>
+          <div className="flex flex-wrap gap-2">
+            {VIBE_CHIPS.map((vibe) => (
+              <button
+                key={vibe}
+                onClick={() => appendVibe(vibe)}
+                className="border border-gray-200 rounded-full px-4 py-2 text-sm text-gray-600 cursor-pointer hover:border-[#1B3A5C] hover:text-[#1B3A5C] transition-colors bg-white"
+                style={{ fontFamily: "inherit" }}
+              >
+                {vibe}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 italic mt-4">Try: &apos;Best sushi near Tsukiji&apos; · &apos;Street art walk in Shoreditch&apos; · &apos;Castle hopping in Edinburgh&apos;</p>
         </div>
       </div>
     </div>

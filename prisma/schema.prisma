@@ -75,6 +75,7 @@ model FamilyProfile {
   profileMembers   ProfileMember[]
   authoredSpots    CommunitySpot[]    @relation("CommunitySpotAuthor")
   spotContributions SpotContribution[] @relation("SpotContributionFamily")
+  generatedTours   GeneratedTour[]
 }
 
 model ProfileMember {
@@ -336,6 +337,7 @@ model SavedItem {
   ratings                  PlaceRating[]
   communitySpotId          String?
   communitySpot            CommunitySpot? @relation("SavedItemToCommunitySpot", fields: [communitySpotId], references: [id], onDelete: SetNull)
+  tourStops                TourStop[]
 
   @@index([communitySpotId])
 }
@@ -915,4 +917,54 @@ model ExtractionLog {
   @@index([senderEmail, createdAt])
   @@index([familyProfileId, createdAt])
   @@index([outcome])
+}
+
+// =============================================================================
+// GENERATED TOURS
+// =============================================================================
+
+model GeneratedTour {
+  id                  String        @id
+  title               String
+  destinationCity     String
+  destinationCountry  String?
+  prompt              String
+  durationLabel       String
+  transport           String
+  familyProfileId     String
+  familyProfile       FamilyProfile @relation(fields: [familyProfileId], references: [id], onDelete: Cascade)
+  isPublic            Boolean       @default(false)
+  categoryTags        String[]      @default([])
+  deletedAt           DateTime?
+  deletedBy           String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  stops               TourStop[]
+
+  @@index([familyProfileId])
+  @@index([destinationCity])
+  @@index([isPublic, destinationCity])
+  @@index([deletedAt])
+}
+
+model TourStop {
+  id            String         @id
+  tourId        String
+  tour          GeneratedTour  @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  orderIndex    Int
+  name          String
+  address       String?
+  lat           Float?
+  lng           Float?
+  durationMin   Int?
+  travelTimeMin Int?
+  why           String?
+  familyNote    String?
+  savedItemId   String?
+  savedItem     SavedItem?     @relation(fields: [savedItemId], references: [id], onDelete: SetNull)
+  deletedAt     DateTime?
+  createdAt     DateTime       @default(now())
+
+  @@index([tourId, orderIndex])
+  @@index([savedItemId])
 }

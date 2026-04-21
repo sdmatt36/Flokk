@@ -189,6 +189,46 @@ export async function POST(req: NextRequest) {
       })
     );
 
+    // Persist GeneratedTour + TourStop rows (non-fatal if it fails)
+    let tourId: string | null = null;
+    if (profileId) {
+      tourId = crypto.randomUUID();
+      const tourTitle = prompt.trim().length <= 10
+        ? `${destinationCity} tour`
+        : prompt.trim().slice(0, 60);
+      try {
+        await db.generatedTour.create({
+          data: {
+            id: tourId,
+            title: tourTitle,
+            destinationCity,
+            prompt,
+            durationLabel,
+            transport,
+            familyProfileId: profileId,
+          },
+        });
+        await db.tourStop.createMany({
+          data: geocodedStops.map((stop, index) => ({
+            id: crypto.randomUUID(),
+            tourId: tourId!,
+            orderIndex: index,
+            name: stop.name,
+            address: stop.address || null,
+            lat: stop.lat || null,
+            lng: stop.lng || null,
+            durationMin: stop.duration || null,
+            travelTimeMin: stop.travelTime || null,
+            why: stop.why || null,
+            familyNote: stop.familyNote || null,
+          })),
+        });
+      } catch (err) {
+        console.error("[tours/generate] persist failed (non-fatal):", err);
+        tourId = null;
+      }
+    }
+
     return NextResponse.json({
       stops: geocodedStops,
       destinationCity,
@@ -196,6 +236,7 @@ export async function POST(req: NextRequest) {
       durationLabel,
       transport,
       generatedAt: new Date().toISOString(),
+      tourId,
     });
   } catch (err) {
     console.error("[tours/generate] error:", err);

@@ -79,6 +79,10 @@ const DOMAIN_TO_PLATFORM: Record<string, string> = {
   "example.com":        "direct",
 };
 
+// Internal platform — not derived from a URL domain. Used when a SavedItem is
+// created from a Flokk-generated tour stop (Phase C of the Tours rework).
+export const PLATFORM_FLOKK_TOURS = "flokk_tours" as const;
+
 /**
  * Infer a platform slug from a URL string.
  * Returns "direct" for null/empty input.

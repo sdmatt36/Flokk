@@ -27,9 +27,10 @@ type Props = {
   stops: Stop[];
   destinationCity: string;
   prompt: string;
+  tourId?: string;
 };
 
-export default function TourResults({ stops, destinationCity, prompt }: Props) {
+export default function TourResults({ stops, destinationCity, prompt, tourId }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<{ remove: () => void } | null>(null);
 
@@ -175,6 +176,7 @@ export default function TourResults({ stops, destinationCity, prompt }: Props) {
               price: null,
               currency: null,
               status: "interested",
+              tourId: tourId ?? undefined,
             }),
           })
         )
