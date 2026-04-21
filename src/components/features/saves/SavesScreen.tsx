@@ -1179,6 +1179,12 @@ export function SavesScreen() {
     }).catch(() => setLoading(false));
   }, []);
 
+  // Auto-open modal when ?open=<id> is present (e.g. from email deep link)
+  useEffect(() => {
+    const openId = new URLSearchParams(window.location.search).get("open");
+    if (openId) setModalItemId(openId);
+  }, []);
+
   // Dismiss city dropdown on outside click
   useEffect(() => {
     function handle(e: MouseEvent) {

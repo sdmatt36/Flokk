@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { getVenueImage } from "@/lib/destination-images";
+import { enrichSavedItem } from "@/lib/enrich-save";
 
 export async function POST(request: Request) {
   try {
@@ -47,10 +48,11 @@ export async function POST(request: Request) {
         placePhotoUrl: (source.rawTitle ? (getVenueImage(source.rawTitle) ?? null) : null) ?? source.placePhotoUrl ?? null,
         destinationCity: source.destinationCity ?? source.trip?.destinationCity ?? null,
         destinationCountry: source.destinationCountry ?? source.trip?.destinationCountry ?? null,
-        extractionStatus: "ENRICHED",
+        extractionStatus: "PENDING",
         status: "UNORGANIZED",
       },
     });
+    enrichSavedItem(savedItem.id).catch(e => console.error("[activity] enrichSavedItem failed:", e));
 
     return NextResponse.json({ savedItem });
   } catch (error) {

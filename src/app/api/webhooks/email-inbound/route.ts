@@ -18,7 +18,8 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 function buildSaveConfirmationEmail(
   title: string,
   city: string | null,
-  matchedTrip?: { id: string; title: string } | null
+  matchedTrip: { id: string; title: string } | null | undefined,
+  savedItemId: string
 ): string {
   const cityLine = city
     ? `<p style="margin:0 0 8px;font-size:14px;color:#4A5568;">${city}</p>`
@@ -31,7 +32,7 @@ function buildSaveConfirmationEmail(
          style="display:inline-block;background:#C4664A;color:#ffffff;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:6px;">
         View in ${matchedTrip.title} &rarr;
       </a>`
-    : `<a href="https://www.flokktravel.com/saves"
+    : `<a href="https://www.flokktravel.com/saves?open=${savedItemId}"
          style="display:inline-block;background:#C4664A;color:#ffffff;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:6px;">
         View your saves &rarr;
       </a>`;
@@ -651,7 +652,7 @@ Field notes:
             from: "Flokk <trips@flokktravel.com>",
             to: senderEmail,
             subject: `Saved to Flokk: ${confirmTitle}`,
-            html: buildSaveConfirmationEmail(confirmTitle, urlSaveCity, urlBranchTrip),
+            html: buildSaveConfirmationEmail(confirmTitle, urlSaveCity, urlBranchTrip, savedItem.id),
           });
         } catch (e) {
           console.error('[trips-save] confirmation email failed:', e);
@@ -1467,7 +1468,7 @@ Field notes:
             from: "Flokk <trips@flokktravel.com>",
             to: senderEmail,
             subject: `Saved to Flokk: ${placeTitle}`,
-            html: buildSaveConfirmationEmail(placeTitle, placeCity, nonBookingTrip),
+            html: buildSaveConfirmationEmail(placeTitle, placeCity, nonBookingTrip, savedItem.id),
           });
         } catch (e) {
           console.error('[email-inbound] confirmation email failed:', e);

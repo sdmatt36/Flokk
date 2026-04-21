@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { enrichSavedItem } from "@/lib/enrich-save";
 
 function inferCategoryTagFromTitle(title: string): string[] {
   const t = title.toLowerCase();
@@ -67,7 +68,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ saved: false, duplicate: true });
   }
 
-  await db.savedItem.create({
+  const created = await db.savedItem.create({
     data: {
       familyProfileId: profileId,
       tripId: body.tripId ?? null,
@@ -80,10 +81,11 @@ export async function POST(request: Request) {
       sourceMethod: "IN_APP_SAVE",
       sourcePlatform: "direct",
       status: body.tripId ? "TRIP_ASSIGNED" : "UNORGANIZED",
-      extractionStatus: "ENRICHED",
+      extractionStatus: "PENDING",
       categoryTags: body.category ? [body.category] : inferCategoryTagFromTitle(body.title.trim()),
     },
   });
+  enrichSavedItem(created.id).catch(e => console.error("[from-share] enrichSavedItem failed:", e));
 
   return NextResponse.json({ saved: true }, { status: 201 });
 }
