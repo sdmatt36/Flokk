@@ -1120,7 +1120,10 @@ type SavedTourEntry = {
   createdAt: string;
   stopCount: number;
   destinationCountry?: string | null;
+  coverImage?: string | null;
 };
+
+const TOUR_GRID = "grid grid-cols-3 lg:grid-cols-3 md:grid-cols-2 sm:grid-cols-1";
 
 function ToursTabContent({ tours, search, activeCountry, selectedCity, onDelete }: {
   tours: Record<string, SavedTourEntry[]>;
@@ -1150,53 +1153,87 @@ function ToursTabContent({ tours, search, activeCountry, selectedCity, onDelete 
 
   return (
     <section>
-      <button
-        type="button"
-        onClick={() => router.push("/tour")}
-        style={{ display: "block", width: "100%", background: "#1B3A5C", color: "#fff", border: "none", borderRadius: 12, padding: "12px 24px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", marginBottom: 20, textAlign: "center" }}
-      >
-        Create a new tour
-      </button>
-      {totalCount === 0 ? (
-        <p style={{ color: "#6B7280", fontSize: 14, textAlign: "center", padding: "20px 0" }}>
-          {search.trim() || activeCountry !== "all" || selectedCity ? "No tours match your search." : "No saved tours yet."}
-        </p>
-      ) : (
-        filteredCities.map(([city, cityTours]) => (
-          <div key={city} style={{ marginBottom: 24 }}>
-            <p style={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
-              {city} ({cityTours.length})
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {cityTours.map(tour => (
-                <div
-                  key={tour.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => router.push(`/tour?id=${tour.id}`)}
-                  onKeyDown={(e) => { if (e.key === "Enter") router.push(`/tour?id=${tour.id}`); }}
-                  style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", border: "1px solid #E5E7EB", borderRadius: 12, padding: "12px 16px", cursor: "pointer" }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: "#1B3A5C", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tour.title}</p>
-                    <p style={{ fontSize: 12, color: "#9CA3AF", margin: "2px 0 0" }}>
-                      {tour.stopCount} stop{tour.stopCount !== 1 ? "s" : ""} · {new Date(tour.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onDelete(tour.id, city); }}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "#D1D5DB", fontSize: 20, lineHeight: 1, padding: "4px", flexShrink: 0 }}
-                    aria-label="Delete tour"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))
+      {/* Create new tour — dashed card, first in grid */}
+      <div className={TOUR_GRID} style={{ gap: 16, marginBottom: filteredCities.length > 0 ? 32 : 0 }}>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => router.push("/tour")}
+          onKeyDown={(e) => { if (e.key === "Enter") router.push("/tour"); }}
+          style={{ backgroundColor: "#FAFAFA", borderRadius: "12px", border: "2px dashed #CBD5E1", height: "210px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", cursor: "pointer", gap: 8 }}
+        >
+          <span style={{ fontSize: 28, color: "#94A3B8", lineHeight: 1 }}>+</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: "#64748B" }}>Create a new tour</span>
+        </div>
+      </div>
+
+      {totalCount === 0 && (search.trim() || activeCountry !== "all" || selectedCity) && (
+        <p style={{ color: "#6B7280", fontSize: 14, textAlign: "center", padding: "20px 0" }}>No tours match your search.</p>
       )}
+
+      {filteredCities.map(([city, cityTours]) => (
+        <div key={city} style={{ marginBottom: 32 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 }}>
+            {city} ({cityTours.length})
+          </p>
+          <div className={TOUR_GRID} style={{ gap: 16 }}>
+            {cityTours.map(tour => (
+              <div
+                key={tour.id}
+                className="group"
+                role="button"
+                tabIndex={0}
+                onClick={() => router.push(`/tour?id=${tour.id}`)}
+                onKeyDown={(e) => { if (e.key === "Enter") router.push(`/tour?id=${tour.id}`); }}
+                style={{ backgroundColor: "#FAFAFA", borderRadius: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", overflow: "visible", display: "flex", flexDirection: "column", position: "relative", cursor: "pointer" }}
+              >
+                {/* Delete button */}
+                <button
+                  type="button"
+                  className="absolute top-2 right-2 z-10 bg-white/90 backdrop-blur-sm rounded-full shadow-sm border border-gray-100 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100 opacity-100"
+                  style={{ padding: "5px", lineHeight: 0, cursor: "pointer" }}
+                  onClick={(e) => { e.stopPropagation(); onDelete(tour.id, city); }}
+                  aria-label="Delete tour"
+                >
+                  <Trash2 size={13} style={{ color: "#9ca3af" }} />
+                </button>
+
+                {/* Thumbnail */}
+                <div
+                  style={{
+                    height: "130px",
+                    backgroundImage: tour.coverImage ? `url(${tour.coverImage})` : undefined,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    position: "relative",
+                    borderRadius: "12px 12px 0 0",
+                    overflow: "hidden",
+                    backgroundColor: "#f1f5f9",
+                  }}
+                >
+                  <div style={{ position: "absolute", bottom: "6px", left: "8px", backgroundColor: "rgba(0,0,0,0.6)", color: "#fff", fontSize: "10px", padding: "2px 8px", borderRadius: "20px" }}>
+                    Tour
+                  </div>
+                </div>
+
+                {/* Card body */}
+                <div style={{ padding: "12px" }}>
+                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "4px", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {tour.title}
+                  </p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
+                    <MapPin size={11} style={{ color: "#9ca3af", flexShrink: 0 }} />
+                    <span style={{ fontSize: "12px", color: "#9ca3af", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{city}</span>
+                  </div>
+                  <p style={{ fontSize: "12px", color: "#9ca3af", margin: 0 }}>
+                    {tour.stopCount} stop{tour.stopCount !== 1 ? "s" : ""}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </section>
   );
 }
