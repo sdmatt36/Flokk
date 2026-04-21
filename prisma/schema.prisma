@@ -667,7 +667,10 @@ model ManualActivity {
   imageUrl         String?
   dayIndex         Int?
   sortOrder        Int      @default(0)
+  tourId           String?
   createdAt        DateTime @default(now())
+
+  @@index([tourId])
 }
 
 // =============================================================================

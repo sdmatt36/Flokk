@@ -59,6 +59,7 @@ export default function TourPage() {
   // Library state
   const [savedTours, setSavedTours] = useState<Record<string, SavedTourEntry[]>>({});
   const [expandedCity, setExpandedCity] = useState<string | null>(null);
+  const tourLibraryRef = useRef<HTMLDivElement>(null);
 
   // Autocomplete
   const [suggestions, setSuggestions] = useState<DestinationSuggestion[]>([]);
@@ -67,11 +68,22 @@ export default function TourPage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
-  // Dismiss dropdown on outside click
+  // Dismiss city suggestions dropdown on outside click
   useEffect(() => {
     function handle(e: MouseEvent) {
       if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
         setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, []);
+
+  // Dismiss tour library pill popover on outside click
+  useEffect(() => {
+    function handle(e: MouseEvent) {
+      if (tourLibraryRef.current && !tourLibraryRef.current.contains(e.target as Node)) {
+        setExpandedCity(null);
       }
     }
     document.addEventListener("mousedown", handle);
@@ -358,7 +370,7 @@ export default function TourPage() {
 
         {/* Tour Library */}
         {hasSavedTours && (
-          <div className="mt-6">
+          <div className="mt-6" ref={tourLibraryRef}>
             <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-3">Your tours</p>
             <div className="flex flex-wrap gap-2">
               {Object.entries(savedTours).map(([city, tours]) => (

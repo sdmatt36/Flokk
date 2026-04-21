@@ -206,6 +206,7 @@ export async function POST(req: NextRequest) {
         status: "interested",
         dayIndex,
         city: tripCity,
+        tourId,
       },
     });
     activityIds.push(activity.id);

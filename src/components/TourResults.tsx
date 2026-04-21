@@ -44,7 +44,8 @@ export default function TourResults({ stops, destinationCity, prompt, durationLa
   const [maxDays, setMaxDays] = useState(30);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const [saveSuccess, setSaveSuccess] = useState<{ tripTitle: string; tripId: string; day: number } | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState<{ tripTitle: string; tripId: string; day: number; tourId: string } | null>(null);
+  const [unlinking, setUnlinking] = useState(false);
 
   useEffect(() => {
     if (stops.length === 0 || !containerRef.current) return;
@@ -172,7 +173,7 @@ export default function TourResults({ stops, destinationCity, prompt, durationLa
         setSaveError(data.error ?? "Some stops failed to save. Please try again.");
         return;
       }
-      setSaveSuccess({ tripTitle: trip.title, tripId: trip.id, day: selectedDay });
+      setSaveSuccess({ tripTitle: trip.title, tripId: trip.id, day: selectedDay, tourId: data.tourId ?? "" });
     } catch {
       setSaveError("Network error. Please try again.");
     } finally {
@@ -245,7 +246,26 @@ export default function TourResults({ stops, destinationCity, prompt, durationLa
                 >
                   View trip →
                 </a>
-                <button onClick={closeModal} className="text-sm text-gray-400 text-center mt-3 cursor-pointer block w-full" style={{ background: "none", border: "none" }}>
+                {saveSuccess.tourId && (
+                  <button
+                    onClick={async () => {
+                      setUnlinking(true);
+                      try {
+                        await fetch(`/api/tours/${saveSuccess.tourId}/unlink-from-trip`, { method: "DELETE" });
+                        setSaveSuccess(null);
+                        closeModal();
+                      } catch { /* non-fatal */ } finally {
+                        setUnlinking(false);
+                      }
+                    }}
+                    disabled={unlinking}
+                    className="text-sm text-[#C4664A] text-center mt-3 cursor-pointer block w-full disabled:opacity-50"
+                    style={{ background: "none", border: "none" }}
+                  >
+                    {unlinking ? "Removing..." : "Remove from trip"}
+                  </button>
+                )}
+                <button onClick={closeModal} className="text-sm text-gray-400 text-center mt-2 cursor-pointer block w-full" style={{ background: "none", border: "none" }}>
                   Close
                 </button>
               </div>
