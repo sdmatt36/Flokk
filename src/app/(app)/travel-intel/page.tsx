@@ -27,7 +27,7 @@ type GuideItem = {
 
 type FilterType = "All" | "Articles" | "Videos" | "Guides";
 
-const TOPIC_TAGS = ["Packing", "Disney", "Budget", "Food", "Adventure", "Culture", "Safety", "Flights", "Hotels", "Theme Parks", "Road Trips", "Holiday Markets", "Food Markets", "Cruises"] as const;
+const TOPIC_TAGS = ["Adventure", "Budget", "Cruises", "Culture", "Disney", "Holiday Markets", "Lodging", "Packing", "Road Trips", "Safety", "Theme Parks", "Tours"] as const;
 type TopicTag = typeof TOPIC_TAGS[number];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -669,7 +669,7 @@ export default function TravelIntelPage() {
         <div style={{ display: "flex", gap: "6px", marginBottom: "28px", flexWrap: "wrap", rowGap: 8 }}>
           <button
             onClick={() => { setActiveTopic(null); setCurrentPage(1); }}
-            style={{ padding: "4px 10px", borderRadius: "999px", border: `1.5px solid ${activeTopic === null ? "#1B3A5C" : "#E0E0E0"}`, backgroundColor: activeTopic === null ? "#1B3A5C" : "#fff", color: activeTopic === null ? "#fff" : "#717171", fontSize: "12px", fontWeight: activeTopic === null ? 700 : 500, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
+            style={{ padding: "3px 8px", borderRadius: "999px", border: `1.5px solid ${activeTopic === null ? "#1B3A5C" : "#E0E0E0"}`, backgroundColor: activeTopic === null ? "#1B3A5C" : "#fff", color: activeTopic === null ? "#fff" : "#717171", fontSize: "11px", fontWeight: activeTopic === null ? 700 : 500, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
           >
             All Topics
           </button>
@@ -679,7 +679,7 @@ export default function TravelIntelPage() {
               <button
                 key={tag}
                 onClick={() => { setActiveTopic(active ? null : tag); setCurrentPage(1); }}
-                style={{ padding: "4px 10px", borderRadius: "999px", border: `1.5px solid ${active ? "#1B3A5C" : "#E0E0E0"}`, backgroundColor: active ? "#1B3A5C" : "#fff", color: active ? "#fff" : "#717171", fontSize: "12px", fontWeight: active ? 700 : 500, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
+                style={{ padding: "3px 8px", borderRadius: "999px", border: `1.5px solid ${active ? "#1B3A5C" : "#E0E0E0"}`, backgroundColor: active ? "#1B3A5C" : "#fff", color: active ? "#fff" : "#717171", fontSize: "11px", fontWeight: active ? 700 : 500, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s" }}
               >
                 {tag}
               </button>
