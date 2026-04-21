@@ -27,7 +27,7 @@ type GuideItem = {
 
 type FilterType = "All" | "Articles" | "Videos" | "Guides";
 
-const TOPIC_TAGS = ["Packing", "Disney", "Budget", "Food", "Adventure", "Beach", "Culture", "Safety", "Flights", "Hotels", "Theme Parks", "Road Trips", "Cruises", "Christmas Markets", "Food Markets"] as const;
+const TOPIC_TAGS = ["Packing", "Disney", "Budget", "Food", "Adventure", "Culture", "Safety", "Flights", "Hotels", "Theme Parks", "Road Trips", "Holiday Markets", "Food Markets", "Cruises"] as const;
 type TopicTag = typeof TOPIC_TAGS[number];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
