@@ -16,6 +16,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { sharePlace } from "@/lib/share";
+import { TourActionMenu } from "@/components/tours/TourActionMenu";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -1155,7 +1156,7 @@ function ToursTabContent({ tours, search, activeCountry, selectedCity, onDelete 
   search: string;
   activeCountry: string;
   selectedCity: string | null;
-  onDelete: (id: string, city: string) => void;
+  onDelete: (id: string) => void;
 }) {
   const router = useRouter();
 
@@ -1212,16 +1213,10 @@ function ToursTabContent({ tours, search, activeCountry, selectedCity, onDelete 
                 onKeyDown={(e) => { if (e.key === "Enter") router.push(`/tour?id=${tour.id}`); }}
                 style={{ backgroundColor: "#FAFAFA", borderRadius: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", overflow: "visible", display: "flex", flexDirection: "column", position: "relative", cursor: "pointer" }}
               >
-                {/* Delete button */}
-                <button
-                  type="button"
-                  className="absolute top-2 right-2 z-10 bg-white/90 backdrop-blur-sm rounded-full shadow-sm border border-gray-100 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100 opacity-100"
-                  style={{ padding: "5px", lineHeight: 0, cursor: "pointer" }}
-                  onClick={(e) => { e.stopPropagation(); onDelete(tour.id, city); }}
-                  aria-label="Delete tour"
-                >
-                  <Trash2 size={13} style={{ color: "#9ca3af" }} />
-                </button>
+                {/* Action menu */}
+                <div className="absolute top-2 right-2 z-10" onClick={(e) => e.stopPropagation()}>
+                  <TourActionMenu tourId={tour.id} onDelete={onDelete} anchorPosition="card" />
+                </div>
 
                 {/* Thumbnail */}
                 <div
@@ -1930,12 +1925,13 @@ Your saved places, all in one spot
                   search={search}
                   activeCountry={activeCountry}
                   selectedCity={selectedCity}
-                  onDelete={async (id, city) => {
-                    await fetch(`/api/tours/${id}`, { method: "DELETE" });
+                  onDelete={(id) => {
                     setSavedTours(prev => {
                       const updated = { ...prev };
-                      updated[city] = (updated[city] ?? []).filter(t => t.id !== id);
-                      if (updated[city].length === 0) delete updated[city];
+                      for (const city of Object.keys(updated)) {
+                        updated[city] = updated[city].filter(t => t.id !== id);
+                        if (updated[city].length === 0) delete updated[city];
+                      }
                       return updated;
                     });
                   }}

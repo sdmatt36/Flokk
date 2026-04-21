@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { RotateCcw } from "lucide-react";
 import TourResults from "@/components/TourResults";
+import { TourActionMenu } from "@/components/tours/TourActionMenu";
 
 type DestinationSuggestion = {
   placeId: string;
@@ -154,19 +155,18 @@ export default function TourPage() {
     }
   }
 
-  async function deleteTour(id: string, city: string) {
-    try {
-      await fetch(`/api/tours/${id}`, { method: "DELETE" });
-      setSavedTours(prev => {
-        const updated = { ...prev };
+  function handleTourDelete(id: string) {
+    setSavedTours(prev => {
+      const updated = { ...prev };
+      for (const city of Object.keys(updated)) {
         updated[city] = updated[city].filter(t => t.id !== id);
         if (updated[city].length === 0) {
           delete updated[city];
           if (expandedCity === city) setExpandedCity(null);
         }
-        return updated;
-      });
-    } catch { /* non-fatal */ }
+      }
+      return updated;
+    });
   }
 
   function selectSuggestion(cityName: string, countryName: string) {
@@ -401,14 +401,8 @@ export default function TourPage() {
                           >
                             {tour.title}
                           </button>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); deleteTour(tour.id, city); }}
-                            className="text-gray-300 hover:text-red-400 text-base leading-none shrink-0"
-                            style={{ background: "none", border: "none", cursor: "pointer" }}
-                            aria-label="Delete tour"
-                          >
-                            ×
-                          </button>
+                          <span className="border-l border-slate-200 mx-2 h-4 shrink-0" />
+                          <TourActionMenu tourId={tour.id} onDelete={handleTourDelete} anchorPosition="pill" />
                         </div>
                       ))}
                     </div>
