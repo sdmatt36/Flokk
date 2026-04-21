@@ -6528,6 +6528,16 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                           Open in Maps →
                         </a>
                       )}
+                      {!!(booking.url || booking.bookingUrl) && (
+                        <a
+                          href={String(booking.url ?? booking.bookingUrl ?? "")}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 8, fontSize: 13, fontWeight: 500, color: "#C4664A", textDecoration: "none" }}
+                        >
+                          View booking →
+                        </a>
+                      )}
                       <button onClick={e => { e.stopPropagation(); handleVaultEdit(); }} style={{ position: "absolute", top: "12px", right: "36px", background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px" }} title="Edit">
                         <Pencil size={14} />
                       </button>

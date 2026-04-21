@@ -17,6 +17,7 @@ import { AddTripButton } from "@/components/features/home/AddTripModal";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { DropLinkTile } from "@/components/features/home/DropLinkTile";
 import { SourceFilterSaves } from "@/components/features/home/SourceFilterSaves";
+import { WelcomeBanner } from "@/components/features/home/WelcomeBanner";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700", "900"] });
 
@@ -215,6 +216,8 @@ export default async function HomePage() {
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#FFFFFF", paddingBottom: "80px" }}>
       <div style={{ maxWidth: "1280px", margin: "0 auto", padding: "32px 24px 0" }}>
+
+        <WelcomeBanner />
 
         {/* ── Page greeting ── */}
         <div style={{ marginBottom: "24px" }}>

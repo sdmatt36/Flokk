@@ -119,6 +119,17 @@ export default function OnboardingPage() {
           {step === 3 && (
             <StepInterests data={data} onComplete={(update) => handleComplete(update)} saving={saving} error={error} />
           )}
+          <div style={{ marginTop: 40, padding: "20px 24px", background: "#FFF8F3", border: "1px solid #E8D5C8", borderRadius: 12, textAlign: "center" }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", textTransform: "uppercase", color: "#C4664A", marginBottom: 10 }}>
+              From a Flokk family
+            </div>
+            <div style={{ fontStyle: "italic", fontSize: 14, lineHeight: 1.5, color: "#333", marginBottom: 8 }}>
+              &ldquo;Holy Crap, I just got a shiver it&rsquo;s so amazing. The packing section alone is so
+              helpful and how it knows the temp where you are going and what to pack for kids...Love love
+              love it!&rdquo;
+            </div>
+            <div style={{ fontSize: 12, color: "#666" }}>Kristin, Washington State</div>
+          </div>
         </div>
       </div>
     </div>
