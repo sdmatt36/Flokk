@@ -10,6 +10,7 @@ import {
   Search,
   MapPin,
   Plus,
+  Share2,
   X,
   Trash2,
 } from "lucide-react";
@@ -17,6 +18,7 @@ import { sharePlace } from "@/lib/share";
 import { TourActionMenu } from "@/components/tours/TourActionMenu";
 import { haversineKm, WITHIN_REACH_KM } from "@/lib/geo";
 import { Pill } from "@/components/ui/Pill";
+import { CardActionButton } from "@/components/ui/CardActionButton";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -686,37 +688,35 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
         )}
 
         {/* Unified action row */}
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "8px", flexWrap: "wrap" }}>
-          {/* Unassigned: + Add to trip button */}
+        <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
+          {/* Unassigned: primary Add to trip */}
           {!save.tripId && cardContext !== "past" && !suggestedForOptions?.length && (
-            <button
-              type="button"
+            <CardActionButton
+              variant="primary"
+              icon={<Plus size={13} />}
+              label="Add to trip"
               onClick={(e) => { e.stopPropagation(); setOpenDropdown(isDropdownOpen ? null : save.id); }}
-              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "11px", color: "#C4664A", fontWeight: 500, display: "flex", alignItems: "center", gap: "3px", fontFamily: "inherit" }}
-            >
-              <Plus size={11} style={{ color: "#C4664A" }} />
-              Add to trip
-            </button>
+              flex
+            />
           )}
-          {/* Suggested: + Add to trip button */}
+          {/* Suggested: primary Add to trip */}
           {onAddToTrip && suggestedForOptions && suggestedForOptions.length > 0 && (
-            <button
-              type="button"
+            <CardActionButton
+              variant="primary"
+              icon={<Plus size={13} />}
+              label="Add to trip"
               onClick={(e) => { e.stopPropagation(); onAddToTrip(save.id, suggestedForOptions); }}
-              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "11px", color: "#C4664A", fontWeight: 500, display: "flex", alignItems: "center", gap: "3px", fontFamily: "inherit" }}
-            >
-              <Plus size={11} style={{ color: "#C4664A" }} />
-              Add to trip
-            </button>
+              flex
+            />
           )}
           {/* Share — always visible */}
-          <button
-            type="button"
+          <CardActionButton
+            variant="secondary"
+            icon={<Share2 size={13} />}
+            label={shareCopied ? "Copied!" : "Share"}
             onClick={handleShareSave}
-            style={{ fontSize: "11px", color: "#717171", background: "transparent", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" }}
-          >
-            {shareCopied ? "Copied!" : "Share"}
-          </button>
+            flex
+          />
         </div>
       </div>
     </div>
