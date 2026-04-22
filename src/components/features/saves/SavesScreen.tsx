@@ -507,12 +507,6 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
             overflow: "hidden",
           }}
         >
-          {/* Platform pill — top-left */}
-          {save.source && (
-            <div style={{ position: "absolute", top: "8px", left: "8px", zIndex: 2 }}>
-              <Pill variant="platform">{save.source}</Pill>
-            </div>
-          )}
           {/* Status pill — top-right (Tier 2/3 only) */}
           {save.suggestionTier === "secondary" && save.destinationCountry && (
             <div style={{ position: "absolute", top: "8px", right: "8px", zIndex: 2 }}>
