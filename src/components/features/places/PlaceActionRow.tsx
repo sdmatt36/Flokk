@@ -107,6 +107,16 @@ export function PlaceActionRow({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {userRating != null && userRating > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#6B7280" }}>
+          <span>You rated:</span>
+          <div style={{ display: "flex", gap: 1 }}>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <span key={i} style={{ color: i <= userRating ? "#f59e0b" : "#d1d5db", fontSize: 13 }}>★</span>
+            ))}
+          </div>
+        </div>
+      )}
       {variant === "card-compact" ? (
         // Two-row compact layout for 3-col card grid
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

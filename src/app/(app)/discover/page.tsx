@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { MapPin, ChevronRight, X, Search, Plus, CalendarPlus, Pencil } from "lucide-react";
+import { MapPin, ChevronRight, X, Search, Plus } from "lucide-react";
 import { EditSpotModal, type EditableSpot } from "@/components/features/discover/EditSpotModal";
 import { SpotImage } from "@/components/shared/SpotImage";
 import { Playfair_Display } from "next/font/google";
@@ -606,9 +606,17 @@ function PlacesTab() {
                   <p className="text-xs text-gray-500 italic mt-1 line-clamp-2">{place.sampleNote}</p>
                 )}
                 {/* CTAs */}
-                <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-50">
-                  <button
-                    onClick={async () => {
+                <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid #f3f4f6" }}>
+                  <PlaceActionRow
+                    variant="card-compact"
+                    place={{
+                      name: place.name,
+                      city: place.city ?? null,
+                      websiteUrl: place.website ?? null,
+                    }}
+                    isSaved={flokkConfirmedId === place.id}
+                    canEdit={!!place.canEdit}
+                    onFlokkIt={async () => {
                       try {
                         const res = await fetch("/api/saves", {
                           method: "POST",
@@ -626,67 +634,25 @@ function PlacesTab() {
                         setFlokkConfirmedId(place.id);
                         setTimeout(() => setFlokkConfirmedId(null), 2000);
                       } catch {
-                        // silent fail
+                        // silent fail matches existing behavior
                       }
                     }}
-                    className="text-xs font-medium text-[#C4664A] cursor-pointer hover:underline bg-transparent border-none p-0"
-                    style={{ fontFamily: "inherit" }}
-                  >
-                    {flokkConfirmedId === place.id ? "Flokked!" : "Flokk It"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (itineraryConfirmTimeout.current) clearTimeout(itineraryConfirmTimeout.current);
-                      setItineraryModalSpot({ name: place.name, city: place.city, address: place.address, sampleNote: place.sampleNote, placeType: place.placeType });
-                    }}
-                    className="flex items-center text-xs font-medium text-[#1B3A5C] cursor-pointer hover:underline bg-transparent border-none p-0"
-                    style={{ fontFamily: "inherit" }}
-                  >
-                    <CalendarPlus size={13} style={{ marginRight: "4px" }} />
-                    + Itinerary
-                  </button>
-                  {place.website && (
-                    <a
-                      href={place.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-medium text-gray-400 cursor-pointer hover:underline"
-                    >
-                      Visit site
-                    </a>
-                  )}
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(`https://flokktravel.com/places/${place.id}`);
+                    onEdit={place.canEdit ? () => {
+                      setEditingSpot({
+                        id: place.id,
+                        name: place.name,
+                        city: place.city ?? "",
+                        category: place.category ?? null,
+                        description: place.description ?? null,
+                        photoUrl: place.photoUrl ?? null,
+                        websiteUrl: place.websiteUrl ?? null,
+                      });
+                    } : undefined}
+                    onShareToast={(msg) => {
                       setClipCopiedId(place.id);
                       setTimeout(() => setClipCopiedId(null), 2000);
                     }}
-                    className="text-xs font-medium text-gray-400 cursor-pointer hover:text-gray-600 bg-transparent border-none p-0"
-                    style={{ fontFamily: "inherit" }}
-                  >
-                    {clipCopiedId === place.id ? "Copied!" : "Share"}
-                  </button>
-                  {place.canEdit && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingSpot({
-                          id: place.id,
-                          name: place.name,
-                          city: place.city ?? "",
-                          category: place.category ?? null,
-                          description: place.description ?? null,
-                          photoUrl: place.photoUrl ?? null,
-                          websiteUrl: place.websiteUrl ?? null,
-                        });
-                      }}
-                      style={{ background: "none", border: "none", cursor: "pointer", padding: "4px", color: "#717171", marginLeft: "auto" }}
-                      aria-label="Edit spot"
-                    >
-                      <Pencil size={14} />
-                    </button>
-                  )}
+                  />
                 </div>
                 {itineraryConfirmation?.placeId === place.id && (
                   <p className="text-[#1B3A5C] text-xs font-medium mt-2">
