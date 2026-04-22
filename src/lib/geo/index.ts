@@ -7,3 +7,12 @@ export function haversineMeters(lat1: number, lng1: number, lat2: number, lng2: 
     Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+
+export function haversineKm(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number }
+): number {
+  return haversineMeters(a.lat, a.lng, b.lat, b.lng) / 1000;
+}
+
+export const WITHIN_REACH_KM = 150;

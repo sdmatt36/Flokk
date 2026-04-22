@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { sharePlace } from "@/lib/share";
 import { TourActionMenu } from "@/components/tours/TourActionMenu";
+import { haversineKm, WITHIN_REACH_KM } from "@/lib/geo";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -36,6 +37,9 @@ type Save = {
   destinationCity: string | null;
   destinationCountry: string | null;
   communitySpotId: string | null;
+  lat: number | null;
+  lng: number | null;
+  suggestionTier: "primary" | "secondary" | null;
 };
 
 type PlaceResult = {
@@ -64,6 +68,8 @@ type ApiItem = {
   needsPlaceConfirmation: boolean;
   userRating?: number | null;
   communitySpotId: string | null;
+  lat: number | null;
+  lng: number | null;
 };
 
 const SOURCE_LABEL_MAP: Record<string, string> = {
@@ -102,6 +108,9 @@ function mapApiItem(item: ApiItem): Save {
     destinationCity: item.destinationCity ?? null,
     destinationCountry: item.destinationCountry ?? null,
     communitySpotId: item.communitySpotId ?? null,
+    lat: item.lat ?? null,
+    lng: item.lng ?? null,
+    suggestionTier: null,
   };
 }
 
@@ -166,7 +175,11 @@ function formatTripDateRange(startIso: string, endIso: string | null): string {
   return `${start.toLocaleDateString("en-US", monthFmt)} – ${end.toLocaleDateString("en-US", monthFmt)}`;
 }
 
-function groupTabbedSaves(saves: Save[], allTrips: TripRow[]): TabbedSavesState {
+function groupTabbedSaves(
+  saves: Save[],
+  allTrips: TripRow[],
+  tripCityCoords: Record<string, { lat: number; lng: number }>
+): TabbedSavesState {
   const now = new Date();
 
   const upcomingTrips = allTrips
@@ -181,7 +194,7 @@ function groupTabbedSaves(saves: Save[], allTrips: TripRow[]): TabbedSavesState 
   const pastTrips = allTrips.filter((t) => t.endDate && new Date(t.endDate) < now);
   const pastTripIds = new Set(pastTrips.map((t) => t.id));
 
-  // Build past city set from cities[] array, falling back to destinationCity
+  // Build past city set
   const pastTripCities = new Set<string>();
   for (const t of pastTrips) {
     const cityList = t.cities.length > 0 ? t.cities : (t.destinationCity ? [t.destinationCity] : []);
@@ -191,43 +204,41 @@ function groupTabbedSaves(saves: Save[], allTrips: TripRow[]): TabbedSavesState 
     }
   }
 
-  // Build past country set from countries[] (falls back to country for legacy rows)
+  // Build past country set
   const pastTripCountries = new Set<string>();
   for (const t of pastTrips) {
-    const tripCountries = (t.countries && t.countries.length > 0)
-      ? t.countries
-      : (t.country ? [t.country] : []);
+    const tripCountries = t.countries.length > 0 ? t.countries : (t.country ? [t.country] : []);
     for (const c of tripCountries) {
       const key = c.trim().toLowerCase();
       if (key) pastTripCountries.add(key);
     }
   }
 
-  // Build upcoming city index: city key → [tripId, ...]
+  // Build upcoming indexes
+  // city key → [tripId, ...]
   const upcomingCityIndex = new Map<string, string[]>();
+  // tripId → its city keys (for Tier 2 geo check)
+  const upcomingTripCities = new Map<string, string[]>();
+  // tripId → its country keys (for Tier 3)
+  const upcomingTripCountries = new Map<string, string[]>();
+  // tripId → primary country string (for Tier 3 key lookup)
+  const upcomingTripPrimaryCountry = new Map<string, string>();
+
   for (const t of upcomingTrips) {
     const cityList = t.cities.length > 0 ? t.cities : (t.destinationCity ? [t.destinationCity] : []);
-    for (const c of cityList) {
-      const key = c.trim().toLowerCase();
-      if (!key) continue;
+    const cityKeys = cityList.map((c) => c.trim().toLowerCase()).filter(Boolean);
+    upcomingTripCities.set(t.id, cityKeys);
+    for (const key of cityKeys) {
       const existing = upcomingCityIndex.get(key) ?? [];
       existing.push(t.id);
       upcomingCityIndex.set(key, existing);
     }
-  }
 
-  // Build upcoming country index: country key → [tripId, ...] — iterates countries[] with fallback to country
-  const upcomingCountryIndex = new Map<string, string[]>();
-  for (const t of upcomingTrips) {
-    const tripCountries = (t.countries && t.countries.length > 0)
-      ? t.countries
-      : (t.country ? [t.country] : []);
-    for (const c of tripCountries) {
-      const key = c.trim().toLowerCase();
-      if (!key) continue;
-      const existing = upcomingCountryIndex.get(key) ?? [];
-      if (!existing.includes(t.id)) existing.push(t.id);
-      upcomingCountryIndex.set(key, existing);
+    const tripCountries = t.countries.length > 0 ? t.countries : (t.country ? [t.country] : []);
+    const countryKeys = tripCountries.map((c) => c.trim().toLowerCase()).filter(Boolean);
+    upcomingTripCountries.set(t.id, countryKeys);
+    if (tripCountries.length > 0) {
+      upcomingTripPrimaryCountry.set(t.id, tripCountries[0]);
     }
   }
 
@@ -251,11 +262,13 @@ function groupTabbedSaves(saves: Save[], allTrips: TripRow[]): TabbedSavesState 
     const cityKey = (save.destinationCity ?? "").trim().toLowerCase();
     const countryKey = (save.destinationCountry ?? "").trim().toLowerCase();
 
+    // Explicit assignment to an upcoming trip
     if (save.tripId && upcomingTripIndex.has(save.tripId)) {
       upcomingTripIndex.get(save.tripId)!.explicitSaves.push(save);
       continue;
     }
 
+    // Assigned to a past trip
     if (save.tripId && pastTripIds.has(save.tripId)) {
       const city = save.destinationCity ?? "Unknown";
       const list = pastCityMap.get(city) ?? [];
@@ -265,50 +278,91 @@ function groupTabbedSaves(saves: Save[], allTrips: TripRow[]): TabbedSavesState 
     }
 
     if (!save.tripId) {
-      // Try city match first (cities[] array)
+      const tier1TripIds = new Set<string>();
+      const tier2TripIds = new Set<string>();
+
+      // ── TIER 1: exact city match ──────────────────────────────────────────
       if (cityKey) {
-        const upcomingCityMatches = upcomingCityIndex.get(cityKey) ?? [];
-        if (upcomingCityMatches.length > 0) {
-          for (const tripId of upcomingCityMatches) {
-            upcomingTripIndex.get(tripId)!.suggestedSaves.push(save);
-          }
-          const options = upcomingCityMatches.map((tid) => ({
+        const matches = upcomingCityIndex.get(cityKey) ?? [];
+        for (const tripId of matches) {
+          const tagged: Save = { ...save, suggestionTier: "primary" };
+          upcomingTripIndex.get(tripId)!.suggestedSaves.push(tagged);
+          tier1TripIds.add(tripId);
+        }
+        if (matches.length > 0) {
+          suggestedTripMap.set(save.id, matches.map((tid) => ({
             id: tid,
             name: upcomingTripIndex.get(tid)!.tripName,
-          }));
-          suggestedTripMap.set(save.id, options);
-          continue;
-        }
-        if (pastTripCities.has(cityKey)) {
-          const city = save.destinationCity ?? "Unknown";
-          const list = pastCityMap.get(city) ?? [];
-          list.push(save);
-          pastCityMap.set(city, list);
-          continue;
+          })));
         }
       }
 
-      // Fallback: country match (Trip.country vs Save.destinationCountry)
-      if (countryKey) {
-        const upcomingCountryMatches = upcomingCountryIndex.get(countryKey) ?? [];
-        if (upcomingCountryMatches.length > 0) {
-          for (const tripId of upcomingCountryMatches) {
-            upcomingTripIndex.get(tripId)!.suggestedSaves.push(save);
+      // ── TIER 2: within 150km of a declared trip city ──────────────────────
+      if (save.lat != null && save.lng != null) {
+        for (const t of upcomingTrips) {
+          if (tier1TripIds.has(t.id)) continue;
+          const cities = upcomingTripCities.get(t.id) ?? [];
+          if (cities.length === 0) continue; // Tier 3 handles country-scoped trips
+          const primaryCountry = upcomingTripPrimaryCountry.get(t.id) ?? "";
+          let withinReach = false;
+          for (const city of cities) {
+            const coordKey = `${city},${primaryCountry.toLowerCase()}`;
+            const coords = tripCityCoords[coordKey];
+            if (!coords) continue;
+            if (haversineKm({ lat: save.lat, lng: save.lng }, coords) <= WITHIN_REACH_KM) {
+              withinReach = true;
+              break;
+            }
           }
-          const options = upcomingCountryMatches.map((tid) => ({
-            id: tid,
-            name: upcomingTripIndex.get(tid)!.tripName,
-          }));
-          suggestedTripMap.set(save.id, options);
-          continue;
+          if (withinReach) {
+            const tagged: Save = { ...save, suggestionTier: "secondary" };
+            upcomingTripIndex.get(t.id)!.suggestedSaves.push(tagged);
+            tier2TripIds.add(t.id);
+            const existing = suggestedTripMap.get(save.id) ?? [];
+            if (!existing.find((o) => o.id === t.id)) {
+              existing.push({ id: t.id, name: upcomingTripIndex.get(t.id)!.tripName });
+              suggestedTripMap.set(save.id, existing);
+            }
+          }
         }
-        if (pastTripCountries.has(countryKey)) {
-          const city = save.destinationCity ?? "Unknown";
-          const list = pastCityMap.get(city) ?? [];
-          list.push(save);
-          pastCityMap.set(city, list);
-          continue;
+      }
+
+      // ── TIER 3: country-scoped trip (trip.cities is empty) ────────────────
+      if (countryKey) {
+        for (const t of upcomingTrips) {
+          if (tier1TripIds.has(t.id) || tier2TripIds.has(t.id)) continue;
+          const cities = upcomingTripCities.get(t.id) ?? [];
+          if (cities.length > 0) continue; // has declared cities, skip
+          const countries = upcomingTripCountries.get(t.id) ?? [];
+          if (countries.includes(countryKey)) {
+            const tagged: Save = { ...save, suggestionTier: "secondary" };
+            upcomingTripIndex.get(t.id)!.suggestedSaves.push(tagged);
+            const existing = suggestedTripMap.get(save.id) ?? [];
+            if (!existing.find((o) => o.id === t.id)) {
+              existing.push({ id: t.id, name: upcomingTripIndex.get(t.id)!.tripName });
+              suggestedTripMap.set(save.id, existing);
+            }
+          }
         }
+      }
+
+      // If placed in at least one upcoming trip, continue
+      if (tier1TripIds.size > 0 || tier2TripIds.size > 0 || suggestedTripMap.has(save.id)) continue;
+
+      // Fall through to past city/country routing
+      if (cityKey && pastTripCities.has(cityKey)) {
+        const city = save.destinationCity ?? "Unknown";
+        const list = pastCityMap.get(city) ?? [];
+        list.push(save);
+        pastCityMap.set(city, list);
+        continue;
+      }
+      if (countryKey && pastTripCountries.has(countryKey)) {
+        const city = save.destinationCity ?? "Unknown";
+        const list = pastCityMap.get(city) ?? [];
+        list.push(save);
+        pastCityMap.set(city, list);
+        continue;
       }
     }
 
@@ -535,10 +589,12 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
 
       {/* Card body */}
       <div style={{ padding: "12px" }}>
-        {/* Suggested badge */}
-        {suggestedForOptions && suggestedForOptions.length > 0 && (
+        {/* Tier 2/3 proximity badge */}
+        {save.suggestionTier === "secondary" && save.destinationCountry && (
           <div style={{ display: "inline-flex", alignItems: "center", backgroundColor: "rgba(196,102,74,0.1)", borderRadius: "4px", padding: "2px 6px", marginBottom: "6px" }}>
-            <span style={{ fontSize: "10px", fontWeight: 600, color: "#C4664A", textTransform: "uppercase", letterSpacing: "0.04em" }}>Suggested</span>
+            <span style={{ fontSize: "10px", fontWeight: 600, color: "#C4664A", letterSpacing: "0.04em" }}>
+              Flokking around {save.destinationCountry}
+            </span>
           </div>
         )}
 
@@ -1022,20 +1078,6 @@ function UpcomingTabContent({ sections, expandedSections, setExpandedSections, s
               ))}
               {suggestedShown.map((save) => {
                 const options = suggestedTripMap.get(save.id) ?? [];
-                const isSingleMatch = options.length === 1;
-                const cityNotInTrip = isSingleMatch && !!save.destinationCity && !section.cities.map(c => c.toLowerCase()).includes(save.destinationCity.toLowerCase());
-                if (cityNotInTrip) {
-                  return (
-                    <SaveCard
-                      key={save.id}
-                      save={save}
-                      {...sharedProps}
-                      onTripClick={() => {}}
-                      onGrowTripCity={(saveId) => onGrowTripCities(saveId, options[0].id, save.destinationCity!, section.cities)}
-                      growTripCityLabel={`+ Add ${save.destinationCity} to trip`}
-                    />
-                  );
-                }
                 return (
                   <SaveCard
                     key={save.id}
@@ -1308,6 +1350,7 @@ export function SavesScreen() {
   const [assignCityItemId, setAssignCityItemId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"upcoming" | "past" | "unassigned" | "tours">("upcoming");
   const [savedTours, setSavedTours] = useState<Record<string, SavedTourEntry[]>>({});
+  const [tripCityCoords, setTripCityCoords] = useState<Record<string, { lat: number; lng: number }>>({});
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [addToTripModal, setAddToTripModal] = useState<{ saveId: string; options: Array<{ id: string; name: string }> } | null>(null);
 
@@ -1323,6 +1366,28 @@ export function SavesScreen() {
       setAvailableTrips(allTrips);
       setSavedTours(toursData && typeof toursData === "object" && !toursData.error ? toursData : {});
       setLoading(false);
+
+      // Geocode trip city coords for Tier 2 suggestion matching
+      const seen = new Set<string>();
+      const pairs: Array<{ city: string; country: string | null }> = [];
+      for (const t of allTrips) {
+        const countries: string[] = t.countries?.length > 0 ? t.countries : (t.country ? [t.country] : []);
+        const primaryCountry = countries[0] ?? null;
+        const cities: string[] = t.cities ?? [];
+        for (const city of cities) {
+          const key = `${city.toLowerCase()},${(primaryCountry ?? "").toLowerCase()}`;
+          if (!seen.has(key)) { seen.add(key); pairs.push({ city, country: primaryCountry }); }
+        }
+      }
+      if (pairs.length > 0) {
+        fetch("/api/trips/cities-geo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cities: pairs }),
+        }).then(r => r.json()).then(coords => {
+          if (coords && typeof coords === "object") setTripCityCoords(coords);
+        }).catch(() => { /* non-fatal — Tier 2 simply returns no matches */ });
+      }
     }).catch(() => setLoading(false));
   }, []);
 
@@ -1654,7 +1719,7 @@ export function SavesScreen() {
   };
 
   const filteredSaves = cityFiltered.filter(matchesFilter);
-  const tabbed = groupTabbedSaves(filteredSaves, availableTrips);
+  const tabbed = groupTabbedSaves(filteredSaves, availableTrips, tripCityCoords);
   const toursCount = Object.values(savedTours).reduce((sum, arr) => sum + arr.length, 0);
   const isEmptyLibrary = !loading && saves.length === 0;
   const hasNoResults = !loading && !isEmptyLibrary && activeTab !== "tours" && tabbed.counts.upcoming === 0 && tabbed.counts.past === 0 && tabbed.counts.unassigned === 0;
