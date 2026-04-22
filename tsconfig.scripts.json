@@ -5,6 +5,7 @@
     "moduleResolution": "node",
     "noEmit": false,
     "outDir": ".ts-scripts-out",
+    "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
     }

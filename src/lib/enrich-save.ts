@@ -361,6 +361,36 @@ async function getStadiumPhoto(teamName: string, city: string): Promise<string |
   return null;
 }
 
+async function reverseGeocodeCity(
+  lat: number,
+  lng: number
+): Promise<{ city: string | null; country: string | null }> {
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  if (!key) return { city: null, country: null };
+  try {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&language=en&key=${key}`;
+    const res = await fetch(url);
+    const data = await res.json() as { results?: { address_components: { types: string[]; long_name: string }[] }[] };
+    const components = data?.results?.[0]?.address_components ?? [];
+    const getComponent = (types: string[]) => {
+      for (const t of types) {
+        const found = components.find((c) => c.types.includes(t));
+        if (found) return found.long_name;
+      }
+      return null;
+    };
+    const city =
+      getComponent(["locality"]) ??
+      getComponent(["administrative_area_level_2"]) ??
+      getComponent(["administrative_area_level_1"]);
+    const country = getComponent(["country"]);
+    return { city, country };
+  } catch (err) {
+    console.error("[reverseGeocodeCity] failed:", err);
+    return { city: null, country: null };
+  }
+}
+
 export async function enrichSavedItem(savedItemId: string): Promise<void> {
   const item = await db.savedItem.findUnique({
     where: { id: savedItemId },
@@ -383,6 +413,8 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
     console.log(`[enrich] skipped ${savedItemId}: no item or title`);
     return;
   }
+
+  try {
 
   const stripRawUnicode = (str: string) => str.replace(/&#x[0-9a-fA-F]+;/gi, "").trim();
   const cleanTitle = stripRawUnicode(he.decode(item.rawTitle));
@@ -408,23 +440,35 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
     /maps\.google\.com|google\.com\/maps|maps\.app\.goo\.gl/.test(item.sourceUrl ?? "");
 
   if (isGoogleMaps && item.sourceUrl) {
-    let resolvedUrl = item.sourceUrl;
-    if (item.sourceUrl.includes("maps.app.goo.gl") || item.sourceUrl.includes("goo.gl")) {
-      resolvedUrl = await resolveRedirect(item.sourceUrl);
-      console.log(`[enrich] resolved redirect: ${resolvedUrl}`);
-    }
-    const parsedName = extractGoogleMapsPlace(resolvedUrl);
-    if (parsedName) {
-      const mapsPlace = await lookupGoogleMapsPlace(parsedName);
-      if (mapsPlace) {
-        workingTitle = mapsPlace.title;
-        coords = { lat: mapsPlace.lat, lng: mapsPlace.lng };
-        if (mapsPlace.photoUrl) place.photoUrl = mapsPlace.photoUrl;
-        if (typeof mapsPlace.rating === "number") place.rating = mapsPlace.rating;
-        if (mapsPlace.category) mapsCategory = mapsPlace.category;
-        skipNormalEnrichment = true;
-        console.log(`[enrich] Google Maps fast-path: "${workingTitle}" (${coords.lat}, ${coords.lng})`);
+    try {
+      let resolvedUrl = item.sourceUrl;
+      if (item.sourceUrl.includes("maps.app.goo.gl") || item.sourceUrl.includes("goo.gl")) {
+        resolvedUrl = await resolveRedirect(item.sourceUrl);
+        console.log(`[enrich] resolved redirect: ${resolvedUrl}`);
       }
+      const parsedName = extractGoogleMapsPlace(resolvedUrl);
+      if (parsedName) {
+        const mapsPlace = await lookupGoogleMapsPlace(parsedName);
+        if (mapsPlace) {
+          workingTitle = mapsPlace.title;
+          coords = { lat: mapsPlace.lat, lng: mapsPlace.lng };
+          if (mapsPlace.photoUrl) place.photoUrl = mapsPlace.photoUrl;
+          if (typeof mapsPlace.rating === "number") place.rating = mapsPlace.rating;
+          if (mapsPlace.category) mapsCategory = mapsPlace.category;
+          // Reverse-geocode lat/lng to pull destinationCity and destinationCountry
+          if (!item.destinationCity || !item.destinationCountry) {
+            const rev = await reverseGeocodeCity(mapsPlace.lat, mapsPlace.lng);
+            if (rev.city) socialCity = rev.city;
+            if (rev.country) socialCountry = rev.country;
+            console.log(`[enrich] Google Maps reverse-geocode: city=${rev.city} country=${rev.country}`);
+          }
+          skipNormalEnrichment = true;
+          console.log(`[enrich] Google Maps fast-path: "${workingTitle}" (${coords.lat}, ${coords.lng})`);
+        }
+      }
+    } catch (err) {
+      console.error(`[enrich] Google Maps fast-path failed for ${item.id}:`, err);
+      // skipNormalEnrichment stays false — normal flow runs as fallback
     }
   }
 
@@ -563,4 +607,12 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
 
   await db.savedItem.update({ where: { id: item.id }, data: updateData });
   console.log(`[enrich] enriched ${savedItemId}: ${Object.keys(updateData).join(", ")}`);
+
+  } catch (err) {
+    console.error(`[enrichSavedItem] failed for ${savedItemId}:`, err);
+    await db.savedItem.update({
+      where: { id: savedItemId },
+      data: { extractionStatus: "FAILED" },
+    });
+  }
 }
