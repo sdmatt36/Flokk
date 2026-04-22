@@ -10,15 +10,13 @@ import {
   Search,
   MapPin,
   Plus,
-  Share2,
   X,
   Trash2,
 } from "lucide-react";
-import { sharePlace } from "@/lib/share";
 import { TourActionMenu } from "@/components/tours/TourActionMenu";
 import { haversineKm, WITHIN_REACH_KM } from "@/lib/geo";
 import { Pill } from "@/components/ui/Pill";
-import { CardActionButton } from "@/components/ui/CardActionButton";
+import { PlaceActionRow } from "@/components/features/places/PlaceActionRow";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -40,6 +38,7 @@ type Save = {
   communitySpotId: string | null;
   lat: number | null;
   lng: number | null;
+  sourceUrl: string | null;
   suggestionTier: "primary" | "secondary" | null;
 };
 
@@ -71,6 +70,7 @@ type ApiItem = {
   communitySpotId: string | null;
   lat: number | null;
   lng: number | null;
+  sourceUrl: string | null;
 };
 
 const SOURCE_LABEL_MAP: Record<string, string> = {
@@ -111,6 +111,7 @@ function mapApiItem(item: ApiItem): Save {
     communitySpotId: item.communitySpotId ?? null,
     lat: item.lat ?? null,
     lng: item.lng ?? null,
+    sourceUrl: item.sourceUrl ?? null,
     suggestionTier: null,
   };
 }
@@ -441,18 +442,17 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
   const extraTags = filteredTags.length - visibleTags.length;
   const isDropdownOpen = openDropdown === save.id;
   const [deleting, setDeleting] = useState(false);
-  const [shareCopied, setShareCopied] = useState(false);
-  const shareTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const handleShareSave = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const sourceTripId = save.tripId ?? suggestedForOptions?.[0]?.id ?? null;
-    const result = await sharePlace({ name: save.title, city: save.destinationCity ?? null, sourceTripId });
-    if (result.ok) {
-      if (shareTimerRef.current) clearTimeout(shareTimerRef.current);
-      setShareCopied(true);
-      shareTimerRef.current = setTimeout(() => setShareCopied(false), 2000);
-    }
+  const isTransit = save.tags.some(t => ["flight", "flights", "transportation", "transit", "train"].includes(t.toLowerCase()));
+  const isPastTrip = cardContext === "past";
+  const placeForActionRow = {
+    name: save.title,
+    city: save.destinationCity ?? null,
+    country: save.destinationCountry ?? null,
+    websiteUrl: save.sourceUrl ?? null,
+    lat: save.lat ?? null,
+    lng: save.lng ?? null,
+    sourceTripId: save.tripId ?? suggestedForOptions?.[0]?.id ?? null,
+    spotId: save.communitySpotId ?? null,
   };
 
   const handleDelete = async (e: React.MouseEvent) => {
@@ -688,34 +688,20 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
         )}
 
         {/* Unified action row */}
-        <div style={{ display: "flex", gap: "8px", marginTop: "10px" }}>
-          {/* Unassigned: primary Add to trip */}
-          {!save.tripId && cardContext !== "past" && !suggestedForOptions?.length && (
-            <CardActionButton
-              variant="primary"
-              icon={<Plus size={13} />}
-              label="Add to trip"
-              onClick={(e) => { e.stopPropagation(); setOpenDropdown(isDropdownOpen ? null : save.id); }}
-              flex
-            />
-          )}
-          {/* Suggested: primary Add to trip */}
-          {onAddToTrip && suggestedForOptions && suggestedForOptions.length > 0 && (
-            <CardActionButton
-              variant="primary"
-              icon={<Plus size={13} />}
-              label="Add to trip"
-              onClick={(e) => { e.stopPropagation(); onAddToTrip(save.id, suggestedForOptions); }}
-              flex
-            />
-          )}
-          {/* Share — always visible */}
-          <CardActionButton
-            variant="secondary"
-            icon={<Share2 size={13} />}
-            label={shareCopied ? "Copied!" : "Share"}
-            onClick={handleShareSave}
-            flex
+        <div style={{ marginTop: "10px" }} onClick={(e) => e.stopPropagation()}>
+          <PlaceActionRow
+            variant="card-compact"
+            place={placeForActionRow}
+            isSaved={true}
+            userRating={save.userRating ?? null}
+            onAddToTrip={
+              !save.tripId && !isPastTrip && !suggestedForOptions?.length
+                ? () => setOpenDropdown(isDropdownOpen ? null : save.id)
+                : onAddToTrip && suggestedForOptions && suggestedForOptions.length > 0
+                  ? () => { onAddToTrip!(save.id, suggestedForOptions!); }
+                  : undefined
+            }
+            onRate={!isTransit && onRateClick ? () => { onRateClick!(save.id, save.title); } : undefined}
           />
         </div>
       </div>

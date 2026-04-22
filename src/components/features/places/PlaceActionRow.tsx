@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink, Share2, Pencil, Plus, BookmarkCheck } from "lucide-react";
+import { ExternalLink, Share2, Pencil, Plus, BookmarkCheck, CalendarPlus, Star } from "lucide-react";
 import { useAddToItinerary } from "./AddToItineraryProvider";
 import { sharePlace, type ShareablePlace } from "@/lib/share";
 import type { AddToItineraryPlace } from "@/lib/add-to-itinerary";
@@ -15,7 +15,9 @@ export interface PlaceActionRowProps {
   userRating?: number | null;
   isSaved: boolean;
   canEdit?: boolean;
-  onFlokkIt: () => Promise<void> | void;
+  onFlokkIt?: () => Promise<void> | void;
+  onAddToTrip?: () => void;
+  onRate?: () => void;
   onEdit?: () => void;
   onShareToast?: (message: string) => void;
   variant?: "card-compact" | "card-expanded";
@@ -31,6 +33,8 @@ export function PlaceActionRow({
   isSaved,
   canEdit = false,
   onFlokkIt,
+  onAddToTrip,
+  onRate,
   onEdit,
   onShareToast,
   variant = "card-expanded",
@@ -40,7 +44,7 @@ export function PlaceActionRow({
   const [sharing, setSharing] = useState(false);
 
   const handleFlokkIt = async () => {
-    if (isSaved || flokking) return;
+    if (!onFlokkIt || isSaved || flokking) return;
     setFlokking(true);
     try {
       await onFlokkIt();
@@ -86,68 +90,63 @@ export function PlaceActionRow({
     cursor: "default", border: `1px solid ${GRAY_200}`,
   };
 
+  // Rate button content — filled stars if rated, "Rate" text if not
+  const rateContent = (size: number) => {
+    const rating = typeof userRating === "number" && userRating > 0 ? userRating : 0;
+    if (rating > 0) {
+      return (
+        <>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <span key={i} style={{ color: i <= rating ? TERRA : GRAY_200, fontSize: size, lineHeight: 1 }}>★</span>
+          ))}
+        </>
+      );
+    }
+    return <><Star size={size - 1} /> Rate</>;
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {userRating != null && userRating > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#6B7280" }}>
-          <span>You rated:</span>
-          <div style={{ display: "flex", gap: 1 }}>
-            {[1, 2, 3, 4, 5].map((i) => (
-              <span key={i} style={{ color: i <= userRating ? "#f59e0b" : "#d1d5db", fontSize: 13 }}>★</span>
-            ))}
-          </div>
-        </div>
-      )}
-
       {variant === "card-compact" ? (
         // Two-row compact layout for 3-col card grid
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {/* Row 1: Primary action, full width */}
-          {isSaved ? (
+          {/* Row 1: Primary action, full width — priority: Flokk It > Add to trip > skip */}
+          {onFlokkIt != null ? (
+            isSaved ? (
+              <button type="button" disabled style={{ ...savedPill, width: "100%", padding: "7px 10px", fontSize: 12 }}>
+                <BookmarkCheck size={13} /> Saved
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleFlokkIt}
+                disabled={flokking}
+                aria-label={`Flokk ${place.name}`}
+                style={{ ...primaryBtn, width: "100%", padding: "7px 10px", fontSize: 12 }}
+              >
+                {flokking ? "Saving…" : "Flokk It"}
+              </button>
+            )
+          ) : onAddToTrip != null ? (
             <button
               type="button"
-              disabled
-              style={{
-                ...savedPill,
-                width: "100%",
-                padding: "7px 10px",
-                fontSize: 12,
-              }}
+              onClick={onAddToTrip}
+              aria-label={`Add ${place.name} to trip`}
+              style={{ ...primaryBtn, width: "100%", padding: "7px 10px", fontSize: 12, cursor: "pointer", opacity: 1 }}
             >
-              <BookmarkCheck size={13} /> Saved
+              <Plus size={14} /> Add to trip
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleFlokkIt}
-              disabled={flokking}
-              aria-label={`Flokk ${place.name}`}
-              style={{
-                ...primaryBtn,
-                width: "100%",
-                padding: "7px 10px",
-                fontSize: 12,
-              }}
-            >
-              {flokking ? "Saving…" : "Flokk It"}
-            </button>
-          )}
+          ) : null}
 
           {/* Row 2: Secondary actions, equal-flex */}
-          <div style={{ display: "flex", gap: 4 }}>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
             <button
               type="button"
               onClick={handleAddToItinerary}
               aria-label={`Add ${place.name} to itinerary`}
-              style={{
-                ...btnBase,
-                flex: 1,
-                padding: "6px 4px",
-                fontSize: 11,
-                gap: 3,
-              }}
+              style={{ ...btnBase, flex: 1, padding: "6px 4px", fontSize: 11, gap: 3 }}
             >
-              <Plus size={12} /> Itinerary
+              <CalendarPlus size={12} /> + Itinerary
             </button>
 
             {place.websiteUrl ? (
@@ -156,18 +155,22 @@ export function PlaceActionRow({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                aria-label={`Visit site for ${place.name}`}
-                style={{
-                  ...btnBase,
-                  flex: 1,
-                  padding: "6px 4px",
-                  fontSize: 11,
-                  gap: 3,
-                  textDecoration: "none",
-                }}
+                aria-label={`Link for ${place.name}`}
+                style={{ ...btnBase, flex: 1, padding: "6px 4px", fontSize: 11, gap: 3, textDecoration: "none" }}
               >
-                <ExternalLink size={12} /> Visit
+                <ExternalLink size={12} /> Link
               </a>
+            ) : null}
+
+            {onRate != null ? (
+              <button
+                type="button"
+                onClick={onRate}
+                aria-label={`Rate ${place.name}`}
+                style={{ ...btnBase, flex: 1, padding: "6px 4px", fontSize: 11, gap: 3 }}
+              >
+                {rateContent(13)}
+              </button>
             ) : null}
 
             <button
@@ -175,13 +178,7 @@ export function PlaceActionRow({
               onClick={handleShare}
               disabled={sharing}
               aria-label={`Share ${place.name}`}
-              style={{
-                ...btnBase,
-                flex: 1,
-                padding: "6px 4px",
-                fontSize: 11,
-                gap: 3,
-              }}
+              style={{ ...btnBase, flex: 1, padding: "6px 4px", fontSize: 11, gap: 3 }}
             >
               <Share2 size={12} /> Share
             </button>
@@ -191,11 +188,7 @@ export function PlaceActionRow({
                 type="button"
                 onClick={onEdit}
                 aria-label={`Edit ${place.name}`}
-                style={{
-                  ...btnBase,
-                  padding: "6px 8px",
-                  fontSize: 11,
-                }}
+                style={{ ...btnBase, padding: "6px 8px", fontSize: 11 }}
               >
                 <Pencil size={12} />
               </button>
@@ -205,21 +198,32 @@ export function PlaceActionRow({
       ) : (
         // Expanded layout for detail modal and wider containers
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {isSaved ? (
-            <button type="button" style={savedPill} disabled>
-              <BookmarkCheck size={14} /> Saved
-            </button>
-          ) : (
+          {onFlokkIt != null ? (
+            isSaved ? (
+              <button type="button" style={savedPill} disabled>
+                <BookmarkCheck size={14} /> Saved
+              </button>
+            ) : (
+              <button
+                type="button"
+                style={primaryBtn}
+                onClick={handleFlokkIt}
+                disabled={flokking}
+                aria-label={`Flokk ${place.name}`}
+              >
+                {flokking ? "Saving…" : "Flokk It"}
+              </button>
+            )
+          ) : onAddToTrip != null ? (
             <button
               type="button"
-              style={primaryBtn}
-              onClick={handleFlokkIt}
-              disabled={flokking}
-              aria-label={`Flokk ${place.name}`}
+              onClick={onAddToTrip}
+              aria-label={`Add ${place.name} to trip`}
+              style={{ ...primaryBtn, cursor: "pointer", opacity: 1 }}
             >
-              {flokking ? "Saving…" : "Flokk It"}
+              <Plus size={14} /> Add to trip
             </button>
-          )}
+          ) : null}
 
           <button
             type="button"
@@ -227,7 +231,7 @@ export function PlaceActionRow({
             onClick={handleAddToItinerary}
             aria-label={`Add ${place.name} to itinerary`}
           >
-            <Plus size={14} /> Itinerary
+            <CalendarPlus size={14} /> + Itinerary
           </button>
 
           {place.websiteUrl && (
@@ -237,10 +241,21 @@ export function PlaceActionRow({
               rel="noopener noreferrer"
               style={{ ...btnBase, textDecoration: "none" }}
               onClick={(e) => e.stopPropagation()}
-              aria-label={`Visit site for ${place.name}`}
+              aria-label={`Link for ${place.name}`}
             >
-              <ExternalLink size={14} /> Visit
+              <ExternalLink size={14} /> Link
             </a>
+          )}
+
+          {onRate != null && (
+            <button
+              type="button"
+              style={btnBase}
+              onClick={onRate}
+              aria-label={`Rate ${place.name}`}
+            >
+              {rateContent(14)}
+            </button>
           )}
 
           <button
