@@ -9,8 +9,6 @@ import { CATEGORIES, categoryLabel } from "@/lib/categories";
 import {
   Search,
   MapPin,
-  Navigation,
-  Bookmark,
   Plus,
   X,
   Trash2,
@@ -18,6 +16,7 @@ import {
 import { sharePlace } from "@/lib/share";
 import { TourActionMenu } from "@/components/tours/TourActionMenu";
 import { haversineKm, WITHIN_REACH_KM } from "@/lib/geo";
+import { Pill } from "@/components/ui/Pill";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -405,39 +404,7 @@ function groupTabbedSaves(
   };
 }
 
-// ─── ShareActivityButton ──────────────────────────────────────────────────────
-
-function ShareActivityButton({ communitySpotId }: { communitySpotId: string | null }) {
-  const [copied, setCopied] = useState(false);
-  if (!communitySpotId) return null;
-  return (
-    <button
-      type="button"
-      onClick={async (e) => {
-        e.stopPropagation();
-        const url = `${window.location.origin}/places/${communitySpotId}`;
-        try {
-          await navigator.clipboard.writeText(url);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 2000);
-        } catch (err) {
-          console.warn("Clipboard copy failed", err);
-        }
-      }}
-      style={{
-        fontSize: 11,
-        color: "#C4664A",
-        background: "transparent",
-        border: "none",
-        padding: 0,
-        cursor: "pointer",
-        fontFamily: "inherit",
-      }}
-    >
-      {copied ? "Copied!" : "Share activity"}
-    </button>
-  );
-}
+// ─── (ShareActivityButton removed — action row unified in SaveCard) ───────────
 
 // ─── SaveCard ─────────────────────────────────────────────────────────────────
 
@@ -538,20 +505,19 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
             overflow: "hidden",
           }}
         >
-          <div
-            style={{
-              position: "absolute",
-              bottom: "6px",
-              left: "8px",
-              backgroundColor: "rgba(0,0,0,0.6)",
-              color: "#fff",
-              fontSize: "10px",
-              padding: "2px 8px",
-              borderRadius: "20px",
-            }}
-          >
-            {save.source}
-          </div>
+          {/* Platform pill — top-left */}
+          {save.source && (
+            <div style={{ position: "absolute", top: "8px", left: "8px", zIndex: 2 }}>
+              <Pill variant="platform">{save.source}</Pill>
+            </div>
+          )}
+          {/* Status pill — top-right (Tier 2/3 only) */}
+          {save.suggestionTier === "secondary" && save.destinationCountry && (
+            <div style={{ position: "absolute", top: "8px", right: "8px", zIndex: 2 }}>
+              <Pill variant="status">Flokking around {save.destinationCountry}</Pill>
+            </div>
+          )}
+          {/* VG/VGN dietary pill — bottom-right, unchanged */}
           {(save.tags.includes("VGN") || save.tags.includes("VG")) && (
             <div
               style={{
@@ -579,8 +545,15 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+            position: "relative",
           }}
         >
+          {/* Status pill on no-image fallback */}
+          {save.suggestionTier === "secondary" && save.destinationCountry && (
+            <div style={{ position: "absolute", top: "8px", right: "8px", zIndex: 2 }}>
+              <Pill variant="status">Flokking around {save.destinationCountry}</Pill>
+            </div>
+          )}
           <span style={{ fontSize: "13px", color: "#94a3b8" }}>
             {categoryLabel(filteredTags[0]) || "Saved place"}
           </span>
@@ -589,15 +562,6 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
 
       {/* Card body */}
       <div style={{ padding: "12px" }}>
-        {/* Tier 2/3 proximity badge */}
-        {save.suggestionTier === "secondary" && save.destinationCountry && (
-          <div style={{ display: "inline-flex", alignItems: "center", backgroundColor: "rgba(196,102,74,0.1)", borderRadius: "4px", padding: "2px 6px", marginBottom: "6px" }}>
-            <span style={{ fontSize: "10px", fontWeight: 600, color: "#C4664A", letterSpacing: "0.04em" }}>
-              Flokking around {save.destinationCountry}
-            </span>
-          </div>
-        )}
-
         {/* Title */}
         <p
           style={{
@@ -648,86 +612,18 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
         )}
 
         {/* Tags */}
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: "4px",
-            marginBottom: "8px",
-          }}
-        >
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "8px" }}>
           {visibleTags.map((tag) => (
-            <span
-              key={tag}
-              style={{
-                fontSize: "11px",
-                backgroundColor: "rgba(0,0,0,0.05)",
-                color: "#666",
-                borderRadius: "20px",
-                padding: "2px 8px",
-              }}
-            >
-              {categoryLabel(tag)}
-            </span>
+            <Pill key={tag} variant="category">{categoryLabel(tag)}</Pill>
           ))}
           {extraTags > 0 && (
-            <span
-              style={{
-                fontSize: "11px",
-                backgroundColor: "rgba(0,0,0,0.05)",
-                color: "#666",
-                borderRadius: "20px",
-                padding: "2px 8px",
-              }}
-            >
-              +{extraTags} more
-            </span>
+            <Pill variant="category">+{extraTags} more</Pill>
           )}
         </div>
 
-        {/* Assignment row */}
-        {cardContext === "past" ? (
-          <ShareActivityButton communitySpotId={save.communitySpotId} />
-        ) : (
+        {/* Trip assignment dropdown (unassigned cards only) */}
+        {!save.tripId && cardContext !== "past" && !suggestedForOptions?.length && (
           <div style={{ position: "relative" }}>
-            {save.tripId ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <a
-                  href={`/trips/${save.tripId}`}
-                  onClick={(e) => e.stopPropagation()}
-                  style={{ display: "inline-block", fontSize: "11px", fontWeight: 600, color: "#fff", backgroundColor: "#C4664A", borderRadius: "999px", padding: "2px 8px", textDecoration: "none" }}
-                >
-                  {save.assigned ?? "Trip assigned"}
-                </a>
-                {cardContext === "upcoming_explicit" && (
-                  <ShareActivityButton communitySpotId={save.communitySpotId} />
-                )}
-              </div>
-            ) : (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpenDropdown(isDropdownOpen ? null : save.id);
-                }}
-                style={{
-                  background: "none",
-                  border: "none",
-                  padding: 0,
-                  cursor: "pointer",
-                  fontSize: "11px",
-                  color: "#C4664A",
-                  fontWeight: 500,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "3px",
-                }}
-              >
-                <Plus size={11} style={{ color: "#C4664A" }} />
-                Assign to trip
-              </button>
-            )}
-
-            {/* Dropdown */}
             {isDropdownOpen && (
               <div
                 onClick={(e) => e.stopPropagation()}
@@ -749,7 +645,6 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
               >
                 {(() => {
                   const todayStr = new Date().toISOString();
-                  // TODO: move isPlacesLibrary filter server-side in a future cleanup prompt
                   const upcoming = availableTrips.filter(t => !t.endDate || t.endDate >= todayStr);
                   const past = availableTrips.filter(t => t.endDate && t.endDate < todayStr);
                   const tripBtn = (title: string, key: string, isLast: boolean) => (
@@ -790,87 +685,39 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
           </div>
         )}
 
-        {/* Distance */}
-        {save.distance && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "3px",
-              marginTop: "4px",
-            }}
-          >
-            <Navigation size={10} style={{ color: "#717171", flexShrink: 0 }} />
-            <span style={{ fontSize: "11px", color: "#717171" }}>{save.distance}</span>
-          </div>
-        )}
-
-        {/* Rate it */}
-        {!save.tags.some(t => t.toLowerCase() === "lodging") && onRateClick && (
-          <div style={{ marginTop: "8px" }}>
-            {ratedItemId === save.id || save.userRating ? (
-              <div style={{ display: "flex", gap: "2px" }}>
-                {[1, 2, 3, 4, 5].map(i => (
-                  <span key={i} style={{ color: i <= (save.userRating ?? 0) ? "#f59e0b" : "#d1d5db", fontSize: "14px" }}>★</span>
-                ))}
-              </div>
-            ) : (
-              <button
-                onClick={(e) => { e.stopPropagation(); onRateClick(save.id, save.title); }}
-                style={{ background: "none", border: "1px solid #d1d5db", borderRadius: "999px", padding: "3px 10px", fontSize: "11px", color: "#717171", cursor: "pointer", fontFamily: "Inter, sans-serif" }}
-              >
-                ★ Rate it
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Assign location */}
-        {onAssignCity && (
-          <div style={{ marginTop: "8px" }}>
-            <button
-              onClick={(e) => { e.stopPropagation(); onAssignCity(save.id); }}
-              style={{ background: "none", border: "1px solid #d1d5db", borderRadius: "999px", padding: "3px 10px", fontSize: "11px", color: "#717171", cursor: "pointer", fontFamily: "Inter, sans-serif" }}
-            >
-              Assign location
-            </button>
-          </div>
-        )}
-
-        {/* Grow-trip-city CTA — single-match save where city not yet in trip */}
-        {onGrowTripCity && growTripCityLabel && (
-          <div style={{ marginTop: "8px" }}>
-            <button
-              onClick={(e) => { e.stopPropagation(); onGrowTripCity(save.id); }}
-              style={{ background: "#C4664A", border: "none", borderRadius: "999px", padding: "4px 12px", fontSize: "11px", color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}
-            >
-              {growTripCityLabel}
-            </button>
-          </div>
-        )}
-
-        {/* Add to trip — for suggested saves */}
-        {onAddToTrip && suggestedForOptions && suggestedForOptions.length > 0 && (
-          <div style={{ marginTop: "8px" }}>
-            <button
-              onClick={(e) => { e.stopPropagation(); onAddToTrip(save.id, suggestedForOptions); }}
-              style={{ background: "#C4664A", border: "none", borderRadius: "999px", padding: "4px 12px", fontSize: "11px", color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}
-            >
-              + Add to trip
-            </button>
-          </div>
-        )}
-        {(save.tripId || (suggestedForOptions && suggestedForOptions.length > 0)) && (
-          <div style={{ marginTop: "6px" }}>
+        {/* Unified action row */}
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "8px", flexWrap: "wrap" }}>
+          {/* Unassigned: + Add to trip button */}
+          {!save.tripId && cardContext !== "past" && !suggestedForOptions?.length && (
             <button
               type="button"
-              onClick={handleShareSave}
-              style={{ fontSize: "11px", color: "#C4664A", background: "transparent", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" }}
+              onClick={(e) => { e.stopPropagation(); setOpenDropdown(isDropdownOpen ? null : save.id); }}
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "11px", color: "#C4664A", fontWeight: 500, display: "flex", alignItems: "center", gap: "3px", fontFamily: "inherit" }}
             >
-              {shareCopied ? "Copied!" : "Share"}
+              <Plus size={11} style={{ color: "#C4664A" }} />
+              Add to trip
             </button>
-          </div>
-        )}
+          )}
+          {/* Suggested: + Add to trip button */}
+          {onAddToTrip && suggestedForOptions && suggestedForOptions.length > 0 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onAddToTrip(save.id, suggestedForOptions); }}
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "11px", color: "#C4664A", fontWeight: 500, display: "flex", alignItems: "center", gap: "3px", fontFamily: "inherit" }}
+            >
+              <Plus size={11} style={{ color: "#C4664A" }} />
+              Add to trip
+            </button>
+          )}
+          {/* Share — always visible */}
+          <button
+            type="button"
+            onClick={handleShareSave}
+            style={{ fontSize: "11px", color: "#717171", background: "transparent", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" }}
+          >
+            {shareCopied ? "Copied!" : "Share"}
+          </button>
+        </div>
       </div>
     </div>
     </div>
@@ -1852,46 +1699,42 @@ Your saved places, all in one spot
 
         {/* FILTER STRIP */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", rowGap: 8, marginBottom: "24px", paddingBottom: "4px", width: "100%" }}>
-          <button
-            onClick={(e) => { e.stopPropagation(); setActiveFilter("All"); }}
-            style={{ flexShrink: 0, padding: "4px 10px", borderRadius: "999px", fontSize: "12px", fontWeight: activeFilter === "All" ? 600 : 400, color: activeFilter === "All" ? "#fff" : "#717171", backgroundColor: activeFilter === "All" ? "#C4664A" : "#fff", border: activeFilter === "All" ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease" }}
-          >
-            All
-          </button>
-          {CATEGORIES.map(({ slug, label }) => {
-            const isActive = activeFilter === slug;
-            return (
-              <button
-                key={slug}
-                onClick={(e) => { e.stopPropagation(); setActiveFilter(slug); if (slug !== "food_and_drink") setDietaryFilter(null); }}
-                style={{ flexShrink: 0, padding: "4px 10px", borderRadius: "999px", fontSize: "12px", fontWeight: isActive ? 600 : 400, color: isActive ? "#fff" : "#717171", backgroundColor: isActive ? "#C4664A" : "#fff", border: isActive ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease" }}
-              >
-                {label}
-              </button>
-            );
-          })}
+          <Pill variant="filter" active={activeFilter === "All"} onClick={() => setActiveFilter("All")}>All</Pill>
+          {CATEGORIES.map(({ slug, label }) => (
+            <Pill
+              key={slug}
+              variant="filter"
+              active={activeFilter === slug}
+              onClick={() => { setActiveFilter(slug); if (slug !== "food_and_drink") setDietaryFilter(null); }}
+            >
+              {label}
+            </Pill>
+          ))}
         </div>
 
         {activeFilter === "food_and_drink" && (
           <div style={{ display: 'flex', gap: '8px', marginTop: '-16px', marginBottom: '24px' }}>
-            {["All Food", "Vegetarian", "Vegan"].map(sub => (
-              <button
-                key={sub}
-                onClick={() => setDietaryFilter(sub === "All Food" ? null : sub)}
-                style={{
-                  padding: '4px 12px',
-                  borderRadius: '999px',
-                  border: '1px solid',
-                  fontSize: '13px',
-                  background: (sub === "All Food" ? dietaryFilter === null : dietaryFilter === sub) ? '#16a34a' : 'white',
-                  color: (sub === "All Food" ? dietaryFilter === null : dietaryFilter === sub) ? 'white' : '#16a34a',
-                  borderColor: '#16a34a',
-                  cursor: 'pointer',
-                }}
-              >
-                {sub}
-              </button>
-            ))}
+            {["All Food", "Vegetarian", "Vegan"].map(sub => {
+              const isActive = sub === "All Food" ? dietaryFilter === null : dietaryFilter === sub;
+              return (
+                <button
+                  key={sub}
+                  type="button"
+                  onClick={() => setDietaryFilter(sub === "All Food" ? null : sub)}
+                  style={{
+                    display: "inline-flex", alignItems: "center", height: "24px",
+                    padding: "0 10px", borderRadius: "9999px", fontSize: "12px", fontWeight: 500,
+                    border: "1px solid #16a34a", flexShrink: 0, cursor: "pointer",
+                    background: isActive ? "#16a34a" : "white",
+                    color: isActive ? "white" : "#16a34a",
+                    transition: "background-color 150ms ease, color 150ms ease",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {sub}
+                </button>
+              );
+            })}
           </div>
         )}
 

@@ -8,6 +8,7 @@ import { SpotImage } from "@/components/shared/SpotImage";
 import { Playfair_Display } from "next/font/google";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { CATEGORIES } from "@/lib/categories";
+import { Pill } from "@/components/ui/Pill";
 import { AddToItineraryModal } from "@/components/places/AddToItineraryModal";
 import type { AddToItinerarySpot } from "@/components/places/AddToItineraryModal";
 import { PlaceActionRow } from "@/components/features/places/PlaceActionRow";
@@ -557,48 +558,17 @@ function PlacesTab() {
         style={{ display: "flex", gap: "8px", overflowX: "auto", overscrollBehaviorX: "contain", paddingBottom: "12px", marginBottom: "20px", scrollbarWidth: "none", msOverflowStyle: "none", position: "relative", zIndex: 10, width: "100%" }}
         className="hide-scrollbar"
       >
-          <button
-            key="All"
-            onClick={() => setPlaceType("All")}
-            style={{
-              flexShrink: 0,
-              padding: "7px 16px",
-              borderRadius: "999px",
-              border: placeType === "All" ? "none" : "1.5px solid #E0E0E0",
-              backgroundColor: placeType === "All" ? "#C4664A" : "#fff",
-              color: placeType === "All" ? "#fff" : "#717171",
-              fontSize: "13px",
-              fontWeight: placeType === "All" ? 700 : 500,
-              lineHeight: "1",
-              cursor: "pointer",
-              transition: "all 0.15s",
-              fontFamily: "inherit",
-            }}
+        <Pill variant="filter" active={placeType === "All"} onClick={() => setPlaceType("All")}>All</Pill>
+        {CATEGORIES.map(({ slug, label }) => (
+          <Pill
+            key={slug}
+            variant="filter"
+            active={placeType === slug}
+            onClick={() => setPlaceType(slug === placeType ? "All" : slug)}
           >
-            All
-          </button>
-          {CATEGORIES.map(({ slug, label }) => (
-            <button
-              key={slug}
-              onClick={() => setPlaceType(slug === placeType ? "All" : slug)}
-              style={{
-                flexShrink: 0,
-                padding: "7px 16px",
-                borderRadius: "999px",
-                border: placeType === slug ? "none" : "1.5px solid #E0E0E0",
-                backgroundColor: placeType === slug ? "#C4664A" : "#fff",
-                color: placeType === slug ? "#fff" : "#717171",
-                fontSize: "13px",
-                fontWeight: placeType === slug ? 700 : 500,
-                lineHeight: "1",
-                cursor: "pointer",
-                transition: "all 0.15s",
-                fontFamily: "inherit",
-              }}
-            >
-              {label}
-            </button>
-          ))}
+            {label}
+          </Pill>
+        ))}
       </div>
 
       {/* Results */}
