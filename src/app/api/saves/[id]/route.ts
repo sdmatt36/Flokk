@@ -57,6 +57,8 @@ export async function PATCH(
     updateData.tripId = null;
     updateData.status = "UNORGANIZED";
   }
+  if (typeof body.destinationCity === "string" || body.destinationCity === null) updateData.destinationCity = body.destinationCity ?? null;
+  if (typeof body.destinationCountry === "string" || body.destinationCountry === null) updateData.destinationCountry = body.destinationCountry ?? null;
   if (typeof body.websiteUrl === "string" || body.websiteUrl === null) updateData.websiteUrl = body.websiteUrl ?? null;
   if (typeof body.dayIndex === "number" || body.dayIndex === null) updateData.dayIndex = body.dayIndex;
   if (typeof body.sortOrder === "number") updateData.sortOrder = body.sortOrder;
