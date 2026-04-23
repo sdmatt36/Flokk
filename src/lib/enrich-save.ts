@@ -6,6 +6,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import he from "he";
 import { getVenueImage } from "@/lib/destination-images";
 import { verifyWebsiteUrl } from "@/lib/activity-intelligence";
+import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
@@ -593,11 +594,11 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   if (sbThumbnail) updateData.mediaThumbnailUrl = sbThumbnail;
   if (typeof place.rating === "number") updateData.relevanceScore = place.rating;
   if (description && !workingDescription) updateData.rawDescription = description;
-  if (mapsCategory) updateData.categoryTags = [mapsCategory];
+  if (mapsCategory) updateData.categoryTags = normalizeAndDedupeCategoryTags([mapsCategory]);
   if (!item.destinationCity && socialCity) updateData.destinationCity = socialCity;
   if (!item.destinationCountry && socialCountry) updateData.destinationCountry = socialCountry;
   if (socialCategory && (!item.categoryTags || item.categoryTags.length === 0) && !mapsCategory) {
-    updateData.categoryTags = [socialCategory];
+    updateData.categoryTags = normalizeAndDedupeCategoryTags([socialCategory]);
   }
   // Flag social saves where Claude couldn't identify a specific place — prompt user to identify
   if (((SOCIAL_PLATFORMS as readonly string[]).includes(item.sourcePlatform ?? "") || isInstagramCaption(cleanTitle)) && !socialPlaceFound && !skipNormalEnrichment) {

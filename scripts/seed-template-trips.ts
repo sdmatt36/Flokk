@@ -5,6 +5,7 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
+import { normalizeAndDedupeCategoryTags } from "../src/lib/category-tags";
 
 const pool = new Pool({ connectionString: process.env.DIRECT_URL ?? process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
@@ -248,7 +249,7 @@ async function main() {
             rawDescription: s.desc,
             extractionStatus: "ENRICHED",
             status: "TRIP_ASSIGNED",
-            categoryTags: s.tags,
+            categoryTags: normalizeAndDedupeCategoryTags(s.tags),
             dayIndex: s.day,
             destinationCity: template.destinationCity,
             destinationCountry: template.destinationCountry,

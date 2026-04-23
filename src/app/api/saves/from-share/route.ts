@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { enrichSavedItem } from "@/lib/enrich-save";
+import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 
 function inferCategoryTagFromTitle(title: string): string[] {
   const t = title.toLowerCase();
@@ -82,7 +83,7 @@ export async function POST(request: Request) {
       sourcePlatform: "direct",
       status: body.tripId ? "TRIP_ASSIGNED" : "UNORGANIZED",
       extractionStatus: "PENDING",
-      categoryTags: body.category ? [body.category] : inferCategoryTagFromTitle(body.title.trim()),
+      categoryTags: normalizeAndDedupeCategoryTags(body.category ? [body.category] : inferCategoryTagFromTitle(body.title.trim())),
     },
   });
   enrichSavedItem(created.id).catch(e => console.error("[from-share] enrichSavedItem failed:", e));

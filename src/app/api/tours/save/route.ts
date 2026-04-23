@@ -6,6 +6,7 @@ import { classifyActivityType } from "@/lib/activity-intelligence";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { haversineMeters } from "@/lib/geo";
 import { PLATFORM_FLOKK_TOURS } from "@/lib/saved-item-types";
+import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -92,7 +93,7 @@ export async function POST(req: NextRequest) {
       durationLabel: tourMeta.durationLabel,
       transport: tourMeta.transport,
       familyProfileId: profileId,
-      categoryTags: tourMeta.categoryTags ?? [],
+      categoryTags: normalizeAndDedupeCategoryTags(tourMeta.categoryTags ?? []),
     },
   });
 

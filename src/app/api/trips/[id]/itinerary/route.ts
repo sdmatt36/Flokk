@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { getVenueImage } from "@/lib/destination-images";
+import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 
 export const dynamic = "force-dynamic";
 
@@ -101,7 +102,7 @@ export async function POST(
       dayIndex,
       lat: lat ?? null,
       lng: lng ?? null,
-      categoryTags: categoryTags ?? [],
+      categoryTags: normalizeAndDedupeCategoryTags(categoryTags ?? []),
       status: "TRIP_ASSIGNED",
     },
   });

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
+import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 
 export const maxDuration = 60;
 
@@ -102,7 +103,7 @@ export async function POST(req: Request) {
       status: "UNORGANIZED",
       sourceMethod: "SHARED_TRIP_IMPORT",
       sourcePlatform: "direct",
-      categoryTags: getCategoryTags(item.title, item.notes ?? null),
+      categoryTags: normalizeAndDedupeCategoryTags(getCategoryTags(item.title, item.notes ?? null)),
       extractionStatus: "ENRICHED",
     });
   }
@@ -123,7 +124,7 @@ export async function POST(req: Request) {
       status: "UNORGANIZED",
       sourceMethod: "SHARED_TRIP_IMPORT",
       sourcePlatform: "direct",
-      categoryTags: getCategoryTags(item.title, item.notes ?? null),
+      categoryTags: normalizeAndDedupeCategoryTags(getCategoryTags(item.title, item.notes ?? null)),
       extractionStatus: "ENRICHED",
     });
   }

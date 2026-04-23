@@ -440,6 +440,7 @@ Field notes:
             rawTitle: extracted.vendorName as string,
             destinationCity: (extracted.city as string) ?? null,
             destinationCountry: (extracted.country as string) ?? null,
+            // TODO: wrap with normalizeAndDedupeCategoryTags if this path is reenabled
             categoryTags: ["lodging"],
             placePhotoUrl: getVenueImage(extracted.vendorName as string) ?? null,
             status: hotelStatus,
@@ -531,6 +532,7 @@ Field notes:
             rawTitle: trainTitle,
             rawDescription: autoDescription,
             destinationCity: ((extracted.city ?? extracted.toCity) as string) ?? null,
+            // TODO: wrap with normalizeAndDedupeCategoryTags if this path is reenabled
             categoryTags: [(extracted.type as string) ?? "other"],
             placePhotoUrl: getVenueImage(trainTitle) ?? null,
             status: itemStatus,

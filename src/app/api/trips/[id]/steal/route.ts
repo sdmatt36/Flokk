@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { sendTripStolenEvent } from "@/lib/loops";
+import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 
 export async function POST(
   req: Request,
@@ -95,7 +96,7 @@ export async function POST(
       status: "UNORGANIZED",
       sourceMethod: "SHARED_TRIP_IMPORT",
       sourcePlatform: "direct",
-      categoryTags: [item.type.toLowerCase()],
+      categoryTags: normalizeAndDedupeCategoryTags([item.type.toLowerCase()]),
     });
   }
 
@@ -114,7 +115,7 @@ export async function POST(
       status: "UNORGANIZED",
       sourceMethod: "SHARED_TRIP_IMPORT",
       sourcePlatform: "direct",
-      categoryTags: ["activity"],
+      categoryTags: normalizeAndDedupeCategoryTags(["activity"]),
     });
   }
 

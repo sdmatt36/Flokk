@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
+import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +75,7 @@ export async function POST(
         destinationCountry: item.destinationCountry,
         lat: item.lat,
         lng: item.lng,
-        categoryTags: item.categoryTags,
+        categoryTags: normalizeAndDedupeCategoryTags(item.categoryTags),
         interestKeys: item.interestKeys,
         status: "UNORGANIZED" as const,
         extractionStatus: "ENRICHED" as const,

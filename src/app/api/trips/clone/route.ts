@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { getVenueImage } from "@/lib/destination-images";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
+import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 
 export async function POST(request: Request) {
   try {
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
           sourcePlatform: "direct",
           rawTitle: item.rawTitle,
           rawDescription: item.rawDescription,
-          categoryTags: item.categoryTags,
+          categoryTags: normalizeAndDedupeCategoryTags(item.categoryTags),
           lat: item.lat,
           lng: item.lng,
           destinationCity: item.destinationCity ?? source.destinationCity ?? null,

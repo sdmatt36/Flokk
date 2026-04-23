@@ -6,6 +6,7 @@ import { Prisma } from "@prisma/client";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { enrichSavedItem } from "@/lib/enrich-save";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
+import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { toTitleCase } from "@/lib/utils";
 import { resolveProfileByEmail } from "@/lib/profile-access";
 import { logExtraction } from "@/lib/extraction-log";
@@ -569,7 +570,7 @@ Field notes:
             sourcePlatform: inferPlatformFromUrl(rawUrl),
             sourceUrl: rawUrl,
             rawTitle: rawUrl,
-            categoryTags: [],
+            categoryTags: normalizeAndDedupeCategoryTags([]),
             status: 'UNORGANIZED',
             extractionStatus: 'PENDING',
             tripId: null,
@@ -1431,7 +1432,7 @@ Field notes:
             sourcePlatform: inferPlatformFromUrl(sourceUrlForSave),
             sourceUrl: sourceUrlForSave,
             rawTitle: placeTitle,
-            categoryTags: [],
+            categoryTags: normalizeAndDedupeCategoryTags([]),
             status: 'UNORGANIZED',
             extractionStatus: 'PENDING',
             tripId: null,

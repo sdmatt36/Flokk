@@ -31,6 +31,7 @@ import { getVenueImage } from "@/lib/destination-images";
 import { sendTransactional, sendSaveMilestoneEvent } from "@/lib/loops";
 import { enrichSavedItem } from "@/lib/enrich-save";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
+import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
 import { writeThroughCommunitySpot } from "@/lib/community-write-through";
 
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
           sourcePlatform: inferPlatformFromUrl(parsed.website ?? null),
           rawTitle: parsed.title,
           destinationCity: parsed.city?.trim() || null,
-          categoryTags: parsed.category ? [parsed.category] : [],
+          categoryTags: normalizeAndDedupeCategoryTags(parsed.category ? [parsed.category] : []),
           notes: parsed.notes?.trim() || null,
           websiteUrl: parsed.website?.trim() || null,
           extractionStatus: "ENRICHED",
@@ -212,7 +213,7 @@ export async function POST(request: Request) {
           mediaThumbnailUrl,
           destinationCity: destinationCity ?? null,
           placePhotoUrl: rawTitle ? (getVenueImage(rawTitle) ?? null) : null,
-          categoryTags: tags ?? [],
+          categoryTags: normalizeAndDedupeCategoryTags(tags ?? []),
           lat: lat ?? null,
           lng: lng ?? null,
           dayIndex: dayIndex ?? null,

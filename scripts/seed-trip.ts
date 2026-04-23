@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
+import { normalizeAndDedupeCategoryTags } from "../src/lib/category-tags";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
@@ -52,7 +53,7 @@ async function main() {
                 "One of the world's largest aquariums — massive whale shark tank, manta ray lagoon, and deep-sea exhibits. Perfect for a family half-day.",
               extractionStatus: "ENRICHED",
               status: "TRIP_ASSIGNED",
-              categoryTags: ["aquarium", "family", "kids"],
+              categoryTags: normalizeAndDedupeCategoryTags(["aquarium", "family", "kids"]),
             },
             {
               familyProfileId: profile.id,
@@ -63,7 +64,7 @@ async function main() {
                 "UNESCO World Heritage site — 14th-century Ryukyu castle perched on a hill with panoramic ocean views. Stunning at golden hour.",
               extractionStatus: "ENRICHED",
               status: "TRIP_ASSIGNED",
-              categoryTags: ["history", "culture", "heritage"],
+              categoryTags: normalizeAndDedupeCategoryTags(["history", "culture", "heritage"]),
             },
             {
               familyProfileId: profile.id,
@@ -74,7 +75,7 @@ async function main() {
                 "Okinawa's main strip — sata andagi doughnuts, taco rice, Orion beer, and Blue Seal ice cream. Walk it in the evening.",
               extractionStatus: "ENRICHED",
               status: "TRIP_ASSIGNED",
-              categoryTags: ["food", "street food", "nightlife"],
+              categoryTags: normalizeAndDedupeCategoryTags(["food", "street food", "nightlife"]),
             },
           ],
         },

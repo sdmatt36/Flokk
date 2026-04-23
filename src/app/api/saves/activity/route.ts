@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { getVenueImage } from "@/lib/destination-images";
 import { enrichSavedItem } from "@/lib/enrich-save";
+import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 
 export async function POST(request: Request) {
   try {
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
         sourcePlatform: "direct",
         rawTitle: source.rawTitle,
         rawDescription: source.rawDescription,
-        categoryTags: source.categoryTags,
+        categoryTags: normalizeAndDedupeCategoryTags(source.categoryTags),
         lat: source.lat,
         lng: source.lng,
         sourceUrl: source.sourceUrl ?? null,

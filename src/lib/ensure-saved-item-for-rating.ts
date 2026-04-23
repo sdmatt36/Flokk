@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 
 type Tx = Prisma.TransactionClient;
 
@@ -94,7 +95,7 @@ export async function ensureSavedItemForRating(
       lng: ctx.lng ?? null,
       placePhotoUrl: ctx.photoUrl ?? null,
       websiteUrl: ctx.websiteUrl ?? null,
-      categoryTags: ctx.category ? [ctx.category] : [],
+      categoryTags: normalizeAndDedupeCategoryTags(ctx.category ? [ctx.category] : []),
       userRating: ctx.rating ?? null,
       notes: ctx.note ?? null,
       // No tripId — global scope per design

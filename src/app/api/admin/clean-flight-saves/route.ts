@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -75,7 +76,7 @@ export async function POST() {
   for (const item of candidates) {
     await db.savedItem.update({
       where: { id: item.id },
-      data: { categoryTags: { set: [...item.categoryTags, FLIGHT_TAG] } },
+      data: { categoryTags: { set: normalizeAndDedupeCategoryTags([...item.categoryTags, FLIGHT_TAG]) } },
     });
     tagged++;
   }

@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 
 export async function POST() {
   const { userId } = await auth();
@@ -33,7 +34,7 @@ export async function POST() {
             rawDescription: "One of the world's largest aquariums — massive whale shark tank, manta ray lagoon, and deep-sea exhibits. Perfect for a family half-day.",
             extractionStatus: "ENRICHED",
             status: "TRIP_ASSIGNED",
-            categoryTags: ["aquarium", "family", "kids"],
+            categoryTags: normalizeAndDedupeCategoryTags(["aquarium", "family", "kids"]),
           },
           {
             familyProfileId: profileId,
@@ -44,7 +45,7 @@ export async function POST() {
             rawDescription: "UNESCO World Heritage site — 14th-century Ryukyu castle perched on a hill with panoramic ocean views. Stunning at golden hour.",
             extractionStatus: "ENRICHED",
             status: "TRIP_ASSIGNED",
-            categoryTags: ["history", "culture", "outdoors"],
+            categoryTags: normalizeAndDedupeCategoryTags(["history", "culture", "outdoors"]),
           },
           {
             familyProfileId: profileId,
@@ -55,7 +56,7 @@ export async function POST() {
             rawDescription: "Okinawa's main strip — sata andagi doughnuts, taco rice, Orion beer, and Blue Seal ice cream. Walk it in the evening.",
             extractionStatus: "ENRICHED",
             status: "TRIP_ASSIGNED",
-            categoryTags: ["food", "street food", "nightlife"],
+            categoryTags: normalizeAndDedupeCategoryTags(["food", "street food", "nightlife"]),
           },
         ],
       },
