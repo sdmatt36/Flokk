@@ -143,8 +143,6 @@ interface DiscoverActivity {
   imageUrl: string | null;
   tripId: string;
   shareToken: string | null;
-  familyName: string | null;
-  isAnonymous: boolean;
   visitorCount: number;
   source: "manual" | "itinerary" | "placeholder";
 }
@@ -1646,13 +1644,6 @@ export default function DiscoverPage() {
                     ) : (act.visitorCount ?? 0) === 1 ? (
                       <p style={{ fontSize: "11px", color: "#CCCCCC", marginBottom: "4px" }}>1 family rated this</p>
                     ) : null}
-                    <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "10px" }}>
-                      {act.source === "placeholder"
-                        ? "Flokk Pick"
-                        : act.isAnonymous || !act.familyName
-                          ? "A Real Flokker"
-                          : `${act.familyName} Family`}
-                    </p>
                     <div style={{ marginTop: "auto" }} onClick={(e) => e.stopPropagation()}>
                       <PlaceActionRow
                         place={{
@@ -1929,13 +1920,6 @@ export default function DiscoverPage() {
                   <span style={{ fontSize: "12px", color: "#AAAAAA" }}>{selectedActivity.visitorCount} families rated this</span>
                 </div>
               )}
-              <p style={{ fontSize: "12px", color: "#AAAAAA", marginBottom: "20px" }}>
-                {selectedActivity.source === "placeholder"
-                  ? "Flokk Pick"
-                  : selectedActivity.isAnonymous || !selectedActivity.familyName
-                    ? "A Real Flokker"
-                    : `${selectedActivity.familyName} Family`}
-              </p>
               <PlaceActionRow
                 place={{
                   name: selectedActivity.title,
