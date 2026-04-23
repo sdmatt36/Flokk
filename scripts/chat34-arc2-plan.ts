@@ -412,6 +412,8 @@ async function runMain() {
         let seedUserNote: string | null = null;
         let seedNotes: string | null = null;
         let seedCategoryTags: string[] = [];
+        let seedPlacePhotoUrl: string | null = null;
+        let seedMediaThumbnailUrl: string | null = null;
 
         if (a.kind === "create_fresh_with_orphan_migration") {
           const orphan = await db.savedItem.findUnique({
@@ -420,6 +422,7 @@ async function runMain() {
               id: true, rawTitle: true, userRating: true, userNote: true, notes: true,
               categoryTags: true, destinationCity: true, destinationCountry: true,
               websiteUrl: true, sourceUrl: true,
+              placePhotoUrl: true, mediaThumbnailUrl: true,
             },
           });
           if (!orphan) throw new Error(`orphan ${a.orphanSavedItemId} not found`);
@@ -429,6 +432,8 @@ async function runMain() {
           seedUserNote = orphan.userNote;
           seedNotes = orphan.notes;
           seedCategoryTags = orphan.categoryTags ?? [];
+          seedPlacePhotoUrl = orphan.placePhotoUrl;
+          seedMediaThumbnailUrl = orphan.mediaThumbnailUrl;
         }
 
         const newSavedItemId = await createBookingSavedItem(db, {
@@ -452,6 +457,8 @@ async function runMain() {
               ...(seedUserNote != null ? { userNote: seedUserNote } : {}),
               ...(seedNotes != null ? { notes: seedNotes } : {}),
               ...(seedCategoryTags.length ? { categoryTags: { set: seedCategoryTags } } : {}),
+              ...(seedPlacePhotoUrl ? { placePhotoUrl: seedPlacePhotoUrl } : {}),
+              ...(seedMediaThumbnailUrl ? { mediaThumbnailUrl: seedMediaThumbnailUrl } : {}),
             },
           });
         }
@@ -571,14 +578,27 @@ async function runCleanupOrphans() {
 
   const newCurrent = await db.savedItem.findUnique({
     where: { id: hiltonDoc.savedItemId },
-    select: { communitySpotId: true },
+    select: { communitySpotId: true, placePhotoUrl: true, mediaThumbnailUrl: true },
   });
+
+  const imageUpdate: Record<string, string> = {};
+  if (hiltonOrphan.placePhotoUrl && !newCurrent?.placePhotoUrl) {
+    imageUpdate.placePhotoUrl = hiltonOrphan.placePhotoUrl;
+    console.log(`[image_migrate] placePhotoUrl carried forward`);
+  }
+  if (hiltonOrphan.mediaThumbnailUrl && !newCurrent?.mediaThumbnailUrl) {
+    imageUpdate.mediaThumbnailUrl = hiltonOrphan.mediaThumbnailUrl;
+    console.log(`[image_migrate] mediaThumbnailUrl carried forward`);
+  }
   if (hiltonOrphan.communitySpotId && !newCurrent?.communitySpotId) {
+    imageUpdate.communitySpotId = hiltonOrphan.communitySpotId;
+    console.log(`[communityspot_migrate] ${hiltonOrphan.communitySpotId} moved to ${hiltonDoc.savedItemId}`);
+  }
+  if (Object.keys(imageUpdate).length > 0) {
     await db.savedItem.update({
       where: { id: hiltonDoc.savedItemId },
-      data: { communitySpotId: hiltonOrphan.communitySpotId },
+      data: imageUpdate,
     });
-    console.log(`[communityspot_migrate] ${hiltonOrphan.communitySpotId} moved to ${hiltonDoc.savedItemId}`);
   }
 
   await db.savedItem.delete({ where: { id: hiltonOrphan.id } });
