@@ -1411,6 +1411,27 @@ Field notes:
           },
         });
         logCtx.tripDocumentId = hotelDoc.id;
+
+        // Fire-and-forget Places enrichment — fills in photo + websiteUrl asynchronously.
+        // If it fails/hangs, the cron at /api/cron/enrich-saved-items catches up.
+        const hotelCityStr = [(extracted.city as string | null), (extracted.country as string | null)]
+          .filter(Boolean).join(", ");
+        enrichWithPlaces(hotelName, hotelCityStr)
+          .then(async (result) => {
+            if (!result) return;
+            const current = await db.savedItem.findUnique({
+              where: { id: hotelSavedItemId },
+              select: { placePhotoUrl: true, websiteUrl: true },
+            });
+            if (!current) return;
+            const updateData: Record<string, string> = {};
+            if (result.imageUrl && !current.placePhotoUrl) updateData.placePhotoUrl = result.imageUrl;
+            if (result.website && !current.websiteUrl) updateData.websiteUrl = result.website;
+            if (Object.keys(updateData).length > 0) {
+              await db.savedItem.update({ where: { id: hotelSavedItemId }, data: updateData });
+            }
+          })
+          .catch((e) => console.warn("[email-inbound] post-create hotel enrich failed:", (e as Error)?.message ?? e));
       }
 
       await incrementBudget(resolvedTripId, derivedTotalCost);
@@ -1577,6 +1598,28 @@ Field notes:
           },
         });
         logCtx.tripDocumentId = catchAllDoc.id;
+
+        // Fire-and-forget Places enrichment for saveable catch-all bookings (activities, restaurants, driver-services).
+        if (catchAllSavedItemId) {
+          const catchAllCityStr = [(extracted.city as string | null), (extracted.country as string | null)]
+            .filter(Boolean).join(", ");
+          enrichWithPlaces(itemTitle, catchAllCityStr)
+            .then(async (result) => {
+              if (!result || !catchAllSavedItemId) return;
+              const current = await db.savedItem.findUnique({
+                where: { id: catchAllSavedItemId },
+                select: { placePhotoUrl: true, websiteUrl: true },
+              });
+              if (!current) return;
+              const updateData: Record<string, string> = {};
+              if (result.imageUrl && !current.placePhotoUrl) updateData.placePhotoUrl = result.imageUrl;
+              if (result.website && !current.websiteUrl) updateData.websiteUrl = result.website;
+              if (Object.keys(updateData).length > 0) {
+                await db.savedItem.update({ where: { id: catchAllSavedItemId }, data: updateData });
+              }
+            })
+            .catch((e) => console.warn("[email-inbound] post-create catch-all enrich failed:", (e as Error)?.message ?? e));
+        }
       }
 
       // Geocode: trains → departure station; others → vendor name + city

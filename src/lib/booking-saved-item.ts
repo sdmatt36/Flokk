@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
+import { getVenueImage } from "@/lib/destination-images";
 
 /**
  * Whether a booking extraction should co-create a SavedItem.
@@ -25,7 +26,8 @@ export function isSaveableBooking(
 /**
  * Creates a SavedItem that mirrors a booking's place identity.
  * Returns the new SavedItem.id for the caller to store on TripDocument.savedItemId.
- * Does not call Google Places enrichment — that's the cron's job.
+ * Sets placePhotoUrl via curated venue lookup (getVenueImage) if available.
+ * Does not call Google Places enrichment — the webhook fires that asynchronously after create.
  */
 export async function createBookingSavedItem(
   db: PrismaClient,
@@ -61,6 +63,7 @@ export async function createBookingSavedItem(
       categoryTags: normalizeAndDedupeCategoryTags(categoryTags),
       status: "TRIP_ASSIGNED",
       extractionStatus: "ENRICHED",
+      placePhotoUrl: params.vendorName ? (getVenueImage(params.vendorName) ?? null) : null,
       websiteUrl: params.websiteUrl ?? null,
       extractedCheckin: params.checkIn,
       extractedCheckout: params.checkOut,
