@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "audit:drift": "tsx --tsconfig tsconfig.scripts.json scripts/audit-drift.ts",
     "build": "prisma generate && next build",
-    "start": "next start",
-    "lint": "eslint"
+    "dev": "next dev",
+    "lint": "eslint",
+    "start": "next start"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
