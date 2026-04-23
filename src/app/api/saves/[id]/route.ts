@@ -78,6 +78,43 @@ export async function PATCH(
     console.log("[PATCH /api/saves] updateData:", JSON.stringify(updateData));
     const updated = await db.savedItem.update({ where: { id }, data: updateData });
 
+    // PlaceRating write-through — fires when userRating is updated.
+    // Keeps PlaceRating in sync with userRating so Community Picks aggregation is accurate.
+    // Errors are logged but do not fail the PATCH response.
+    if ("userRating" in updateData) {
+      try {
+        if (updated.userRating == null) {
+          await db.placeRating.deleteMany({ where: { savedItemId: id } });
+        } else {
+          const existing = await db.placeRating.findFirst({ where: { savedItemId: id } });
+          const ratingData = {
+            rating: updated.userRating,
+            notes: updated.notes ?? null,
+            wouldReturn: updated.userRating >= 4,
+          };
+          if (existing) {
+            await db.placeRating.update({ where: { id: existing.id }, data: ratingData });
+          } else {
+            await db.placeRating.create({
+              data: {
+                familyProfileId: updated.familyProfileId,
+                tripId: updated.tripId ?? null,
+                savedItemId: updated.id,
+                placeName: updated.rawTitle ?? "Unknown",
+                placeType: (updated.categoryTags && updated.categoryTags[0]) ? updated.categoryTags[0] : "other",
+                destinationCity: updated.destinationCity ?? null,
+                lat: updated.lat ?? null,
+                lng: updated.lng ?? null,
+                ...ratingData,
+              },
+            });
+          }
+        }
+      } catch (e) {
+        console.error("[placeRating-write-through] failed for save:", id, e);
+      }
+    }
+
     // Community layer write-through — fires when userRating or notes updated.
     // Errors are logged but do not fail the PATCH response.
     const triggersCommunity = updateData.userRating !== undefined || updateData.notes !== undefined;
