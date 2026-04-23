@@ -91,7 +91,7 @@ function registerPlanned(
   map.set(cityOnlyNullKey, value);
 }
 
-async function main() {
+async function runMain() {
   const LIVE = process.argv.includes("--live");
   console.log(LIVE ? "=== LIVE MODE: mutations will be applied ===" : "=== DRY RUN: no mutations ===");
 
@@ -462,8 +462,36 @@ async function main() {
         });
 
         if (a.kind === "create_fresh_with_orphan_migration") {
-          await db.savedItem.delete({ where: { id: a.orphanSavedItemId } });
-          console.log(`[create+migrate] TripDocument ${freshDoc.id} -> NEW savedItem ${newSavedItemId}, orphan ${a.orphanSavedItemId} deleted`);
+          const orphanId = a.orphanSavedItemId;
+
+          // Re-point PlaceRating rows from orphan to new SavedItem so rating data survives
+          const repointed = await db.placeRating.updateMany({
+            where: { savedItemId: orphanId },
+            data: { savedItemId: newSavedItemId },
+          });
+          if (repointed.count > 0) {
+            console.log(`[placerating_repoint] ${repointed.count} PlaceRating row(s) moved from orphan ${orphanId} to new savedItem ${newSavedItemId}`);
+          }
+
+          // Carry communitySpotId forward if new SavedItem has none
+          const orphanAfterRating = await db.savedItem.findUnique({
+            where: { id: orphanId },
+            select: { communitySpotId: true },
+          });
+          const newCurrent = await db.savedItem.findUnique({
+            where: { id: newSavedItemId },
+            select: { communitySpotId: true },
+          });
+          if (orphanAfterRating?.communitySpotId && !newCurrent?.communitySpotId) {
+            await db.savedItem.update({
+              where: { id: newSavedItemId },
+              data: { communitySpotId: orphanAfterRating.communitySpotId },
+            });
+            console.log(`[communityspot_migrate] moved communitySpot ${orphanAfterRating.communitySpotId} from orphan to new savedItem`);
+          }
+
+          await db.savedItem.delete({ where: { id: orphanId } });
+          console.log(`[create+migrate] TripDocument ${freshDoc.id} -> NEW savedItem ${newSavedItemId}, orphan ${orphanId} deleted (with all references handled)`);
         } else {
           console.log(`[create] TripDocument ${freshDoc.id} -> NEW savedItem ${newSavedItemId}`);
         }
@@ -496,5 +524,74 @@ async function main() {
   }
 
   await pool.end();
+  return;
+}
+
+async function runCleanupOrphans() {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const db = new PrismaClient({ adapter: new PrismaPg(pool) as any });
+
+  console.log("=== ORPHAN CLEANUP MODE ===");
+
+  const hiltonOrphan = await db.savedItem.findFirst({
+    where: { id: "cmo533wfw002tlrrq3eybqf38" },
+    include: { tripDocuments: true, ratings: true },
+  });
+
+  if (!hiltonOrphan) {
+    console.log("Hilton orphan not found (already cleaned up?). Nothing to do.");
+    await pool.end();
+    return;
+  }
+
+  if (hiltonOrphan.tripDocuments.length > 0) {
+    console.log(`[SAFETY] Hilton orphan has ${hiltonOrphan.tripDocuments.length} TripDocument references. Aborting — this is NOT an orphan.`);
+    await pool.end();
+    return;
+  }
+
+  const hiltonDoc = await db.tripDocument.findFirst({
+    where: { id: "cmnqwdno1001i04k30rl3mk8x" },
+    select: { savedItemId: true, label: true },
+  });
+
+  if (!hiltonDoc?.savedItemId) {
+    console.log("[ABORT] Hilton TripDocument has no savedItemId. Arc 2 may not have run for Hilton.");
+    await pool.end();
+    return;
+  }
+
+  console.log(`Hilton orphan: ${hiltonOrphan.id}, ratings: ${hiltonOrphan.ratings.length}, target: ${hiltonDoc.savedItemId}`);
+
+  const repointed = await db.placeRating.updateMany({
+    where: { savedItemId: hiltonOrphan.id },
+    data: { savedItemId: hiltonDoc.savedItemId },
+  });
+  console.log(`[placerating_repoint] ${repointed.count} PlaceRating row(s) moved`);
+
+  const newCurrent = await db.savedItem.findUnique({
+    where: { id: hiltonDoc.savedItemId },
+    select: { communitySpotId: true },
+  });
+  if (hiltonOrphan.communitySpotId && !newCurrent?.communitySpotId) {
+    await db.savedItem.update({
+      where: { id: hiltonDoc.savedItemId },
+      data: { communitySpotId: hiltonOrphan.communitySpotId },
+    });
+    console.log(`[communityspot_migrate] ${hiltonOrphan.communitySpotId} moved to ${hiltonDoc.savedItemId}`);
+  }
+
+  await db.savedItem.delete({ where: { id: hiltonOrphan.id } });
+  console.log(`[orphan_delete] ${hiltonOrphan.id} deleted`);
+
+  await pool.end();
+}
+
+async function main() {
+  if (process.argv.includes("--cleanup-orphans")) {
+    await runCleanupOrphans();
+    return;
+  }
+  await runMain();
 }
 main().catch((e) => { console.error(e); process.exit(1); });
