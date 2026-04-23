@@ -441,7 +441,7 @@ export function SaveDetailModal({
                     rel="noopener noreferrer"
                     style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
                   >
-                    Visit site →
+                    Link →
                   </a>
                   <button
                     type="button"
@@ -747,7 +747,7 @@ export function SaveDetailModal({
                   }}
                 >
                   <ExternalLink size={14} />
-                  Visit site →
+                  Link →
                 </a>
               ) : null}
 

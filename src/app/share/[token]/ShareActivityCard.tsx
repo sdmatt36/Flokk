@@ -165,7 +165,7 @@ export function ShareActivityCard({
           </p>
         )}
 
-        {/* Visit site link */}
+        {/* Link */}
         {item.websiteUrl && (
           <a
             href={item.websiteUrl}
@@ -174,7 +174,7 @@ export function ShareActivityCard({
             className="flex items-center gap-1 text-sm text-[#C4664A] mt-2"
           >
             <ExternalLink size={14} />
-            Visit site
+            Link
           </a>
         )}
 

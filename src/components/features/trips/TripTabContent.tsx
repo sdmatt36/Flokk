@@ -834,7 +834,7 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
               <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
                 <a href={localWebsiteUrl} target="_blank" rel="noopener noreferrer"
                   style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}>
-                  Visit site →
+                  Link →
                 </a>
                 <button type="button"
                   onClick={() => { setUrlInput(localWebsiteUrl); setEditingUrl(true); setUrlError(null); }}
@@ -899,7 +899,7 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
             {!item.bookUrl && item.websiteUrl && (
               <a href={item.websiteUrl} target="_blank" rel="noopener noreferrer"
                 style={{ display: "block", padding: "12px", borderRadius: "12px", border: "none", backgroundColor: "#1B3A5C", fontSize: "14px", fontWeight: 700, color: "#fff", cursor: "pointer", textAlign: "center", textDecoration: "none" }}>
-                Visit site →
+                Link →
               </a>
             )}
             {!item.statusBooked && onMarkBooked && (
@@ -1089,7 +1089,7 @@ function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDel
               onClick={(e) => e.stopPropagation()}
               style={{ display: "block", fontSize: "12px", color: "#C4664A", marginTop: "4px" }}
             >
-              Visit site →
+              Link →
             </a>
           )}
         </div>
@@ -1769,7 +1769,7 @@ function ActivityDetailModal({ activity, onClose, onEdit, onDelete, onMarkBooked
           {/* Website */}
           {a.website && (
             <a href={a.website} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "14px", fontWeight: 600, color: "#C4664A", textDecoration: "none", marginBottom: "20px" }}>
-              Visit site →
+              Link →
             </a>
           )}
 
@@ -3073,7 +3073,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                               )}
                                               {a.website && (
                                                 <a href={a.website} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "12px", color: "#C4664A", fontWeight: 600, textDecoration: "none", marginTop: "3px" }}>
-                                                  {/ticket|concert|game|sport|baseball|soccer|football|theater|theatre|show|stadium|arena/i.test(a.title) ? "Book tickets →" : "Visit site →"}
+                                                  {/ticket|concert|game|sport|baseball|soccer|football|theater|theatre|show|stadium|arena/i.test(a.title) ? "Book tickets →" : "Link →"}
                                                 </a>
                                               )}
                                               <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "6px", flexWrap: "wrap" }}>
@@ -5016,7 +5016,7 @@ function RecommendedContent({
                   </button>
                   {rec.websiteUrl && (
                     <a href={rec.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "11px", fontWeight: 700, padding: "5px 12px", borderRadius: "999px", color: "#C4664A", border: "1.5px solid #C4664A", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
-                      Visit site →
+                      Link →
                     </a>
                   )}
                 </div>
@@ -5225,7 +5225,7 @@ function ActivityCard({ activity, onDelete, onEdit, onMarkBooked, onAddToItinera
         </p>
         {activity.website && (
           <a href={activity.website} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "12px", color: "#C4664A", fontWeight: 600, textDecoration: "none", marginBottom: "4px" }}>
-            {/ticket|concert|game|sport|baseball|soccer|football|theater|theatre|show|stadium|arena/i.test(activity.title) ? "Book tickets →" : "Visit site →"}
+            {/ticket|concert|game|sport|baseball|soccer|football|theater|theatre|show|stadium|arena/i.test(activity.title) ? "Book tickets →" : "Link →"}
           </a>
         )}
         {activity.notes && (

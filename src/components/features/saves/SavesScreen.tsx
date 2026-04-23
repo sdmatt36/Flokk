@@ -39,6 +39,7 @@ type Save = {
   lat: number | null;
   lng: number | null;
   sourceUrl: string | null;
+  websiteUrl: string | null;
   suggestionTier: "primary" | "secondary" | null;
 };
 
@@ -71,6 +72,7 @@ type ApiItem = {
   lat: number | null;
   lng: number | null;
   sourceUrl: string | null;
+  websiteUrl: string | null;
 };
 
 const SOURCE_LABEL_MAP: Record<string, string> = {
@@ -112,6 +114,7 @@ function mapApiItem(item: ApiItem): Save {
     lat: item.lat ?? null,
     lng: item.lng ?? null,
     sourceUrl: item.sourceUrl ?? null,
+    websiteUrl: item.websiteUrl ?? null,
     suggestionTier: null,
   };
 }
@@ -448,7 +451,7 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
     name: save.title,
     city: save.destinationCity ?? null,
     country: save.destinationCountry ?? null,
-    websiteUrl: save.sourceUrl ?? null,
+    websiteUrl: save.websiteUrl ?? save.sourceUrl ?? null,
     lat: save.lat ?? null,
     lng: save.lng ?? null,
     sourceTripId: save.tripId ?? suggestedForOptions?.[0]?.id ?? null,

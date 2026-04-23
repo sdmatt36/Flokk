@@ -395,7 +395,7 @@ export function ShareItineraryView({
                                         style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "12px", fontWeight: 600, color: "#1B3A5C", textDecoration: "none" }}
                                       >
                                         <ExternalLink size={11} />
-                                        Visit site
+                                        Link
                                       </a>
                                     )}
                                   </div>
