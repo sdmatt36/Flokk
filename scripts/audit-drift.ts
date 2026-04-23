@@ -5,6 +5,14 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 import { isSaveableBooking } from "../src/lib/booking-saved-item";
 
+// Aggregator names that carry no place-identity signal — excluded from I1.
+// Mirrors SKIP_VENDOR_NAMES in scripts/chat34-arc2-plan.ts and Arc 2 logic.
+const SKIP_VENDOR_NAMES = new Set(["booking.com", "expedia", "airbnb", "viator", "getyourguide", "agoda"]);
+
+// Transit/logistics tags excluded from I2 — not "places" in Community Picks sense.
+// Mirrors TRANSIT_TAGS in scripts/chat34-rating-drift-fix.ts.
+const TRANSIT_TAGS = new Set(["train", "flight", "bus", "transit", "car_rental", "rental"]);
+
 type Violation = { invariant: string; detail: string; id: string };
 
 async function main() {
@@ -28,6 +36,8 @@ async function main() {
     let parsed: any = null;
     try { parsed = doc.content ? JSON.parse(doc.content as string) : null; } catch {}
     const contentType = parsed?.type ?? null;
+    const vendorName = (parsed?.vendorName ?? "").trim().toLowerCase();
+    if (SKIP_VENDOR_NAMES.has(vendorName)) continue;
     if (!isSaveableBooking(contentType, doc.label)) continue;
     if (doc.savedItemId) continue;
     i1Violations++;
@@ -47,10 +57,13 @@ async function main() {
   console.log("I2: SavedItems with userRating must have at least one PlaceRating row");
   const rated = await db.savedItem.findMany({
     where: { userRating: { not: null } },
-    select: { id: true, rawTitle: true, userRating: true, destinationCity: true },
+    select: { id: true, rawTitle: true, userRating: true, destinationCity: true, categoryTags: true },
   });
   let i2Violations = 0;
   for (const s of rated) {
+    const tagsLower = (s.categoryTags ?? []).map((t: string) => t.toLowerCase());
+    const isTransit = tagsLower.some((t: string) => TRANSIT_TAGS.has(t));
+    if (isTransit) continue;
     const prCount = await db.placeRating.count({ where: { savedItemId: s.id } });
     if (prCount > 0) continue;
     i2Violations++;

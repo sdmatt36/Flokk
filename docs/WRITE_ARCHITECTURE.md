@@ -20,6 +20,8 @@ Rule: A TripDocument with type `booking` where content.type ∈ {hotel, activity
 
 Rationale: TripDocument holds booking-specific data (confirmation, dates, cost). SavedItem is the canonical "place the user saved" record. Community Picks reads SavedItem. If a booking doesn't have a twin, the user's Hilton booking never appears in Community Picks — even if they rated it.
 
+Exceptions: Bookings where vendorName exactly matches the aggregator skip-list (`Booking.com`, `Expedia`, `Airbnb`, `Viator`, `GetYourGuide`, `Agoda`) are intentionally not given SavedItem twins. These names carry no place-identity signal — "Booking.com" is not a hotel, it's a booking platform. Until extraction improves to surface the actual venue name, these bookings are excluded from the twin-creation invariant. See `src/lib/booking-saved-item.ts` for the canonical saveability rules.
+
 Verification: `scripts/audit-drift.ts` section A.
 
 Chat 34 discovery: pre-Arc-2 state, 31 booking TripDocuments had no savedItemId. Arc 2 backfilled them (commits 9077117, 4edcff4, 803e854).
@@ -31,6 +33,8 @@ Chat 34 discovery: pre-Arc-2 state, 31 booking TripDocuments had no savedItemId.
 Rule: A SavedItem with `userRating != null` MUST have at least one PlaceRating row with matching `savedItemId` and `rating`. Conversely, when `userRating` is cleared (set to null), all PlaceRating rows for that `savedItemId` MUST be deleted.
 
 Rationale: `userRating` is the user's private self-rating (shown as "You rated:" on cards). `PlaceRating` is the public community-facing record that Community Picks aggregates via INNER JOIN. If these diverge, the user's rating is invisible to Community Picks even though it renders on Spots.
+
+Exceptions: SavedItems whose categoryTags include `train`, `flight`, `bus`, `transit`, `car_rental`, or `rental` are intentionally excluded from the userRating-to-PlaceRating invariant. Transit and logistics rows are not "places" in the Community Picks sense, so rating them doesn't imply a community-surfaceable record. See `scripts/chat34-rating-drift-fix.ts` TRANSIT_TAGS for the canonical list.
 
 Verification: `scripts/audit-drift.ts` section B (or rerun `scripts/chat34-rating-drift-audit.ts`).
 
@@ -257,6 +261,8 @@ Append-only log of drift patterns discovered and fixed.
 3. **TripDocument ↔ SavedItem decoupling** (Arc 1 commit d6ff135, Arc 2 commits 9077117, 4edcff4, 803e854). Bookings and saves were designed as mutually exclusive systems. Discovered when user edits on booking cards didn't propagate to Community Picks. Fixed by adding `TripDocument.savedItemId` FK, co-creation at webhook, and backfill of 31 existing bookings + 2 orphan migrations.
 
 4. **userRating without PlaceRating twin** (backfill dcf087e, forward-fix c186a49 + 683b9b6). 117 SavedItems had `userRating` but no corresponding PlaceRating, making them invisible to Community Picks' INNER JOIN. Root cause: `PATCH /api/saves/[id]` and `POST /api/saves` wrote `userRating` without PlaceRating. Fixed by adding dual-write in both endpoints and backfilling all 117 rows.
+
+   Follow-up (Arc 3 part 4): I1 and I2 refined with explicit aggregator + transit exceptions to match product-level skip logic. Audit-drift.ts updated to apply same filters. Commit: 2bb3972
 
 ---
 
