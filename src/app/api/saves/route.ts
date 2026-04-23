@@ -245,6 +245,25 @@ export async function POST(request: Request) {
         });
       }
 
+      // PlaceRating write-through — fires when userRating is set at create time.
+      if (created.userRating != null) {
+        await tx.placeRating.create({
+          data: {
+            familyProfileId: created.familyProfileId,
+            tripId: created.tripId ?? null,
+            savedItemId: created.id,
+            placeName: created.rawTitle ?? "Unknown",
+            placeType: (created.categoryTags && created.categoryTags[0]) ? created.categoryTags[0] : "other",
+            destinationCity: created.destinationCity ?? null,
+            lat: created.lat ?? null,
+            lng: created.lng ?? null,
+            rating: created.userRating,
+            notes: created.notes ?? null,
+            wouldReturn: created.userRating >= 4,
+          },
+        });
+      }
+
       return created;
     }, { timeout: 10000 });
 
