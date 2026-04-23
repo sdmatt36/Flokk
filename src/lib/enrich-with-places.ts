@@ -5,12 +5,42 @@
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? "";
 
+// NFD-decompose then strip combining marks so "Ryōan-ji" → "ryoan ji".
+function norm(s: string): string {
+  return (s ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 export function nameSimilar(a: string, b: string): boolean {
-  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, ' ').trim()
-  const wordsA = new Set(norm(a).split(' ').filter(w => w.length > 2))
-  const wordsB = norm(b).split(' ').filter(w => w.length > 2)
-  const overlap = wordsB.filter(w => wordsA.has(w)).length
-  return overlap > 0 || norm(a).includes(norm(b)) || norm(b).includes(norm(a))
+  const wordsA = new Set(norm(a).split(" ").filter((w) => w.length > 2));
+  const wordsB = norm(b).split(" ").filter((w) => w.length > 2);
+  const overlap = wordsB.filter((w) => wordsA.has(w)).length;
+  return overlap > 0 || norm(a).includes(norm(b)) || norm(b).includes(norm(a));
+}
+
+function cityMatches(
+  components: Array<{ long_name: string; short_name: string; types: string[] }> | undefined,
+  destinationCity: string | null | undefined
+): boolean {
+  if (!destinationCity) return true;
+  const target = norm(destinationCity);
+  if (!target) return true;
+  if (!components || components.length === 0) return false;
+  const CITY_TYPES = ["locality", "administrative_area_level_1", "administrative_area_level_2", "sublocality", "sublocality_level_1", "postal_town"];
+  for (const comp of components) {
+    if (!comp.types.some(t => CITY_TYPES.includes(t))) continue;
+    const long = norm(comp.long_name);
+    const short = norm(comp.short_name);
+    if (!long && !short) continue;
+    if (long.includes(target) || short.includes(target) || (target.length >= 4 && (long.includes(target.slice(0, 4)) || short.includes(target.slice(0, 4))))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export async function enrichWithPlaces(
@@ -24,7 +54,7 @@ export async function enrichWithPlaces(
 
     // Step 1: Text search → place_id
     const searchRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${GOOGLE_MAPS_API_KEY}`
+      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&language=en&key=${GOOGLE_MAPS_API_KEY}`
     );
     const searchData = await searchRes.json() as { results?: { place_id: string }[] };
     const placeId = searchData.results?.[0]?.place_id;
@@ -32,14 +62,14 @@ export async function enrichWithPlaces(
 
     // Step 2: Place details → name + website + photo_reference + address_components
     const detailsRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,website,photos,address_components&key=${GOOGLE_MAPS_API_KEY}`
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,website,photos,address_components&language=en&key=${GOOGLE_MAPS_API_KEY}`
     );
     const detailsData = await detailsRes.json() as {
       result?: {
         name?: string;
         website?: string;
         photos?: { photo_reference: string }[];
-        address_components?: { long_name: string; types: string[] }[];
+        address_components?: { long_name: string; short_name: string; types: string[] }[];
       };
     };
     const result = detailsData.result;
@@ -57,12 +87,19 @@ export async function enrichWithPlaces(
     const adminArea1 = addressComponents.find(c => c.types.includes("administrative_area_level_1"));
     const extractedCity = locality?.long_name ?? postalTown?.long_name ?? adminArea2?.long_name ?? adminArea1?.long_name ?? null;
 
-    // Step 3: Validate Places result name before using image
+    // Step 3: Validate Places result name + city before using image
     const placesName = result.name ?? "";
     let imageUrl: string | null = null;
 
     if (placesName && !nameSimilar(name, placesName)) {
-      console.log("[enrich] Places name mismatch -- skipping image. Searched:", name, "Got:", placesName);
+      console.log(`[enrich-skip-name] "${name}" vs "${placesName}"`);
+      // fall through to OpenGraph fallback below
+    } else if (!cityMatches(addressComponents as Array<{ long_name: string; short_name: string; types: string[] }>, city)) {
+      const cities = addressComponents
+        .filter(c => c.types.some(t => ["locality", "administrative_area_level_1"].includes(t)))
+        .map(c => c.long_name)
+        .join(", ") || "none";
+      console.log(`[enrich-skip-city] "${name}" expected city="${city}" got="${cities}"`);
       // fall through to OpenGraph fallback below
     } else if (photoRef) {
       // Step 4: Follow photo redirect to get CDN URL

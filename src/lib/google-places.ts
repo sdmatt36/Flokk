@@ -96,8 +96,17 @@ export function isJunkPlaceName(title: string): boolean {
 // Name similarity guard
 // ─────────────────────────────────────────────────────────────────────────────
 
+// NFD-decompose then strip combining marks so "Ryōan-ji" → "ryoan ji".
+function norm(s: string): string {
+  return (s ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 export function nameSimilar(a: string, b: string): boolean {
-  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, " ").trim();
   const wordsA = new Set(norm(a).split(" ").filter((w) => w.length > 2));
   const wordsB = norm(b).split(" ").filter((w) => w.length > 2);
   const overlap = wordsB.filter((w) => wordsA.has(w)).length;
