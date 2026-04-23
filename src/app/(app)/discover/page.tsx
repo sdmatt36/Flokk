@@ -13,6 +13,7 @@ import { AddToItineraryModal } from "@/components/places/AddToItineraryModal";
 import type { AddToItinerarySpot } from "@/components/places/AddToItineraryModal";
 import { PlaceActionRow } from "@/components/features/places/PlaceActionRow";
 import type { UserSpotRating } from "@/app/api/community/user-ratings/route";
+import { resolveSaveLink } from "@/lib/save-link";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700", "900"] });
 
@@ -135,6 +136,10 @@ interface DiscoverActivity {
   ratingNotes: string | null;
   wouldReturn: boolean | null;
   websiteUrl: string | null;
+  sourceUrl: string | null;
+  communitySpotWebsiteUrl: string | null;
+  lat: number | null;
+  lng: number | null;
   imageUrl: string | null;
   tripId: string;
   shareToken: string | null;
@@ -1653,7 +1658,15 @@ export default function DiscoverPage() {
                         place={{
                           name: act.title,
                           city: act.city,
-                          websiteUrl: act.websiteUrl,
+                          websiteUrl: resolveSaveLink({
+                            websiteUrl: act.websiteUrl,
+                            sourceUrl: act.sourceUrl,
+                            communitySpotWebsiteUrl: act.communitySpotWebsiteUrl,
+                            lat: act.lat,
+                            lng: act.lng,
+                            rawTitle: act.title,
+                            destinationCity: act.city,
+                          })?.url ?? null,
                           photoUrl: act.imageUrl,
                           category: act.type,
                           sourceTripId: act.tripId,
