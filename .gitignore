@@ -16,7 +16,7 @@ out/
 build/
 
 # Prisma
-prisma/migrations/
+# (migrations committed intentionally — they are schema source-of-truth)
 
 # Misc
 .DS_Store
