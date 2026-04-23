@@ -13,6 +13,7 @@ import { logExtraction } from "@/lib/extraction-log";
 import { extractOperatorPlan, looksLikeOperatorPlan } from "@/lib/operator-plan-extractor";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
 import { inferPlatformFromUrl } from "@/lib/saved-item-types";
+import { isSaveableBooking, createBookingSavedItem } from "@/lib/booking-saved-item";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -1378,11 +1379,24 @@ Field notes:
         });
       }
       if (matchedTrip) {
+        const hotelSavedItemId = await createBookingSavedItem(db, {
+          familyProfileId: familyProfile.id,
+          tripId: resolvedTripId!,
+          vendorName: hotelName,
+          city: (extracted.city as string | null) ?? null,
+          country: (extracted.country as string | null) ?? null,
+          address: (extracted.address as string | null) ?? null,
+          checkIn: checkInDate,
+          checkOut: checkOutDate,
+          extractedType: "hotel",
+          websiteUrl: (extracted.bookingUrl as string | null) ?? null,
+        });
         const hotelDoc = await db.tripDocument.create({
           data: {
             tripId: matchedTrip.id,
             label: hotelName,
             type: "booking",
+            savedItemId: hotelSavedItemId,
             content: JSON.stringify({
               type: "hotel", vendorName: hotelName,
               checkIn: extracted.checkIn, checkOut: extracted.checkOut,
@@ -1527,11 +1541,27 @@ Field notes:
         });
       }
       if (matchedTrip) {
+        let catchAllSavedItemId: string | null = null;
+        if (isSaveableBooking(extracted.type as string | null, itemTitle)) {
+          catchAllSavedItemId = await createBookingSavedItem(db, {
+            familyProfileId: familyProfile.id,
+            tripId: resolvedTripId!,
+            vendorName: itemTitle,
+            city: (extracted.city as string | null) ?? null,
+            country: (extracted.country as string | null) ?? null,
+            address: (extracted.address as string | null) ?? null,
+            checkIn: null,
+            checkOut: null,
+            extractedType: ((extracted.type as string | null) ?? "activity").toLowerCase(),
+            websiteUrl: (extracted.bookingUrl as string | null) ?? null,
+          });
+        }
         const catchAllDoc = await db.tripDocument.create({
           data: {
             tripId: matchedTrip.id,
             label: itemTitle,
             type: "booking",
+            savedItemId: catchAllSavedItemId,
             content: JSON.stringify({
               type: extracted.type, vendorName: extracted.vendorName,
               activityName: extracted.activityName ?? null,

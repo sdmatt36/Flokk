@@ -7076,6 +7076,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         } else {
           fields.push(
             { key: "vendorName", label: "Vendor Name" },
+            { key: "websiteUrl", label: "Website URL", type: "url" },
             { key: "checkIn", label: "Check-in Date", type: "date" },
             { key: "checkOut", label: "Check-out Date", type: "date" },
             { key: "confirmationCode", label: "Confirmation" },

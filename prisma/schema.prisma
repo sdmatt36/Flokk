@@ -338,6 +338,7 @@ model SavedItem {
   communitySpotId          String?
   communitySpot            CommunitySpot? @relation("SavedItemToCommunitySpot", fields: [communitySpotId], references: [id], onDelete: SetNull)
   tourStops                TourStop[]
+  tripDocuments            TripDocument[] @relation("TripDocumentToSavedItem")
 
   @@index([communitySpotId])
 }
@@ -705,14 +706,18 @@ model TripContact {
 }
 
 model TripDocument {
-  id        String   @id @default(cuid())
-  tripId    String
-  trip      Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  label     String
-  type      String   @default("link")
-  url       String?
-  content   String?
-  createdAt DateTime @default(now())
+  id          String     @id @default(cuid())
+  tripId      String
+  trip        Trip       @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  label       String
+  type        String     @default("link")
+  url         String?
+  content     String?
+  createdAt   DateTime   @default(now())
+  savedItemId String?
+  savedItem   SavedItem? @relation("TripDocumentToSavedItem", fields: [savedItemId], references: [id], onDelete: SetNull)
+
+  @@index([savedItemId])
 }
 
 model TripKeyInfo {

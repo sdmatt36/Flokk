@@ -17,6 +17,22 @@ export async function PATCH(
       ...(body.label !== undefined ? { label: body.label } : {}),
     },
   });
+
+  if (updated.savedItemId && body.content !== undefined) {
+    try {
+      const parsed = JSON.parse(body.content) as Record<string, unknown>;
+      const vendorName = typeof parsed?.vendorName === "string" ? parsed.vendorName : null;
+      const websiteUrl = typeof parsed?.websiteUrl === "string" ? parsed.websiteUrl : null;
+      await db.savedItem.update({
+        where: { id: updated.savedItemId },
+        data: {
+          ...(vendorName ? { rawTitle: vendorName } : {}),
+          websiteUrl: websiteUrl,
+        },
+      });
+    } catch { /* ignore malformed content */ }
+  }
+
   return NextResponse.json(updated);
 }
 
