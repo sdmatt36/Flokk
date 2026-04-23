@@ -17,6 +17,7 @@ import { TourActionMenu } from "@/components/tours/TourActionMenu";
 import { haversineKm, WITHIN_REACH_KM } from "@/lib/geo";
 import { Pill } from "@/components/ui/Pill";
 import { PlaceActionRow } from "@/components/features/places/PlaceActionRow";
+import { resolveSaveLink } from "@/lib/save-link";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -451,7 +452,14 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
     name: save.title,
     city: save.destinationCity ?? null,
     country: save.destinationCountry ?? null,
-    websiteUrl: save.websiteUrl ?? save.sourceUrl ?? null,
+    websiteUrl: resolveSaveLink({
+        websiteUrl: save.websiteUrl,
+        sourceUrl: save.sourceUrl,
+        lat: save.lat,
+        lng: save.lng,
+        rawTitle: save.title,
+        destinationCity: save.destinationCity,
+      })?.url ?? null,
     lat: save.lat ?? null,
     lng: save.lng ?? null,
     sourceTripId: save.tripId ?? suggestedForOptions?.[0]?.id ?? null,
