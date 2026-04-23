@@ -1105,6 +1105,7 @@ type ApiSavedItem = {
   sourceMethod: string | null;
   sourcePlatform: string | null;
   sourceUrl: string | null;
+  websiteUrl: string | null;
   rawTitle: string | null;
   rawDescription: string | null;
   placePhotoUrl: string | null;
@@ -1165,7 +1166,7 @@ function apiToDisplayItem(item: ApiSavedItem): SavedDisplayItem {
     img: getItemImage(item.rawTitle, item.placePhotoUrl, item.mediaThumbnailUrl, item.categoryTags[0] ?? null, item.destinationCity, item.destinationCountry),
     icon,
     bookUrl: isBookable ? (item.sourceUrl ?? undefined) : undefined,
-    websiteUrl: item.sourceUrl ?? undefined,
+    websiteUrl: item.websiteUrl ?? item.sourceUrl ?? undefined,
     description: item.rawDescription ?? "",
     isLodging,
     lodgingDates: { checkin: item.extractedCheckin, checkout: item.extractedCheckout },

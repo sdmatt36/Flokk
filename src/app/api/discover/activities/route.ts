@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
           pr.rating,
           pr.notes AS "ratingNotes",
           pr."wouldReturn",
-          si."websiteUrl" AS "websiteUrl",
+          COALESCE(cs."websiteUrl", si."websiteUrl") AS "websiteUrl",
           COALESCE(si."placePhotoUrl", si."mediaThumbnailUrl") AS "imageUrl",
           si."tripId" AS "tripId",
           NULL::text AS "shareToken",
@@ -104,6 +104,8 @@ export async function GET(req: NextRequest) {
         FROM "PlaceRating" pr
         JOIN "SavedItem" si ON si.id = pr."savedItemId"
         JOIN "FamilyProfile" fp ON fp.id = pr."familyProfileId"
+        LEFT JOIN "CommunitySpot" cs ON LOWER(TRIM(cs.name)) = LOWER(TRIM(COALESCE(si."rawTitle", '')))
+          AND LOWER(TRIM(cs.city)) = LOWER(TRIM(COALESCE(si."destinationCity", '')))
         WHERE pr."savedItemId" IS NOT NULL
           AND (
             LOWER(COALESCE(si."rawTitle", pr."placeName", '')) LIKE LOWER(${like})
@@ -209,7 +211,7 @@ export async function GET(req: NextRequest) {
           pr.rating,
           pr.notes AS "ratingNotes",
           pr."wouldReturn",
-          si."websiteUrl" AS "websiteUrl",
+          COALESCE(cs."websiteUrl", si."websiteUrl") AS "websiteUrl",
           COALESCE(si."placePhotoUrl", si."mediaThumbnailUrl") AS "imageUrl",
           si."tripId" AS "tripId",
           NULL::text AS "shareToken",
@@ -221,6 +223,8 @@ export async function GET(req: NextRequest) {
         FROM "PlaceRating" pr
         JOIN "SavedItem" si ON si.id = pr."savedItemId"
         JOIN "FamilyProfile" fp ON fp.id = pr."familyProfileId"
+        LEFT JOIN "CommunitySpot" cs ON LOWER(TRIM(cs.name)) = LOWER(TRIM(COALESCE(si."rawTitle", '')))
+          AND LOWER(TRIM(cs.city)) = LOWER(TRIM(COALESCE(si."destinationCity", '')))
         WHERE pr."savedItemId" IS NOT NULL
       ),
       aggregated AS (
