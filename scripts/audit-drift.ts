@@ -157,6 +157,34 @@ async function main() {
   console.log();
 
   // ============================================================
+  // I6: SavedItems older than 1 hour must have non-null placePhotoUrl
+  // ============================================================
+  console.log("I6: SavedItems older than 1 hour must have placePhotoUrl populated");
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const nullPhotoRows = await db.savedItem.findMany({
+    where: {
+      placePhotoUrl: null,
+      savedAt: { lt: oneHourAgo },
+    },
+    select: {
+      id: true, rawTitle: true, destinationCity: true, categoryTags: true, savedAt: true, sourceMethod: true,
+    },
+    orderBy: { savedAt: "desc" },
+  });
+  let i6Violations = nullPhotoRows.length;
+  console.log(`  Violations: ${i6Violations}${i6Violations > 10 ? " (showing first 10)" : ""}`);
+  for (const r of nullPhotoRows.slice(0, 10)) {
+    const ageHours = Math.round((Date.now() - r.savedAt.getTime()) / (60 * 60 * 1000));
+    violations.push({
+      invariant: "I6",
+      detail: `${r.rawTitle ?? "(no title)"} [${r.destinationCity ?? "?"}] — age ${ageHours}h, source=${r.sourceMethod}, tags=${JSON.stringify(r.categoryTags)}`,
+      id: r.id,
+    });
+    console.log(`    - ${r.rawTitle ?? "(no title)"} [${r.destinationCity ?? "?"}] age=${ageHours}h src=${r.sourceMethod}`);
+  }
+  console.log();
+
+  // ============================================================
   // I-extra: Duplicate PlaceRating per SavedItem
   // ============================================================
   console.log("I-extra: No SavedItem should have more than one PlaceRating row (convention-only today, future DB constraint)");
@@ -179,11 +207,12 @@ async function main() {
   // Summary
   // ============================================================
   console.log("=== Summary ===");
-  const totalViolations = i1Violations + i2Violations + i2bViolations + i2cViolations + iExtraViolations;
+  const totalViolations = i1Violations + i2Violations + i2bViolations + i2cViolations + i6Violations + iExtraViolations;
   console.log(`  I1 (booking without savedItemId): ${i1Violations}`);
   console.log(`  I2 (userRating without PlaceRating): ${i2Violations}`);
   console.log(`  I2b (orphan PlaceRating): ${i2bViolations}`);
   console.log(`  I2c (stale PlaceRating on cleared rating): ${i2cViolations}`);
+  console.log(`  I6 (SavedItem >1hr with null placePhotoUrl): ${i6Violations}`);
   console.log(`  I-extra (multiple PlaceRatings per SavedItem): ${iExtraViolations}`);
   console.log(`  TOTAL: ${totalViolations}`);
   console.log();

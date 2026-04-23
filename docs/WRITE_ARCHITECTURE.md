@@ -80,6 +80,20 @@ Chat 34 discovery: Community Picks cards displayed "Greene Family" on every pick
 
 ---
 
+### I6. Every SavedItem older than 1 hour has a non-null placePhotoUrl.
+
+Rule: Any SavedItem with `savedAt` older than 1 hour MUST have `placePhotoUrl` populated (Google Places photo, curated venue image, or destination-scenic fallback). Fresh-cut-off is 1 hour to allow async enrichment (`enrichWithPlaces` fire-and-forget in webhook, cron catchup) to complete.
+
+Rationale: Null placePhotoUrl forces the client-side `getItemImage()` chain to fall through to `TYPE_IMAGES[categoryTags[0]]` — a single static Unsplash URL per type. If multiple rows of the same type have null photos, every card renders the same identical stock image. This is visually broken and defeats the product-level "saved places should feel like a personal, varied collection" intent. Chat 34 discovered this: 5 lodging rows all rendered the wooden resort pool image.
+
+Verification: `scripts/audit-drift.ts` section I6.
+
+Exceptions: None today. The long-term goal is zero violations. Rows that violate I6 should either (a) be enriched via smarter resolver logic (planned Chat 35 work), (b) get destination-scenic fallback written to placePhotoUrl, or (c) surface the specific failure so we can improve the resolver.
+
+Chat 34 discovery: post-Arc-2, 11 booking-created SavedItems had null placePhotoUrl. Backfill (commit 1fe84d7) recovered 15/17 via Google Places. Remaining 2 rows (F H Tourism, Acropolis View 2BD Apt) are known gaps — Places can't match contractor-named tours or Airbnb listings. Flagged for Chat 35 "multi-source image resolver" work.
+
+---
+
 ## Playbook
 
 Patterns for common write-path extensions. Each scenario lays out: the situation, required writes, required checks, required tests.
@@ -263,6 +277,8 @@ Append-only log of drift patterns discovered and fixed.
 4. **userRating without PlaceRating twin** (backfill dcf087e, forward-fix c186a49 + 683b9b6). 117 SavedItems had `userRating` but no corresponding PlaceRating, making them invisible to Community Picks' INNER JOIN. Root cause: `PATCH /api/saves/[id]` and `POST /api/saves` wrote `userRating` without PlaceRating. Fixed by adding dual-write in both endpoints and backfilling all 117 rows.
 
    Follow-up (Arc 3 part 4): I1 and I2 refined with explicit aggregator + transit exceptions to match product-level skip logic. Audit-drift.ts updated to apply same filters. Commit: 2bb3972
+
+5. **Booking-created SavedItems with null placePhotoUrl** (tactical fix commit 1fe84d7, enforcement commit b2f8a0bbd040ce90aa2464fff7868412d8648de0). 11 Arc 2 booking SavedItems had null placePhotoUrl, causing 5+ homepage cards to render the same Unsplash stock image. Root cause: `createBookingSavedItem` never set image fields. Tactical fix: added `getVenueImage` to the helper + fire-and-forget `enrichWithPlaces` post-create in webhook + backfilled 15/17 rows via Google Places. Structural fix (prompt 2): added I6 invariant + audit check. Remaining gaps (F H Tourism, Acropolis View 2BD) surfaced by audit-drift as known violations pending multi-source resolver work in Chat 35.
 
 ---
 
