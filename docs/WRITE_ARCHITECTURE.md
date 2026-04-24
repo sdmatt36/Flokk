@@ -88,7 +88,7 @@ Rationale: Null placePhotoUrl forces the client-side `getItemImage()` chain to f
 
 Verification: `scripts/audit-drift.ts` section I6.
 
-Exceptions: None today. The long-term goal is zero violations. Rows that violate I6 should either (a) be enriched via smarter resolver logic (planned Chat 35 work), (b) get destination-scenic fallback written to placePhotoUrl, or (c) surface the specific failure so we can improve the resolver.
+Exceptions: Rows with `extractionStatus = 'ENRICHMENT_FAILED'` are excluded from I6 — these have exhausted 3 enrichment attempts without finding a photo and are permanently terminal. The audit query filters them out via `extractionStatus NOT IN ('FAILED', 'ENRICHMENT_FAILED')`. The long-term goal is zero non-terminal violations. Rows that violate I6 should either (a) be enriched via smarter resolver logic, (b) get destination-scenic fallback written to placePhotoUrl, or (c) surface the specific failure so we can improve the resolver.
 
 Chat 34 discovery: post-Arc-2, 11 booking-created SavedItems had null placePhotoUrl. Backfill (commit 1fe84d7) recovered 15/17 via Google Places. Remaining 2 rows (F H Tourism, Acropolis View 2BD Apt) are known gaps — Places can't match contractor-named tours or Airbnb listings. Flagged for Chat 35 "multi-source image resolver" work.
 

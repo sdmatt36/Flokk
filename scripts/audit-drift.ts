@@ -165,6 +165,7 @@ async function main() {
     where: {
       placePhotoUrl: null,
       savedAt: { lt: oneHourAgo },
+      extractionStatus: { notIn: ["FAILED", "ENRICHMENT_FAILED"] },
     },
     select: {
       id: true, rawTitle: true, destinationCity: true, categoryTags: true, savedAt: true, sourceMethod: true,
