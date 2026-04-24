@@ -970,6 +970,7 @@ model TourStop {
   travelTimeMin Int?
   why           String?
   familyNote    String?
+  imageUrl      String?
   savedItemId   String?
   savedItem     SavedItem?     @relation(fields: [savedItemId], references: [id], onDelete: SetNull)
   deletedAt     DateTime?

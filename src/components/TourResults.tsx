@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Clock, MapPin } from "lucide-react";
+import { Clock, Footprints, MapPin } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 type Stop = {
@@ -13,6 +13,7 @@ type Stop = {
   travelTime: number;
   why: string;
   familyNote: string;
+  imageUrl?: string | null;
 };
 
 type TripOption = {
@@ -31,9 +32,10 @@ type Props = {
   prompt: string;
   durationLabel: string;
   transport: string;
+  tourId?: string | null;
 };
 
-export default function TourResults({ stops, destinationCity, destinationCountry, prompt, durationLabel, transport }: Props) {
+export default function TourResults({ stops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<{ remove: () => void } | null>(null);
 
@@ -47,6 +49,7 @@ export default function TourResults({ stops, destinationCity, destinationCountry
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState<{ tripTitle: string; tripId: string; day: number; tourId: string } | null>(null);
   const [unlinking, setUnlinking] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     if (stops.length === 0 || !containerRef.current) return;
@@ -124,6 +127,28 @@ export default function TourResults({ stops, destinationCity, destinationCountry
     };
   }, [stops]);
 
+  function normalizeCity(s: string | null | undefined): string {
+    return (s ?? "").toLowerCase().split(",")[0].trim();
+  }
+
+  function autoSelectTrip(loadedTrips: TripOption[]) {
+    const tourCityNorm = normalizeCity(destinationCity);
+    const upcomingOnly = loadedTrips.filter(t => t.status === "PLANNING" || t.status === "ACTIVE");
+    const matches = upcomingOnly.filter(t => {
+      const tripCityNorm = normalizeCity(t.destinationCity);
+      if (!tourCityNorm || !tripCityNorm) return false;
+      return tripCityNorm === tourCityNorm || tripCityNorm.includes(tourCityNorm) || tourCityNorm.includes(tripCityNorm);
+    });
+    if (matches.length === 1) {
+      const match = matches[0];
+      const mx = (match.startDate && match.endDate)
+        ? Math.round((new Date(match.endDate.split("T")[0]).getTime() - new Date(match.startDate.split("T")[0]).getTime()) / (1000 * 60 * 60 * 24)) + 1
+        : 30;
+      setSelectedTripId(match.id);
+      setMaxDays(mx);
+    }
+  }
+
   function openModal() {
     setModalOpen(true);
     setSaveError("");
@@ -134,9 +159,15 @@ export default function TourResults({ stops, destinationCity, destinationCountry
       setTripsLoading(true);
       fetch("/api/trips?status=ALL")
         .then(r => r.json())
-        .then((d: { trips?: TripOption[] }) => setTrips(d.trips ?? []))
+        .then((d: { trips?: TripOption[] }) => {
+          const loaded = d.trips ?? [];
+          setTrips(loaded);
+          autoSelectTrip(loaded);
+        })
         .catch(() => {})
         .finally(() => setTripsLoading(false));
+    } else {
+      autoSelectTrip(trips);
     }
   }
 
@@ -164,7 +195,7 @@ export default function TourResults({ stops, destinationCity, destinationCountry
             durationLabel,
             transport,
           },
-          stops,
+          ...(tourId ? { tourId } : { stops }),
           tripId: selectedTripId,
           dayIndex: selectedDay - 1,
         }),
@@ -195,31 +226,54 @@ export default function TourResults({ stops, destinationCity, destinationCountry
       )}
 
       {stops.map((stop, index) => (
-        <div key={index} className="border border-gray-100 rounded-2xl p-4 mb-3 shadow-sm bg-white">
-          <div className="flex items-center">
-            <div className="w-6 h-6 rounded-full bg-[#C4664A] flex items-center justify-center text-white text-xs font-bold shrink-0">
-              {index + 1}
+        <div key={index} className="border border-gray-100 rounded-2xl mb-3 shadow-sm bg-white overflow-hidden">
+          <div className="flex">
+            {/* Image */}
+            <div className="w-24 h-24 shrink-0 bg-stone-100 flex items-center justify-center overflow-hidden">
+              {stop.imageUrl ? (
+                <img
+                  src={stop.imageUrl}
+                  alt={stop.name}
+                  className="w-full h-full object-cover transition-opacity duration-500"
+                  style={{ opacity: imgLoaded[index] ? 1 : 0 }}
+                  onLoad={() => setImgLoaded(prev => ({ ...prev, [index]: true }))}
+                />
+              ) : (
+                <MapPin size={20} className="text-stone-300" />
+              )}
             </div>
-            <span className="text-sm font-semibold text-[#1B3A5C] ml-3">{stop.name}</span>
-          </div>
 
-          <div className="flex items-center mt-2">
-            <Clock size={12} className="text-gray-400" />
-            <span className="text-xs text-gray-400 ml-1">{stop.duration} min</span>
-          </div>
+            {/* Content */}
+            <div className="flex flex-col p-3 flex-1 min-w-0 gap-1.5">
+              <div className="flex items-start gap-2">
+                <div className="w-5 h-5 rounded-full bg-[#C4664A] flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">
+                  {index + 1}
+                </div>
+                <span className="text-sm font-semibold text-[#1B3A5C] leading-snug">{stop.name}</span>
+              </div>
 
-          {stop.address && (
-            <div className="flex items-center mt-1">
-              <MapPin size={12} className="text-gray-400" />
-              <span className="text-xs text-gray-400 ml-1">{stop.address}</span>
+              <div className="flex flex-wrap gap-1.5">
+                <span className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5 text-xs text-gray-500">
+                  <Clock size={10} />
+                  {stop.duration} min
+                </span>
+                {index > 0 && (stops[index - 1].travelTime ?? 0) > 0 && (
+                  <span className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5 text-xs text-gray-500">
+                    <Footprints size={10} />
+                    {stops[index - 1].travelTime} min walk
+                  </span>
+                )}
+              </div>
+
+              {stop.why && (
+                <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">{stop.why}</p>
+              )}
+
+              {stop.familyNote && (
+                <p className="text-xs text-[#C4664A] italic line-clamp-2">{stop.familyNote}</p>
+              )}
             </div>
-          )}
-
-          <p className="text-sm text-gray-600 mt-2 leading-relaxed">{stop.why}</p>
-
-          {stop.familyNote && (
-            <p className="text-xs text-[#C4664A] mt-1 italic">{stop.familyNote}</p>
-          )}
+          </div>
         </div>
       ))}
 

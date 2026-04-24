@@ -43,6 +43,7 @@ export async function GET(
       travelTime: s.travelTimeMin ?? 0,
       why: s.why ?? "",
       familyNote: s.familyNote ?? "",
+      imageUrl: s.imageUrl ?? null,
     })),
   });
 }

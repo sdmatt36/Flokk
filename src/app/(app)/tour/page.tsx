@@ -20,9 +20,11 @@ type Stop = {
   travelTime: number;
   why: string;
   familyNote: string;
+  imageUrl?: string | null;
 };
 
 type TourResponse = {
+  tourId?: string | null;
   stops: Stop[];
   destinationCity: string;
   destinationCountry?: string | null;
@@ -81,6 +83,24 @@ export default function TourPage() {
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, []);
+
+  // Poll for stop photos after generation (up to 30s, every 3s)
+  useEffect(() => {
+    if (!results?.tourId) return;
+    if (results.stops.every((s) => s.imageUrl)) return;
+    const startedAt = Date.now();
+    const interval = setInterval(async () => {
+      if (Date.now() - startedAt > 30_000) { clearInterval(interval); return; }
+      try {
+        const res = await fetch(`/api/tours/${results.tourId}`);
+        if (!res.ok) return;
+        const fresh = await res.json() as { stops: Stop[] };
+        setResults((prev) => prev ? { ...prev, stops: fresh.stops } : prev);
+        if (fresh.stops.every((s) => s.imageUrl)) clearInterval(interval);
+      } catch { /* non-fatal */ }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [results?.tourId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Dismiss tour library pill popover on outside click
   useEffect(() => {
@@ -146,7 +166,7 @@ export default function TourPage() {
     try {
       const res = await fetch(`/api/tours/${id}`);
       if (!res.ok) { setError("Could not load tour."); return; }
-      const data = await res.json() as { stops: Stop[]; destinationCity: string; prompt: string; durationLabel: string; transport: string; generatedAt: string };
+      const data = await res.json() as TourResponse;
       setResults(data);
     } catch {
       setError("Could not load tour.");
@@ -264,6 +284,7 @@ export default function TourPage() {
             prompt={results.prompt}
             durationLabel={results.durationLabel}
             transport={results.transport}
+            tourId={results.tourId ?? null}
           />
         </div>
       </div>

@@ -41,15 +41,20 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json() as {
     tourMeta: TourMeta;
-    stops: TourStop[];
+    stops?: TourStop[];
+    tourId?: string;
     tripId: string;
     dayIndex: number;
   };
 
-  const { tourMeta, stops, tripId, dayIndex } = body;
+  const { tourMeta, tripId, dayIndex } = body;
+  const stops = body.stops ?? [];
 
-  if (!tourMeta?.prompt || !tourMeta?.destinationCity || !tripId || dayIndex == null || !stops?.length) {
-    return NextResponse.json({ error: "tourMeta, stops, tripId, and dayIndex are required" }, { status: 400 });
+  if (!tourMeta?.prompt || !tourMeta?.destinationCity || !tripId || dayIndex == null) {
+    return NextResponse.json({ error: "tourMeta, tripId, and dayIndex are required" }, { status: 400 });
+  }
+  if (!body.tourId && !stops.length) {
+    return NextResponse.json({ error: "either tourId or stops is required" }, { status: 400 });
   }
 
   const profileId = await resolveProfileId(userId);
@@ -77,56 +82,96 @@ export async function POST(req: NextRequest) {
   const tripCity = trip.destinationCity ?? tourMeta.destinationCity;
   const tripCountry = trip.destinationCountry ?? tourMeta.destinationCountry ?? null;
 
-  // 1. Create GeneratedTour
-  const tourId = crypto.randomUUID();
-  const tourTitle = tourMeta.prompt.trim().length <= 10
-    ? `${tourMeta.destinationCity} tour`
-    : tourMeta.prompt.trim().slice(0, 60);
-
-  await db.generatedTour.create({
-    data: {
-      id: tourId,
-      title: tourTitle,
-      destinationCity: tourMeta.destinationCity,
-      destinationCountry: tourMeta.destinationCountry ?? null,
-      prompt: tourMeta.prompt,
-      durationLabel: tourMeta.durationLabel,
-      transport: tourMeta.transport,
-      familyProfileId: profileId,
-      categoryTags: normalizeAndDedupeCategoryTags(tourMeta.categoryTags ?? []),
-    },
-  });
-
   const tourStopIds: string[] = [];
   const savedItemIds: string[] = [];
   const activityIds: string[] = [];
 
-  // 2. Process each stop sequentially to maintain orderIndex integrity
-  for (let i = 0; i < stops.length; i++) {
-    const stop = stops[i];
+  // Determine effective tourId and stop list
+  // Case A: tour was pre-created at generate time — fetch its stops from DB
+  // Case B: no pre-existing tour — create GeneratedTour + TourStop now (old path)
+  let tourId: string;
+
+  type LoopStop = {
+    id: string;        // TourStop DB id
+    name: string;
+    address: string | null;
+    lat: number | null;
+    lng: number | null;
+    why: string | null;
+  };
+
+  let loopStops: LoopStop[];
+
+  if (body.tourId) {
+    // Case A: verify ownership and fetch existing stops
+    const existingTour = await db.generatedTour.findUnique({
+      where: { id: body.tourId },
+      include: { stops: { orderBy: { orderIndex: "asc" } } },
+    });
+    if (!existingTour || existingTour.familyProfileId !== profileId) {
+      return NextResponse.json({ error: "Tour not found" }, { status: 404 });
+    }
+    tourId = body.tourId;
+    loopStops = existingTour.stops.map(s => ({
+      id: s.id,
+      name: s.name,
+      address: s.address,
+      lat: s.lat,
+      lng: s.lng,
+      why: s.why,
+    }));
+  } else {
+    // Case B: create GeneratedTour + TourStop
+    tourId = crypto.randomUUID();
+    const tourTitle = tourMeta.prompt.trim().length <= 10
+      ? `${tourMeta.destinationCity} tour`
+      : tourMeta.prompt.trim().slice(0, 60);
+
+    await db.generatedTour.create({
+      data: {
+        id: tourId,
+        title: tourTitle,
+        destinationCity: tourMeta.destinationCity,
+        destinationCountry: tourMeta.destinationCountry ?? null,
+        prompt: tourMeta.prompt,
+        durationLabel: tourMeta.durationLabel,
+        transport: tourMeta.transport,
+        familyProfileId: profileId,
+        categoryTags: normalizeAndDedupeCategoryTags(tourMeta.categoryTags ?? []),
+      },
+    });
+
+    loopStops = [];
+    for (let i = 0; i < stops.length; i++) {
+      const stop = stops[i];
+      const stopId = crypto.randomUUID();
+      await db.tourStop.create({
+        data: {
+          id: stopId,
+          tourId,
+          orderIndex: i,
+          name: stop.name,
+          address: stop.address || null,
+          lat: stop.lat || null,
+          lng: stop.lng || null,
+          durationMin: stop.duration || null,
+          travelTimeMin: stop.travelTime || null,
+          why: stop.why || null,
+          familyNote: stop.familyNote || null,
+        },
+      });
+      loopStops.push({ id: stopId, name: stop.name, address: stop.address || null, lat: stop.lat || null, lng: stop.lng || null, why: stop.why || null });
+    }
+  }
+
+  // Process each stop: dedupe SavedItem, create ManualActivity, link TourStop → SavedItem
+  for (const stop of loopStops) {
     const lat: number | null = stop.lat || null;
     const lng: number | null = stop.lng || null;
 
-    // 2a. Create TourStop
-    const tourStopId = crypto.randomUUID();
-    await db.tourStop.create({
-      data: {
-        id: tourStopId,
-        tourId,
-        orderIndex: i,
-        name: stop.name,
-        address: stop.address || null,
-        lat,
-        lng,
-        durationMin: stop.duration || null,
-        travelTimeMin: stop.travelTime || null,
-        why: stop.why || null,
-        familyNote: stop.familyNote || null,
-      },
-    });
-    tourStopIds.push(tourStopId);
+    tourStopIds.push(stop.id);
 
-    // 2b. SavedItem dedupe — 50m coordinate match first, then normalized title+city fallback
+    // SavedItem dedupe — 50m coordinate match first, then normalized title+city fallback
     let matchedSavedItemId: string | null = null;
 
     if (lat != null && lng != null) {
@@ -160,7 +205,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 2c. Create or update SavedItem
+    // Create or update SavedItem
     if (matchedSavedItemId) {
       await db.savedItem.update({
         where: { id: matchedSavedItemId },
@@ -188,13 +233,13 @@ export async function POST(req: NextRequest) {
     }
     savedItemIds.push(matchedSavedItemId);
 
-    // 2d. Link TourStop → SavedItem
+    // Link TourStop → SavedItem
     await db.tourStop.update({
-      where: { id: tourStopId },
+      where: { id: stop.id },
       data: { savedItemId: matchedSavedItemId },
     });
 
-    // 2e. Create ManualActivity
+    // Create ManualActivity
     const activity = await db.manualActivity.create({
       data: {
         tripId,

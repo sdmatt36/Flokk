@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import Anthropic from "@anthropic-ai/sdk";
+import { enrichWithPlaces } from "@/lib/enrich-with-places";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -189,8 +190,75 @@ export async function POST(req: NextRequest) {
       })
     );
 
+    // Persist GeneratedTour + TourStop rows so photos can be patched in async
+    let tourId: string | null = null;
+    const createdStops: Array<{ id: string; name: string }> = [];
+
+    if (profileId) {
+      tourId = crypto.randomUUID();
+      const tourTitle = prompt.trim().length <= 10
+        ? `${destinationCity} tour`
+        : prompt.trim().slice(0, 60);
+
+      await db.generatedTour.create({
+        data: {
+          id: tourId,
+          title: tourTitle,
+          destinationCity,
+          destinationCountry: null,
+          prompt,
+          durationLabel,
+          transport,
+          familyProfileId: profileId,
+          categoryTags: [],
+        },
+      });
+
+      for (let i = 0; i < geocodedStops.length; i++) {
+        const stop = geocodedStops[i];
+        const stopId = crypto.randomUUID();
+        await db.tourStop.create({
+          data: {
+            id: stopId,
+            tourId,
+            orderIndex: i,
+            name: stop.name,
+            address: stop.address || null,
+            lat: stop.lat || null,
+            lng: stop.lng || null,
+            durationMin: stop.duration || null,
+            travelTimeMin: stop.travelTime || null,
+            why: stop.why || null,
+            familyNote: stop.familyNote || null,
+          },
+        });
+        createdStops.push({ id: stopId, name: stop.name });
+      }
+
+      // Fire-and-forget: fetch Places photo per stop, patch TourStop.imageUrl
+      (async () => {
+        for (const stop of createdStops) {
+          try {
+            const { imageUrl } = await enrichWithPlaces(stop.name, destinationCity);
+            if (imageUrl) {
+              await db.tourStop.update({
+                where: { id: stop.id },
+                data: { imageUrl },
+              });
+              console.log(`[tour-photo] "${stop.name}" -> ${imageUrl.slice(0, 60)}`);
+            } else {
+              console.log(`[tour-photo-miss] "${stop.name}"`);
+            }
+          } catch (e: unknown) {
+            console.log(`[tour-photo-err] "${stop.name}": ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }
+      })();
+    }
+
     return NextResponse.json({
-      stops: geocodedStops,
+      tourId,
+      stops: geocodedStops.map(s => ({ ...s, imageUrl: null as string | null })),
       destinationCity,
       prompt,
       durationLabel,
