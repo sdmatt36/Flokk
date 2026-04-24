@@ -26,7 +26,7 @@ export async function GET(request: Request) {
       placePhotoUrl: true,
       enrichmentAttempts: true,
     },
-    take: 50,
+    take: 25,
     orderBy: { savedAt: "asc" },
   });
 
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
 
       // On the third attempt with still-null placePhotoUrl, give up permanently
       const willBeThirdAttempt = (item.enrichmentAttempts ?? 0) + 1 >= 3;
-      const stillNoPhoto = !updateData.placePhotoUrl;
+      const stillNoPhoto = !item.placePhotoUrl && !updateData.placePhotoUrl;
       if (willBeThirdAttempt && stillNoPhoto) {
         updateData.extractionStatus = "ENRICHMENT_FAILED";
         console.log(`[enrich-give-up] "${item.rawTitle}" reached 3 attempts without photo; marking ENRICHMENT_FAILED`);
