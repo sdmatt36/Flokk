@@ -16,6 +16,7 @@ export async function GET(request: Request) {
       OR: [{ websiteUrl: null }, { placePhotoUrl: null }],
       extractionStatus: "ENRICHED",
       rawTitle: { not: null },
+      enrichmentAttempts: { lt: 3 },
     },
     select: {
       id: true,
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
       destinationCity: true,
       websiteUrl: true,
       placePhotoUrl: true,
+      enrichmentAttempts: true,
     },
     take: 50,
     orderBy: { savedAt: "asc" },
@@ -42,20 +44,33 @@ export async function GET(request: Request) {
         item.destinationCity ?? ""
       );
 
-      const updateData: Record<string, string> = {};
+      const updateData: Record<string, unknown> = {};
       if (website && !item.websiteUrl) updateData.websiteUrl = website;
       if (imageUrl && !item.placePhotoUrl) updateData.placePhotoUrl = imageUrl;
 
-      if (Object.keys(updateData).length > 0) {
-        await db.savedItem.update({
-          where: { id: item.id },
-          data: updateData,
-        });
+      // On the third attempt with still-null placePhotoUrl, give up permanently
+      const willBeThirdAttempt = (item.enrichmentAttempts ?? 0) + 1 >= 3;
+      const stillNoPhoto = !updateData.placePhotoUrl;
+      if (willBeThirdAttempt && stillNoPhoto) {
+        updateData.extractionStatus = "ENRICHMENT_FAILED";
+        console.log(`[enrich-give-up] "${item.rawTitle}" reached 3 attempts without photo; marking ENRICHMENT_FAILED`);
+      }
+
+      // Always increment attempt counter regardless of success or failure
+      await db.savedItem.update({
+        where: { id: item.id },
+        data: {
+          ...updateData,
+          enrichmentAttempts: { increment: 1 },
+        },
+      });
+
+      if (Object.keys(updateData).filter(k => k !== "extractionStatus").length > 0) {
         updated++;
         console.log(`[cron:enrich-saved-items] Updated ${Object.keys(updateData).join(", ")} for ${item.rawTitle}`);
       } else {
         skipped++;
-        console.log(`[cron:enrich-saved-items] No website found for ${item.rawTitle}`);
+        console.log(`[cron:enrich-saved-items] No enrichment found for ${item.rawTitle}`);
       }
     } catch (err) {
       skipped++;

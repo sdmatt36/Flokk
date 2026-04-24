@@ -17,7 +17,7 @@ export async function POST() {
         { rawTitle: { contains: "on Instagram", mode: "insensitive" } },
         { rawTitle: { equals: "Google Maps" } },
         { rawTitle: { equals: "google.com" } },
-        { extractionStatus: { not: "ENRICHED" } },
+        { extractionStatus: { notIn: ["ENRICHED", "ENRICHMENT_FAILED"] } },
         {
           AND: [
             { placePhotoUrl: null },

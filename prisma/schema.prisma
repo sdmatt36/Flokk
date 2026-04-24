@@ -321,6 +321,7 @@ model SavedItem {
   relevanceScore      Float?
   status              SavedItemStatus @default(UNORGANIZED)
   extractionStatus    ExtractionStatus @default(PENDING)
+  enrichmentAttempts  Int              @default(0)
   dayIndex            Int?
   notes               String?
   affiliateUrl        String?
@@ -355,6 +356,7 @@ enum ExtractionStatus {
   PROCESSING
   ENRICHED
   FAILED
+  ENRICHMENT_FAILED
 }
 
 // =============================================================================
