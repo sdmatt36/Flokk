@@ -133,8 +133,7 @@ export default function TourResults({ stops, destinationCity, destinationCountry
 
   function autoSelectTrip(loadedTrips: TripOption[]) {
     const tourCityNorm = normalizeCity(destinationCity);
-    const upcomingOnly = loadedTrips.filter(t => t.status === "PLANNING" || t.status === "ACTIVE");
-    const matches = upcomingOnly.filter(t => {
+    const matches = loadedTrips.filter(t => {
       const tripCityNorm = normalizeCity(t.destinationCity);
       if (!tourCityNorm || !tripCityNorm) return false;
       return tripCityNorm === tourCityNorm || tripCityNorm.includes(tourCityNorm) || tourCityNorm.includes(tripCityNorm);

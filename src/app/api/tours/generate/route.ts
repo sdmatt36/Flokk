@@ -3,10 +3,10 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import Anthropic from "@anthropic-ai/sdk";
-import { enrichWithPlaces } from "@/lib/enrich-with-places";
+import { haversineMeters } from "@/lib/geo";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -21,23 +21,88 @@ interface RawStop {
   familyNote: string;
 }
 
-async function geocodeFallback(stop: RawStop, destinationCity: string): Promise<RawStop> {
-  if (stop.lat && stop.lng && stop.lat !== 0 && stop.lng !== 0) return stop;
+type ResolvedStop = RawStop & { imageUrl: string | null };
+
+function ageFromBirthDate(birthDate: Date | string | null | undefined): number | null {
+  if (!birthDate) return null;
+  const birth = new Date(birthDate);
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const m = now.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
+  return age >= 0 ? age : null;
+}
+
+function maxWalkMinutes(youngestChildAge: number | null): number {
+  if (youngestChildAge === null) return 15;
+  if (youngestChildAge < 5) return 6;
+  if (youngestChildAge <= 10) return 10;
+  return 15;
+}
+
+async function resolveAgainstPlaces(stop: RawStop, destinationCity: string): Promise<ResolvedStop | null> {
   try {
-    const query = encodeURIComponent(`${stop.name} ${stop.address} ${destinationCity}`);
-    const geoRes = await fetch(
+    const cityNorm = destinationCity.toLowerCase().split(",")[0].trim();
+    const query = encodeURIComponent(`${stop.name} ${stop.address || ""} ${destinationCity}`);
+    const searchRes = await fetch(
       `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&key=${process.env.GOOGLE_MAPS_API_KEY}`
     );
-    const geoData = await geoRes.json() as { results?: { geometry?: { location?: { lat: number; lng: number } } }[] };
-    const location = geoData.results?.[0]?.geometry?.location;
-    if (location) {
-      console.log(`[tour-geocode] "${stop.name}" fallback -> ${location.lat},${location.lng}`);
-      return { ...stop, lat: location.lat, lng: location.lng };
+    const searchData = await searchRes.json() as {
+      results?: Array<{ place_id: string; geometry?: { location?: { lat: number; lng: number } } }>;
+    };
+
+    const firstResult = searchData.results?.[0];
+    if (!firstResult?.geometry?.location) {
+      console.log(`[tour-resolve] NO RESULT "${stop.name}"`);
+      return null;
     }
+
+    const detailsRes = await fetch(
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${firstResult.place_id}&fields=name,formatted_address,geometry,photos,address_components&key=${process.env.GOOGLE_MAPS_API_KEY}`
+    );
+    const detailsData = await detailsRes.json() as {
+      result?: {
+        address_components?: Array<{ long_name: string; short_name: string; types: string[] }>;
+        photos?: Array<{ photo_reference: string }>;
+      };
+    };
+
+    const components = detailsData.result?.address_components ?? [];
+    const cityComponents = components.filter(c =>
+      c.types?.some((t: string) => ["locality", "administrative_area_level_1", "postal_town", "sublocality"].includes(t))
+    );
+    const cityMatch = cityComponents.some(c => {
+      const long = (c.long_name ?? "").toLowerCase();
+      const short = (c.short_name ?? "").toLowerCase();
+      return long.includes(cityNorm) || short.includes(cityNorm) || cityNorm.includes(long);
+    });
+    if (!cityMatch) {
+      console.log(`[tour-resolve] REJECTED "${stop.name}" — city components ${cityComponents.map(c => c.long_name).join(", ") || "none"} do not match "${cityNorm}"`);
+      return null;
+    }
+
+    const photoRef = detailsData.result?.photos?.[0]?.photo_reference;
+    let imageUrl: string | null = null;
+    if (photoRef) {
+      try {
+        const photoRes = await fetch(
+          `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${encodeURIComponent(photoRef)}&key=${process.env.GOOGLE_MAPS_API_KEY}`,
+          { redirect: "follow" }
+        );
+        imageUrl = photoRes.url;
+      } catch {
+        console.log(`[tour-resolve-photo-err] "${stop.name}"`);
+      }
+    }
+
+    const { lat, lng } = firstResult.geometry.location;
+    console.log(`[tour-resolve] OK "${stop.name}" -> ${lat},${lng}${imageUrl ? " [photo]" : ""}`);
+    return { ...stop, lat, lng, imageUrl };
   } catch (e) {
-    console.error("[tours/generate] geocoding fallback failed:", stop.name, e);
+    console.error("[tour-resolve] error:", stop.name, e);
+    if (stop.lat && stop.lng && stop.lat !== 0 && stop.lng !== 0) return { ...stop, imageUrl: null };
+    return null;
   }
-  return stop;
 }
 
 export async function POST(req: NextRequest) {
@@ -81,16 +146,33 @@ export async function POST(req: NextRequest) {
     const profile = await db.familyProfile.findUnique({
       where: { id: profileId },
       include: {
-        members: { select: { name: true, role: true, dietaryRequirements: true } },
+        members: { select: { name: true, role: true, dietaryRequirements: true, birthDate: true } },
         interests: { select: { interestKey: true } },
       },
     });
 
     let familyContext = "";
+    let youngestChildAge: number | null = null;
+    let childAgesContext = "ages not specified";
+
     if (profile) {
+      const childAges: number[] = [];
       const memberList = profile.members
-        .map(m => `${m.name ?? "Member"} (${m.role === "CHILD" ? "child" : "adult"})`)
+        .map(m => {
+          const age = ageFromBirthDate(m.birthDate);
+          if (m.role === "CHILD") {
+            if (age !== null) childAges.push(age);
+            return `${m.name ?? "Child"} (age ${age ?? "unknown"})`;
+          }
+          return `${m.name ?? "Adult"} (adult)`;
+        })
         .join(", ");
+
+      if (childAges.length > 0) {
+        youngestChildAge = Math.min(...childAges);
+        childAgesContext = `children aged ${childAges.join(", ")}`;
+      }
+
       const interestList = profile.interests.map(i => i.interestKey).join(", ");
       const allDietary = [...new Set(profile.members.flatMap(m => m.dietaryRequirements as string[]))];
       const parts: string[] = [];
@@ -102,7 +184,8 @@ export async function POST(req: NextRequest) {
       familyContext = parts.join(". ");
     }
 
-    // Fetch community-rated places for this destination
+    const maxWalk = maxWalkMinutes(youngestChildAge);
+
     const cityPattern = `%${destinationCity}%`;
     const [manualActivityRows, itineraryItemRows] = await Promise.all([
       db.$queryRaw<Array<{ id: string; title: string; address: string | null; lat: number | null; lng: number | null; imageUrl: string | null; avg_rating: number }>>`
@@ -134,7 +217,6 @@ export async function POST(req: NextRequest) {
       ? `Community-rated places in ${destinationCity} from real families (use these first when relevant):\n${seededPlaces.map(p => `${p.name} — ${p.address} (rated ${p.avgRating.toFixed(1)}/5)`).join("\n")}\n\n`
       : "";
 
-    // Create GeneratedTour before streaming so TourStop rows can FK to it
     const tourId: string = crypto.randomUUID();
     const tourTitle = prompt.trim().length <= 10
       ? `${destinationCity} tour`
@@ -166,111 +248,120 @@ export async function POST(req: NextRequest) {
           duration: { type: "number", description: "Minutes at this stop" },
           travelTime: { type: "number", description: "Minutes to travel to the NEXT stop, 0 for the last stop" },
           why: { type: "string", description: "One sentence on why this stop fits the theme" },
-          familyNote: { type: "string", description: "Specific note for this family based on kids ages" },
+          familyNote: { type: "string", description: `Specific note for this family: ${childAgesContext}` },
         },
         required: ["name", "address", "lat", "lng", "duration", "travelTime", "why", "familyNote"],
       },
     };
 
-    const systemPrompt = `You are a family travel expert building themed day tours. Call emit_tour_stop exactly ${targetStops} times — once per stop, in order. Stops must be geographically clustered for ${transport} travel — walking tours must have stops within 15 minutes walk of each other, metro tours can span the city, car tours have no distance constraint. Keep stops strictly on theme — do not add tangential attractions. Total time (sum of all duration + travelTime fields) must not exceed ${maxMinutes} minutes.`;
+    const systemPrompt = `You are a family travel expert building themed day tours. Call emit_tour_stop exactly ${targetStops} times — once per stop, in order.
+
+ABSOLUTE RULES — violating any of these means the tour fails:
+1. Every stop MUST be a real, operating venue physically located IN ${destinationCity}. No venues from other cities. No "branch" workarounds. No closed or fictional places.
+2. Every stop MUST directly serve the theme. No tangential sightseeing added for variety.
+3. ${transport === "Walking" ? `Walking tour: every consecutive stop pair MUST be within ${maxWalk} minutes walk (~${maxWalk * 80}m) of each other. Cluster tightly in one neighborhood.` : transport === "Metro / Transit" ? "Metro tour: stops can span the city but must be reachable by public transit." : "Car tour: no distance constraint."}
+4. Total time (sum of all duration + travelTime) must not exceed ${maxMinutes} minutes.
+5. familyNote MUST reference the specific children: ${childAgesContext}. Tailor to their ages.`;
 
     const userMessage = `${seededContext}Tour theme: ${prompt}. Destination: ${destinationCity}. Duration: ${durationLabel || "Half day (4 hrs)"}. Transport: ${transport}. Family: ${familyContext || "not specified"}`;
 
-    // Stream with tool_use — each complete tool call = one stop
-    type PersistedStop = RawStop & { id: string; orderIndex: number };
-    const completedStops: PersistedStop[] = [];
-    const parallelPhotoFetches: Array<Promise<{ stopId: string; imageUrl: string | null }>> = [];
-    let orderIndex = 0;
-    let currentToolName: string | null = null;
-    let currentToolJson = "";
-    let partialTour = false;
+    type PersistedStop = ResolvedStop & { id: string; orderIndex: number };
 
-    const stream = anthropic.messages.stream({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 4096,
-      system: systemPrompt,
-      tools: [emitTourStopTool],
-      tool_choice: { type: "tool", name: "emit_tour_stop" },
-      messages: [{ role: "user", content: userMessage }],
-    });
+    async function runStream(attempt: number): Promise<{ completedStops: PersistedStop[]; rejectedCount: number; partialTour: boolean }> {
+      if (attempt > 0) {
+        await db.tourStop.deleteMany({ where: { tourId } });
+      }
 
-    for await (const event of stream) {
-      if (event.type === "content_block_start" && event.content_block.type === "tool_use") {
-        currentToolName = event.content_block.name;
-        currentToolJson = "";
-      } else if (event.type === "content_block_delta" && event.delta.type === "input_json_delta") {
-        currentToolJson += event.delta.partial_json;
-      } else if (event.type === "content_block_stop" && currentToolName === "emit_tour_stop") {
-        try {
-          const rawStop = JSON.parse(currentToolJson) as RawStop;
-          const stop = await geocodeFallback(rawStop, destinationCity);
-          const stopId = crypto.randomUUID();
-          const idx = orderIndex++;
+      const completedStops: PersistedStop[] = [];
+      let orderIndex = 0;
+      let currentToolName: string | null = null;
+      let currentToolJson = "";
+      let partialTour = false;
+      let rejectedCount = 0;
 
-          await db.tourStop.create({
-            data: {
-              id: stopId,
-              tourId,
-              orderIndex: idx,
-              name: stop.name,
-              address: stop.address || null,
-              lat: stop.lat || null,
-              lng: stop.lng || null,
-              durationMin: stop.duration || null,
-              travelTimeMin: stop.travelTime || null,
-              why: stop.why || null,
-              familyNote: stop.familyNote || null,
-            },
-          });
+      const stream = anthropic.messages.stream({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 4096,
+        system: systemPrompt,
+        tools: [emitTourStopTool],
+        tool_choice: { type: "tool", name: "emit_tour_stop" },
+        messages: [{ role: "user", content: userMessage }],
+      });
 
-          completedStops.push({ ...stop, id: stopId, orderIndex: idx });
+      for await (const event of stream) {
+        if (event.type === "content_block_start" && event.content_block.type === "tool_use") {
+          currentToolName = event.content_block.name;
+          currentToolJson = "";
+        } else if (event.type === "content_block_delta" && event.delta.type === "input_json_delta") {
+          currentToolJson += event.delta.partial_json;
+        } else if (event.type === "content_block_stop" && currentToolName === "emit_tour_stop") {
+          try {
+            const rawStop = JSON.parse(currentToolJson) as RawStop;
+            const resolved = await resolveAgainstPlaces(rawStop, destinationCity);
+            if (!resolved) {
+              rejectedCount++;
+            } else {
+              const stopId = crypto.randomUUID();
+              const idx = orderIndex++;
 
-          // Photo fetch starts immediately — runs in parallel while next stop streams
-          parallelPhotoFetches.push(
-            enrichWithPlaces(stop.name, destinationCity)
-              .then(({ imageUrl }) => ({ stopId, imageUrl: imageUrl ?? null }))
-              .catch((e: unknown) => {
-                console.log(`[tour-photo-err] "${stop.name}": ${e instanceof Error ? e.message : String(e)}`);
-                return { stopId, imageUrl: null };
-              })
-          );
-        } catch (e) {
-          console.error("[tours/generate] failed to parse stop tool call:", e);
-          partialTour = true;
+              await db.tourStop.create({
+                data: {
+                  id: stopId,
+                  tourId,
+                  orderIndex: idx,
+                  name: resolved.name,
+                  address: resolved.address || null,
+                  lat: resolved.lat || null,
+                  lng: resolved.lng || null,
+                  durationMin: resolved.duration || null,
+                  travelTimeMin: resolved.travelTime || null,
+                  why: resolved.why || null,
+                  familyNote: resolved.familyNote || null,
+                  imageUrl: resolved.imageUrl,
+                },
+              });
+
+              completedStops.push({ ...resolved, id: stopId, orderIndex: idx });
+            }
+          } catch (e) {
+            console.error("[tours/generate] failed to parse stop tool call:", e);
+            partialTour = true;
+          }
+          currentToolName = null;
+          currentToolJson = "";
+        } else if (event.type === "message_stop") {
+          console.log(`[tour-stream] attempt ${attempt}: ${completedStops.length} accepted, ${rejectedCount} rejected`);
         }
-        currentToolName = null;
-        currentToolJson = "";
-      } else if (event.type === "message_stop") {
-        console.log(`[tour-stream] complete: ${completedStops.length}/${targetStops} stops`);
+      }
+
+      if (completedStops.length < targetStops) partialTour = true;
+
+      return { completedStops, rejectedCount, partialTour };
+    }
+
+    let { completedStops, rejectedCount, partialTour } = await runStream(0);
+
+    if (rejectedCount >= 2) {
+      console.log(`[tour-retry] ${rejectedCount} rejected stops — retrying`);
+      ({ completedStops, partialTour } = await runStream(1));
+    }
+
+    // Haversine walk-distance validation (walking tours only)
+    let walkViolations = 0;
+    if (transport === "Walking" && completedStops.length >= 2) {
+      const maxDistMeters = maxWalk * 80;
+      for (let i = 1; i < completedStops.length; i++) {
+        const prev = completedStops[i - 1];
+        const curr = completedStops[i];
+        if (prev.lat && prev.lng && curr.lat && curr.lng) {
+          const dist = haversineMeters(prev.lat, prev.lng, curr.lat, curr.lng);
+          if (dist > maxDistMeters) {
+            walkViolations++;
+            console.log(`[tour-walk-violation] "${prev.name}" → "${curr.name}": ${Math.round(dist)}m (max ${maxDistMeters}m)`);
+          }
+        }
       }
     }
-
-    // Flag partial stream
-    if (completedStops.length < targetStops) {
-      partialTour = true;
-      console.log(`[tour-stream] partial: got ${completedStops.length} of ${targetStops} requested`);
-    }
-
-    // Await all photo fetches — most already resolved by now
-    const photoResults = await Promise.all(parallelPhotoFetches);
-    const photoMap = new Map<string, string | null>();
-
-    // Log results
-    for (const { stopId, imageUrl } of photoResults) {
-      photoMap.set(stopId, imageUrl);
-      const stopName = completedStops.find(s => s.id === stopId)?.name ?? stopId;
-      if (imageUrl) {
-        console.log(`[tour-photo] "${stopName}" -> ${imageUrl.slice(0, 60)}`);
-      } else {
-        console.log(`[tour-photo-miss] "${stopName}"`);
-      }
-    }
-
-    // Batch-update TourStop imageUrl for resolved photos
-    const updates = photoResults
-      .filter(r => r.imageUrl)
-      .map(r => db.tourStop.update({ where: { id: r.stopId }, data: { imageUrl: r.imageUrl } }));
-    await Promise.all(updates);
 
     return NextResponse.json({
       tourId,
@@ -283,7 +374,7 @@ export async function POST(req: NextRequest) {
         travelTime: s.travelTime,
         why: s.why,
         familyNote: s.familyNote,
-        imageUrl: photoMap.get(s.id) ?? null,
+        imageUrl: s.imageUrl ?? null,
       })),
       destinationCity,
       prompt,
@@ -291,6 +382,7 @@ export async function POST(req: NextRequest) {
       transport,
       generatedAt: new Date().toISOString(),
       ...(partialTour ? { partialTour: true } : {}),
+      ...(walkViolations > 0 ? { walkViolations } : {}),
     });
 
   } catch (err) {

@@ -388,6 +388,12 @@ export default function TourPage() {
             {loading ? "Building your tour..." : "Build my tour"}
           </button>
 
+          {loading && (
+            <p className="text-center mt-3" style={{ fontSize: "13px", color: "#C4664A", fontWeight: 600, fontStyle: "italic" }}>
+              Flokking... Patience is a Virtue.
+            </p>
+          )}
+
           {touched && !allFilled && (
             <p className="text-xs text-gray-400 mt-2 text-center">
               Fill in all fields to build your tour
