@@ -33,7 +33,7 @@
     "fuse.js": "^7.3.0",
     "he": "^1.2.0",
     "html2canvas": "^1.4.1",
-    "inngest": "^3.52.6",
+    "inngest": "3.54.0",
     "lucide-react": "^0.577.0",
     "mapbox-gl": "^3.19.1",
     "nanoid": "^5.1.7",
