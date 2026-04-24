@@ -32,6 +32,7 @@ type TourResponse = {
   durationLabel: string;
   transport: string;
   generatedAt: string;
+  walkViolations?: number;
 };
 
 type SavedTourEntry = {
@@ -285,6 +286,7 @@ export default function TourPage() {
             durationLabel={results.durationLabel}
             transport={results.transport}
             tourId={results.tourId ?? null}
+            walkViolations={results.walkViolations}
           />
         </div>
       </div>

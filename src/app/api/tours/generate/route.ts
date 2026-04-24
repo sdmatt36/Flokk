@@ -19,6 +19,24 @@ interface RawStop {
   travelTime: number;
   why: string;
   familyNote: string;
+  themeRelevance: string;
+}
+
+function hasWeakThemeRelevance(text: string | undefined | null): boolean {
+  if (!text) return true;
+  const trimmed = text.trim().toLowerCase();
+  if (trimmed.length < 30) return true;
+  const vaguePhrases = [
+    "provides atmosphere",
+    "adds variety",
+    "complements the theme",
+    "scenic addition",
+    "adjacent to the theme",
+    "nearby attraction",
+    "adds charm",
+    "enhances the experience",
+  ];
+  return vaguePhrases.some(p => trimmed.includes(p));
 }
 
 type ResolvedStop = RawStop & { imageUrl: string | null };
@@ -249,8 +267,9 @@ export async function POST(req: NextRequest) {
           travelTime: { type: "number", description: "Minutes to travel to the NEXT stop, 0 for the last stop" },
           why: { type: "string", description: "One sentence on why this stop fits the theme" },
           familyNote: { type: "string", description: `Specific note for this family: ${childAgesContext}` },
+          themeRelevance: { type: "string", description: `Specific justification for why this exact venue directly serves the theme "${prompt}". Name what happens at this venue that fits the theme. Avoid vague phrases like "provides atmosphere", "complements", or "adds variety". If you cannot justify the stop concretely, choose a different venue.` },
         },
-        required: ["name", "address", "lat", "lng", "duration", "travelTime", "why", "familyNote"],
+        required: ["name", "address", "lat", "lng", "duration", "travelTime", "why", "familyNote", "themeRelevance"],
       },
     };
 
@@ -267,7 +286,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
 
     type PersistedStop = ResolvedStop & { id: string; orderIndex: number };
 
-    async function runStream(attempt: number): Promise<{ completedStops: PersistedStop[]; rejectedCount: number; partialTour: boolean }> {
+    async function runStream(attempt: number, extraInstruction = ""): Promise<{ completedStops: PersistedStop[]; rejectedCount: number; partialTour: boolean }> {
       if (attempt > 0) {
         await db.tourStop.deleteMany({ where: { tourId } });
       }
@@ -278,11 +297,12 @@ ABSOLUTE RULES — violating any of these means the tour fails:
       let currentToolJson = "";
       let partialTour = false;
       let rejectedCount = 0;
+      const finalSystemPrompt = extraInstruction ? `${systemPrompt}\n\n${extraInstruction}` : systemPrompt;
 
       const stream = anthropic.messages.stream({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 4096,
-        system: systemPrompt,
+        system: finalSystemPrompt,
         tools: [emitTourStopTool],
         tool_choice: { type: "tool", name: "emit_tour_stop" },
         messages: [{ role: "user", content: userMessage }],
@@ -301,6 +321,12 @@ ABSOLUTE RULES — violating any of these means the tour fails:
             if (!resolved) {
               rejectedCount++;
             } else {
+              console.log(`[tour-relevance] "${resolved.name}" -> "${(rawStop.themeRelevance ?? "").slice(0, 120)}"`);
+              const weak = hasWeakThemeRelevance(rawStop.themeRelevance);
+              if (weak) {
+                console.log(`[tour-theme-weak] "${rawStop.name}" -> "${rawStop.themeRelevance ?? ""}"`);
+                rejectedCount++;
+              }
               const stopId = crypto.randomUUID();
               const idx = orderIndex++;
 
@@ -339,17 +365,19 @@ ABSOLUTE RULES — violating any of these means the tour fails:
       return { completedStops, rejectedCount, partialTour };
     }
 
+    // ── Attempt 0: initial stream ──────────────────────────────────────────────
     let { completedStops, rejectedCount, partialTour } = await runStream(0);
 
+    // ── Attempt 1: rejection retry (hard city-mismatch + soft theme-weak) ─────
     if (rejectedCount >= 2) {
       console.log(`[tour-retry] ${rejectedCount} rejected stops — retrying`);
-      ({ completedStops, partialTour } = await runStream(1));
+      ({ completedStops, rejectedCount, partialTour } = await runStream(1));
     }
 
-    // Haversine walk-distance validation (walking tours only)
+    // ── Walk-distance validation ───────────────────────────────────────────────
+    const maxDistMeters = maxWalk * 80;
     let walkViolations = 0;
     if (transport === "Walking" && completedStops.length >= 2) {
-      const maxDistMeters = maxWalk * 80;
       for (let i = 1; i < completedStops.length; i++) {
         const prev = completedStops[i - 1];
         const curr = completedStops[i];
@@ -363,6 +391,33 @@ ABSOLUTE RULES — violating any of these means the tour fails:
       }
     }
 
+    // ── Attempt 2: walk-violation retry with clustering hint ──────────────────
+    if (transport === "Walking" && walkViolations > 0) {
+      const clusteringHint = `CRITICAL: The previous attempt produced stops that were too far apart for walking with kids. ALL stops MUST cluster within a single neighborhood or district. Every consecutive stop pair MUST be within ${maxWalk} minutes walk (~${maxDistMeters}m). If you cannot find ${targetStops} venues on theme within one walkable area, return fewer stops rather than spreading across the city.`;
+      console.log(`[tour-walk-retry] ${walkViolations} walk violations detected — retrying with clustering hint`);
+      const retryResult = await runStream(2, clusteringHint);
+      if (retryResult.completedStops.length >= Math.min(2, completedStops.length)) {
+        let retryViolations = 0;
+        for (let i = 1; i < retryResult.completedStops.length; i++) {
+          const prev = retryResult.completedStops[i - 1];
+          const curr = retryResult.completedStops[i];
+          if (prev.lat && prev.lng && curr.lat && curr.lng) {
+            const dist = haversineMeters(prev.lat, prev.lng, curr.lat, curr.lng);
+            if (dist > maxDistMeters) retryViolations++;
+          }
+        }
+        if (retryViolations < walkViolations) {
+          console.log(`[tour-walk-retry-success] was ${walkViolations} violations, now ${retryViolations}`);
+          completedStops = retryResult.completedStops;
+          partialTour = retryResult.partialTour;
+          walkViolations = retryViolations;
+        } else {
+          console.log(`[tour-walk-retry-noop] retry had ${retryViolations} violations, keeping original`);
+        }
+      }
+    }
+
+    // ── Response ───────────────────────────────────────────────────────────────
     return NextResponse.json({
       tourId,
       stops: completedStops.map(s => ({

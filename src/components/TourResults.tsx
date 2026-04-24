@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Clock, Footprints, MapPin } from "lucide-react";
+import { AlertTriangle, Clock, Footprints, MapPin } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 type Stop = {
@@ -33,9 +33,10 @@ type Props = {
   durationLabel: string;
   transport: string;
   tourId?: string | null;
+  walkViolations?: number;
 };
 
-export default function TourResults({ stops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId }: Props) {
+export default function TourResults({ stops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, walkViolations }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<{ remove: () => void } | null>(null);
 
@@ -133,13 +134,21 @@ export default function TourResults({ stops, destinationCity, destinationCountry
 
   function autoSelectTrip(loadedTrips: TripOption[]) {
     const tourCityNorm = normalizeCity(destinationCity);
+    if (!tourCityNorm) return;
     const matches = loadedTrips.filter(t => {
       const tripCityNorm = normalizeCity(t.destinationCity);
-      if (!tourCityNorm || !tripCityNorm) return false;
+      if (!tripCityNorm) return false;
       return tripCityNorm === tourCityNorm || tripCityNorm.includes(tourCityNorm) || tourCityNorm.includes(tripCityNorm);
     });
-    if (matches.length === 1) {
-      const match = matches[0];
+    if (matches.length === 0) return;
+    const upcoming = matches.filter(t => t.status === "PLANNING" || t.status === "ACTIVE");
+    let match: TripOption | undefined;
+    if (upcoming.length === 1) {
+      match = upcoming[0];
+    } else if (matches.length === 1) {
+      match = matches[0];
+    }
+    if (match) {
       const mx = (match.startDate && match.endDate)
         ? Math.round((new Date(match.endDate.split("T")[0]).getTime() - new Date(match.startDate.split("T")[0]).getTime()) / (1000 * 60 * 60 * 24)) + 1
         : 30;
@@ -219,6 +228,15 @@ export default function TourResults({ stops, destinationCity, destinationCountry
     <div>
       <p className="font-serif text-xl font-semibold text-[#1B3A5C] mb-1">{prompt}</p>
       <p className="text-sm text-gray-400 mb-6">{destinationCity}</p>
+
+      {walkViolations != null && walkViolations > 0 && (
+        <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
+          <AlertTriangle size={16} className="text-amber-700 shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-900 leading-relaxed">
+            Heads up: this tour has {walkViolations} {walkViolations === 1 ? "walk" : "walks"} that exceed the suggested walking distance for your family. You can remove any stop and regenerate for a tighter route.
+          </p>
+        </div>
+      )}
 
       {stops.length > 0 && (
         <div ref={containerRef} className="h-[280px] rounded-2xl overflow-hidden mb-6" />
