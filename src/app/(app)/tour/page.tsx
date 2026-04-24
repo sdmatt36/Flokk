@@ -12,6 +12,7 @@ type DestinationSuggestion = {
 };
 
 type Stop = {
+  id: string;
   name: string;
   address: string;
   lat: number;
@@ -60,6 +61,7 @@ export default function TourPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [results, setResults] = useState<TourResponse | null>(null);
+  const [stops, setStops] = useState<Stop[]>([]);
   const [touched, setTouched] = useState(false);
 
   // Library state
@@ -85,6 +87,11 @@ export default function TourPage() {
     return () => document.removeEventListener("mousedown", handle);
   }, []);
 
+  // Sync lifted stops state when results first arrive
+  useEffect(() => {
+    if (results?.stops) setStops(results.stops);
+  }, [results?.tourId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Poll for stop photos after generation (up to 30s, every 3s)
   useEffect(() => {
     if (!results?.tourId) return;
@@ -97,6 +104,7 @@ export default function TourPage() {
         if (!res.ok) return;
         const fresh = await res.json() as { stops: Stop[] };
         setResults((prev) => prev ? { ...prev, stops: fresh.stops } : prev);
+        setStops(fresh.stops);
         if (fresh.stops.every((s) => s.imageUrl)) clearInterval(interval);
       } catch { /* non-fatal */ }
     }, 3000);
@@ -250,6 +258,7 @@ export default function TourPage() {
 
   function handleReset() {
     setResults(null);
+    setStops([]);
     setPrompt("");
     setDestinationCity("");
     setDestinationCountry(null);
@@ -260,6 +269,18 @@ export default function TourPage() {
     setSuggestions([]);
     setShowSuggestions(false);
     setExpandedCity(null);
+  }
+
+  function handleRemoveStop(stopId: string) {
+    setStops(prev => prev.filter(s => s.id !== stopId));
+  }
+
+  function handleRestoreStop(stop: Stop, insertAt: number) {
+    setStops(prev => {
+      const next = [...prev];
+      next.splice(insertAt, 0, stop);
+      return next;
+    });
   }
 
   const inputClass =
@@ -279,7 +300,7 @@ export default function TourPage() {
             Start over
           </button>
           <TourResults
-            stops={results.stops}
+            stops={stops}
             destinationCity={results.destinationCity}
             destinationCountry={results.destinationCountry ?? null}
             prompt={results.prompt}
@@ -287,6 +308,8 @@ export default function TourPage() {
             transport={results.transport}
             tourId={results.tourId ?? null}
             walkViolations={results.walkViolations}
+            onRemoveStop={handleRemoveStop}
+            onRestoreStop={handleRestoreStop}
           />
         </div>
       </div>

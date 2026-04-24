@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Clock, Footprints, MapPin } from "lucide-react";
+import { AlertTriangle, Clock, Footprints, MapPin, X } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 type Stop = {
+  id: string;
   name: string;
   address: string;
   lat: number;
@@ -34,9 +35,11 @@ type Props = {
   transport: string;
   tourId?: string | null;
   walkViolations?: number;
+  onRemoveStop: (stopId: string) => void;
+  onRestoreStop: (stop: Stop, insertAt: number) => void;
 };
 
-export default function TourResults({ stops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, walkViolations }: Props) {
+export default function TourResults({ stops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, walkViolations, onRemoveStop, onRestoreStop }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<{ remove: () => void } | null>(null);
 
@@ -50,7 +53,28 @@ export default function TourResults({ stops, destinationCity, destinationCountry
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState<{ tripTitle: string; tripId: string; day: number; tourId: string } | null>(null);
   const [unlinking, setUnlinking] = useState(false);
-  const [imgLoaded, setImgLoaded] = useState<Record<number, boolean>>({});
+  const [imgLoaded, setImgLoaded] = useState<Record<string, boolean>>({});
+
+  const [inlineToast, setInlineToast] = useState<string | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<{
+    stop: Stop;
+    insertAt: number;
+    timer: ReturnType<typeof setTimeout>;
+  } | null>(null);
+
+  // Flush pending DELETE on unmount
+  useEffect(() => {
+    return () => {
+      if (pendingRemoval) {
+        clearTimeout(pendingRemoval.timer);
+        fetch(`/api/tours/${tourId}/stops/${pendingRemoval.stop.id}`, {
+          method: "DELETE",
+          keepalive: true,
+        });
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (stops.length === 0 || !containerRef.current) return;
@@ -221,6 +245,39 @@ export default function TourResults({ stops, destinationCity, destinationCountry
     }
   }
 
+  function handleLocalRemove(stop: Stop, index: number) {
+    // Flush any in-flight pending removal immediately so we do not lose the prior DELETE
+    if (pendingRemoval) {
+      clearTimeout(pendingRemoval.timer);
+      fetch(`/api/tours/${tourId}/stops/${pendingRemoval.stop.id}`, {
+        method: "DELETE",
+        keepalive: true,
+      });
+    }
+
+    onRemoveStop(stop.id);
+
+    const timer = setTimeout(() => {
+      fetch(`/api/tours/${tourId}/stops/${stop.id}`, {
+        method: "DELETE",
+        keepalive: true,
+      });
+      setPendingRemoval(null);
+      setInlineToast(null);
+    }, 5000);
+
+    setPendingRemoval({ stop, insertAt: index, timer });
+    setInlineToast(`Removed "${stop.name}"`);
+  }
+
+  function handleUndo() {
+    if (!pendingRemoval) return;
+    clearTimeout(pendingRemoval.timer);
+    onRestoreStop(pendingRemoval.stop, pendingRemoval.insertAt);
+    setPendingRemoval(null);
+    setInlineToast(null);
+  }
+
   const upcomingTrips = trips.filter(t => t.status === "PLANNING" || t.status === "ACTIVE");
   const pastTrips = trips.filter(t => t.status === "COMPLETED");
 
@@ -243,7 +300,19 @@ export default function TourResults({ stops, destinationCity, destinationCountry
       )}
 
       {stops.map((stop, index) => (
-        <div key={index} className="border border-gray-100 rounded-2xl mb-3 shadow-sm bg-white overflow-hidden">
+        <div key={stop.id} className="relative border border-gray-100 rounded-2xl mb-3 shadow-sm bg-white overflow-hidden">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleLocalRemove(stop, index);
+            }}
+            className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 shadow-sm hover:bg-white z-10"
+            aria-label={`Remove ${stop.name}`}
+          >
+            <X size={14} className="text-[#1B3A5C]" />
+          </button>
+
           <div className="flex">
             {/* Image */}
             <div className="w-24 h-24 shrink-0 bg-stone-100 flex items-center justify-center overflow-hidden">
@@ -252,8 +321,8 @@ export default function TourResults({ stops, destinationCity, destinationCountry
                   src={stop.imageUrl}
                   alt={stop.name}
                   className="w-full h-full object-cover transition-opacity duration-500"
-                  style={{ opacity: imgLoaded[index] ? 1 : 0 }}
-                  onLoad={() => setImgLoaded(prev => ({ ...prev, [index]: true }))}
+                  style={{ opacity: imgLoaded[stop.id] ? 1 : 0 }}
+                  onLoad={() => setImgLoaded(prev => ({ ...prev, [stop.id]: true }))}
                 />
               ) : (
                 <MapPin size={20} className="text-stone-300" />
@@ -435,6 +504,21 @@ export default function TourResults({ stops, destinationCity, destinationCountry
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {inlineToast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl bg-[#1B3A5C] px-4 py-2 text-sm text-white shadow-lg">
+          <span>{inlineToast}</span>
+          {pendingRemoval && (
+            <button
+              type="button"
+              onClick={handleUndo}
+              className="font-semibold text-[#C4664A] hover:underline"
+            >
+              Undo
+            </button>
+          )}
         </div>
       )}
     </div>

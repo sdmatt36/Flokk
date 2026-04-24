@@ -421,6 +421,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
     return NextResponse.json({
       tourId,
       stops: completedStops.map(s => ({
+        id: s.id,
         name: s.name,
         address: s.address,
         lat: s.lat,

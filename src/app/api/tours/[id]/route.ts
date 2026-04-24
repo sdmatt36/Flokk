@@ -35,6 +35,7 @@ export async function GET(
     transport: tour.transport,
     generatedAt: tour.createdAt.toISOString(),
     stops: tour.stops.map(s => ({
+      id: s.id,
       name: s.name,
       address: s.address ?? "",
       lat: s.lat ?? 0,
