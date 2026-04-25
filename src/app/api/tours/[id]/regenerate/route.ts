@@ -77,7 +77,7 @@ function maxWalkMinutes(youngestChildAge: number | null): number {
   return 15;
 }
 
-async function resolveAgainstPlaces(stop: RawStop, destinationCity: string): Promise<ResolvedStop | null> {
+async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, transport: string): Promise<ResolvedStop | null> {
   try {
     const cityNorm = destinationCity.toLowerCase().split(",")[0].trim();
     const query = encodeURIComponent(`${stop.name} ${stop.address || ""} ${destinationCity}`);
@@ -101,13 +101,28 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string): Pro
     };
 
     const components = detailsData.result?.address_components ?? [];
+
+    const STRICT_TYPES = ["locality", "postal_town", "sublocality"];
+    const PERMISSIVE_TYPES = [
+      ...STRICT_TYPES,
+      "administrative_area_level_1",
+      "administrative_area_level_2",
+    ];
+    const isStrictMode = transport === "Walking";
+    const allowedTypes = isStrictMode ? STRICT_TYPES : PERMISSIVE_TYPES;
+
     const cityComponents = components.filter(c =>
-      c.types?.some((t: string) => ["locality", "administrative_area_level_1", "postal_town", "sublocality"].includes(t))
+      c.types?.some((t: string) => allowedTypes.includes(t))
     );
     const cityMatch = cityComponents.some(c => {
       const long = (c.long_name ?? "").toLowerCase();
       const short = (c.short_name ?? "").toLowerCase();
-      return long.includes(cityNorm) || short.includes(cityNorm) || cityNorm.includes(long);
+      const longNorm = long.replace(/\s+county$/i, "").trim();
+      const shortNorm = short.replace(/\s+county$/i, "").trim();
+      return long.includes(cityNorm) ||
+             short.includes(cityNorm) ||
+             longNorm.includes(cityNorm) ||
+             shortNorm.includes(cityNorm);
     });
     if (!cityMatch) return null;
 
@@ -242,7 +257,7 @@ Generate stops that complement the accepted set thematically. They must fit the 
       } else if (event.type === "content_block_stop" && currentToolName === "emit_tour_stop") {
         try {
           const rawStop = JSON.parse(currentToolJson) as RawStop;
-          const resolved = await resolveAgainstPlaces(rawStop, destinationCity);
+          const resolved = await resolveAgainstPlaces(rawStop, destinationCity, transport);
           if (resolved) {
             const weak = hasWeakThemeRelevance(rawStop.themeRelevance);
             if (!weak) {

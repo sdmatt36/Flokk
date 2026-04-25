@@ -59,7 +59,7 @@ function maxWalkMinutes(youngestChildAge: number | null): number {
   return 15;
 }
 
-async function resolveAgainstPlaces(stop: RawStop, destinationCity: string): Promise<ResolvedStop | null> {
+async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, transport: string): Promise<ResolvedStop | null> {
   try {
     const cityNorm = destinationCity.toLowerCase().split(",")[0].trim();
     const query = encodeURIComponent(`${stop.name} ${stop.address || ""} ${destinationCity}`);
@@ -87,16 +87,37 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string): Pro
     };
 
     const components = detailsData.result?.address_components ?? [];
+
+    // Walking stays strict: only match locality-level components to prevent
+    // e.g. a Tokyo walking tour accepting venues in neighboring prefectures.
+    // Driving and Transit also accept county/borough (admin_area_level_2) so
+    // regional destinations like "Sonoma" match wine-country venues in Sonoma County.
+    const STRICT_TYPES = ["locality", "postal_town", "sublocality"];
+    const PERMISSIVE_TYPES = [
+      ...STRICT_TYPES,
+      "administrative_area_level_1",
+      "administrative_area_level_2",
+    ];
+    const isStrictMode = transport === "Walking";
+    const allowedTypes = isStrictMode ? STRICT_TYPES : PERMISSIVE_TYPES;
+
     const cityComponents = components.filter(c =>
-      c.types?.some((t: string) => ["locality", "administrative_area_level_1", "postal_town", "sublocality"].includes(t))
+      c.types?.some((t: string) => allowedTypes.includes(t))
     );
     const cityMatch = cityComponents.some(c => {
       const long = (c.long_name ?? "").toLowerCase();
       const short = (c.short_name ?? "").toLowerCase();
-      return long.includes(cityNorm) || short.includes(cityNorm) || cityNorm.includes(long);
+      // Strip "County" suffix so "Sonoma County" matches cityNorm "sonoma".
+      const longNorm = long.replace(/\s+county$/i, "").trim();
+      const shortNorm = short.replace(/\s+county$/i, "").trim();
+      return long.includes(cityNorm) ||
+             short.includes(cityNorm) ||
+             longNorm.includes(cityNorm) ||
+             shortNorm.includes(cityNorm);
     });
     if (!cityMatch) {
-      console.log(`[tour-resolve] REJECTED "${stop.name}" — city components ${cityComponents.map(c => c.long_name).join(", ") || "none"} do not match "${cityNorm}"`);
+      const componentList = cityComponents.map(c => c.long_name).join(", ") || "none";
+      console.log(`[tour-resolve] REJECTED "${stop.name}" — city components ${componentList} do not match "${cityNorm}" (mode: ${transport}, allowed: ${allowedTypes.join("|")})`);
       return null;
     }
 
@@ -319,7 +340,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
         } else if (event.type === "content_block_stop" && currentToolName === "emit_tour_stop") {
           try {
             const rawStop = JSON.parse(currentToolJson) as RawStop;
-            const resolved = await resolveAgainstPlaces(rawStop, destinationCity);
+            const resolved = await resolveAgainstPlaces(rawStop, destinationCity, transport);
             if (!resolved) {
               rejectedCount++;
             } else {
