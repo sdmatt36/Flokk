@@ -239,6 +239,7 @@ model Trip {
   collaborators    TripCollaborator[]
   questions        Question[]
   flights          Flight[]
+  flightBookings   FlightBooking[]
   manualActivities ManualActivity[]
   tripNotes        TripNote[]
   contacts         TripContact[]
@@ -621,6 +622,24 @@ model TravelVideo {
 // FLIGHTS
 // =============================================================================
 
+model FlightBooking {
+  id               String    @id @default(cuid())
+  tripId           String
+  trip             Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  confirmationCode String?
+  airline          String?
+  cabinClass       String    @default("economy")
+  seatNumbers      String?
+  notes            String?
+  status           String    @default("saved")
+  sortOrder        Int       @default(0)
+  createdAt        DateTime  @default(now())
+  flights          Flight[]
+
+  @@unique([tripId, confirmationCode], name: "unique_trip_confirmation")
+  @@index([tripId])
+}
+
 model Flight {
   id                String   @id @default(cuid())
   tripId            String
@@ -645,6 +664,8 @@ model Flight {
   sortOrder         Int      @default(0)
   status            String   @default("saved")
   createdAt         DateTime @default(now())
+  flightBookingId   String?
+  flightBooking     FlightBooking? @relation(fields: [flightBookingId], references: [id], onDelete: Cascade)
 }
 
 // =============================================================================
