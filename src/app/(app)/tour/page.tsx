@@ -253,6 +253,9 @@ export default function TourPage() {
         setError(data.error ?? "Something went wrong. Please try again.");
       } else {
         setResults({ ...data, destinationCountry });
+        if (data.tourId) {
+          window.history.replaceState({}, '', `/tour?id=${data.tourId}`);
+        }
         // Refresh library in background so the new tour appears next time
         fetchSavedTours();
       }
