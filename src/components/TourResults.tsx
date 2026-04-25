@@ -42,7 +42,7 @@ type Props = {
   onQuickUndo: (stop: Stop) => void;
   onDeleteCommit: (stop: Stop) => void;
   onPermanentRestore: (stop: Stop) => void;
-  onAppendStops: (newStops: Stop[]) => void;
+  onReplaceStops: (stops: Stop[]) => void;
 };
 
 function RemovalPlaceholder({ stop, onUndo }: { stop: Stop; onUndo: () => void }) {
@@ -65,7 +65,7 @@ function RemovalPlaceholder({ stop, onUndo }: { stop: Stop; onUndo: () => void }
   );
 }
 
-export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, walkViolations, originalTargetStops, onRemoveStop, onQuickUndo, onDeleteCommit, onPermanentRestore, onAppendStops }: Props) {
+export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, walkViolations, originalTargetStops, onRemoveStop, onQuickUndo, onDeleteCommit, onPermanentRestore, onReplaceStops }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<{ remove: () => void } | null>(null);
 
@@ -315,8 +315,8 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
         console.error("[regenerate]", await res.text());
         return;
       }
-      const data = await res.json() as { newStops: Stop[] };
-      onAppendStops(data.newStops);
+      const data = await res.json() as { newStops: Stop[]; allActive: Stop[] };
+      onReplaceStops(data.allActive);
     } catch (e) {
       console.error("[regenerate] network error", e);
     } finally {

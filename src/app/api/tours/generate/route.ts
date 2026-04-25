@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import Anthropic from "@anthropic-ai/sdk";
 import { haversineMeters } from "@/lib/geo";
+import { optimizeRouteOrder } from "@/lib/tour-route-optimization";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -416,6 +417,42 @@ ABSOLUTE RULES — violating any of these means the tour fails:
           console.log(`[tour-walk-retry-noop] retry had ${retryViolations} violations, keeping original`);
         }
       }
+    }
+
+    // ── Route optimization ────────────────────────────────────────────────────
+    const stopsWithCoords = completedStops.filter(s => s.lat != null && s.lng != null);
+    if (stopsWithCoords.length >= 3) {
+      const optimized = optimizeRouteOrder(
+        stopsWithCoords.map(s => ({ id: s.id, lat: s.lat!, lng: s.lng! }))
+      );
+
+      const newOrderById = new Map<string, number>();
+      optimized.forEach((s, i) => newOrderById.set(s.id, i));
+
+      await Promise.all(
+        optimized.map(s =>
+          db.tourStop.update({
+            where: { id: s.id },
+            data: { orderIndex: newOrderById.get(s.id)! },
+          })
+        )
+      );
+
+      completedStops.sort((a, b) => {
+        const aIdx = newOrderById.get(a.id) ?? 999;
+        const bIdx = newOrderById.get(b.id) ?? 999;
+        return aIdx - bIdx;
+      });
+
+      completedStops.forEach(s => {
+        const newIdx = newOrderById.get(s.id);
+        if (newIdx !== undefined) s.orderIndex = newIdx;
+      });
+
+      console.log("[generate] reordered stops by route optimization", {
+        tourId,
+        order: completedStops.map(s => s.name),
+      });
     }
 
     // ── Response ───────────────────────────────────────────────────────────────

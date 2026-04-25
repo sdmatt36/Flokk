@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { findBestInsertionIndex } from "@/lib/tour-route-optimization";
 
 // Note: helpers duplicated from generate/route.ts (refactor to shared lib deferred)
 
@@ -25,6 +26,22 @@ interface RawStop {
 
 type ResolvedStop = RawStop & { imageUrl: string | null };
 type PersistedStop = ResolvedStop & { id: string; orderIndex: number };
+
+function formatStop(s: PersistedStop) {
+  return {
+    id: s.id,
+    orderIndex: s.orderIndex,
+    name: s.name,
+    address: s.address,
+    lat: s.lat,
+    lng: s.lng,
+    duration: s.duration,
+    travelTime: s.travelTime,
+    why: s.why,
+    familyNote: s.familyNote,
+    imageUrl: s.imageUrl ?? null,
+  };
+}
 
 function hasWeakThemeRelevance(text: string | undefined | null): boolean {
   if (!text) return true;
@@ -202,11 +219,6 @@ Generate stops that complement the accepted set thematically. They must fit the 
 
   const userMessage = `Tour theme: ${tour.prompt}. Destination: ${destinationCity}. Transport: ${transport}. Generate ${count} replacement stop(s) to append to the existing ${activeStops.length} accepted stops.`;
 
-  const maxExistingOrderIndex = tour.stops.length > 0
-    ? Math.max(...tour.stops.map(s => s.orderIndex))
-    : -1;
-  let nextOrderIndex = maxExistingOrderIndex + 1;
-
   const newlyCreatedStops: PersistedStop[] = [];
   let currentToolName: string | null = null;
   let currentToolJson = "";
@@ -235,12 +247,55 @@ Generate stops that complement the accepted set thematically. They must fit the 
             const weak = hasWeakThemeRelevance(rawStop.themeRelevance);
             if (!weak) {
               const stopId = crypto.randomUUID();
-              const idx = nextOrderIndex++;
+
+              // Find optimal insertion slot in the current active route
+              const currentActive = await db.tourStop.findMany({
+                where: { tourId, deletedAt: null },
+                orderBy: { orderIndex: "asc" },
+                select: { id: true, orderIndex: true, lat: true, lng: true },
+              });
+
+              const coordStops = currentActive.filter(s => s.lat != null && s.lng != null);
+
+              let insertionOrderIndex: number;
+              if (coordStops.length === 0 || resolved.lat == null || resolved.lng == null) {
+                // No coords to optimize against — append
+                const maxIdx = currentActive.length > 0
+                  ? Math.max(...currentActive.map(s => s.orderIndex))
+                  : -1;
+                insertionOrderIndex = maxIdx + 1;
+              } else {
+                const insertionPos = findBestInsertionIndex(
+                  coordStops.map(s => ({ id: s.id, lat: s.lat!, lng: s.lng! })),
+                  { id: stopId, lat: resolved.lat, lng: resolved.lng }
+                );
+
+                if (insertionPos >= coordStops.length) {
+                  // Append at end — no shifts needed
+                  const maxIdx = currentActive[currentActive.length - 1]?.orderIndex ?? -1;
+                  insertionOrderIndex = maxIdx + 1;
+                } else {
+                  // Insert at position — shift existing stops up
+                  const targetOrderIndex = coordStops[insertionPos].orderIndex;
+                  await db.tourStop.updateMany({
+                    where: {
+                      tourId,
+                      deletedAt: null,
+                      orderIndex: { gte: targetOrderIndex },
+                    },
+                    data: {
+                      orderIndex: { increment: 1 },
+                    },
+                  });
+                  insertionOrderIndex = targetOrderIndex;
+                }
+              }
+
               await db.tourStop.create({
                 data: {
                   id: stopId,
                   tourId,
-                  orderIndex: idx,
+                  orderIndex: insertionOrderIndex,
                   name: resolved.name,
                   address: resolved.address || null,
                   lat: resolved.lat || null,
@@ -252,7 +307,8 @@ Generate stops that complement the accepted set thematically. They must fit the 
                   imageUrl: resolved.imageUrl,
                 },
               });
-              newlyCreatedStops.push({ ...resolved, id: stopId, orderIndex: idx });
+
+              newlyCreatedStops.push({ ...resolved, id: stopId, orderIndex: insertionOrderIndex });
             }
           }
         } catch (e) {
@@ -267,19 +323,28 @@ Generate stops that complement the accepted set thematically. They must fit the 
     return NextResponse.json({ error: "Regeneration failed" }, { status: 500 });
   }
 
+  // Return all active stops in their new order so the client can fully replace its state
+  const finalActive = await db.tourStop.findMany({
+    where: { tourId, deletedAt: null },
+    orderBy: { orderIndex: "asc" },
+  });
+
+  const finalFormatted = finalActive.map(s => ({
+    id: s.id,
+    orderIndex: s.orderIndex,
+    name: s.name,
+    address: s.address ?? "",
+    lat: s.lat ?? 0,
+    lng: s.lng ?? 0,
+    duration: s.durationMin ?? 0,
+    travelTime: s.travelTimeMin ?? 0,
+    why: s.why ?? "",
+    familyNote: s.familyNote ?? "",
+    imageUrl: s.imageUrl ?? null,
+  }));
+
   return NextResponse.json({
-    newStops: newlyCreatedStops.map(s => ({
-      id: s.id,
-      orderIndex: s.orderIndex,
-      name: s.name,
-      address: s.address,
-      lat: s.lat,
-      lng: s.lng,
-      duration: s.duration,
-      travelTime: s.travelTime,
-      why: s.why,
-      familyNote: s.familyNote,
-      imageUrl: s.imageUrl ?? null,
-    })),
+    newStops: newlyCreatedStops.map(formatStop),
+    allActive: finalFormatted,
   });
 }

@@ -310,8 +310,8 @@ export default function TourPage() {
     setRemovedStops(prev => [stop, ...prev]);
   }
 
-  function handleAppendStops(newStops: Stop[]) {
-    setStops(prev => [...prev, ...newStops]);
+  function handleReplaceStops(newActiveStops: Stop[]) {
+    setStops(newActiveStops);
   }
 
   const inputClass =
@@ -345,7 +345,7 @@ export default function TourPage() {
             onQuickUndo={(stop) => handleRestore(stop, false)}
             onDeleteCommit={handleDeleteCommit}
             onPermanentRestore={(stop) => handleRestore(stop, true)}
-            onAppendStops={handleAppendStops}
+            onReplaceStops={handleReplaceStops}
           />
         </div>
       </div>
