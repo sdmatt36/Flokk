@@ -71,17 +71,36 @@ export async function DELETE(
 
   const tour = await db.generatedTour.findUnique({
     where: { id },
-    select: { familyProfileId: true },
+    select: {
+      familyProfileId: true,
+      stops: { select: { savedItemId: true } },
+    },
   });
 
   if (!tour || tour.familyProfileId !== profileId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  await db.generatedTour.update({
-    where: { id },
-    data: { deletedAt: new Date(), deletedBy: userId },
-  });
+  const now = new Date();
+
+  // Collect SavedItem IDs linked to this tour's stops
+  const savedItemIds = tour.stops
+    .map(s => s.savedItemId)
+    .filter((id): id is string => id !== null);
+
+  await db.$transaction([
+    // Soft-delete the tour
+    db.generatedTour.update({
+      where: { id },
+      data: { deletedAt: now, deletedBy: userId },
+    }),
+    // Soft-delete linked SavedItems (tour-created saves)
+    ...(savedItemIds.length > 0
+      ? [db.savedItem.updateMany({ where: { id: { in: savedItemIds } }, data: { deletedAt: now } })]
+      : []),
+    // Hard-delete linked ManualActivities (auto-created, no need to preserve)
+    db.manualActivity.deleteMany({ where: { tourId: id } }),
+  ]);
 
   return NextResponse.json({ ok: true });
 }

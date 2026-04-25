@@ -373,6 +373,7 @@ export async function GET(request: Request) {
         const saves = await db.savedItem.findMany({
           where: {
             tripId,
+            deletedAt: null,
             ...(category && category !== "all" ? { categoryTags: { has: category } } : {}),
           },
           orderBy: { savedAt: "desc" },
@@ -406,6 +407,7 @@ export async function GET(request: Request) {
     const saves = await db.savedItem.findMany({
       where: {
         familyProfileId: getProfileId,
+        deletedAt: null,
         ...(category && category !== "all"
           ? { categoryTags: { has: category } }
           : {}),

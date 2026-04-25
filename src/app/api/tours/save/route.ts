@@ -206,7 +206,7 @@ export async function POST(req: NextRequest) {
     if (matchedSavedItemId) {
       await db.savedItem.update({
         where: { id: matchedSavedItemId },
-        data: { tripId, dayIndex, status: "SCHEDULED" },
+        data: { tripId, dayIndex, status: "SCHEDULED", tourId },
       });
     } else {
       const newItem = await db.savedItem.create({
@@ -224,6 +224,7 @@ export async function POST(req: NextRequest) {
           notes: stop.why || null,
           status: "SCHEDULED",
           extractionStatus: "ENRICHED",
+          tourId,
         },
       });
       matchedSavedItemId = newItem.id;

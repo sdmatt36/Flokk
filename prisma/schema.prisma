@@ -340,8 +340,12 @@ model SavedItem {
   communitySpot            CommunitySpot? @relation("SavedItemToCommunitySpot", fields: [communitySpotId], references: [id], onDelete: SetNull)
   tourStops                TourStop[]
   tripDocuments            TripDocument[] @relation("TripDocumentToSavedItem")
+  tourId                   String?
+  deletedAt                DateTime?
 
   @@index([communitySpotId])
+  @@index([tourId])
+  @@index([deletedAt])
 }
 
 enum SavedItemStatus {
@@ -671,9 +675,11 @@ model ManualActivity {
   dayIndex         Int?
   sortOrder        Int      @default(0)
   tourId           String?
+  deletedAt        DateTime?
   createdAt        DateTime @default(now())
 
   @@index([tourId])
+  @@index([deletedAt])
 }
 
 // =============================================================================

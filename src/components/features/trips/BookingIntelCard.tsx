@@ -89,13 +89,14 @@ function SkeletonRow() {
   );
 }
 
-export function BookingIntelCard({ tripId, destinationCity, destinationCountry, startDate, endDate, onAddFlight }: {
+export function BookingIntelCard({ tripId, destinationCity, destinationCountry, startDate, endDate, onAddFlight, onManageTours }: {
   tripId: string;
   destinationCity?: string | null;
   destinationCountry?: string | null;
   startDate?: string | null;
   endDate?: string | null;
   onAddFlight?: () => void;
+  onManageTours?: () => void;
 }) {
   const [state, setState] = useState<"loading" | "hidden" | "ready">("loading");
   const [items, setItems] = useState<IntelItem[]>([]);
@@ -104,6 +105,7 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
   const [reviewObservations, setReviewObservations] = useState<string[] | null>(null);
   const [reviewError, setReviewError] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [toursCount, setToursCount] = useState<number | null>(null);
 
   const STATUS_ORDER: Record<IntelItem["status"], number> = { missing: 0, saved: 1, booked: 2 };
   const { activeItems, bookedItems } = useMemo(() => {
@@ -150,6 +152,10 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
         }
       })
       .catch(() => setState("hidden"));
+    fetch(`/api/trips/${tripId}/tours`)
+      .then(r => r.json())
+      .then((d: { tours?: unknown[] }) => setToursCount((d.tours ?? []).length))
+      .catch(() => setToursCount(0));
   }, [tripId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleReviewItinerary = async () => {
@@ -339,6 +345,34 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
                 >
                   {showBooked ? "Hide booked items" : `Show ${bookedItems.length} booked item${bookedItems.length > 1 ? "s" : ""} ✓`}
                 </button>
+              )}
+              {toursCount !== null && (
+                <div style={{
+                  display: "flex", gap: "12px", alignItems: "flex-start",
+                  padding: "12px 0",
+                  borderBottom: "1px solid rgba(0,0,0,0.05)"
+                }}>
+                  <div style={{
+                    width: "8px", height: "8px", borderRadius: "50%", flexShrink: 0, marginTop: "5px",
+                    backgroundColor: toursCount > 0 ? "#C4664A" : "#D1D5DB",
+                  }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: "13px", fontWeight: 600, color: "#0A1628", marginBottom: "3px" }}>
+                      Tours
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#6B7280" }}>
+                      {toursCount > 0
+                        ? `${toursCount} saved — pre-built itineraries added to this trip`
+                        : "No tours saved yet"}
+                    </div>
+                    <button
+                      onClick={onManageTours}
+                      style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: "4px 0 0", display: "block" }}
+                    >
+                      Manage tours →
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           )}

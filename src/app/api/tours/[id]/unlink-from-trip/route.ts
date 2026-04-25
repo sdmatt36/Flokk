@@ -26,12 +26,14 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const now = new Date();
+
   // 1. Hard-delete ManualActivity rows created by this tour
   await db.manualActivity.deleteMany({
     where: { tourId },
   });
 
-  // 2. Unlink SavedItems — clear tripId, dayIndex, reset status to UNORGANIZED
+  // 2. Soft-delete SavedItems that were created by this tour save
   const savedItemIds = tour.stops
     .map(s => s.savedItemId)
     .filter((id): id is string => id !== null);
@@ -39,9 +41,9 @@ export async function DELETE(
   if (savedItemIds.length > 0) {
     await db.savedItem.updateMany({
       where: { id: { in: savedItemIds } },
-      data: { tripId: null, dayIndex: null, status: "UNORGANIZED" },
+      data: { deletedAt: now },
     });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, removed: savedItemIds.length });
 }

@@ -86,7 +86,7 @@ import { BudgetPanel } from "@/components/features/trips/BudgetPanel";
 import { ShareTripButton } from "@/components/features/trips/ShareTripButton";
 import { sharePlace } from "@/lib/share";
 
-type Tab = "saved" | "itinerary" | "recommended" | "packing" | "notes" | "vault" | "howwasit";
+type Tab = "saved" | "itinerary" | "tours" | "recommended" | "packing" | "notes" | "vault" | "howwasit";
 
 type Flight = {
   id: string;
@@ -1654,7 +1654,7 @@ const AIRPORT_COUNTRY: Record<string, string> = {
   CPT: "ZA", JNB: "ZA", CAI: "EG", RAK: "MA",
 };
 
-type RecAddition = { dayIndex: number; title: string; location: string; img?: string; savedItemId?: string; lat?: number | null; lng?: number | null; isBooked?: boolean; sortOrder: number; startTime?: string | null; categoryTags?: string[] };
+type RecAddition = { dayIndex: number; title: string; location: string; img?: string; savedItemId?: string; lat?: number | null; lng?: number | null; isBooked?: boolean; sortOrder: number; startTime?: string | null; categoryTags?: string[]; tourId?: string | null };
 
 // Unified sortable item — combines SavedItems, ManualActivities, and Flights into one sortable list per day
 type ItineraryItemLocal = {
@@ -1814,7 +1814,7 @@ function ActivityDetailModal({ activity, onClose, onEdit, onDelete, onMarkBooked
   );
 }
 
-function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onEditSavedActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onDeleteActivity, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight, budgetTotal, trackedTotal, budgetCurrency, budgetLoaded, onBudgetChange, shareToken }: {
+function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onEditSavedActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onDeleteActivity, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight, budgetTotal, trackedTotal, budgetCurrency, budgetLoaded, onBudgetChange, shareToken, onManageTours }: {
   flyTarget: { lat: number; lng: number } | null;
   onFlyTargetConsumed: () => void;
   tripId?: string;
@@ -1839,6 +1839,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   budgetLoaded: boolean;
   onBudgetChange: (total: number | null, currency: string) => void;
   shareToken?: string;
+  onManageTours?: () => void;
 }) {
   const isDesktop = useIsDesktop();
   const [openDay, setOpenDay] = useState(0); // -1 = all collapsed
@@ -1880,6 +1881,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [geocodedOverrides, setGeocodedOverrides] = useState<Map<string, { lat: number; lng: number }>>(new Map());
   const [noLocationIds, setNoLocationIds] = useState<Set<string>>(new Set());
   const geocodingInProgressRef = useRef<Set<string>>(new Set());
+  const [tourCancelTarget, setTourCancelTarget] = useState<{ tourId: string; title: string; stopCount: number; days: number[] } | null>(null);
+  const [tourCancelling, setTourCancelling] = useState(false);
 
   // Close move menu on mousedown outside the dropdown
   useEffect(() => {
@@ -2403,7 +2406,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     if (!tripId) return;
     fetch(`/api/trips/${tripId}/itinerary`)
       .then(r => r.json())
-      .then(({ items }: { items: Array<{ id: string; rawTitle: string | null; rawDescription: string | null; placePhotoUrl?: string | null; mediaThumbnailUrl: string | null; destinationCity?: string | null; destinationCountry?: string | null; dayIndex: number | null; sortOrder?: number; lat?: number | null; lng?: number | null; isBooked?: boolean; startTime?: string | null; categoryTags?: string[] }> }) => {
+      .then(({ items }: { items: Array<{ id: string; rawTitle: string | null; rawDescription: string | null; placePhotoUrl?: string | null; mediaThumbnailUrl: string | null; destinationCity?: string | null; destinationCountry?: string | null; dayIndex: number | null; sortOrder?: number; lat?: number | null; lng?: number | null; isBooked?: boolean; startTime?: string | null; categoryTags?: string[]; tourId?: string | null }> }) => {
         if (!items?.length) return;
         const mapped = items.map(item => ({
           dayIndex: item.dayIndex ?? 0,
@@ -2417,6 +2420,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           sortOrder: item.sortOrder ?? 0,
           startTime: item.startTime ?? null,
           categoryTags: item.categoryTags ?? [],
+          tourId: item.tourId ?? null,
         }));
         // If all sortOrders are 0 (seeded trips), assign sequential values and persist
         const allZero = mapped.length > 0 && mapped.every(item => item.sortOrder === 0);
@@ -2666,6 +2670,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           startDate={tripStartDate}
           endDate={tripEndDate}
           onAddFlight={onAddFlight}
+          onManageTours={onManageTours}
         />
       )}
 
@@ -2863,7 +2868,44 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                   ? haversineKm(fromCoords!.lat, fromCoords!.lng, toCoords!.lat, toCoords!.lng)
                                   : 999;
 
+                                const prevItem = idx > 0 ? allDayItems[idx - 1] : null;
+                                const isFirstInTourGroup =
+                                  item.itemType === "saved" &&
+                                  item.recAddition?.tourId != null &&
+                                  item.recAddition.tourId !== (prevItem?.recAddition?.tourId ?? null);
+
                                 return [
+                                ...(isFirstInTourGroup ? [(() => {
+                                  const tId = item.recAddition!.tourId!;
+                                  const tourStopCount = allDayItems.filter(
+                                    di => di.itemType === "saved" && di.recAddition?.tourId === tId
+                                  ).length;
+                                  return (
+                                    <div key={`tour-header-${tId}`} style={{
+                                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                                      padding: "8px 0 4px",
+                                      borderTop: "1px solid rgba(196,102,74,0.2)",
+                                      marginTop: "4px",
+                                    }}>
+                                      <span style={{ fontSize: "11px", fontWeight: 700, color: "#C4664A", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                        Tour · {tourStopCount} {tourStopCount === 1 ? "stop" : "stops"}
+                                      </span>
+                                      <button
+                                        onClick={async () => {
+                                          const res = await fetch(`/api/trips/${tripId}/tours`);
+                                          const d = await res.json() as { tours?: Array<{ id: string; title: string; stopCount: number; days: number[] }> };
+                                          const found = (d.tours ?? []).find(t => t.id === tId);
+                                          if (found) {
+                                            setTourCancelTarget({ tourId: found.id, title: found.title, stopCount: found.stopCount, days: found.days });
+                                          }
+                                        }}
+                                        style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: "2px 0" }}
+                                      >
+                                        Cancel tour
+                                      </button>
+                                    </div>
+                                  );
+                                })()]: []),
                                 <div key={item.sortId} style={{ display: "flex", alignItems: "stretch", marginBottom: "8px" }}>
                                   {/* Up/down reorder controls */}
                                   <div style={{ width: "22px", flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1px", paddingRight: "4px" }}>
@@ -3922,6 +3964,45 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       {shareToast && (
         <div style={{ position: "fixed", bottom: "80px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#1B3A5C", color: "#fff", fontSize: "13px", fontWeight: 600, padding: "10px 20px", borderRadius: "999px", zIndex: 9999, pointerEvents: "none" }}>
           Link copied
+        </div>
+      )}
+
+      {tourCancelTarget && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", zIndex: 50, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => !tourCancelling && setTourCancelTarget(null)}>
+          <div style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", padding: "28px 24px 40px", maxWidth: "480px", width: "100%", margin: "0 16px" }} onClick={e => e.stopPropagation()}>
+            <p style={{ fontSize: "18px", fontWeight: 700, color: "#1B3A5C", fontFamily: "var(--font-playfair, serif)", margin: "0 0 12px" }}>
+              Are you Flokkin&apos; sure?
+            </p>
+            <p style={{ fontSize: "14px", color: "#4B5563", lineHeight: 1.6, margin: "0 0 24px" }}>
+              This will remove all {tourCancelTarget.stopCount} {tourCancelTarget.stopCount === 1 ? "stop" : "stops"} of the{" "}
+              <strong>{tourCancelTarget.title}</strong>
+              {tourCancelTarget.days.length > 0 && ` from Day${tourCancelTarget.days.length > 1 ? "s" : ""} ${tourCancelTarget.days.map(d => d + 1).join(", ")}`}.
+              The tour stays in your library — you can save it to your trip again later.
+            </p>
+            <button
+              onClick={async () => {
+                setTourCancelling(true);
+                try {
+                  await fetch(`/api/tours/${tourCancelTarget.tourId}/unlink-from-trip`, { method: "DELETE" });
+                  setRecAdditions(prev => prev.filter(r => r.tourId !== tourCancelTarget.tourId));
+                  setTourCancelTarget(null);
+                } catch { /* non-fatal */ } finally {
+                  setTourCancelling(false);
+                }
+              }}
+              disabled={tourCancelling}
+              style={{ width: "100%", backgroundColor: "#C4664A", color: "#fff", border: "none", borderRadius: "12px", padding: "14px", fontSize: "15px", fontWeight: 700, cursor: "pointer", marginBottom: "10px", opacity: tourCancelling ? 0.6 : 1 }}
+            >
+              {tourCancelling ? "Removing..." : "Yes, cancel tour"}
+            </button>
+            <button
+              onClick={() => setTourCancelTarget(null)}
+              disabled={tourCancelling}
+              style={{ width: "100%", backgroundColor: "transparent", color: "#6B7280", border: "1px solid #E5E7EB", borderRadius: "12px", padding: "14px", fontSize: "15px", fontWeight: 600, cursor: "pointer" }}
+            >
+              Keep it
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -5773,6 +5854,147 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
   );
 }
 
+// ── Tours tab ─────────────────────────────────────────────────────────────────
+
+function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: string }) {
+  type TourMeta = {
+    id: string;
+    title: string;
+    prompt: string;
+    stopCount: number;
+    coverImage: string | null;
+    days: number[];
+  };
+  const [tours, setTours] = useState<TourMeta[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [cancelTarget, setCancelTarget] = useState<TourMeta | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+
+  const fetchTours = () => {
+    if (!tripId) { setLoading(false); return; }
+    setLoading(true);
+    fetch(`/api/trips/${tripId}/tours`)
+      .then(r => r.json())
+      .then((d: { tours?: TourMeta[] }) => setTours(d.tours ?? []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { fetchTours(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleCancel(tour: TourMeta) {
+    setCancelling(true);
+    try {
+      await fetch(`/api/tours/${tour.id}/unlink-from-trip`, { method: "DELETE" });
+      setTours(prev => prev.filter(t => t.id !== tour.id));
+      setCancelTarget(null);
+    } catch { /* non-fatal */ } finally {
+      setCancelling(false);
+    }
+  }
+
+  function dayLabel(days: number[]): string {
+    if (days.length === 0) return "";
+    if (days.length === 1) return `Day ${days[0] + 1}`;
+    return `Days ${days.map(d => d + 1).join(", ")}`;
+  }
+
+  if (loading) {
+    return (
+      <div style={{ padding: "32px 16px", textAlign: "center", color: "#9CA3AF", fontSize: "14px" }}>
+        Loading tours...
+      </div>
+    );
+  }
+
+  if (tours.length === 0) {
+    return (
+      <div style={{ padding: "40px 16px", textAlign: "center" }}>
+        <p style={{ fontSize: "15px", color: "#6B7280", lineHeight: 1.5 }}>
+          Tours you save to this trip will appear here.
+        </p>
+        <a href="/tour" style={{ display: "inline-block", marginTop: "16px", fontSize: "13px", color: "#C4664A", fontWeight: 600 }}>
+          Build a tour →
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: "16px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        {tours.map(tour => (
+          <div key={tour.id} style={{
+            borderRadius: "12px",
+            border: "1px solid rgba(27,58,92,0.12)",
+            overflow: "hidden",
+            backgroundColor: "#fff",
+          }}>
+            {tour.coverImage && (
+              <div style={{ height: "120px", overflow: "hidden" }}>
+                <img src={tour.coverImage} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              </div>
+            )}
+            <div style={{ padding: "14px 16px" }}>
+              <p style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", margin: 0, fontFamily: "var(--font-playfair, serif)" }}>
+                {tour.title}
+              </p>
+              <p style={{ fontSize: "12px", color: "#6B7280", margin: "4px 0 0", lineHeight: 1.4 }}>
+                {tour.stopCount} {tour.stopCount === 1 ? "stop" : "stops"}
+                {tour.days.length > 0 && ` · ${dayLabel(tour.days)}`}
+              </p>
+              <div style={{ display: "flex", gap: "12px", marginTop: "12px", alignItems: "center" }}>
+                <a
+                  href={`/tour?id=${tour.id}`}
+                  style={{ fontSize: "13px", color: "#1B3A5C", fontWeight: 600 }}
+                >
+                  View tour →
+                </a>
+                <button
+                  onClick={() => setCancelTarget(tour)}
+                  style={{ fontSize: "13px", color: "#C4664A", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                >
+                  Cancel tour
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {cancelTarget && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", zIndex: 50, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => !cancelling && setCancelTarget(null)}>
+          <div style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", padding: "28px 24px 40px", maxWidth: "480px", width: "100%", margin: "0 16px" }} onClick={e => e.stopPropagation()}>
+            <p style={{ fontSize: "18px", fontWeight: 700, color: "#1B3A5C", fontFamily: "var(--font-playfair, serif)", margin: "0 0 12px" }}>
+              Are you Flokkin&apos; sure?
+            </p>
+            <p style={{ fontSize: "14px", color: "#4B5563", lineHeight: 1.6, margin: "0 0 24px" }}>
+              This will remove all {cancelTarget.stopCount} {cancelTarget.stopCount === 1 ? "stop" : "stops"} of the{" "}
+              <strong>{cancelTarget.title}</strong>
+              {cancelTarget.days.length > 0 && ` from ${dayLabel(cancelTarget.days)} of ${tripTitle ?? "your trip"}`}.
+              The tour stays in your library — you can save it to your trip again later.
+            </p>
+            <button
+              onClick={() => handleCancel(cancelTarget)}
+              disabled={cancelling}
+              style={{ width: "100%", backgroundColor: "#C4664A", color: "#fff", border: "none", borderRadius: "12px", padding: "14px", fontSize: "15px", fontWeight: 700, cursor: "pointer", marginBottom: "10px", opacity: cancelling ? 0.6 : 1 }}
+            >
+              {cancelling ? "Removing..." : "Yes, cancel tour"}
+            </button>
+            <button
+              onClick={() => setCancelTarget(null)}
+              disabled={cancelling}
+              style={{ width: "100%", backgroundColor: "transparent", color: "#6B7280", border: "1px solid #E5E7EB", borderRadius: "12px", padding: "14px", fontSize: "15px", fontWeight: 600, cursor: "pointer" }}
+            >
+              Keep it
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 type SavedRec = {
@@ -6120,7 +6342,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           marginBottom: "20px",
         }}
       >
-        {(["Saved", "Itinerary", "Recommended", "Packing", "Notes", "Vault"] as const).map((label) => {
+        {(["Saved", "Itinerary", "Tours", "Recommended", "Packing", "Notes", "Vault"] as const).map((label) => {
           const key = label.toLowerCase() as Tab;
           const active = tab === key;
           return (
@@ -6293,7 +6515,8 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       {tab === "saved" && (
         <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} shareToken={shareToken} />
       )}
-      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} onEditSavedActivity={(a) => { setEditingActivity(a); setEditingActivityIsSavedItem(true); }} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onDeleteActivity={handleDeleteActivity} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} budgetTotal={budgetTotal} trackedTotal={trackedTotal} budgetCurrency={budgetCurrency} budgetLoaded={budgetLoaded} onBudgetChange={handleBudgetChange} shareToken={shareToken} />}
+      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} onEditSavedActivity={(a) => { setEditingActivity(a); setEditingActivityIsSavedItem(true); }} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onDeleteActivity={handleDeleteActivity} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} budgetTotal={budgetTotal} trackedTotal={trackedTotal} budgetCurrency={budgetCurrency} budgetLoaded={budgetLoaded} onBudgetChange={handleBudgetChange} shareToken={shareToken} onManageTours={() => setTab("tours")} />}
+      {tab === "tours" && <ToursContent tripId={tripId} tripTitle={tripTitle} />}
       {tab === "packing" && <PackingContent tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} tripStartDate={tripStartDate} tripEndDate={tripEndDate} />}
       {tab === "notes" && (
         <div style={{ maxWidth: "600px" }}>

@@ -29,7 +29,7 @@ export async function GET(
   }
 
   const items = await db.savedItem.findMany({
-    where: { tripId, dayIndex: { not: null } },
+    where: { tripId, dayIndex: { not: null }, deletedAt: null },
     orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }, { savedAt: "asc" }],
     select: {
       id: true,
@@ -46,6 +46,7 @@ export async function GET(
       isBooked: true,
       startTime: true,
       categoryTags: true,
+      tourId: true,
     },
   });
 
