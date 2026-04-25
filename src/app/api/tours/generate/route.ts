@@ -422,6 +422,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
       tourId,
       stops: completedStops.map(s => ({
         id: s.id,
+        orderIndex: s.orderIndex,
         name: s.name,
         address: s.address,
         lat: s.lat,

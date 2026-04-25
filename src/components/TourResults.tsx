@@ -6,6 +6,7 @@ import "mapbox-gl/dist/mapbox-gl.css";
 
 type Stop = {
   id: string;
+  orderIndex: number;
   name: string;
   address: string;
   lat: number;
@@ -37,12 +38,12 @@ type Props = {
   tourId?: string | null;
   walkViolations?: number;
   onRemoveStop: (stopId: string) => void;
-  onRestoreStop: (stop: Stop, insertAt: number) => void;
+  onQuickUndo: (stop: Stop) => void;
   onDeleteCommit: (stop: Stop) => void;
   onPermanentRestore: (stop: Stop) => void;
 };
 
-export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, walkViolations, onRemoveStop, onRestoreStop, onDeleteCommit, onPermanentRestore }: Props) {
+export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, walkViolations, onRemoveStop, onQuickUndo, onDeleteCommit, onPermanentRestore }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<{ remove: () => void } | null>(null);
 
@@ -62,7 +63,6 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
   const [inlineToast, setInlineToast] = useState<string | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<{
     stop: Stop;
-    insertAt: number;
     timer: ReturnType<typeof setTimeout>;
   } | null>(null);
 
@@ -274,14 +274,14 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
       setInlineToast(null);
     }, 8000);
 
-    setPendingRemoval({ stop, insertAt: index, timer });
+    setPendingRemoval({ stop, timer });
     setInlineToast(`Removed "${stop.name}"`);
   }
 
   function handleUndo() {
     if (!pendingRemoval) return;
     clearTimeout(pendingRemoval.timer);
-    onRestoreStop(pendingRemoval.stop, pendingRemoval.insertAt);
+    onQuickUndo(pendingRemoval.stop);
     setPendingRemoval(null);
     setInlineToast(null);
   }
@@ -545,7 +545,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
       )}
 
       {inlineToast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-xl bg-[#1B3A5C] px-4 py-2 text-sm text-white shadow-lg">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] overflow-hidden flex items-center gap-3 rounded-xl bg-[#1B3A5C] px-4 py-2 text-sm text-white shadow-lg">
           <span>{inlineToast}</span>
           {pendingRemoval && (
             <button

@@ -27,6 +27,7 @@ export async function GET(
 
   const formatStop = (s: typeof tour.stops[number]) => ({
     id: s.id,
+    orderIndex: s.orderIndex,
     name: s.name,
     address: s.address ?? "",
     lat: s.lat ?? 0,

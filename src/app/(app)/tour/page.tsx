@@ -13,6 +13,7 @@ type DestinationSuggestion = {
 
 type Stop = {
   id: string;
+  orderIndex: number;
   name: string;
   address: string;
   lat: number;
@@ -281,28 +282,31 @@ export default function TourPage() {
     // Do NOT move to removedStops here — that happens when the server-side DELETE fires (handleDeleteCommit)
   }
 
-  function handleRestoreStop(stop: Stop, insertAt: number) {
+  const handleRestore = async (stop: Stop, shouldFireAPI: boolean) => {
+    setRemovedStops(prev => prev.filter(s => s.id !== stop.id));
     setStops(prev => {
       const next = [...prev];
-      next.splice(insertAt, 0, stop);
+      const insertIdx = next.findIndex(s => s.orderIndex > stop.orderIndex);
+      if (insertIdx === -1) {
+        next.push(stop);
+      } else {
+        next.splice(insertIdx, 0, stop);
+      }
       return next;
     });
-  }
+    if (shouldFireAPI) {
+      const res = await fetch(`/api/tours/${results?.tourId}/stops/${stop.id}/restore`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        setStops(prev => prev.filter(s => s.id !== stop.id));
+        setRemovedStops(prev => [stop, ...prev]);
+      }
+    }
+  };
 
   function handleDeleteCommit(stop: Stop) {
     setRemovedStops(prev => [stop, ...prev]);
-  }
-
-  async function handlePermanentRestore(stop: Stop) {
-    setRemovedStops(prev => prev.filter(s => s.id !== stop.id));
-    setStops(prev => [...prev, stop]);
-    const res = await fetch(`/api/tours/${results?.tourId}/stops/${stop.id}/restore`, {
-      method: "POST",
-    });
-    if (!res.ok) {
-      setStops(prev => prev.filter(s => s.id !== stop.id));
-      setRemovedStops(prev => [stop, ...prev]);
-    }
   }
 
   const inputClass =
@@ -332,9 +336,9 @@ export default function TourPage() {
             tourId={results.tourId ?? null}
             walkViolations={results.walkViolations}
             onRemoveStop={handleRemoveStop}
-            onRestoreStop={handleRestoreStop}
+            onQuickUndo={(stop) => handleRestore(stop, false)}
             onDeleteCommit={handleDeleteCommit}
-            onPermanentRestore={handlePermanentRestore}
+            onPermanentRestore={(stop) => handleRestore(stop, true)}
           />
         </div>
       </div>
