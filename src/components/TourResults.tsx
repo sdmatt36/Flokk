@@ -43,6 +43,26 @@ type Props = {
   onPermanentRestore: (stop: Stop) => void;
 };
 
+function RemovalPlaceholder({ stop, onUndo }: { stop: Stop; onUndo: () => void }) {
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-[#1B3A5C]/20 bg-[#1B3A5C]/5 px-4 py-3 mb-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm text-[#1B3A5C]">
+          Removed <span className="font-semibold">{stop.name}</span>
+        </span>
+        <button
+          type="button"
+          onClick={onUndo}
+          className="shrink-0 rounded-md border border-[#C4664A] bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#C4664A] hover:bg-[#C4664A] hover:text-white transition-colors"
+        >
+          Undo
+        </button>
+      </div>
+      <div className="absolute bottom-0 left-0 h-0.5 w-full bg-[#C4664A] origin-left animate-[shrink_8s_linear_forwards]" />
+    </div>
+  );
+}
+
 export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, walkViolations, onRemoveStop, onQuickUndo, onDeleteCommit, onPermanentRestore }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<{ remove: () => void } | null>(null);
@@ -60,22 +80,22 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
   const [imgLoaded, setImgLoaded] = useState<Record<string, boolean>>({});
 
   const [showRemoved, setShowRemoved] = useState(false);
-  const [inlineToast, setInlineToast] = useState<string | null>(null);
-  const [pendingRemoval, setPendingRemoval] = useState<{
+  const [pendingRemovals, setPendingRemovals] = useState<{
     stop: Stop;
     timer: ReturnType<typeof setTimeout>;
-  } | null>(null);
+    startedAt: number;
+  }[]>([]);
 
-  // Flush pending DELETE on unmount
+  // Flush pending DELETEs on unmount
   useEffect(() => {
     return () => {
-      if (pendingRemoval) {
-        clearTimeout(pendingRemoval.timer);
-        fetch(`/api/tours/${tourId}/stops/${pendingRemoval.stop.id}`, {
+      pendingRemovals.forEach(p => {
+        clearTimeout(p.timer);
+        fetch(`/api/tours/${tourId}/stops/${p.stop.id}`, {
           method: "DELETE",
           keepalive: true,
         });
-      }
+      });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -249,41 +269,31 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
     }
   }
 
-  function handleLocalRemove(stop: Stop, index: number) {
-    // Flush any in-flight pending removal immediately so we do not lose the prior DELETE
-    if (pendingRemoval) {
-      clearTimeout(pendingRemoval.timer);
-      fetch(`/api/tours/${tourId}/stops/${pendingRemoval.stop.id}`, {
-        method: "DELETE",
-        keepalive: true,
-      });
-      onDeleteCommit(pendingRemoval.stop);
-    }
-
-    onRemoveStop(stop.id);
-
+  function handleLocalRemove(stop: Stop) {
     const timer = setTimeout(async () => {
       const res = await fetch(`/api/tours/${tourId}/stops/${stop.id}`, {
         method: "DELETE",
         keepalive: true,
       });
       if (res.ok) {
+        onRemoveStop(stop.id);
         onDeleteCommit(stop);
       }
-      setPendingRemoval(null);
-      setInlineToast(null);
+      setPendingRemovals(prev => prev.filter(p => p.stop.id !== stop.id));
     }, 8000);
 
-    setPendingRemoval({ stop, timer });
-    setInlineToast(`Removed "${stop.name}"`);
+    setPendingRemovals(prev => [
+      ...prev.filter(p => p.stop.id !== stop.id),
+      { stop, timer, startedAt: Date.now() },
+    ]);
   }
 
-  function handleUndo() {
-    if (!pendingRemoval) return;
-    clearTimeout(pendingRemoval.timer);
-    onQuickUndo(pendingRemoval.stop);
-    setPendingRemoval(null);
-    setInlineToast(null);
+  function handleUndo(stopId: string) {
+    setPendingRemovals(prev => {
+      const target = prev.find(p => p.stop.id === stopId);
+      if (target) clearTimeout(target.timer);
+      return prev.filter(p => p.stop.id !== stopId);
+    });
   }
 
   const upcomingTrips = trips.filter(t => t.status === "PLANNING" || t.status === "ACTIVE");
@@ -308,67 +318,75 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
       )}
 
       {stops.map((stop, index) => (
-        <div key={stop.id} className="relative border border-gray-100 rounded-2xl mb-3 shadow-sm bg-white overflow-hidden">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleLocalRemove(stop, index);
-            }}
-            className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 shadow-sm hover:bg-white z-10"
-            aria-label={`Remove ${stop.name}`}
-          >
-            <X size={14} className="text-[#1B3A5C]" />
-          </button>
+        pendingRemovals.some(p => p.stop.id === stop.id) ? (
+          <RemovalPlaceholder
+            key={stop.id}
+            stop={stop}
+            onUndo={() => handleUndo(stop.id)}
+          />
+        ) : (
+          <div key={stop.id} className="relative border border-gray-100 rounded-2xl mb-3 shadow-sm bg-white overflow-hidden">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleLocalRemove(stop);
+              }}
+              className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 shadow-sm hover:bg-white z-10"
+              aria-label={`Remove ${stop.name}`}
+            >
+              <X size={14} className="text-[#1B3A5C]" />
+            </button>
 
-          <div className="flex">
-            {/* Image */}
-            <div className="w-24 h-24 shrink-0 bg-stone-100 flex items-center justify-center overflow-hidden">
-              {stop.imageUrl ? (
-                <img
-                  src={stop.imageUrl}
-                  alt={stop.name}
-                  className="w-full h-full object-cover transition-opacity duration-500"
-                  style={{ opacity: imgLoaded[stop.id] ? 1 : 0 }}
-                  onLoad={() => setImgLoaded(prev => ({ ...prev, [stop.id]: true }))}
-                />
-              ) : (
-                <MapPin size={20} className="text-stone-300" />
-              )}
-            </div>
-
-            {/* Content */}
-            <div className="flex flex-col p-3 flex-1 min-w-0 gap-1.5">
-              <div className="flex items-start gap-2">
-                <div className="w-5 h-5 rounded-full bg-[#C4664A] flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">
-                  {index + 1}
-                </div>
-                <span className="text-sm font-semibold text-[#1B3A5C] leading-snug">{stop.name}</span>
-              </div>
-
-              <div className="flex flex-wrap gap-1.5">
-                <span className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5 text-xs text-gray-500">
-                  <Clock size={10} />
-                  {stop.duration} min
-                </span>
-                {index > 0 && (stops[index - 1].travelTime ?? 0) > 0 && (
-                  <span className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5 text-xs text-gray-500">
-                    <Footprints size={10} />
-                    {stops[index - 1].travelTime} min walk
-                  </span>
+            <div className="flex">
+              {/* Image */}
+              <div className="w-24 h-24 shrink-0 bg-stone-100 flex items-center justify-center overflow-hidden">
+                {stop.imageUrl ? (
+                  <img
+                    src={stop.imageUrl}
+                    alt={stop.name}
+                    className="w-full h-full object-cover transition-opacity duration-500"
+                    style={{ opacity: imgLoaded[stop.id] ? 1 : 0 }}
+                    onLoad={() => setImgLoaded(prev => ({ ...prev, [stop.id]: true }))}
+                  />
+                ) : (
+                  <MapPin size={20} className="text-stone-300" />
                 )}
               </div>
 
-              {stop.why && (
-                <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">{stop.why}</p>
-              )}
+              {/* Content */}
+              <div className="flex flex-col p-3 flex-1 min-w-0 gap-1.5">
+                <div className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-[#C4664A] flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">
+                    {index + 1}
+                  </div>
+                  <span className="text-sm font-semibold text-[#1B3A5C] leading-snug">{stop.name}</span>
+                </div>
 
-              {stop.familyNote && (
-                <p className="text-xs text-[#C4664A] italic line-clamp-2">{stop.familyNote}</p>
-              )}
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5 text-xs text-gray-500">
+                    <Clock size={10} />
+                    {stop.duration} min
+                  </span>
+                  {index > 0 && (stops[index - 1].travelTime ?? 0) > 0 && (
+                    <span className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5 text-xs text-gray-500">
+                      <Footprints size={10} />
+                      {stops[index - 1].travelTime} min walk
+                    </span>
+                  )}
+                </div>
+
+                {stop.why && (
+                  <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">{stop.why}</p>
+                )}
+
+                {stop.familyNote && (
+                  <p className="text-xs text-[#C4664A] italic line-clamp-2">{stop.familyNote}</p>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )
       ))}
 
       {removedStops.length > 0 && (
@@ -544,20 +562,6 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
         </div>
       )}
 
-      {inlineToast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] overflow-hidden flex items-center gap-3 rounded-xl bg-[#1B3A5C] px-4 py-2 text-sm text-white shadow-lg">
-          <span>{inlineToast}</span>
-          {pendingRemoval && (
-            <button
-              type="button"
-              onClick={handleUndo}
-              className="ml-1 rounded-md border border-[#C4664A] bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#C4664A] hover:bg-[#C4664A] hover:text-white transition-colors"
-            >
-              Undo
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }
