@@ -102,10 +102,9 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
 
     const components = detailsData.result?.address_components ?? [];
 
-    const STRICT_TYPES = ["locality", "postal_town", "sublocality"];
+    const STRICT_TYPES = ["locality", "postal_town", "sublocality", "administrative_area_level_1"];
     const PERMISSIVE_TYPES = [
       ...STRICT_TYPES,
-      "administrative_area_level_1",
       "administrative_area_level_2",
     ];
     const isStrictMode = transport === "Walking";

@@ -92,10 +92,9 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     // e.g. a Tokyo walking tour accepting venues in neighboring prefectures.
     // Driving and Transit also accept county/borough (admin_area_level_2) so
     // regional destinations like "Sonoma" match wine-country venues in Sonoma County.
-    const STRICT_TYPES = ["locality", "postal_town", "sublocality"];
+    const STRICT_TYPES = ["locality", "postal_town", "sublocality", "administrative_area_level_1"];
     const PERMISSIVE_TYPES = [
       ...STRICT_TYPES,
-      "administrative_area_level_1",
       "administrative_area_level_2",
     ];
     const isStrictMode = transport === "Walking";
