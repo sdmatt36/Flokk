@@ -228,7 +228,7 @@ async function main() {
         );
       }
     }
-  });
+  }, { timeout: 30000 });
 
   console.log("\nTransaction committed.");
 
