@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
     // Case A: verify ownership and fetch existing stops
     const existingTour = await db.generatedTour.findUnique({
       where: { id: body.tourId },
-      include: { stops: { orderBy: { orderIndex: "asc" } } },
+      include: { stops: { where: { deletedAt: null }, orderBy: { orderIndex: "asc" } } },
     });
     if (!existingTour || existingTour.familyProfileId !== profileId) {
       return NextResponse.json({ error: "Tour not found" }, { status: 404 });

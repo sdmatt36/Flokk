@@ -25,6 +25,22 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const formatStop = (s: typeof tour.stops[number]) => ({
+    id: s.id,
+    name: s.name,
+    address: s.address ?? "",
+    lat: s.lat ?? 0,
+    lng: s.lng ?? 0,
+    duration: s.durationMin ?? 0,
+    travelTime: s.travelTimeMin ?? 0,
+    why: s.why ?? "",
+    familyNote: s.familyNote ?? "",
+    imageUrl: s.imageUrl ?? null,
+  });
+
+  const activeStops = tour.stops.filter(s => !s.deletedAt);
+  const deletedStops = tour.stops.filter(s => s.deletedAt).reverse();
+
   return NextResponse.json({
     tourId: tour.id,
     title: tour.title,
@@ -34,18 +50,8 @@ export async function GET(
     durationLabel: tour.durationLabel,
     transport: tour.transport,
     generatedAt: tour.createdAt.toISOString(),
-    stops: tour.stops.map(s => ({
-      id: s.id,
-      name: s.name,
-      address: s.address ?? "",
-      lat: s.lat ?? 0,
-      lng: s.lng ?? 0,
-      duration: s.durationMin ?? 0,
-      travelTime: s.travelTimeMin ?? 0,
-      why: s.why ?? "",
-      familyNote: s.familyNote ?? "",
-      imageUrl: s.imageUrl ?? null,
-    })),
+    stops: activeStops.map(formatStop),
+    removedStops: deletedStops.map(formatStop),
   });
 }
 

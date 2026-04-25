@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, Clock, Footprints, MapPin, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, Clock, Footprints, MapPin, X } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 type Stop = {
@@ -28,6 +28,7 @@ type TripOption = {
 
 type Props = {
   stops: Stop[];
+  removedStops: Stop[];
   destinationCity: string;
   destinationCountry?: string | null;
   prompt: string;
@@ -37,9 +38,11 @@ type Props = {
   walkViolations?: number;
   onRemoveStop: (stopId: string) => void;
   onRestoreStop: (stop: Stop, insertAt: number) => void;
+  onDeleteCommit: (stop: Stop) => void;
+  onPermanentRestore: (stop: Stop) => void;
 };
 
-export default function TourResults({ stops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, walkViolations, onRemoveStop, onRestoreStop }: Props) {
+export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, walkViolations, onRemoveStop, onRestoreStop, onDeleteCommit, onPermanentRestore }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<{ remove: () => void } | null>(null);
 
@@ -55,6 +58,7 @@ export default function TourResults({ stops, destinationCity, destinationCountry
   const [unlinking, setUnlinking] = useState(false);
   const [imgLoaded, setImgLoaded] = useState<Record<string, boolean>>({});
 
+  const [showRemoved, setShowRemoved] = useState(false);
   const [inlineToast, setInlineToast] = useState<string | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<{
     stop: Stop;
@@ -253,18 +257,22 @@ export default function TourResults({ stops, destinationCity, destinationCountry
         method: "DELETE",
         keepalive: true,
       });
+      onDeleteCommit(pendingRemoval.stop);
     }
 
     onRemoveStop(stop.id);
 
-    const timer = setTimeout(() => {
-      fetch(`/api/tours/${tourId}/stops/${stop.id}`, {
+    const timer = setTimeout(async () => {
+      const res = await fetch(`/api/tours/${tourId}/stops/${stop.id}`, {
         method: "DELETE",
         keepalive: true,
       });
+      if (res.ok) {
+        onDeleteCommit(stop);
+      }
       setPendingRemoval(null);
       setInlineToast(null);
-    }, 5000);
+    }, 8000);
 
     setPendingRemoval({ stop, insertAt: index, timer });
     setInlineToast(`Removed "${stop.name}"`);
@@ -362,6 +370,35 @@ export default function TourResults({ stops, destinationCity, destinationCountry
           </div>
         </div>
       ))}
+
+      {removedStops.length > 0 && (
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={() => setShowRemoved(s => !s)}
+            className="flex items-center gap-2 text-sm text-[#1B3A5C] hover:underline"
+          >
+            <ChevronDown size={14} className={showRemoved ? "rotate-180 transition-transform" : "transition-transform"} />
+            {showRemoved ? "Hide" : "Show"} removed stops ({removedStops.length})
+          </button>
+          {showRemoved && (
+            <div className="mt-3 space-y-2">
+              {removedStops.map(stop => (
+                <div key={stop.id} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
+                  <span className="text-sm text-gray-700">{stop.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => onPermanentRestore(stop)}
+                    className="rounded-md border border-[#1B3A5C] bg-white px-2 py-1 text-xs font-semibold text-[#1B3A5C] hover:bg-[#1B3A5C] hover:text-white transition-colors"
+                  >
+                    Restore
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {stops.length > 0 && (
         <button
@@ -514,7 +551,7 @@ export default function TourResults({ stops, destinationCity, destinationCountry
             <button
               type="button"
               onClick={handleUndo}
-              className="font-semibold text-[#C4664A] hover:underline"
+              className="ml-1 rounded-md border border-[#C4664A] bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[#C4664A] hover:bg-[#C4664A] hover:text-white transition-colors"
             >
               Undo
             </button>

@@ -1,12 +1,11 @@
-import { NextRequest } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 
 export const dynamic = "force-dynamic";
 
-export async function DELETE(
-  _req: NextRequest,
+export async function POST(
+  _req: Request,
   context: { params: Promise<{ id: string; stopId: string }> }
 ) {
   const { userId } = await auth();
@@ -26,14 +25,15 @@ export async function DELETE(
 
   const stop = await db.tourStop.findUnique({
     where: { id: stopId },
-    select: { tourId: true },
+    select: { tourId: true, deletedAt: true },
   });
   if (!stop) return new Response("Stop not found", { status: 404 });
   if (stop.tourId !== id) return new Response("Stop does not belong to tour", { status: 400 });
+  if (!stop.deletedAt) return new Response("Stop is not deleted", { status: 400 });
 
   await db.tourStop.update({
     where: { id: stopId },
-    data: { deletedAt: new Date() },
+    data: { deletedAt: null },
   });
   return new Response(null, { status: 204 });
 }

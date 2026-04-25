@@ -27,6 +27,7 @@ type Stop = {
 type TourResponse = {
   tourId?: string | null;
   stops: Stop[];
+  removedStops?: Stop[];
   destinationCity: string;
   destinationCountry?: string | null;
   prompt: string;
@@ -62,6 +63,7 @@ export default function TourPage() {
   const [error, setError] = useState("");
   const [results, setResults] = useState<TourResponse | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
+  const [removedStops, setRemovedStops] = useState<Stop[]>([]);
   const [touched, setTouched] = useState(false);
 
   // Library state
@@ -90,6 +92,8 @@ export default function TourPage() {
   // Sync lifted stops state when results first arrive
   useEffect(() => {
     if (results?.stops) setStops(results.stops);
+    if (results?.removedStops) setRemovedStops(results.removedStops);
+    else setRemovedStops([]);
   }, [results?.tourId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll for stop photos after generation (up to 30s, every 3s)
@@ -259,6 +263,7 @@ export default function TourPage() {
   function handleReset() {
     setResults(null);
     setStops([]);
+    setRemovedStops([]);
     setPrompt("");
     setDestinationCity("");
     setDestinationCountry(null);
@@ -273,6 +278,7 @@ export default function TourPage() {
 
   function handleRemoveStop(stopId: string) {
     setStops(prev => prev.filter(s => s.id !== stopId));
+    // Do NOT move to removedStops here — that happens when the server-side DELETE fires (handleDeleteCommit)
   }
 
   function handleRestoreStop(stop: Stop, insertAt: number) {
@@ -281,6 +287,22 @@ export default function TourPage() {
       next.splice(insertAt, 0, stop);
       return next;
     });
+  }
+
+  function handleDeleteCommit(stop: Stop) {
+    setRemovedStops(prev => [stop, ...prev]);
+  }
+
+  async function handlePermanentRestore(stop: Stop) {
+    setRemovedStops(prev => prev.filter(s => s.id !== stop.id));
+    setStops(prev => [...prev, stop]);
+    const res = await fetch(`/api/tours/${results?.tourId}/stops/${stop.id}/restore`, {
+      method: "POST",
+    });
+    if (!res.ok) {
+      setStops(prev => prev.filter(s => s.id !== stop.id));
+      setRemovedStops(prev => [stop, ...prev]);
+    }
   }
 
   const inputClass =
@@ -301,6 +323,7 @@ export default function TourPage() {
           </button>
           <TourResults
             stops={stops}
+            removedStops={removedStops}
             destinationCity={results.destinationCity}
             destinationCountry={results.destinationCountry ?? null}
             prompt={results.prompt}
@@ -310,6 +333,8 @@ export default function TourPage() {
             walkViolations={results.walkViolations}
             onRemoveStop={handleRemoveStop}
             onRestoreStop={handleRestoreStop}
+            onDeleteCommit={handleDeleteCommit}
+            onPermanentRestore={handlePermanentRestore}
           />
         </div>
       </div>
