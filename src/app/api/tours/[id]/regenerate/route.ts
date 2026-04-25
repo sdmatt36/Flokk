@@ -24,7 +24,7 @@ interface RawStop {
   themeRelevance: string;
 }
 
-type ResolvedStop = RawStop & { imageUrl: string | null };
+type ResolvedStop = RawStop & { imageUrl: string | null; websiteUrl: string | null };
 type PersistedStop = ResolvedStop & { id: string; orderIndex: number };
 
 function formatStop(s: PersistedStop) {
@@ -40,6 +40,7 @@ function formatStop(s: PersistedStop) {
     why: s.why,
     familyNote: s.familyNote,
     imageUrl: s.imageUrl ?? null,
+    websiteUrl: s.websiteUrl ?? null,
   };
 }
 
@@ -91,12 +92,13 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     if (!firstResult?.geometry?.location) return null;
 
     const detailsRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${firstResult.place_id}&fields=name,formatted_address,geometry,photos,address_components&key=${process.env.GOOGLE_MAPS_API_KEY}`
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${firstResult.place_id}&fields=name,formatted_address,geometry,photos,address_components,website&key=${process.env.GOOGLE_MAPS_API_KEY}`
     );
     const detailsData = await detailsRes.json() as {
       result?: {
         address_components?: Array<{ long_name: string; short_name: string; types: string[] }>;
         photos?: Array<{ photo_reference: string }>;
+        website?: string;
       };
     };
 
@@ -138,10 +140,11 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     }
 
     const { lat, lng } = firstResult.geometry.location;
-    return { ...stop, lat, lng, imageUrl };
+    const websiteUrl = detailsData.result?.website ?? null;
+    return { ...stop, lat, lng, imageUrl, websiteUrl };
   } catch (e) {
     console.error("[regen-resolve] error:", stop.name, e);
-    if (stop.lat && stop.lng && stop.lat !== 0 && stop.lng !== 0) return { ...stop, imageUrl: null };
+    if (stop.lat && stop.lng && stop.lat !== 0 && stop.lng !== 0) return { ...stop, imageUrl: null, websiteUrl: null };
     return null;
   }
 }
@@ -319,6 +322,7 @@ Generate stops that complement the accepted set thematically. They must fit the 
                   why: resolved.why || null,
                   familyNote: resolved.familyNote || null,
                   imageUrl: resolved.imageUrl,
+                  websiteUrl: resolved.websiteUrl,
                 },
               });
 
@@ -355,6 +359,7 @@ Generate stops that complement the accepted set thematically. They must fit the 
     why: s.why ?? "",
     familyNote: s.familyNote ?? "",
     imageUrl: s.imageUrl ?? null,
+    websiteUrl: s.websiteUrl ?? null,
   }));
 
   return NextResponse.json({

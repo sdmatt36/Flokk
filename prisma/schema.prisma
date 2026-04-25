@@ -972,6 +972,7 @@ model TourStop {
   why           String?
   familyNote    String?
   imageUrl      String?
+  websiteUrl    String?
   savedItemId   String?
   savedItem     SavedItem?     @relation(fields: [savedItemId], references: [id], onDelete: SetNull)
   deletedAt     DateTime?

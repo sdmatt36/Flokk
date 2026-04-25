@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, ChevronDown, Clock, Footprints, Loader2, MapPin, Plus, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, Clock, ExternalLink, Footprints, Loader2, MapPin, Plus, X } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 type Stop = {
@@ -16,6 +16,7 @@ type Stop = {
   why: string;
   familyNote: string;
   imageUrl?: string | null;
+  websiteUrl?: string | null;
 };
 
 type TripOption = {
@@ -391,12 +392,25 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
                   <span className="text-sm font-semibold text-[#1B3A5C] leading-snug">{stop.name}</span>
                 </div>
 
+                {stop.websiteUrl && (
+                  <a
+                    href={stop.websiteUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 text-xs text-[#1B3A5C] hover:text-[#C4664A] transition-colors"
+                  >
+                    <ExternalLink size={12} />
+                    Visit website
+                  </a>
+                )}
+
                 <div className="flex flex-wrap gap-1.5">
                   <span className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5 text-xs text-gray-500">
                     <Clock size={10} />
                     {stop.duration} min
                   </span>
-                  {index > 0 && (stops[index - 1].travelTime ?? 0) > 0 && (
+                  {transport === "Walking" && index > 0 && (stops[index - 1].travelTime ?? 0) > 0 && (
                     <span className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5 text-xs text-gray-500">
                       <Footprints size={10} />
                       {stops[index - 1].travelTime} min walk

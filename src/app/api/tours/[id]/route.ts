@@ -37,6 +37,7 @@ export async function GET(
     why: s.why ?? "",
     familyNote: s.familyNote ?? "",
     imageUrl: s.imageUrl ?? null,
+    websiteUrl: s.websiteUrl ?? null,
   });
 
   const activeStops = tour.stops.filter(s => !s.deletedAt);
