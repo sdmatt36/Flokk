@@ -79,7 +79,6 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState<{ tripTitle: string; tripId: string; day: number; tourId: string } | null>(null);
-  const [unlinking, setUnlinking] = useState(false);
   const [imgLoaded, setImgLoaded] = useState<Record<string, boolean>>({});
 
   const [showRemoved, setShowRemoved] = useState(false);
@@ -194,12 +193,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
     });
     if (matches.length === 0) return;
     const upcoming = matches.filter(t => t.status === "PLANNING" || t.status === "ACTIVE");
-    let match: TripOption | undefined;
-    if (upcoming.length === 1) {
-      match = upcoming[0];
-    } else if (matches.length === 1) {
-      match = matches[0];
-    }
+    const match = upcoming[0] ?? matches[0];
     if (match) {
       const mx = (match.startDate && match.endDate)
         ? Math.round((new Date(match.endDate.split("T")[0]).getTime() - new Date(match.startDate.split("T")[0]).getTime()) / (1000 * 60 * 60 * 24)) + 1
@@ -221,8 +215,16 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
         .then(r => r.json())
         .then((d: { trips?: TripOption[] }) => {
           const loaded = d.trips ?? [];
-          setTrips(loaded);
-          autoSelectTrip(loaded);
+          const tourCityNorm = normalizeCity(destinationCity);
+          const sorted = [...loaded].sort((a, b) => {
+            const aMatch = normalizeCity(a.destinationCity) === tourCityNorm;
+            const bMatch = normalizeCity(b.destinationCity) === tourCityNorm;
+            if (aMatch && !bMatch) return -1;
+            if (!aMatch && bMatch) return 1;
+            return 0;
+          });
+          setTrips(sorted);
+          autoSelectTrip(sorted);
         })
         .catch(() => {})
         .finally(() => setTripsLoading(false));
@@ -505,25 +507,6 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
                 >
                   View trip →
                 </a>
-                {saveSuccess.tourId && (
-                  <button
-                    onClick={async () => {
-                      setUnlinking(true);
-                      try {
-                        await fetch(`/api/tours/${saveSuccess.tourId}/unlink-from-trip`, { method: "DELETE" });
-                        setSaveSuccess(null);
-                        closeModal();
-                      } catch { /* non-fatal */ } finally {
-                        setUnlinking(false);
-                      }
-                    }}
-                    disabled={unlinking}
-                    className="text-sm text-[#C4664A] text-center mt-3 cursor-pointer block w-full disabled:opacity-50"
-                    style={{ background: "none", border: "none" }}
-                  >
-                    {unlinking ? "Removing..." : "Remove from trip"}
-                  </button>
-                )}
                 <button onClick={closeModal} className="text-sm text-gray-400 text-center mt-2 cursor-pointer block w-full" style={{ background: "none", border: "none" }}>
                   Close
                 </button>
@@ -541,45 +524,57 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
                     {upcomingTrips.length > 0 && (
                       <>
                         <p className="text-xs text-gray-400 uppercase tracking-wide px-1 py-1 font-semibold">Upcoming</p>
-                        {upcomingTrips.map(trip => (
-                          <div
-                            key={trip.id}
-                            onClick={() => {
-                              const mx = (trip.startDate && trip.endDate)
-                                ? Math.round((new Date(trip.endDate.split("T")[0]).getTime() - new Date(trip.startDate.split("T")[0]).getTime()) / (1000 * 60 * 60 * 24)) + 1
-                                : 30;
-                              setSelectedTripId(trip.id);
-                              setMaxDays(mx);
-                              setSelectedDay(d => d > mx ? 1 : d);
-                            }}
-                            className={`py-2 px-3 rounded-lg cursor-pointer ${selectedTripId === trip.id ? "bg-[#1B3A5C]/5 border border-[#1B3A5C]" : "hover:bg-gray-50"}`}
-                          >
-                            <p className="text-sm text-[#1B3A5C] font-medium">{trip.title}</p>
-                            {trip.destinationCity && <p className="text-xs text-gray-400">{trip.destinationCity}</p>}
-                          </div>
-                        ))}
+                        {upcomingTrips.map(trip => {
+                          const isMatch = normalizeCity(trip.destinationCity) === normalizeCity(destinationCity);
+                          return (
+                            <div
+                              key={trip.id}
+                              onClick={() => {
+                                const mx = (trip.startDate && trip.endDate)
+                                  ? Math.round((new Date(trip.endDate.split("T")[0]).getTime() - new Date(trip.startDate.split("T")[0]).getTime()) / (1000 * 60 * 60 * 24)) + 1
+                                  : 30;
+                                setSelectedTripId(trip.id);
+                                setMaxDays(mx);
+                                setSelectedDay(d => d > mx ? 1 : d);
+                              }}
+                              className={`py-2 px-3 rounded-lg cursor-pointer ${selectedTripId === trip.id ? "bg-[#1B3A5C]/5 border border-[#1B3A5C]" : "hover:bg-gray-50"}`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-sm text-[#1B3A5C] font-medium">{trip.title}</p>
+                                {isMatch && <span className="text-xs text-[#C4664A] font-medium shrink-0">Suggested</span>}
+                              </div>
+                              {trip.destinationCity && <p className="text-xs text-gray-400">{trip.destinationCity}</p>}
+                            </div>
+                          );
+                        })}
                       </>
                     )}
                     {pastTrips.length > 0 && (
                       <>
                         <p className={`text-xs text-gray-400 uppercase tracking-wide px-1 py-1 font-semibold ${upcomingTrips.length > 0 ? "mt-2" : ""}`}>Past Trips</p>
-                        {pastTrips.map(trip => (
-                          <div
-                            key={trip.id}
-                            onClick={() => {
-                              const mx = (trip.startDate && trip.endDate)
-                                ? Math.round((new Date(trip.endDate.split("T")[0]).getTime() - new Date(trip.startDate.split("T")[0]).getTime()) / (1000 * 60 * 60 * 24)) + 1
-                                : 30;
-                              setSelectedTripId(trip.id);
-                              setMaxDays(mx);
-                              setSelectedDay(d => d > mx ? 1 : d);
-                            }}
-                            className={`py-2 px-3 rounded-lg cursor-pointer ${selectedTripId === trip.id ? "bg-[#1B3A5C]/5 border border-[#1B3A5C]" : "hover:bg-gray-50"}`}
-                          >
-                            <p className="text-sm text-[#1B3A5C] font-medium">{trip.title}</p>
-                            {trip.destinationCity && <p className="text-xs text-gray-400">{trip.destinationCity}</p>}
-                          </div>
-                        ))}
+                        {pastTrips.map(trip => {
+                          const isMatch = normalizeCity(trip.destinationCity) === normalizeCity(destinationCity);
+                          return (
+                            <div
+                              key={trip.id}
+                              onClick={() => {
+                                const mx = (trip.startDate && trip.endDate)
+                                  ? Math.round((new Date(trip.endDate.split("T")[0]).getTime() - new Date(trip.startDate.split("T")[0]).getTime()) / (1000 * 60 * 60 * 24)) + 1
+                                  : 30;
+                                setSelectedTripId(trip.id);
+                                setMaxDays(mx);
+                                setSelectedDay(d => d > mx ? 1 : d);
+                              }}
+                              className={`py-2 px-3 rounded-lg cursor-pointer ${selectedTripId === trip.id ? "bg-[#1B3A5C]/5 border border-[#1B3A5C]" : "hover:bg-gray-50"}`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-sm text-[#1B3A5C] font-medium">{trip.title}</p>
+                                {isMatch && <span className="text-xs text-[#C4664A] font-medium shrink-0">Suggested</span>}
+                              </div>
+                              {trip.destinationCity && <p className="text-xs text-gray-400">{trip.destinationCity}</p>}
+                            </div>
+                          );
+                        })}
                       </>
                     )}
                   </div>

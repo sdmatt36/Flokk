@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
-import { classifyActivityType } from "@/lib/activity-intelligence";
-import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { haversineMeters } from "@/lib/geo";
 import { PLATFORM_FLOKK_TOURS } from "@/lib/saved-item-types";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
@@ -84,7 +82,6 @@ export async function POST(req: NextRequest) {
 
   const tourStopIds: string[] = [];
   const savedItemIds: string[] = [];
-  const activityIds: string[] = [];
 
   // Determine effective tourId and stop list
   // Case A: tour was pre-created at generate time — fetch its stops from DB
@@ -239,41 +236,7 @@ export async function POST(req: NextRequest) {
       data: { savedItemId: matchedSavedItemId },
     });
 
-    // Create ManualActivity
-    const activity = await db.manualActivity.create({
-      data: {
-        tripId,
-        title: stop.name,
-        date,
-        address: stop.address || null,
-        lat,
-        lng,
-        notes: stop.why || null,
-        status: "interested",
-        dayIndex,
-        city: tripCity,
-        tourId,
-      },
-    });
-    activityIds.push(activity.id);
-
-    // Enrich with Places photo (fire-and-forget per stop)
-    enrichWithPlaces(stop.name, [tripCity, tripCountry].filter(Boolean).join(", "))
-      .then(enriched => {
-        const placesUpdate: { imageUrl?: string; website?: string } = {};
-        if (enriched.imageUrl) placesUpdate.imageUrl = enriched.imageUrl;
-        if (enriched.website) placesUpdate.website = enriched.website;
-        if (Object.keys(placesUpdate).length > 0) {
-          db.manualActivity.update({ where: { id: activity.id }, data: placesUpdate }).catch(() => {});
-        }
-      })
-      .catch(() => {});
-
-    // Classify activity type (fire-and-forget)
-    classifyActivityType(stop.name, null, stop.address)
-      .then(type => db.manualActivity.update({ where: { id: activity.id }, data: { type } }).catch(() => {}))
-      .catch(() => {});
   }
 
-  return NextResponse.json({ tourId, tourStopIds, savedItemIds, activityIds }, { status: 201 });
+  return NextResponse.json({ tourId, tourStopIds, savedItemIds }, { status: 201 });
 }
