@@ -419,57 +419,83 @@ ABSOLUTE RULES — violating any of these means the tour fails:
       }
     }
 
+    // ── Post-stream: DB is source of truth ───────────────────────────────────
+    // completedStops can diverge from DB when retries run deleteMany then
+    // are discarded (noop path) or produce fewer stops than expected.
+    // Re-fetch from DB before any further processing or response building.
+    let finalStopsFromDb = await db.tourStop.findMany({
+      where: { tourId, deletedAt: null },
+      orderBy: { orderIndex: "asc" },
+    });
+
     // ── Route optimization ────────────────────────────────────────────────────
-    const stopsWithCoords = completedStops.filter(s => s.lat != null && s.lng != null);
+    const stopsWithCoords = finalStopsFromDb.filter(s => s.lat != null && s.lng != null);
     if (stopsWithCoords.length >= 3) {
-      const optimized = optimizeRouteOrder(
-        stopsWithCoords.map(s => ({ id: s.id, lat: s.lat!, lng: s.lng! }))
-      );
+      try {
+        const optimized = optimizeRouteOrder(
+          stopsWithCoords.map(s => ({ id: s.id, lat: s.lat!, lng: s.lng! }))
+        );
 
-      const newOrderById = new Map<string, number>();
-      optimized.forEach((s, i) => newOrderById.set(s.id, i));
+        const newOrderById = new Map<string, number>();
+        optimized.forEach((s, i) => newOrderById.set(s.id, i));
 
-      await Promise.all(
-        optimized.map(s =>
-          db.tourStop.update({
-            where: { id: s.id },
-            data: { orderIndex: newOrderById.get(s.id)! },
-          })
-        )
-      );
+        await Promise.all(
+          optimized.map(s =>
+            db.tourStop.update({
+              where: { id: s.id },
+              data: { orderIndex: newOrderById.get(s.id)! },
+            })
+          )
+        );
 
-      completedStops.sort((a, b) => {
-        const aIdx = newOrderById.get(a.id) ?? 999;
-        const bIdx = newOrderById.get(b.id) ?? 999;
-        return aIdx - bIdx;
-      });
+        // Re-fetch to get canonical post-optimization order.
+        finalStopsFromDb = await db.tourStop.findMany({
+          where: { tourId, deletedAt: null },
+          orderBy: { orderIndex: "asc" },
+        });
 
-      completedStops.forEach(s => {
-        const newIdx = newOrderById.get(s.id);
-        if (newIdx !== undefined) s.orderIndex = newIdx;
-      });
+        console.log("[generate] route optimization applied", {
+          tourId,
+          stopCount: finalStopsFromDb.length,
+        });
+      } catch (e) {
+        console.error("[generate] route optimization failed, returning unoptimized order", {
+          tourId,
+          error: e instanceof Error ? e.message : String(e),
+        });
+        // finalStopsFromDb already holds pre-optimization fetch — use it as-is.
+      }
+    }
 
-      console.log("[generate] reordered stops by route optimization", {
-        tourId,
-        order: completedStops.map(s => s.name),
-      });
+    // ── Walk violations (recomputed from final DB state) ──────────────────────
+    let finalWalkViolations = 0;
+    if (transport === "Walking" && finalStopsFromDb.length >= 2) {
+      for (let i = 1; i < finalStopsFromDb.length; i++) {
+        const a = finalStopsFromDb[i - 1];
+        const b = finalStopsFromDb[i];
+        if (a.lat != null && a.lng != null && b.lat != null && b.lng != null) {
+          const dist = haversineMeters(a.lat, a.lng, b.lat, b.lng);
+          if (dist > maxDistMeters) finalWalkViolations++;
+        }
+      }
     }
 
     // ── Response ───────────────────────────────────────────────────────────────
+    const finalPartialTour = finalStopsFromDb.length < targetStops;
     return NextResponse.json({
       tourId,
       originalTargetStops: targetStops,
-      stops: completedStops.map(s => ({
+      stops: finalStopsFromDb.map(s => ({
         id: s.id,
         orderIndex: s.orderIndex,
         name: s.name,
-        address: s.address,
-        lat: s.lat,
-        lng: s.lng,
-        duration: s.duration,
-        travelTime: s.travelTime,
-        why: s.why,
-        familyNote: s.familyNote,
+        address: s.address ?? "",
+        lat: s.lat ?? 0,
+        lng: s.lng ?? 0,
+        duration: s.durationMin ?? 0,
+        travelTime: s.travelTimeMin ?? 0,
+        why: s.why ?? "",
+        familyNote: s.familyNote ?? "",
         imageUrl: s.imageUrl ?? null,
       })),
       destinationCity,
@@ -477,8 +503,8 @@ ABSOLUTE RULES — violating any of these means the tour fails:
       durationLabel,
       transport,
       generatedAt: new Date().toISOString(),
-      ...(partialTour ? { partialTour: true } : {}),
-      ...(walkViolations > 0 ? { walkViolations } : {}),
+      ...(finalPartialTour ? { partialTour: true } : {}),
+      ...(finalWalkViolations > 0 ? { walkViolations: finalWalkViolations } : {}),
     });
 
   } catch (err) {
