@@ -58,7 +58,16 @@ Update this document FIRST whenever a feature is discussed, before any code is w
 - Detailed redesign spec exists in earlier session handoffs (TBD: collect into this doc)
 
 ## Trips
-[to be filled in as we discuss]
+
+### Trip Data Model
+- `destinationCity`: must contain a CITY name (Edinburgh, Tokyo, Colombo) — NOT a country or region
+- `destinationCountry`: contains the country (UK, Japan, Sri Lanka)
+- `title`: free-form ("Scotland - July 2026" is acceptable as a title)
+- `destinationCity` is the field used for tour city-match suggestions, save deduplication, and Spots filtering — it MUST be city-level for those features to work
+
+### Trip Creation
+- ⚠ CURRENT STATE: trip creation flow does not validate or enforce city-level `destinationCity`. Some trips have country/region names in `destinationCity` (e.g., "Scotland" instead of "Edinburgh", "Ireland" instead of "Dublin"). This breaks tour city-match suggestions.
+- NEEDS BUILD: trip creation form should geocode the user input or constrain to city-level when storing `destinationCity`. Country and region trips need a different model (multi-city or "regional" trip type).
 
 ## Saves
 [to be filled in as we discuss]

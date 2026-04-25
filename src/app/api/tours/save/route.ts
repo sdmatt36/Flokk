@@ -177,6 +177,7 @@ export async function POST(req: NextRequest) {
       const nearby = await db.savedItem.findMany({
         where: {
           familyProfileId: profileId,
+          deletedAt: null,
           lat: { gte: lat - 0.001, lte: lat + 0.001 },
           lng: { gte: lng - 0.001, lte: lng + 0.001 },
         },
@@ -193,7 +194,7 @@ export async function POST(req: NextRequest) {
     if (!matchedSavedItemId) {
       const titleNorm = normalizeTitle(stop.name);
       const candidates = await db.savedItem.findMany({
-        where: { familyProfileId: profileId, destinationCity: tripCity },
+        where: { familyProfileId: profileId, deletedAt: null, destinationCity: tripCity },
         select: { id: true, rawTitle: true },
       });
       for (const item of candidates) {
