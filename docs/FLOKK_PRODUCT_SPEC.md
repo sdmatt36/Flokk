@@ -12,6 +12,35 @@ Update this document FIRST whenever a feature is discussed, before any code is w
 - Each stop includes: name, address, why-relevant, family-specific note, image, website URL
 - Route optimized geographically (nearest-neighbor from westernmost anchor)
 
+### Tour Generation Inputs (current vs target)
+
+CURRENT inputs:
+- Free-text prompt
+- City
+- Duration ("How long?")
+- Transport ("Getting around?")
+
+TARGET inputs (full set):
+- Trip context: "Building for an existing trip? Pick trip + day" — triggers anchor-aware mode
+- City (or auto-filled from trip+day's lodging)
+- Duration
+- Transport
+- Family override (default = user's family profile, allow one-off override per tour)
+- Pace (relaxed / balanced / packed)
+- Time of day (morning / afternoon / evening / full-day)
+- Budget context (free or cheap / mid / splurge)
+- Specific constraints (stroller-friendly, accessibility, indoor-only / rainy-day, dietary specific to this tour)
+- Free-text prompt (theme/vibe)
+
+UX pattern: two-step flow — essentials first (prompt + city + duration + transport), optional refinement second. Trip-context picker at top auto-fills city, lodging, family signals when used.
+
+⚠ NEEDS BUILD: form revamp; AI generation route accepts the expanded input set; per-tour override semantics on top of family profile defaults.
+
+Connecting items:
+- Anchor-aware tour generation (lodging / itinerary as start/end)
+- Archetype-aware tour generation (neighborhood / regional / scenic route / anchor-and-fillers / transit hop)
+- Multi-city trip support (per-day lodging matching)
+
 ### Tour Editing
 - User can remove any stop via X icon (8s undo window via inline placeholder)
 - Removed stops are soft-deleted, recoverable via "Show removed stops" section
