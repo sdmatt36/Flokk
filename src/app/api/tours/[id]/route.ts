@@ -44,6 +44,7 @@ export async function GET(
 
   return NextResponse.json({
     tourId: tour.id,
+    originalTargetStops: tour.originalTargetStops,
     title: tour.title,
     destinationCity: tour.destinationCity,
     destinationCountry: tour.destinationCountry,

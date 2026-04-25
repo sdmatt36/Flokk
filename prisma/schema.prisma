@@ -944,12 +944,13 @@ model GeneratedTour {
   familyProfileId     String
   familyProfile       FamilyProfile @relation(fields: [familyProfileId], references: [id], onDelete: Cascade)
   isPublic            Boolean       @default(false)
-  categoryTags        String[]      @default([])
-  deletedAt           DateTime?
-  deletedBy           String?
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-  stops               TourStop[]
+  categoryTags          String[]      @default([])
+  originalTargetStops   Int           @default(5)
+  deletedAt             DateTime?
+  deletedBy             String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  stops                 TourStop[]
 
   @@index([familyProfileId])
   @@index([destinationCity])

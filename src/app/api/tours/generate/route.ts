@@ -250,6 +250,7 @@ export async function POST(req: NextRequest) {
         transport,
         familyProfileId: profileId,
         categoryTags: [],
+        originalTargetStops: targetStops,
       },
     });
 
@@ -420,6 +421,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
     // ── Response ───────────────────────────────────────────────────────────────
     return NextResponse.json({
       tourId,
+      originalTargetStops: targetStops,
       stops: completedStops.map(s => ({
         id: s.id,
         orderIndex: s.orderIndex,

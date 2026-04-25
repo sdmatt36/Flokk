@@ -27,6 +27,7 @@ type Stop = {
 
 type TourResponse = {
   tourId?: string | null;
+  originalTargetStops?: number;
   stops: Stop[];
   removedStops?: Stop[];
   destinationCity: string;
@@ -309,6 +310,10 @@ export default function TourPage() {
     setRemovedStops(prev => [stop, ...prev]);
   }
 
+  function handleAppendStops(newStops: Stop[]) {
+    setStops(prev => [...prev, ...newStops]);
+  }
+
   const inputClass =
     "w-full border border-gray-200 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C]";
 
@@ -335,10 +340,12 @@ export default function TourPage() {
             transport={results.transport}
             tourId={results.tourId ?? null}
             walkViolations={results.walkViolations}
+            originalTargetStops={results.originalTargetStops ?? 5}
             onRemoveStop={handleRemoveStop}
             onQuickUndo={(stop) => handleRestore(stop, false)}
             onDeleteCommit={handleDeleteCommit}
             onPermanentRestore={(stop) => handleRestore(stop, true)}
+            onAppendStops={handleAppendStops}
           />
         </div>
       </div>

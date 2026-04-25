@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AlertTriangle, ChevronDown, Clock, Footprints, MapPin, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, Clock, Footprints, Loader2, MapPin, Plus, X } from "lucide-react";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 type Stop = {
@@ -37,10 +37,12 @@ type Props = {
   transport: string;
   tourId?: string | null;
   walkViolations?: number;
+  originalTargetStops: number;
   onRemoveStop: (stopId: string) => void;
   onQuickUndo: (stop: Stop) => void;
   onDeleteCommit: (stop: Stop) => void;
   onPermanentRestore: (stop: Stop) => void;
+  onAppendStops: (newStops: Stop[]) => void;
 };
 
 function RemovalPlaceholder({ stop, onUndo }: { stop: Stop; onUndo: () => void }) {
@@ -63,7 +65,7 @@ function RemovalPlaceholder({ stop, onUndo }: { stop: Stop; onUndo: () => void }
   );
 }
 
-export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, walkViolations, onRemoveStop, onQuickUndo, onDeleteCommit, onPermanentRestore }: Props) {
+export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, walkViolations, originalTargetStops, onRemoveStop, onQuickUndo, onDeleteCommit, onPermanentRestore, onAppendStops }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<{ remove: () => void } | null>(null);
 
@@ -80,6 +82,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
   const [imgLoaded, setImgLoaded] = useState<Record<string, boolean>>({});
 
   const [showRemoved, setShowRemoved] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
   const [pendingRemovals, setPendingRemovals] = useState<{
     stop: Stop;
     timer: ReturnType<typeof setTimeout>;
@@ -296,6 +299,31 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
     });
   }
 
+  const activeCount = stops.filter(s => !pendingRemovals.some(p => p.stop.id === s.id)).length;
+  const gap = originalTargetStops - activeCount;
+
+  async function handleRegenerate() {
+    if (!tourId || gap <= 0) return;
+    setIsRegenerating(true);
+    try {
+      const res = await fetch(`/api/tours/${tourId}/regenerate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count: gap }),
+      });
+      if (!res.ok) {
+        console.error("[regenerate]", await res.text());
+        return;
+      }
+      const data = await res.json() as { newStops: Stop[] };
+      onAppendStops(data.newStops);
+    } catch (e) {
+      console.error("[regenerate] network error", e);
+    } finally {
+      setIsRegenerating(false);
+    }
+  }
+
   const upcomingTrips = trips.filter(t => t.status === "PLANNING" || t.status === "ACTIVE");
   const pastTrips = trips.filter(t => t.status === "COMPLETED");
 
@@ -388,6 +416,27 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
           </div>
         )
       ))}
+
+      {gap > 0 && (
+        <button
+          type="button"
+          onClick={handleRegenerate}
+          disabled={isRegenerating}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#1B3A5C]/30 bg-white px-4 py-6 text-sm font-medium text-[#1B3A5C] hover:border-[#1B3A5C] hover:bg-[#1B3A5C]/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isRegenerating ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              Generating {gap === 1 ? "a replacement stop" : `${gap} replacement stops`}...
+            </>
+          ) : (
+            <>
+              <Plus size={16} />
+              {gap === 1 ? "Add a replacement stop" : `Generate ${gap} more stops`}
+            </>
+          )}
+        </button>
+      )}
 
       {removedStops.length > 0 && (
         <div className="mt-4">
