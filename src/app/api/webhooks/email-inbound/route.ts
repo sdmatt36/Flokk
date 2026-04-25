@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { Resend } from "resend";
 import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
+import { writeFlightFromEmail, WriteFlightLeg } from "@/lib/flights/extract-and-write";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { enrichSavedItem } from "@/lib/enrich-save";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
@@ -1132,6 +1133,7 @@ Field notes:
       console.log(`[email-inbound] creating ${flightLegs.length} flight ItineraryItem(s) for confirmation ${outboundConf ?? "(no code)"}`);
 
       const createdLegItemIds: string[] = [];
+      const writeFlightLegs: WriteFlightLeg[] = [];
 
       for (let legIdx = 0; legIdx < flightLegs.length; legIdx++) {
         const leg = flightLegs[legIdx];
@@ -1143,6 +1145,24 @@ Field notes:
 
         const legTitle = `${leg.from} → ${leg.to}`;
         const legDayIndex = leg.departureDate ? await getDayIndex(resolvedTripId, leg.departureDate) : null;
+
+        // Collect leg for Flight table write (after ItineraryItem loop completes)
+        writeFlightLegs.push({
+          airline: (extracted.airline as string | null) ?? null,
+          flightNumber: (extracted.flightNumber as string | null) ?? "",
+          fromAirport: leg.from,
+          fromCity: leg.fromCity ?? leg.from,
+          toAirport: leg.to,
+          toCity: leg.toCity ?? leg.to,
+          departureDate: leg.departureDate ?? "",
+          departureTime: leg.departureTime ?? "",
+          arrivalDate: leg.arrivalDate ?? null,
+          arrivalTime: leg.arrivalTime ?? null,
+          duration: null,
+          dayIndex: legDayIndex,
+          type: "outbound",
+          notes: null,
+        });
 
         // Geocode arrival airport for map pin — IATA+city preferred, IATA-only fallback
         const geoQuery = leg.toCity
@@ -1229,27 +1249,23 @@ Field notes:
         }
       }
 
-      // Flight record (powers booking intel card) — one per booking, not per leg
+      // FlightBooking + per-leg Flight rows (idempotent on re-import via confirmationCode dedup)
+      let writeResult: { flightBookingId: string; legCount: number; dedupAction: string } | null = null;
       if (resolvedTripId) {
-        await db.flight.create({
-          data: {
-            tripId: resolvedTripId,
-            type: "outbound",
-            airline: (extracted.airline as string | null) ?? "",
-            flightNumber: extracted.flightNumber as string,
-            fromAirport: (extracted.fromAirport as string | null) ?? "",
-            fromCity: (extracted.fromCity as string | null) ?? (extracted.fromAirport as string | null) ?? "",
-            toAirport: (extracted.toAirport as string | null) ?? "",
-            toCity: (extracted.toCity as string | null) ?? (extracted.toAirport as string | null) ?? "",
-            departureDate: (extracted.departureDate as string | null) ?? "",
-            departureTime: (extracted.departureTime as string | null) ?? "",
-            arrivalDate: (extracted.arrivalDate as string | null) ?? null,
-            arrivalTime: (extracted.arrivalTime as string | null) ?? null,
-            confirmationCode: (extracted.confirmationCode as string | null) ?? null,
-            status: "booked",
-            dayIndex: outboundDayIndex,
-          },
+        writeResult = await writeFlightFromEmail({
+          tripId: resolvedTripId,
+          confirmationCode: outboundConf,
+          airline: (extracted.airline as string | null) ?? null,
+          cabinClass: "economy",
+          status: "booked",
+          sortOrder: 0,
+          seatNumbers: null,
+          notes: null,
+          legs: writeFlightLegs,
         });
+        console.log(
+          `[email-inbound] FlightBooking written: id=${writeResult.flightBookingId}, legs=${writeResult.legCount}, action=${writeResult.dedupAction}`
+        );
 
         // TripDocument vault — one per booking (represents the whole booking, not per leg)
         const vaultLabel = outboundFrom && outboundTo
@@ -1285,7 +1301,7 @@ Field notes:
       await incrementBudget(resolvedTripId, parsedCost);
       logCtx.itineraryItemIds = createdLegItemIds;
       await logExtraction({ ...logCtx, outcome: "success" });
-      return NextResponse.json({ received: true, status: "success", type: "flight", tripId: resolvedTripId });
+      return NextResponse.json({ received: true, status: "success", type: "flight", tripId: resolvedTripId, ...(writeResult && { flightBookingId: writeResult.flightBookingId, legCount: writeResult.legCount }) });
 
     // ── Hotels ────────────────────────────────────────────────────────────────
     } else if (extracted.type === "hotel" && extracted.vendorName) {
