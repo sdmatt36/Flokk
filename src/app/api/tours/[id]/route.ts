@@ -26,7 +26,7 @@ export async function GET(
   }
 
   return NextResponse.json({
-    id: tour.id,
+    tourId: tour.id,
     title: tour.title,
     destinationCity: tour.destinationCity,
     destinationCountry: tour.destinationCountry,
