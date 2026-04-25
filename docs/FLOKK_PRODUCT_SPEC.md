@@ -23,7 +23,12 @@ Update this document FIRST whenever a feature is discussed, before any code is w
 - User can save a tour to a trip via "Save stops to a trip" button
 - User selects which day of the trip the tour belongs to
 - Tour stops auto-populate as itinerary items on that day
-- ⚠ NEEDS VERIFICATION: confirm this still works post-Phase-C
+- Each tour stop should produce exactly ONE item on the trip day — a SavedItem with sourcePlatform="flokk_tours"
+- ⚠ BUG (confirmed 2026-04-25): save route creates BOTH a SavedItem AND a ManualActivity per stop → duplicates on day view (N stops → 2N items). Root cause: `db.manualActivity.create` call in `/api/tours/save/route.ts` lines 243-258. Fix: remove ManualActivity creation entirely; SavedItem is the correct record.
+- Day/trip picker must default-select the trip whose destinationCity matches the tour's destinationCity
+- ⚠ BUG (confirmed 2026-04-25): picker fetches all trips (`/api/trips?status=ALL`) with no city filtering or default-selection logic. All trips shown unranked.
+- Post-save confirmation state: show "Stops saved!", "View trip →", and "Close" only. No destructive action in this state.
+- ⚠ BUG (confirmed 2026-04-25): post-save modal shows "Remove from trip" button immediately after save — UX confusion. Button exists because `saveSuccess.tourId` is truthy. Should be removed from the success state; an undo/remove affordance belongs on the trip day view, not the save confirmation.
 - If user removes a saved tour from their account, the corresponding itinerary items must cascade-delete (no orphans on the trip)
 - "Delete tour" or "I'm not doing this" action should be one click and clean both the tour and the trip itinerary
 
