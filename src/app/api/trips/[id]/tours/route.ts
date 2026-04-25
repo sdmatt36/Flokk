@@ -54,7 +54,7 @@ export async function GET(
         where: { deletedAt: null },
         orderBy: { orderIndex: "asc" },
         take: 1,
-        select: { savedItem: { select: { placePhotoUrl: true } } },
+        select: { imageUrl: true, savedItem: { select: { placePhotoUrl: true } } },
       },
       _count: { select: { stops: { where: { deletedAt: null } } } },
     },
@@ -62,7 +62,7 @@ export async function GET(
   });
 
   const result = tours.map(t => {
-    const stopPhoto = t.stops[0]?.savedItem?.placePhotoUrl ?? null;
+    const stopPhoto = t.stops[0]?.imageUrl ?? t.stops[0]?.savedItem?.placePhotoUrl ?? null;
     const coverImage = stopPhoto ?? getTripCoverImage(t.destinationCity, t.destinationCountry);
     const days = dayByTour[t.id] ?? [];
     const uniqueDays = [...new Set(days)].sort((a, b) => a - b);

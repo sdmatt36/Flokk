@@ -268,6 +268,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
         return;
       }
       setSaveSuccess({ tripTitle: trip.title, tripId: trip.id, day: selectedDay, tourId: data.tourId ?? "" });
+      window.dispatchEvent(new Event("flokk:refresh"));
     } catch {
       setSaveError("Network error. Please try again.");
     } finally {

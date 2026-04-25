@@ -95,6 +95,7 @@ export async function POST(req: NextRequest) {
     lat: number | null;
     lng: number | null;
     why: string | null;
+    imageUrl: string | null;
   };
 
   let loopStops: LoopStop[];
@@ -116,6 +117,7 @@ export async function POST(req: NextRequest) {
       lat: s.lat,
       lng: s.lng,
       why: s.why,
+      imageUrl: s.imageUrl,
     }));
   } else {
     // Case B: create GeneratedTour + TourStop
@@ -157,7 +159,7 @@ export async function POST(req: NextRequest) {
           familyNote: stop.familyNote || null,
         },
       });
-      loopStops.push({ id: stopId, name: stop.name, address: stop.address || null, lat: stop.lat || null, lng: stop.lng || null, why: stop.why || null });
+      loopStops.push({ id: stopId, name: stop.name, address: stop.address || null, lat: stop.lat || null, lng: stop.lng || null, why: stop.why || null, imageUrl: null });
     }
   }
 
@@ -222,6 +224,8 @@ export async function POST(req: NextRequest) {
           lat,
           lng,
           notes: stop.why || null,
+          placePhotoUrl: stop.imageUrl ?? null,
+          categoryTags: [],
           status: "SCHEDULED",
           extractionStatus: "ENRICHED",
           tourId,
