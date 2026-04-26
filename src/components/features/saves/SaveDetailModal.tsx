@@ -416,7 +416,9 @@ export function SaveDetailModal({
                 <span style={{ fontSize: "12px", fontWeight: 700, color: "#C4664A" }}>Why this works for your family</span>
               </div>
               <p style={{ fontSize: "13px", color: "#555", lineHeight: 1.5, margin: 0 }}>
-                {buildMatchReason(tags, interestKeys)}
+                {item.sourcePlatform === "flokk_tours" && notes
+                  ? notes
+                  : buildMatchReason(tags, interestKeys)}
               </p>
             </div>
 

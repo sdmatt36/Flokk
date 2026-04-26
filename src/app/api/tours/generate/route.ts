@@ -40,7 +40,28 @@ function hasWeakThemeRelevance(text: string | undefined | null): boolean {
   return vaguePhrases.some(p => trimmed.includes(p));
 }
 
-type ResolvedStop = RawStop & { imageUrl: string | null; websiteUrl: string | null };
+type ResolvedStop = RawStop & { imageUrl: string | null; websiteUrl: string | null; ticketRequired: string | null };
+
+function deriveTicketSignal(
+  types: string[],
+  priceLevel: number | undefined,
+  editorialSummary: string | undefined
+): string {
+  const FREE_TYPES = ["park", "natural_feature", "neighborhood", "route", "political", "locality", "sublocality", "church", "place_of_worship"];
+  const TICKET_TYPES = ["museum", "art_gallery", "aquarium", "zoo", "amusement_park", "tourist_attraction", "stadium", "bowling_alley", "movie_theater", "theme_park"];
+  const ADVANCE_TYPES = ["amusement_park", "zoo", "aquarium", "theme_park"];
+
+  if (ADVANCE_TYPES.some(t => types.includes(t))) return "advance-booking-recommended";
+  if (TICKET_TYPES.some(t => types.includes(t))) {
+    if (priceLevel !== undefined && priceLevel === 0) return "free";
+    return "ticket-required";
+  }
+  if (FREE_TYPES.some(t => types.includes(t))) return "free";
+  const summary = (editorialSummary ?? "").toLowerCase();
+  if (summary.includes("free admission") || summary.includes("no admission")) return "free";
+  if (summary.includes("admission") || summary.includes("ticket")) return "ticket-required";
+  return "unknown";
+}
 
 function ageFromBirthDate(birthDate: Date | string | null | undefined): number | null {
   if (!birthDate) return null;
@@ -77,13 +98,16 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     }
 
     const detailsRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${firstResult.place_id}&fields=name,formatted_address,geometry,photos,address_components,website&key=${process.env.GOOGLE_MAPS_API_KEY}`
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${firstResult.place_id}&fields=name,formatted_address,geometry,photos,address_components,website,types,price_level,editorial_summary&key=${process.env.GOOGLE_MAPS_API_KEY}`
     );
     const detailsData = await detailsRes.json() as {
       result?: {
         address_components?: Array<{ long_name: string; short_name: string; types: string[] }>;
         photos?: Array<{ photo_reference: string }>;
         website?: string;
+        types?: string[];
+        price_level?: number;
+        editorial_summary?: { overview?: string };
       };
     };
 
@@ -136,12 +160,17 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     }
 
     const { lat, lng } = firstResult.geometry.location;
-    const websiteUrl = detailsData.result?.website ?? null;
-    console.log(`[tour-resolve] OK "${stop.name}" -> ${lat},${lng}${imageUrl ? " [photo]" : ""}`);
-    return { ...stop, lat, lng, imageUrl, websiteUrl };
+    const websiteUrl = detailsData.result?.website
+      ?? `https://www.google.com/maps/place/?q=place_id:${firstResult.place_id}`;
+    const placeTypes = detailsData.result?.types ?? [];
+    const priceLevel = detailsData.result?.price_level;
+    const editorialSummary = detailsData.result?.editorial_summary?.overview;
+    const ticketRequired = deriveTicketSignal(placeTypes, priceLevel, editorialSummary);
+    console.log(`[tour-resolve] OK "${stop.name}" -> ${lat},${lng}${imageUrl ? " [photo]" : ""} ticket=${ticketRequired}`);
+    return { ...stop, lat, lng, imageUrl, websiteUrl, ticketRequired };
   } catch (e) {
     console.error("[tour-resolve] error:", stop.name, e);
-    if (stop.lat && stop.lng && stop.lat !== 0 && stop.lng !== 0) return { ...stop, imageUrl: null, websiteUrl: null };
+    if (stop.lat && stop.lng && stop.lat !== 0 && stop.lng !== 0) return { ...stop, imageUrl: null, websiteUrl: null, ticketRequired: null };
     return null;
   }
 }
@@ -411,6 +440,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
                       familyNote: resolved.familyNote || null,
                       imageUrl: resolved.imageUrl,
                       websiteUrl: resolved.websiteUrl,
+                      ticketRequired: resolved.ticketRequired,
                     },
                   });
                 }
@@ -502,6 +532,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
               familyNote: s.familyNote || null,
               imageUrl: s.imageUrl,
               websiteUrl: s.websiteUrl,
+              ticketRequired: s.ticketRequired ?? null,
             },
           });
           s.orderIndex = retryIdx++;
@@ -579,6 +610,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
                     familyNote: resolved.familyNote || null,
                     imageUrl: resolved.imageUrl,
                     websiteUrl: resolved.websiteUrl,
+                    ticketRequired: resolved.ticketRequired,
                   },
                 });
                 completedStops.push({ ...resolved, id: stopId, orderIndex: idx });
@@ -731,6 +763,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
         familyNote: s.familyNote ?? "",
         imageUrl: s.imageUrl ?? null,
         websiteUrl: s.websiteUrl ?? null,
+        ticketRequired: s.ticketRequired ?? null,
       })),
       destinationCity,
       prompt,
