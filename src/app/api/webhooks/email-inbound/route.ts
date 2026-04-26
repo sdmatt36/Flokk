@@ -4,6 +4,7 @@ import { Resend } from "resend";
 import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
 import { writeFlightFromEmail, WriteFlightLeg } from "@/lib/flights/extract-and-write";
+import { findAllRelatedTrips, type TripRecord } from "@/lib/flights/find-related-trips";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { enrichSavedItem } from "@/lib/enrich-save";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
@@ -1265,6 +1266,8 @@ Field notes:
 
       // FlightBooking + per-leg Flight rows (idempotent on re-import via confirmationCode dedup)
       let writeResult: { flightBookingId: string; legCount: number; dedupAction: string } | null = null;
+      const writtenTrips: Array<{ tripId: string; flightBookingId: string; legCount: number; dedupAction: string }> = [];
+
       if (resolvedTripId) {
         writeResult = await writeFlightFromEmail({
           tripId: resolvedTripId,
@@ -1280,6 +1283,7 @@ Field notes:
         console.log(
           `[email-inbound] FlightBooking written: id=${writeResult.flightBookingId}, legs=${writeResult.legCount}, action=${writeResult.dedupAction}`
         );
+        writtenTrips.push({ tripId: resolvedTripId, flightBookingId: writeResult.flightBookingId, legCount: writeResult.legCount, dedupAction: writeResult.dedupAction });
 
         // TripDocument vault — one per booking (represents the whole booking, not per leg)
         const vaultLabel = outboundFrom && outboundTo
@@ -1329,10 +1333,197 @@ Field notes:
         }
       }
 
+      // ── Phase Multi-Trip: write FlightBooking + ItineraryItems + TripDocument ──
+      // for every additional trip that shares leg dates with this booking.
+      // Only runs for flight bookings. Non-flight branches are unaffected.
+      {
+        // Helper: convert Date to YYYY-MM-DD (for trip date range comparison)
+        const dateToYMD = (d: Date | null | undefined): string | null =>
+          d ? d.toISOString().slice(0, 10) : null;
+
+        const allRelatedTrips = findAllRelatedTrips(
+          extracted,
+          trips as unknown as TripRecord[],
+          resolvedTripId,
+        );
+
+        const additionalRelatedTrips = allRelatedTrips.filter(
+          (r) => r.trip.id !== resolvedTripId && r.confidence >= 0.85,
+        );
+
+        if (additionalRelatedTrips.length > 0) {
+          console.log(
+            `[email-inbound] multi-trip: ${additionalRelatedTrips.length} additional trip(s) — ` +
+            additionalRelatedTrips.map((r) => `"${r.trip.title ?? r.trip.id}" (${r.matchType})`).join(", ")
+          );
+        }
+
+        for (const { trip: relatedTrip, confidence, matchType } of additionalRelatedTrips) {
+          const relTripId = relatedTrip.id;
+          const rtStart = dateToYMD(relatedTrip.startDate ?? null);
+          const rtEnd   = dateToYMD(relatedTrip.endDate   ?? null);
+
+          if (!rtStart || !rtEnd) continue;
+
+          // Partition legs to those whose dep or arr falls in this trip's date range
+          const relFlightLegs = flightLegs.filter((l) =>
+            (!!l.departureDate && l.departureDate >= rtStart && l.departureDate <= rtEnd) ||
+            (!!l.arrivalDate   && l.arrivalDate   >= rtStart && l.arrivalDate   <= rtEnd)
+          );
+
+          if (relFlightLegs.length === 0) {
+            console.log(`[email-inbound] multi-trip: no partitioned legs for trip "${relatedTrip.title ?? relTripId}" — skipping`);
+            continue;
+          }
+
+          // ── ItineraryItems for related trip (partitioned legs only) ────────────
+          for (let legIdx = 0; legIdx < relFlightLegs.length; legIdx++) {
+            const leg = relFlightLegs[legIdx];
+            if (!leg.from || !leg.to) continue;
+
+            const legTitle = `${leg.from} → ${leg.to}`;
+            const legDayIndex = leg.departureDate ? await getDayIndex(relTripId, leg.departureDate) : null;
+
+            const geoQuery = leg.toCity ? `${leg.to} airport ${leg.toCity}` : `${leg.to} airport`;
+            const legGeo = await geocodePlace(geoQuery);
+            const legArrivalLat = legGeo?.lat ?? null;
+            const legArrivalLng = legGeo?.lng ?? null;
+
+            const existingLeg = outboundConf ? await db.itineraryItem.findFirst({
+              where: {
+                tripId: relTripId,
+                confirmationCode: outboundConf,
+                type: "FLIGHT",
+                scheduledDate: leg.departureDate ?? null,
+                fromAirport: leg.from,
+                toAirport: leg.to,
+              },
+            }) : null;
+
+            const legCost = legIdx === 0 ? parsedCost : null;
+            const legItemData = {
+              type: "FLIGHT" as const,
+              title: legTitle,
+              scheduledDate: leg.departureDate ?? null,
+              departureTime: leg.departureTime,
+              arrivalTime: leg.arrivalTime,
+              fromAirport: leg.from,
+              toAirport: leg.to,
+              fromCity: leg.fromCity,
+              toCity: leg.toCity,
+              confirmationCode: outboundConf,
+              totalCost: legCost,
+              currency: detectedCurrency,
+              passengers,
+              dayIndex: legDayIndex,
+              latitude: legArrivalLat,
+              longitude: legArrivalLng,
+              arrivalLat: legArrivalLat,
+              arrivalLng: legArrivalLng,
+            };
+
+            const legItemId = existingLeg
+              ? (await db.itineraryItem.update({ where: { id: existingLeg.id }, data: legItemData })).id
+              : (await db.itineraryItem.create({
+                  data: { ...legItemData, tripId: relTripId, familyProfileId: familyProfile.id, sourceType: "EMAIL_IMPORT" },
+                })).id;
+
+            console.log(`[email-inbound] (related trip ${relTripId}) upserted leg ${legIdx + 1}/${relFlightLegs.length}: ${legItemId} (${legTitle})`);
+          }
+
+          // ── FlightBooking + Flight rows for related trip (partitioned legs) ────
+          const relWriteFlightLegs: WriteFlightLeg[] = await Promise.all(
+            relFlightLegs.map(async (leg) => ({
+              airline: leg.airline ?? (extracted.airline as string | null) ?? null,
+              flightNumber: leg.flightNumber ?? (extracted.flightNumber as string | null) ?? "",
+              fromAirport: leg.from,
+              fromCity: leg.fromCity ?? leg.from,
+              toAirport: leg.to,
+              toCity: leg.toCity ?? leg.to,
+              departureDate: leg.departureDate ?? "",
+              departureTime: leg.departureTime ?? "",
+              arrivalDate: leg.arrivalDate ?? null,
+              arrivalTime: leg.arrivalTime ?? null,
+              duration: null,
+              dayIndex: leg.departureDate ? await getDayIndex(relTripId, leg.departureDate) : null,
+              type: "outbound",
+              notes: null,
+            }))
+          );
+
+          const relWriteResult = await writeFlightFromEmail({
+            tripId: relTripId,
+            confirmationCode: outboundConf,
+            airline: (extracted.airline as string | null) ?? null,
+            cabinClass: "economy",
+            status: "booked",
+            sortOrder: 0,
+            seatNumbers: null,
+            notes: null,
+            legs: relWriteFlightLegs,
+          });
+          console.log(
+            `[email-inbound] FlightBooking written for related trip ${relTripId} (${matchType}, confidence ${confidence}): ` +
+            `legs=${relWriteResult.legCount}, action=${relWriteResult.dedupAction}`
+          );
+          writtenTrips.push({ tripId: relTripId, flightBookingId: relWriteResult.flightBookingId, legCount: relWriteResult.legCount, dedupAction: relWriteResult.dedupAction });
+
+          // ── TripDocument vault for related trip ────────────────────────────────
+          const relVaultLabel = outboundFrom && outboundTo
+            ? `${outboundFrom} → ${outboundTo}`
+            : `${(extracted.airline as string) ?? ""} ${extracted.flightNumber as string}`.trim();
+          const relVaultContent = JSON.stringify({
+            type: "flight", vendorName: extracted.airline, flightNumber: extracted.flightNumber,
+            airline: extracted.airline, fromAirport: extracted.fromAirport, toAirport: extracted.toAirport,
+            fromCity: extracted.fromCity, toCity: extracted.toCity,
+            departureDate: extracted.departureDate, departureTime: extracted.departureTime,
+            arrivalDate: extracted.arrivalDate, arrivalTime: extracted.arrivalTime,
+            confirmationCode: extracted.confirmationCode,
+            totalCost: extracted.totalCost, currency: extracted.currency,
+            guestNames: extracted.guestNames, returnDepartureDate: extracted.returnDepartureDate,
+            legs: extracted.legs, bookingUrl: (extracted.bookingUrl as string | null) ?? null,
+          });
+
+          const existingRelVaultDoc = outboundConf
+            ? await db.$queryRaw<{ id: string }[]>`
+                SELECT id FROM "TripDocument"
+                WHERE "tripId" = ${relTripId}
+                  AND type = 'booking'
+                  AND content::jsonb->>'confirmationCode' = ${outboundConf}
+                LIMIT 1
+              `.then((rows: { id: string }[]) => rows[0] ?? null)
+            : await db.tripDocument.findFirst({ where: { tripId: relTripId, label: relVaultLabel } });
+
+          if (existingRelVaultDoc) {
+            await db.tripDocument.update({
+              where: { id: existingRelVaultDoc.id },
+              data: { label: relVaultLabel, content: relVaultContent },
+            });
+            console.log(`[vault] Updated existing tripDocument for related trip ${relTripId}:`, existingRelVaultDoc.id);
+          } else {
+            await db.tripDocument.create({
+              data: { tripId: relTripId, label: relVaultLabel, type: "booking", content: relVaultContent },
+            });
+            console.log(`[email-inbound] created vault doc for related trip:`, relTripId);
+          }
+        }
+      }
+
       await incrementBudget(resolvedTripId, parsedCost);
       logCtx.itineraryItemIds = createdLegItemIds;
+      // Capture multi-trip outcome in log when more than one trip was written
+      if (writtenTrips.length > 1) {
+        console.log(`[email-inbound] multi-trip summary: wrote to ${writtenTrips.length} trips: ${writtenTrips.map(t => t.tripId).join(", ")}`);
+      }
       await logExtraction({ ...logCtx, outcome: "success" });
-      return NextResponse.json({ received: true, status: "success", type: "flight", tripId: resolvedTripId, ...(writeResult && { flightBookingId: writeResult.flightBookingId, legCount: writeResult.legCount }) });
+      return NextResponse.json({
+        received: true, status: "success", type: "flight",
+        primaryTripId: resolvedTripId,
+        writtenTrips,
+        // backward-compat: keep legacy tripId + flightBookingId fields
+        tripId: resolvedTripId,
+        ...(writeResult && { flightBookingId: writeResult.flightBookingId, legCount: writeResult.legCount }),
+      });
 
     // ── Hotels ────────────────────────────────────────────────────────────────
     } else if (extracted.type === "hotel" && extracted.vendorName) {
