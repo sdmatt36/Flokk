@@ -5942,11 +5942,23 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
     stopCount: number;
     coverImage: string | null;
     days: number[];
+    transport: string;
+    durationLabel: string;
+    destinationCity: string;
+    destinationCountry: string | null;
+  };
+  type StopPreview = {
+    id: string;
+    name: string;
+    duration: number;
+    travelTime: number;
+    imageUrl: string | null;
   };
   const [tours, setTours] = useState<TourMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancelTarget, setCancelTarget] = useState<TourMeta | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [expandedStops, setExpandedStops] = useState<Record<string, StopPreview[] | "loading">>({});
 
   const fetchTours = () => {
     if (!tripId) { setLoading(false); return; }
@@ -5971,6 +5983,22 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
     }
   }
 
+  async function toggleExpand(tourId: string) {
+    if (expandedStops[tourId]) {
+      setExpandedStops(prev => { const next = { ...prev }; delete next[tourId]; return next; });
+      return;
+    }
+    setExpandedStops(prev => ({ ...prev, [tourId]: "loading" }));
+    try {
+      const res = await fetch(`/api/tours/${tourId}`);
+      if (!res.ok) { setExpandedStops(prev => { const next = { ...prev }; delete next[tourId]; return next; }); return; }
+      const data = await res.json() as { stops: StopPreview[] };
+      setExpandedStops(prev => ({ ...prev, [tourId]: data.stops ?? [] }));
+    } catch {
+      setExpandedStops(prev => { const next = { ...prev }; delete next[tourId]; return next; });
+    }
+  }
+
   function dayLabel(days: number[]): string {
     if (days.length === 0) return "";
     if (days.length === 1) return `Day ${days[0] + 1}`;
@@ -5991,7 +6019,10 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
         <p style={{ fontSize: "15px", color: "#6B7280", lineHeight: 1.5 }}>
           Tours you save to this trip will appear here.
         </p>
-        <a href="/tour" style={{ display: "inline-block", marginTop: "16px", fontSize: "13px", color: "#C4664A", fontWeight: 600 }}>
+        <a
+          href={tripId ? `/tour?tripId=${tripId}` : "/tour"}
+          style={{ display: "inline-block", marginTop: "16px", fontSize: "13px", color: "#C4664A", fontWeight: 600 }}
+        >
           Build a tour →
         </a>
       </div>
@@ -6000,38 +6031,112 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
 
   return (
     <div style={{ padding: "16px" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {tours.map(tour => (
-          <div key={tour.id} style={{
-            borderRadius: "12px",
-            border: "1px solid #E5E7EB",
-            backgroundColor: "#fff",
-            padding: "16px",
-            display: "flex",
-            gap: "14px",
-            alignItems: "flex-start",
-          }}>
-            {tour.coverImage && (
-              <img
-                src={tour.coverImage}
-                alt=""
-                style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "8px", flexShrink: 0 }}
-              />
-            )}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", margin: 0, fontFamily: "var(--font-playfair, serif)", lineHeight: 1.3 }}>
-                {decodeHtmlEntities(tour.title)}
-              </p>
-              <p style={{ fontSize: "12px", color: "#717171", margin: "4px 0 0", lineHeight: 1.4 }}>
-                {tour.stopCount} {tour.stopCount === 1 ? "stop" : "stops"}
-                {tour.days.length > 0 && ` · ${dayLabel(tour.days)}`}
-              </p>
-              <div style={{ display: "flex", gap: "16px", marginTop: "10px", alignItems: "center" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        {tours.map(tour => {
+          const stopsState = expandedStops[tour.id];
+          const isExpanded = !!stopsState;
+          const stopsLoading = stopsState === "loading";
+          const stopsList = Array.isArray(stopsState) ? stopsState : [];
+          const location = [tour.destinationCity, tour.destinationCountry].filter(Boolean).join(", ");
+          return (
+            <div key={tour.id} style={{
+              borderRadius: "12px",
+              border: "1px solid #E5E7EB",
+              backgroundColor: "#fff",
+              overflow: "hidden",
+            }}>
+              {/* Full-width hero image */}
+              <div
+                onClick={() => toggleExpand(tour.id)}
+                style={{ cursor: "pointer" }}
+              >
+                {tour.coverImage ? (
+                  <div style={{ height: "180px", overflow: "hidden" }}>
+                    <img src={tour.coverImage} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  </div>
+                ) : (
+                  <div style={{ height: "180px", background: "linear-gradient(135deg,#1B3A5C,#C4664A)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <MapPin size={32} style={{ color: "rgba(255,255,255,0.5)" }} />
+                  </div>
+                )}
+              </div>
+
+              {/* Content */}
+              <div style={{ padding: "14px 16px 0" }}>
+                <p
+                  onClick={() => toggleExpand(tour.id)}
+                  style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C", margin: 0, fontFamily: "var(--font-playfair, serif)", lineHeight: 1.3, cursor: "pointer" }}
+                >
+                  {decodeHtmlEntities(tour.title)}
+                </p>
+
+                {location && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "6px" }}>
+                    <MapPin size={11} style={{ color: "#717171", flexShrink: 0 }} />
+                    <span style={{ fontSize: "12px", color: "#717171" }}>{location}</span>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "10px" }}>
+                  <span style={{ fontSize: "11px", fontWeight: 700, color: "#C4664A", backgroundColor: "#FAE5DD", borderRadius: "999px", padding: "3px 10px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    {tour.stopCount} {tour.stopCount === 1 ? "Stop" : "Stops"} · {tour.transport}
+                  </span>
+                  {tour.days.length > 0 && (
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#6B7280", backgroundColor: "rgba(0,0,0,0.05)", borderRadius: "999px", padding: "3px 10px" }}>
+                      {dayLabel(tour.days)}
+                    </span>
+                  )}
+                </div>
+
+                {/* Expanded stops */}
+                {isExpanded && (
+                  <div style={{ marginTop: "14px", borderTop: "1px solid #F3F4F6", paddingTop: "12px" }}>
+                    {stopsLoading ? (
+                      <p style={{ fontSize: "12px", color: "#9CA3AF", margin: 0 }}>Loading stops...</p>
+                    ) : stopsList.length === 0 ? (
+                      <p style={{ fontSize: "12px", color: "#9CA3AF", margin: 0 }}>No stops found.</p>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                        {stopsList.map((stop, idx) => (
+                          <div key={stop.id} style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                            <div style={{
+                              width: "40px", height: "40px", borderRadius: "8px", flexShrink: 0,
+                              overflow: "hidden", backgroundColor: "#F3F4F6",
+                              backgroundImage: stop.imageUrl ? `url(${stop.imageUrl})` : undefined,
+                              backgroundSize: "cover", backgroundPosition: "center",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                            }}>
+                              {!stop.imageUrl && <span style={{ fontSize: "12px", color: "#9CA3AF" }}>{idx + 1}</span>}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C", margin: 0, lineHeight: 1.3 }}>
+                                {decodeHtmlEntities(stop.name)}
+                              </p>
+                              <p style={{ fontSize: "11px", color: "#9CA3AF", margin: "2px 0 0" }}>
+                                {stop.duration} min{idx > 0 && stop.travelTime > 0 ? ` · ${stop.travelTime} min walk` : ""}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => toggleExpand(tour.id)}
+                          style={{ fontSize: "12px", color: "#9CA3AF", background: "none", border: "none", cursor: "pointer", padding: "4px 0", textAlign: "left", fontFamily: "inherit" }}
+                        >
+                          ↑ Hide stops
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Action row */}
+              <div style={{ padding: "12px 16px 14px", display: "flex", gap: "10px", alignItems: "center" }} onClick={e => e.stopPropagation()}>
                 <a
                   href={`/tour?id=${tour.id}`}
-                  style={{ fontSize: "13px", color: "#C4664A", fontWeight: 600 }}
+                  style={{ fontSize: "13px", fontWeight: 600, color: "#fff", backgroundColor: "#C4664A", borderRadius: "8px", padding: "6px 14px", textDecoration: "none", display: "inline-block" }}
                 >
-                  View tour →
+                  View tour
                 </a>
                 <button
                   onClick={() => setCancelTarget(tour)}
@@ -6041,8 +6146,8 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
                 </button>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {cancelTarget && (

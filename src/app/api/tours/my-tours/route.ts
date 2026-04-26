@@ -20,6 +20,7 @@ export async function GET() {
       title: true,
       destinationCity: true,
       destinationCountry: true,
+      transport: true,
       createdAt: true,
       _count: { select: { stops: true } },
       stops: {
@@ -34,7 +35,7 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
-  const grouped: Record<string, Array<{ id: string; title: string; createdAt: string; stopCount: number; destinationCountry: string | null; coverImage: string | null }>> = {};
+  const grouped: Record<string, Array<{ id: string; title: string; createdAt: string; stopCount: number; destinationCountry: string | null; transport: string; coverImage: string | null }>> = {};
   for (const t of tours) {
     const city = t.destinationCity;
     if (!grouped[city]) grouped[city] = [];
@@ -46,6 +47,7 @@ export async function GET() {
       createdAt: t.createdAt.toISOString(),
       stopCount: t._count.stops,
       destinationCountry: t.destinationCountry,
+      transport: t.transport,
       coverImage,
     });
   }

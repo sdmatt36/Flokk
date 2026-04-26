@@ -45,6 +45,9 @@ type SavedTourEntry = {
   title: string;
   createdAt: string;
   stopCount: number;
+  transport: string;
+  destinationCountry: string | null;
+  coverImage: string | null;
 };
 
 const VIBE_CHIPS = [
@@ -57,6 +60,7 @@ const VIBE_CHIPS = [
 ];
 
 export default function TourPage() {
+  const [tripId, setTripId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
   const [destinationCity, setDestinationCity] = useState("");
   const [destinationCountry, setDestinationCountry] = useState<string | null>(null);
@@ -158,11 +162,14 @@ export default function TourPage() {
     };
   }, [destinationCity]);
 
-  // Load tour library on mount; load specific tour if ?id= is present
+  // Load tour library on mount; load specific tour if ?id= is present; read tripId context
   useEffect(() => {
     fetchSavedTours();
-    const idParam = new URLSearchParams(window.location.search).get("id");
+    const params = new URLSearchParams(window.location.search);
+    const idParam = params.get("id");
+    const tripIdParam = params.get("tripId");
     if (idParam) loadSavedTour(idParam);
+    if (tripIdParam) setTripId(tripIdParam);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchSavedTours() {
@@ -246,6 +253,7 @@ export default function TourPage() {
           durationLabel,
           transport,
           familyProfileId: undefined,
+          tripId: tripId ?? undefined,
         }),
       });
       const data = await res.json() as TourResponse & { error?: string };
@@ -485,17 +493,22 @@ export default function TourPage() {
                     {city} ({tours.length})
                   </button>
                   {expandedCity === city && (
-                    <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-2 min-w-[220px]">
+                    <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-2 min-w-[260px]">
                       {tours.map(tour => (
-                        <div key={tour.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded-lg">
+                        <div key={tour.id} className="flex items-center gap-3 px-2 py-2 hover:bg-gray-50 rounded-lg">
+                          {tour.coverImage ? (
+                            <img src={tour.coverImage} alt="" style={{ width: "40px", height: "40px", objectFit: "cover", borderRadius: "6px", flexShrink: 0 }} />
+                          ) : (
+                            <div style={{ width: "40px", height: "40px", borderRadius: "6px", backgroundColor: "#F3F4F6", flexShrink: 0 }} />
+                          )}
                           <button
                             onClick={() => loadSavedTour(tour.id)}
-                            className="text-sm text-[#1B3A5C] text-left flex-1 truncate"
+                            className="text-left flex-1 min-w-0"
                             style={{ background: "none", border: "none", fontFamily: "inherit", cursor: "pointer" }}
                           >
-                            {tour.title}
+                            <span className="block text-sm text-[#1B3A5C] font-semibold truncate">{tour.title}</span>
+                            <span className="block text-xs text-gray-400 mt-0.5">{tour.stopCount} stops · {tour.transport}</span>
                           </button>
-                          <span className="border-l border-slate-200 mx-2 h-4 shrink-0" />
                           <TourActionMenu tourId={tour.id} onDelete={handleTourDelete} anchorPosition="pill" />
                         </div>
                       ))}

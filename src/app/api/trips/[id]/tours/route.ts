@@ -49,6 +49,8 @@ export async function GET(
       destinationCity: true,
       destinationCountry: true,
       prompt: true,
+      transport: true,
+      durationLabel: true,
       createdAt: true,
       stops: {
         where: { deletedAt: null },
@@ -72,6 +74,8 @@ export async function GET(
       destinationCity: t.destinationCity,
       destinationCountry: t.destinationCountry,
       prompt: t.prompt,
+      transport: t.transport,
+      durationLabel: t.durationLabel,
       createdAt: t.createdAt.toISOString(),
       stopCount: t._count.stops,
       coverImage,
