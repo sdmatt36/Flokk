@@ -40,7 +40,8 @@ const ACTIVITY_RE = /activit|museum|tour|ticket|admission|temple|shrine|park|con
 const INSURANCE_RE = /insurance|insur|travel protect|coverage|policy/i;
 const VISA_RE = /visa|entry|passport|immigration|eta|evisa|customs/i;
 
-type LogisticsItem = { title: string; reason: string; bookingUrl: string | null };
+type ActionType = "book" | "link" | "build" | "view" | "manage" | "add" | null;
+type LogisticsItem = { title: string; reason: string; bookingUrl: string | null; actionType: ActionType };
 
 function getLogisticsItems(city: string | null, country: string | null): LogisticsItem[] {
   const c = (city ?? "").toLowerCase();
@@ -48,37 +49,37 @@ function getLogisticsItems(city: string | null, country: string | null): Logisti
 
   if (c.includes("seoul") || c.includes("busan") || c.includes("incheon") || co.includes("korea")) {
     return [
-      { title: "T-money Card", reason: "Tap-to-pay on the metro, buses, and taxis — buy at Incheon Airport arrivals.", bookingUrl: "https://www.t-money.co.kr/ncs/pct/tmnyIntro/ReadTmnyIntroEng.do" },
+      { title: "T-money Card", reason: "Tap-to-pay on the metro, buses, and taxis — buy at Incheon Airport arrivals.", bookingUrl: "https://www.t-money.co.kr/ncs/pct/tmnyIntro/ReadTmnyIntroEng.do", actionType: "link" },
     ];
   }
   if (c.includes("tokyo") || c.includes("osaka") || c.includes("kyoto") || c.includes("nara") || c.includes("hiroshima") || co.includes("japan")) {
     return [
-      { title: "IC Card (Suica / ICOCA)", reason: "Cashless travel on trains, buses, and convenience stores — load at any station on arrival.", bookingUrl: "https://www.pasmo.co.jp/en/" },
+      { title: "IC Card (Suica / ICOCA)", reason: "Cashless travel on trains, buses, and convenience stores — load at any station on arrival.", bookingUrl: "https://www.pasmo.co.jp/en/", actionType: "link" },
     ];
   }
   if (c.includes("bali") || co.includes("indonesia")) {
     return [
-      { title: "Indonesia e-VOA", reason: "Buy your visa online before arriving — saves queuing at immigration.", bookingUrl: "https://evisa.imigrasi.go.id/" },
+      { title: "Indonesia e-VOA", reason: "Buy your visa online before arriving — saves queuing at immigration.", bookingUrl: "https://evisa.imigrasi.go.id/", actionType: "book" },
     ];
   }
   if (c.includes("bangkok") || c.includes("chiang") || c.includes("phuket") || co.includes("thailand")) {
     return [
-      { title: "SIM card / eSIM", reason: "Local data SIMs at Thai airports are cheap — activate an eSIM in advance to skip the queue.", bookingUrl: null },
+      { title: "SIM card / eSIM", reason: "Local data SIMs at Thai airports are cheap — activate an eSIM in advance to skip the queue.", bookingUrl: null, actionType: null },
     ];
   }
   if (c.includes("dubai") || c.includes("abu dhabi") || co.includes("emirates") || co.includes("uae")) {
     return [
-      { title: "Nol Card", reason: "Rechargeable smart card for Dubai Metro, buses, and trams — buy at any station.", bookingUrl: "https://www.nolcard.ae/" },
+      { title: "Nol Card", reason: "Rechargeable smart card for Dubai Metro, buses, and trams — buy at any station.", bookingUrl: "https://www.nolcard.ae/", actionType: "link" },
     ];
   }
   if (c.includes("london") || co.includes("united kingdom") || co.includes("uk")) {
     return [
-      { title: "Oyster Card / contactless", reason: "London's underground and buses use contactless payment — no need to pre-purchase.", bookingUrl: null },
+      { title: "Oyster Card / contactless", reason: "London's underground and buses use contactless payment — no need to pre-purchase.", bookingUrl: null, actionType: null },
     ];
   }
   if (co && !co.match(/^united states|canada|australia|new zealand/)) {
     return [
-      { title: "International data plan", reason: "Check with your carrier or pick up a local SIM at the airport on arrival.", bookingUrl: null },
+      { title: "International data plan", reason: "Check with your carrier or pick up a local SIM at the airport on arrival.", bookingUrl: null, actionType: null },
     ];
   }
   return [];
@@ -93,6 +94,8 @@ export type IntelItem = {
   savedCount?: number;
   bookingUrl: string | null;
   urgency: "now" | "soon" | "when ready";
+  actionType: ActionType;
+  dismissed?: boolean;
 };
 
 export async function GET(
@@ -149,6 +152,13 @@ export async function GET(
   });
   const tourCount = new Set(linkedTourSaves.map(s => s.tourId)).size;
 
+  // ── Dismissed items ────────────────────────────────────────────────────────
+  const dismissals = await db.tripIntelDismissal.findMany({
+    where: { tripId },
+    select: { itemId: true },
+  });
+  const dismissedIds = new Set(dismissals.map(d => d.itemId));
+
   const items: IntelItem[] = [];
   const { destinationCity, destinationCountry, flights, savedItems, manualActivities, itineraryItems, keyInfo, documents } = trip;
 
@@ -168,6 +178,7 @@ export async function GET(
       savedCount: unconfirmedFlights.length > 0 ? unconfirmedFlights.length : undefined,
       urgency: unconfirmedFlights.length > 0 ? flightUrgency(daysAway) : "when ready",
       bookingUrl: null,
+      actionType: "view",
     });
   } else if (unconfirmedFlights.length > 0) {
     items.push({
@@ -179,6 +190,7 @@ export async function GET(
       savedCount: unconfirmedFlights.length,
       urgency: flightUrgency(daysAway),
       bookingUrl: null,
+      actionType: "view",
     });
   } else {
     items.push({
@@ -189,6 +201,7 @@ export async function GET(
       status: "missing",
       urgency: flightUrgency(daysAway),
       bookingUrl: null,
+      actionType: "add",
     });
   }
 
@@ -208,6 +221,7 @@ export async function GET(
       status: "booked",
       urgency: "when ready",
       bookingUrl: null,
+      actionType: "view",
     });
   } else if (unconfirmedLodging.length > 0) {
     items.push({
@@ -219,6 +233,7 @@ export async function GET(
       savedCount: unconfirmedLodging.length,
       urgency: hotelUrgency(daysAway),
       bookingUrl: null,
+      actionType: "book",
     });
   } else {
     items.push({
@@ -229,6 +244,7 @@ export async function GET(
       status: "missing",
       urgency: hotelUrgency(daysAway),
       bookingUrl: null,
+      actionType: "book",
     });
   }
 
@@ -248,6 +264,7 @@ export async function GET(
       status: "booked",
       urgency: "when ready",
       bookingUrl: null,
+      actionType: "view",
     });
   } else if (totalSaved > 0) {
     items.push({
@@ -259,6 +276,7 @@ export async function GET(
       savedCount: totalSaved,
       urgency: activityUrgency(daysAway),
       bookingUrl: null,
+      actionType: "view",
     });
   } else if (daysAway <= 45) {
     items.push({
@@ -269,6 +287,7 @@ export async function GET(
       status: "missing",
       urgency: activityUrgency(daysAway),
       bookingUrl: null,
+      actionType: "book",
     });
   }
 
@@ -282,6 +301,7 @@ export async function GET(
       status: "booked",
       urgency: "when ready",
       bookingUrl: null,
+      actionType: "manage",
     });
   } else if (daysAway <= WINDOW_DAYS) {
     items.push({
@@ -292,6 +312,7 @@ export async function GET(
       status: "missing",
       urgency: "when ready",
       bookingUrl: null,
+      actionType: "build",
     });
   }
 
@@ -308,6 +329,7 @@ export async function GET(
       status: "missing",
       urgency: docUrgency(daysAway),
       bookingUrl: "https://www.insuremytrip.com/",
+      actionType: "book",
     });
   }
 
@@ -341,6 +363,7 @@ export async function GET(
         status: "missing",
         urgency: docUrgency(daysAway),
         bookingUrl: null, // BookingIntelCard.getVisaUrl() provides country-specific URL
+        actionType: "link",
       });
     }
   }
@@ -370,6 +393,7 @@ export async function GET(
         status: "missing",
         urgency: "now",
         bookingUrl: null,
+        actionType: "link",
       });
     } else if (soonExpiringMembers.length > 0) {
       const names = soonExpiringMembers.map((m) => m.name).join(", ");
@@ -381,6 +405,7 @@ export async function GET(
         status: "missing",
         urgency: daysAway <= 45 ? "now" : "soon",
         bookingUrl: "https://travel.state.gov/content/travel/en/passports/need-passport/renew.html",
+        actionType: "link",
       });
     }
   }
@@ -396,10 +421,17 @@ export async function GET(
       status: "missing",
       urgency: daysAway <= 14 ? "soon" : "when ready",
       bookingUrl: item.bookingUrl,
+      actionType: item.actionType,
     });
   }
 
   if (items.length === 0) return NextResponse.json({ show: false });
 
-  return NextResponse.json({ show: true, items, daysAway });
+  // Split into visible and dismissed
+  const visibleItems = items.filter(i => !dismissedIds.has(i.id));
+  const dismissedItems = items
+    .filter(i => dismissedIds.has(i.id))
+    .map(i => ({ ...i, dismissed: true }));
+
+  return NextResponse.json({ show: true, items: visibleItems, dismissedItems, daysAway });
 }
