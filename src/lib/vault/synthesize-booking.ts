@@ -308,6 +308,12 @@ export async function synthesizeVaultDocuments(tripId: string, prisma?: any): Pr
     const confCode = (base.confirmationCode as string | null | undefined) ?? null;
 
     if (bookingType === "flight") {
+      // Dedup: two old-era TripDocuments may share the same confirmationCode (one per leg).
+      // Only render the first one; subsequent docs with the same code are skipped.
+      if (confCode && tdFlightConfCodes.has(confCode)) {
+        console.log(`[vault-synth-dedup] skipping duplicate flight TripDocument ${doc.id} (confCode ${confCode} already rendered)`);
+        continue;
+      }
       if (confCode) tdFlightConfCodes.add(confCode);
       const flightBooking = confCode
         ? ((await db.flightBooking.findUnique({
