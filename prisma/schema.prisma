@@ -265,6 +265,18 @@ model Trip {
   country                   String?
   countries                 String[]          @default([])
   placeRatings              PlaceRating[]
+  intelDismissals           TripIntelDismissal[]
+}
+
+model TripIntelDismissal {
+  id          String   @id @default(cuid())
+  tripId      String
+  trip        Trip     @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  itemId      String
+  dismissedAt DateTime @default(now())
+
+  @@unique([tripId, itemId])
+  @@index([tripId])
 }
 
 enum TripStatus {
