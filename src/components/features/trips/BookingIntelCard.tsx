@@ -101,12 +101,14 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
 }) {
   const [state, setState] = useState<"loading" | "hidden" | "ready">("loading");
   const [items, setItems] = useState<IntelItem[]>([]);
+  const [dismissedItems, setDismissedItems] = useState<IntelItem[]>([]);
   const [showBooked, setShowBooked] = useState(false);
+  const [showDismissed, setShowDismissed] = useState(false);
+  const [pendingDismiss, setPendingDismiss] = useState<string | null>(null);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewObservations, setReviewObservations] = useState<string[] | null>(null);
   const [reviewError, setReviewError] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [toursCount, setToursCount] = useState<number | null>(null);
 
   const STATUS_ORDER: Record<IntelItem["status"], number> = { missing: 0, saved: 1, booked: 2 };
   const { activeItems, bookedItems } = useMemo(() => {
@@ -148,16 +150,140 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
         if (!data.show || !Array.isArray(data.items) || data.items.length === 0) {
           setState("hidden");
         } else {
-          setItems(data.items);
+          setItems(data.items as IntelItem[]);
+          setDismissedItems(Array.isArray(data.dismissedItems) ? data.dismissedItems as IntelItem[] : []);
           setState("ready");
         }
       })
       .catch(() => setState("hidden"));
-    fetch(`/api/trips/${tripId}/tours`)
-      .then(r => r.json())
-      .then((d: { tours?: unknown[] }) => setToursCount((d.tours ?? []).length))
-      .catch(() => setToursCount(0));
   }, [tripId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleDismiss = async (item: IntelItem) => {
+    // Optimistic remove
+    setItems(prev => prev.filter(i => i.id !== item.id));
+    setDismissedItems(prev => [...prev, { ...item, dismissed: true }]);
+    setPendingDismiss(null);
+
+    try {
+      const res = await fetch(`/api/trips/${tripId}/intel-dismissals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId: item.id }),
+      });
+      if (!res.ok) throw new Error("Failed");
+    } catch {
+      // Restore on failure
+      setItems(prev => [...prev, item]);
+      setDismissedItems(prev => prev.filter(i => i.id !== item.id));
+    }
+  };
+
+  const handleRestore = async (item: IntelItem) => {
+    // Optimistic restore
+    setDismissedItems(prev => prev.filter(i => i.id !== item.id));
+    setItems(prev => [...prev, { ...item, dismissed: false }]);
+
+    try {
+      const res = await fetch(`/api/trips/${tripId}/intel-dismissals/${item.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed");
+    } catch {
+      // Revert on failure
+      setItems(prev => prev.filter(i => i.id !== item.id));
+      setDismissedItems(prev => [...prev, item]);
+    }
+  };
+
+  const renderCta = (item: IntelItem) => {
+    const { actionType, status, bookingUrl, savedCount, category } = item;
+
+    if (!actionType) return null;
+
+    if (actionType === "add") {
+      return (
+        <div style={{ marginTop: "4px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+            {onAddFlight && (
+              <button
+                onClick={onAddFlight}
+                style={{
+                  fontSize: "12px", fontWeight: 600, color: "#C4664A",
+                  border: "1px solid #C4664A", borderRadius: "6px",
+                  padding: "3px 10px", background: "none", cursor: "pointer",
+                  fontFamily: "inherit", whiteSpace: "nowrap",
+                }}
+              >
+                + Add flight manually
+              </button>
+            )}
+            <span style={{ fontSize: "12px", color: "#AAAAAA" }}>or forward confirmation to{" "}
+              <span style={{ fontWeight: 600, color: "#1B3A5C" }}>trips@flokktravel.com</span>
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    if (actionType === "manage") {
+      return (
+        <button
+          onClick={onManageTours}
+          style={{ fontSize: "12px", fontWeight: 700, color: status === "booked" ? "#4CAF50" : "#C4664A", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+        >
+          Manage →
+        </button>
+      );
+    }
+
+    if (actionType === "view" && status === "booked") {
+      return (
+        <span style={{ fontSize: "12px", fontWeight: 700, color: "#4CAF50" }}>
+          ✓ Booked
+        </span>
+      );
+    }
+
+    if (actionType === "view") {
+      return (
+        <a
+          href={`/trips/${tripId}`}
+          style={{ fontSize: "12px", fontWeight: 700, color: "#F59E0B", textDecoration: "none" }}
+        >
+          View saved{savedCount != null ? ` (${savedCount})` : ""} →
+        </a>
+      );
+    }
+
+    if (actionType === "build") {
+      return (
+        <a
+          href={`/tour${tripId ? `?tripId=${tripId}` : ""}`}
+          style={{ fontSize: "12px", fontWeight: 700, color: "#C4664A", textDecoration: "none" }}
+        >
+          Build →
+        </a>
+      );
+    }
+
+    // "link" or "book" → external link
+    const href = actionType === "link"
+      ? (bookingUrl ?? getVisaUrl(destinationCountry, destinationCity))
+      : (bookingUrl ?? getBookingUrl(category, destinationCity ?? "", destinationCountry ?? "", startDate, endDate));
+
+    const label = actionType === "link" ? "Link →" : "Book →";
+
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ fontSize: "12px", fontWeight: 700, color: "#C4664A", textDecoration: "none" }}
+      >
+        {label}
+      </a>
+    );
+  };
 
   const handleReviewItinerary = async () => {
     setReviewLoading(true);
@@ -274,87 +400,43 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
                     <p style={{ fontSize: "12px", color: "#717171", margin: "0 0 4px", lineHeight: 1.45 }}>
                       {item.reason}
                     </p>
-                    {/* CTAs */}
-                    {item.status === "booked" && item.category !== "tours" && (
-                      <span style={{ fontSize: "12px", fontWeight: 700, color: "#4CAF50" }}>
-                        ✓ Booked
-                      </span>
-                    )}
-                    {item.status === "booked" && item.category === "tours" && (
-                      <button
-                        onClick={onManageTours}
-                        style={{ fontSize: "12px", fontWeight: 700, color: "#4CAF50", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
-                      >
-                        Manage →
-                      </button>
-                    )}
-                    {item.status === "saved" && (
-                      <a
-                        href={`/trips/${tripId}`}
-                        style={{
-                          fontSize: "12px", fontWeight: 700, color: "#F59E0B",
-                          textDecoration: "none",
-                        }}
-                      >
-                        View saved{item.savedCount != null ? ` (${item.savedCount})` : ""} →
-                      </a>
-                    )}
-                    {item.status === "missing" && item.bookingUrl && (
-                      <a
-                        href={item.bookingUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          fontSize: "12px", fontWeight: 700, color: "#C4664A",
-                          textDecoration: "none",
-                        }}
-                      >
-                        {item.category === "documents" ? "Link" : "Book"} →
-                      </a>
-                    )}
-                    {item.status === "missing" && !item.bookingUrl && item.category !== "flights" && item.category !== "tours" && (
-                      <a
-                        href={getBookingUrl(item.category, destinationCity ?? "", destinationCountry ?? "", startDate, endDate)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ fontSize: "12px", fontWeight: 700, color: "#C4664A", textDecoration: "none" }}
-                      >
-                        Book →
-                      </a>
-                    )}
-                    {item.status === "missing" && item.category === "tours" && (
-                      <a
-                        href="/tour"
-                        style={{ fontSize: "12px", fontWeight: 700, color: "#C4664A", textDecoration: "none" }}
-                      >
-                        Build →
-                      </a>
-                    )}
-                    {item.status === "missing" && item.category === "flights" && (
-                      <div style={{ marginTop: "4px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                          {onAddFlight && (
-                            <button
-                              onClick={onAddFlight}
-                              style={{
-                                fontSize: "12px", fontWeight: 600, color: "#C4664A",
-                                border: "1px solid #C4664A", borderRadius: "6px",
-                                padding: "3px 10px", background: "none", cursor: "pointer",
-                                fontFamily: "inherit", whiteSpace: "nowrap",
-                              }}
-                            >
-                              + Add flight manually
-                            </button>
-                          )}
-                          <span style={{ fontSize: "12px", color: "#AAAAAA" }}>or forward confirmation to{" "}
-                            <span style={{ fontWeight: 600, color: "#1B3A5C" }}>trips@flokktravel.com</span>
-                          </span>
-                        </div>
+                    {/* CTA */}
+                    {renderCta(item)}
+                  </div>
+
+                  {/* Dismiss control */}
+                  <div style={{ flexShrink: 0, marginTop: "2px" }}>
+                    {pendingDismiss === item.id ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span style={{ fontSize: "11px", color: "#888" }}>Dismiss?</span>
+                        <button
+                          onClick={() => setPendingDismiss(null)}
+                          style={{ fontSize: "11px", color: "#888", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => handleDismiss(item)}
+                          style={{ fontSize: "11px", fontWeight: 600, color: "#C4664A", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+                        >
+                          Yes
+                        </button>
                       </div>
+                    ) : (
+                      <button
+                        onClick={() => setPendingDismiss(item.id)}
+                        aria-label="Dismiss"
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: "2px", color: "#BBBBBB", fontSize: "14px", lineHeight: 1, fontFamily: "inherit" }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#C4664A"; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#BBBBBB"; }}
+                      >
+                        ×
+                      </button>
                     )}
                   </div>
                 </div>
               ))}
+
               {bookedItems.length > 0 && (
                 <button
                   onClick={() => setShowBooked(v => !v)}
@@ -363,32 +445,41 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
                   {showBooked ? "Hide booked items" : `Show ${bookedItems.length} booked item${bookedItems.length > 1 ? "s" : ""} ✓`}
                 </button>
               )}
-              {toursCount !== null && (
-                <div style={{
-                  display: "flex", gap: "12px", alignItems: "flex-start",
-                  padding: "12px 0",
-                  borderBottom: "1px solid rgba(0,0,0,0.05)"
-                }}>
-                  <div style={{
-                    width: "8px", height: "8px", borderRadius: "50%", flexShrink: 0, marginTop: "5px",
-                    backgroundColor: toursCount > 0 ? "#C4664A" : "#D1D5DB",
-                  }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: "13px", fontWeight: 600, color: "#0A1628", marginBottom: "3px" }}>
-                      Tours
+
+              {dismissedItems.length > 0 && (
+                <div style={{ marginTop: "10px" }}>
+                  <button
+                    onClick={() => setShowDismissed(v => !v)}
+                    style={{ background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: "#AAAAAA", padding: 0, fontFamily: "inherit" }}
+                  >
+                    {showDismissed ? "Hide dismissed" : `Show ${dismissedItems.length} dismissed item${dismissedItems.length > 1 ? "s" : ""}`}
+                  </button>
+                  {showDismissed && (
+                    <div style={{ marginTop: "8px" }}>
+                      {dismissedItems.map((item) => (
+                        <div
+                          key={item.id}
+                          style={{
+                            display: "flex", gap: "10px", alignItems: "flex-start",
+                            padding: "8px 0",
+                            borderBottom: "1px solid rgba(0,0,0,0.04)",
+                            opacity: 0.6,
+                          }}
+                        >
+                          <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#D1D5DB", flexShrink: 0, marginTop: "4px" }} />
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: "13px", fontWeight: 600, color: "#6B7280" }}>{item.title}</span>
+                          </div>
+                          <button
+                            onClick={() => handleRestore(item)}
+                            style={{ fontSize: "11px", fontWeight: 600, color: "#C4664A", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit", flexShrink: 0, marginTop: "2px" }}
+                          >
+                            Restore
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                    <div style={{ fontSize: "12px", color: "#6B7280" }}>
-                      {toursCount > 0
-                        ? `${toursCount} saved — pre-built itineraries added to this trip`
-                        : "No tours saved yet"}
-                    </div>
-                    <button
-                      onClick={onManageTours}
-                      style={{ fontSize: "12px", color: "#C4664A", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: "4px 0 0", display: "block" }}
-                    >
-                      Manage tours →
-                    </button>
-                  </div>
+                  )}
                 </div>
               )}
             </div>
