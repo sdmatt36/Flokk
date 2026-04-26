@@ -523,7 +523,7 @@ Return this exact JSON structure:
   "contactEmail": "string or null",
   "guestNames": ["string"] or [],
   "rooms": [{ "confirmationCode": "string", "guests": ["string"], "cost": number }] or null,
-  "legs": [{ "from": "IATA", "to": "IATA", "fromCity": "string", "toCity": "string", "departure": "YYYY-MM-DDTHH:MM", "arrival": "YYYY-MM-DDTHH:MM" }] or [],
+  "legs": [{ "from": "IATA", "to": "IATA", "fromCity": "string", "toCity": "string", "departure": "YYYY-MM-DDTHH:MM", "arrival": "YYYY-MM-DDTHH:MM", "flightNumber": "string (e.g. UL895)", "airline": "string or null" }] or [],
   "outboundDestination": "string or null — the furthest non-home city in the itinerary (the actual trip destination, not the return airport)",
   "outboundDestinationAirport": "IATA code or null — airport code for outboundDestination",
   "bookingUrl": "string or null — the URL in the email to view or manage the booking. Look for phrases like 'View booking', 'Manage reservation', 'Booking details', or any vendor link that lets the user return to the booking on the vendor's site. If no such URL is present, return null.",
@@ -533,9 +533,10 @@ Return this exact JSON structure:
 Field notes:
 - guestNames: Extract ALL passenger/guest/traveler names as an array. For activity/tour bookings (GetYourGuide, Viator, Klook), look under "Travelers", "Guests", "Participants" sections and include every name listed. For flights, include all passenger names on the booking, not just the primary contact. For hotels, include all guests listed. Return [] only if no names are found anywhere in the email.
 - rooms: For HOTEL bookings ONLY. If the confirmation email contains MULTIPLE rooms with distinct confirmation numbers (common when families book 2+ rooms at the same property for the same dates), return each room as a separate object in this array. Each room object has: confirmationCode (the room-specific code), guests (the guest names on that room), cost (the price for that room in the booking currency). If the booking is a single room, return null — NOT an empty array. If the top-level confirmationCode matches one of the rooms (or the email only contains one room), treat that as a single-room booking and return rooms: null. Example: a Strawberry Hotels email with booking numbers 28686792 (2 adults, 13576 NOK), 28687367 (1 adult + 1 child, 13828 NOK), 28688208 (1 adult + 1 child, 13828 NOK) — return rooms as a 3-element array. Top-level confirmationCode should be the FIRST room's code (28686792), totalCost should be the sum (41232), guestNames should be the union of all room guests.
-- legs: For flights ONLY. Extract EVERY individual flight segment as a separate leg object, INCLUDING intermediate stops like layovers or stopovers. A Tokyo→Singapore→Colombo itinerary has 2 legs: TYO→SIN and SIN→CMB. A Seattle→Keflavík→Bergen itinerary has 2 legs: SEA→KEF and KEF→BGO. NEVER consolidate segments — if the email mentions a ticketed segment, it MUST appear in legs. Always populate this array for flights even if only one segment. Include arrival datetime per leg when visible in the email.
+- legs: For flights ONLY. Extract EVERY individual flight segment as a separate leg object, INCLUDING intermediate stops like layovers or stopovers. A Tokyo→Singapore→Colombo itinerary has 2 legs: TYO→SIN and SIN→CMB. A Seattle→Keflavík→Bergen itinerary has 2 legs: SEA→KEF and KEF→BGO. NEVER consolidate segments — if the email mentions a ticketed segment, it MUST appear in legs. Always populate this array for flights even if only one segment. Include arrival datetime per leg when visible in the email. For EACH leg, populate flightNumber with that segment's flight number (e.g. "UL895" for leg 1, "UL3335" for leg 2) — NOT the same number on every leg. If the leg's specific flight number is not visible, use null. Populate airline per leg (carrier operating that segment); use null if unknown.
 - outboundDestination / outboundDestinationAirport: For round-trip flights that depart from and return to a home airport (NRT, HND, LHR, LGW), identify the furthest destination city/airport — NOT the return airport. Example: NRT→SIN→CMB→LHR→NRT has outboundDestination="Colombo" and outboundDestinationAirport="CMB". For one-way or simple round trips, this is just toCity/toAirport.
-- fromAirport/toAirport/fromCity/toCity: Keep these for backward compatibility. fromAirport = first leg departure, toAirport = outboundDestinationAirport (NOT the return leg airport), fromCity = first leg departure city, toCity = outboundDestination city.`,
+- fromAirport/toAirport/fromCity/toCity: Keep these for backward compatibility. fromAirport = first leg departure, toAirport = outboundDestinationAirport (NOT the return leg airport), fromCity = first leg departure city, toCity = outboundDestination city.
+- AIRPORT CODE EXTRACTION RULES: Use ONLY IATA codes that appear verbatim in the email body (e.g. "HND", "NRT", "LHR"). NEVER infer or guess an IATA code from a city name alone. If the email says "TOKYO INTL HANEDA" or "HANEDA" → HND. If the email says "TOKYO INTL NARITA" or "NARITA" → NRT. If the email says only "Tokyo" with no airport qualifier, leave fromAirport/toAirport as "" (empty string) — do NOT emit "TYO" or any other code. The same rule applies to every leg.from and leg.to field. If you cannot find the IATA code verbatim in the email, return "".`,
       }],
     });
 
@@ -1079,12 +1080,14 @@ Field notes:
         departureTime: string | null;
         arrivalDate: string | null;
         arrivalTime: string | null;
+        flightNumber: string | null;
+        airline: string | null;
       };
 
       let flightLegs: FlightLeg[] = [];
 
       const rawLegs = Array.isArray(extracted.legs)
-        ? extracted.legs as Array<{ from: string; to: string; fromCity?: string; toCity?: string; departure?: string; arrival?: string }>
+        ? extracted.legs as Array<{ from: string; to: string; fromCity?: string; toCity?: string; departure?: string; arrival?: string; flightNumber?: string | null; airline?: string | null }>
         : [];
 
       if (rawLegs.length > 0) {
@@ -1100,6 +1103,8 @@ Field notes:
             departureTime: depTime ? depTime.slice(0, 5) : null,
             arrivalDate: arrDate ?? null,
             arrivalTime: arrTime ? arrTime.slice(0, 5) : null,
+            flightNumber: (l.flightNumber as string | null | undefined) ?? null,
+            airline: (l.airline as string | null | undefined) ?? null,
           };
         });
       } else {
@@ -1114,6 +1119,8 @@ Field notes:
             departureTime: (extracted.departureTime as string | null) ?? null,
             arrivalDate: (extracted.arrivalDate as string | null) ?? null,
             arrivalTime: (extracted.arrivalTime as string | null) ?? null,
+            flightNumber: (extracted.flightNumber as string | null) ?? null,
+            airline: (extracted.airline as string | null) ?? null,
           });
         }
         // Synthesize return leg from scalar return fields if present
@@ -1131,6 +1138,8 @@ Field notes:
             departureTime: (extracted.returnDepartureTime as string | null) ?? null,
             arrivalDate: (extracted.returnArrivalDate as string | null) ?? null,
             arrivalTime: (extracted.returnArrivalTime as string | null) ?? null,
+            flightNumber: null,
+            airline: (extracted.airline as string | null) ?? null,
           });
         }
       }
@@ -1153,8 +1162,8 @@ Field notes:
 
         // Collect leg for Flight table write (after ItineraryItem loop completes)
         writeFlightLegs.push({
-          airline: (extracted.airline as string | null) ?? null,
-          flightNumber: (extracted.flightNumber as string | null) ?? "",
+          airline: leg.airline ?? (extracted.airline as string | null) ?? null,
+          flightNumber: leg.flightNumber ?? (extracted.flightNumber as string | null) ?? "",
           fromAirport: leg.from,
           fromCity: leg.fromCity ?? leg.from,
           toAirport: leg.to,
@@ -1276,26 +1285,43 @@ Field notes:
         const vaultLabel = outboundFrom && outboundTo
           ? `${outboundFrom} → ${outboundTo}`
           : `${(extracted.airline as string) ?? ""} ${extracted.flightNumber as string}`.trim();
-        const existingVaultDoc = await db.tripDocument.findFirst({ where: { tripId: resolvedTripId, label: vaultLabel } });
+        const vaultContent = JSON.stringify({
+          type: "flight", vendorName: extracted.airline, flightNumber: extracted.flightNumber,
+          airline: extracted.airline, fromAirport: extracted.fromAirport, toAirport: extracted.toAirport,
+          fromCity: extracted.fromCity, toCity: extracted.toCity,
+          departureDate: extracted.departureDate, departureTime: extracted.departureTime,
+          arrivalDate: extracted.arrivalDate, arrivalTime: extracted.arrivalTime,
+          confirmationCode: extracted.confirmationCode,
+          totalCost: extracted.totalCost, currency: extracted.currency,
+          guestNames: extracted.guestNames, returnDepartureDate: extracted.returnDepartureDate,
+          legs: extracted.legs, bookingUrl: (extracted.bookingUrl as string | null) ?? null,
+        });
+
+        // Dedup by confirmationCode (for booking docs with a code), else fall back to label
+        const existingVaultDoc = outboundConf
+          ? await db.$queryRaw<{ id: string }[]>`
+              SELECT id FROM "TripDocument"
+              WHERE "tripId" = ${resolvedTripId}
+                AND type = 'booking'
+                AND content::jsonb->>'confirmationCode' = ${outboundConf}
+              LIMIT 1
+            `.then((rows: { id: string }[]) => rows[0] ?? null)
+          : await db.tripDocument.findFirst({ where: { tripId: resolvedTripId, label: vaultLabel } });
+
         if (existingVaultDoc) {
-          console.log("[vault] Skipping duplicate tripDocument:", vaultLabel);
+          await db.tripDocument.update({
+            where: { id: existingVaultDoc.id },
+            data: { label: vaultLabel, content: vaultContent },
+          });
+          logCtx.tripDocumentId = existingVaultDoc.id;
+          console.log("[vault] Updated existing tripDocument:", existingVaultDoc.id, "label:", vaultLabel);
         } else {
           const flightDoc = await db.tripDocument.create({
             data: {
               tripId: resolvedTripId,
               label: vaultLabel,
               type: "booking",
-              content: JSON.stringify({
-                type: "flight", vendorName: extracted.airline, flightNumber: extracted.flightNumber,
-                airline: extracted.airline, fromAirport: extracted.fromAirport, toAirport: extracted.toAirport,
-                fromCity: extracted.fromCity, toCity: extracted.toCity,
-                departureDate: extracted.departureDate, departureTime: extracted.departureTime,
-                arrivalDate: extracted.arrivalDate, arrivalTime: extracted.arrivalTime,
-                confirmationCode: extracted.confirmationCode,
-                totalCost: extracted.totalCost, currency: extracted.currency,
-                guestNames: extracted.guestNames, returnDepartureDate: extracted.returnDepartureDate,
-                legs: extracted.legs, bookingUrl: (extracted.bookingUrl as string | null) ?? null,
-              }),
+              content: vaultContent,
             },
           });
           logCtx.tripDocumentId = flightDoc.id;
