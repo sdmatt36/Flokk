@@ -52,7 +52,7 @@ export async function POST(req: Request) {
   const startDate = sourceTrip.startDate && sourceTrip.startDate > now ? sourceTrip.startDate.toISOString().substring(0, 10) : null;
   const endDate = sourceTrip.endDate && sourceTrip.endDate > now ? sourceTrip.endDate.toISOString().substring(0, 10) : null;
 
-  const builtData = buildTripFromExtraction({
+  const builtData = await buildTripFromExtraction({
     cities: sourceTrip.cities.length > 0 ? sourceTrip.cities : (sourceTrip.destinationCity ? [sourceTrip.destinationCity] : []),
     country: sourceTrip.country ?? sourceTrip.destinationCountry ?? null,
     countries: sourceTrip.countries.length > 0 ? sourceTrip.countries : undefined,

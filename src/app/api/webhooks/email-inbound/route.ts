@@ -846,7 +846,7 @@ Field notes:
           const autoDestCountry = (extracted.country as string | null) ?? null;
           const autoStart = (extracted.departureDate as string | null) ?? (extracted.checkIn as string | null) ?? null;
           const autoEnd = (extracted.returnDepartureDate as string | null) ?? (extracted.checkOut as string | null) ?? null;
-          const autoData = buildTripFromExtraction({
+          const autoData = await buildTripFromExtraction({
             cities: [autoDestCity],
             country: autoDestCountry,
             startDate: autoStart,
@@ -875,7 +875,7 @@ Field notes:
           // Build the trip from plan-level metadata
           const planCountry = plan.destinationCountry ?? null;
           const planCities = plan.cities.length > 0 ? plan.cities : [];
-          const planData = buildTripFromExtraction({
+          const planData = await buildTripFromExtraction({
             cities: planCities,
             country: planCountry,
             startDate: plan.startDate,

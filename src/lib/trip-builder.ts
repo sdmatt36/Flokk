@@ -1,5 +1,6 @@
 import { nanoid } from "nanoid";
 import { getTripCoverImage, DEFAULT_COVER } from "@/lib/destination-images";
+import { textSearchPhoto } from "@/lib/google-places";
 
 export type TripBuilderInput = {
   cities: string[];              // empty array allowed
@@ -35,7 +36,7 @@ export type TripBuilderOutput = {
  * Month format short + 2-digit year with apostrophe (Feb '25). Dates null → title is root only.
  * Hero: country-level for multi-city, city-level for single.
  */
-export function buildTripFromExtraction(input: TripBuilderInput): TripBuilderOutput {
+export async function buildTripFromExtraction(input: TripBuilderInput): Promise<TripBuilderOutput> {
   const cities = input.cities.map(c => c.trim()).filter(Boolean);
   const country = input.country?.trim() || null;
   const countries = input.countries && input.countries.length > 0
@@ -56,13 +57,26 @@ export function buildTripFromExtraction(input: TripBuilderInput): TripBuilderOut
     } catch { /* fall back to root only */ }
   }
 
-  // Hero: country-level for multi-city country trips, city-level otherwise.
-  // Store null if the result is DEFAULT_COVER so future map additions are picked up
-  // automatically at render time without requiring a DB update.
-  const resolvedHero = (country && cities.length >= 2)
+  // Hero priority: manual map → Google Places text search → null (render shows DEFAULT_COVER).
+  const mapResolved = (country && cities.length >= 2)
     ? getTripCoverImage(country, country)
     : getTripCoverImage(destinationCity ?? country ?? "", country ?? "");
-  const heroImageUrl = resolvedHero === DEFAULT_COVER ? null : resolvedHero;
+
+  let heroImageUrl: string | null = null;
+  if (mapResolved !== DEFAULT_COVER) {
+    heroImageUrl = mapResolved;
+  } else {
+    const placesQuery = destinationCity && country
+      ? `${destinationCity} ${country}`
+      : (destinationCity || country || "");
+    if (placesQuery) {
+      try {
+        heroImageUrl = await textSearchPhoto(placesQuery) ?? null;
+      } catch (err) {
+        console.error("[trip-builder] Places photo lookup failed", { query: placesQuery, err });
+      }
+    }
+  }
 
   // Status: explicit override wins, otherwise computed from endDate.
   let status: "PLANNING" | "COMPLETED";

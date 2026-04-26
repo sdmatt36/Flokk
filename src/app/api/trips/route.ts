@@ -78,7 +78,7 @@ export async function POST(req: Request) {
   const endDate: string | null = typeof body.endDate === "string" && body.endDate.length > 0
     ? body.endDate : null;
 
-  const builtData = buildTripFromExtraction({
+  const builtData = await buildTripFromExtraction({
     cities,
     country,
     countries,

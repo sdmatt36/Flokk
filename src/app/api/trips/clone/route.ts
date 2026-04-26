@@ -43,7 +43,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Trip not found" }, { status: 404 });
     }
 
-    const builtData = buildTripFromExtraction({
+    const builtData = await buildTripFromExtraction({
       cities: source.cities.length > 0 ? source.cities : (source.destinationCity ? [source.destinationCity] : []),
       country: source.country ?? source.destinationCountry ?? null,
       countries: source.countries.length > 0 ? source.countries : undefined,

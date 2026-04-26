@@ -38,7 +38,7 @@ export async function POST(
   }
 
   // Create the cloned trip
-  const builtData = buildTripFromExtraction({
+  const builtData = await buildTripFromExtraction({
     cities: source.cities.length > 0 ? source.cities : (source.destinationCity ? [source.destinationCity] : []),
     country: source.country ?? source.destinationCountry ?? null,
     countries: source.countries.length > 0 ? source.countries : undefined,
