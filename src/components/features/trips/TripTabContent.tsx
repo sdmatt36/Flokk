@@ -6180,34 +6180,33 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
           onClick={() => setSelectedStop(null)}
         >
           <div
-            style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", maxWidth: "480px", width: "100%", maxHeight: "80vh", overflowY: "auto" }}
+            style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", maxWidth: "480px", width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}
             onClick={e => e.stopPropagation()}
           >
-            {selectedStop.stop.imageUrl ? (
-              <div style={{ height: "200px", overflow: "hidden", borderRadius: "20px 20px 0 0" }}>
+            {/* Hero image — fixed height, flex-shrink-0, close button positioned absolute */}
+            <div style={{ position: "relative", flexShrink: 0, height: selectedStop.stop.imageUrl ? "200px" : "80px", borderRadius: "20px 20px 0 0", overflow: "hidden" }}>
+              {selectedStop.stop.imageUrl ? (
                 <img src={selectedStop.stop.imageUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              </div>
-            ) : (
-              <div style={{ height: "120px", background: "linear-gradient(135deg,#1B3A5C,#C4664A)", borderRadius: "20px 20px 0 0" }} />
-            )}
-            <div style={{ padding: "20px 24px 40px" }}>
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px", marginBottom: "8px" }}>
-                <div>
-                  <p style={{ fontSize: "11px", color: "#9CA3AF", margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    Stop {selectedStop.stopIndex} of {selectedStop.totalStops}
-                  </p>
-                  <p style={{ fontSize: "18px", fontWeight: 700, color: "#1B3A5C", margin: 0, fontFamily: "var(--font-playfair, serif)", lineHeight: 1.3 }}>
-                    {decodeHtmlEntities(selectedStop.stop.name)}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setSelectedStop(null)}
-                  style={{ flexShrink: 0, background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "#9CA3AF", padding: "0 0 0 8px", lineHeight: 1 }}
-                  aria-label="Close"
-                >
-                  ×
-                </button>
-              </div>
+              ) : (
+                <div style={{ width: "100%", height: "100%", background: "linear-gradient(135deg,#1B3A5C,#C4664A)" }} />
+              )}
+              <button
+                onClick={() => setSelectedStop(null)}
+                style={{ position: "absolute", top: "12px", right: "12px", width: "28px", height: "28px", borderRadius: "50%", backgroundColor: "rgba(0,0,0,0.45)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "16px", lineHeight: 1 }}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Scrollable content */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px 8px" }}>
+              <p style={{ fontSize: "11px", color: "#9CA3AF", margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Stop {selectedStop.stopIndex} of {selectedStop.totalStops}
+              </p>
+              <p style={{ fontSize: "18px", fontWeight: 700, color: "#1B3A5C", margin: "0 0 12px", fontFamily: "var(--font-playfair, serif)", lineHeight: 1.3 }}>
+                {decodeHtmlEntities(selectedStop.stop.name)}
+              </p>
 
               {selectedStop.stop.ticketRequired === "ticket-required" && (
                 <div style={{ backgroundColor: "#FEF3C7", borderRadius: "8px", padding: "8px 12px", marginBottom: "12px" }}>
@@ -6226,7 +6225,7 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
               )}
 
               {selectedStop.stop.why && (
-                <p style={{ fontSize: "14px", color: "#374151", lineHeight: 1.6, margin: "0 0 16px" }}>
+                <p style={{ fontSize: "14px", color: "#374151", lineHeight: 1.6, margin: "0 0 12px" }}>
                   {selectedStop.stop.why}
                 </p>
               )}
@@ -6237,16 +6236,21 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
                   <span style={{ fontSize: "12px", color: "#9CA3AF" }}>· {selectedStop.stop.travelTime} min walk from previous stop</span>
                 )}
               </div>
+            </div>
 
-              {selectedStop.stop.websiteUrl && (
+            {/* Sticky footer — always visible */}
+            <div style={{ flexShrink: 0, borderTop: "1px solid #F3F4F6", padding: "14px 24px 32px", backgroundColor: "#fff" }}>
+              {selectedStop.stop.websiteUrl ? (
                 <a
                   href={selectedStop.stop.websiteUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ display: "inline-block", marginTop: "16px", fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
+                  style={{ display: "inline-block", fontSize: "14px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
                 >
                   View on Maps →
                 </a>
+              ) : (
+                <span style={{ fontSize: "14px", color: "#9CA3AF" }}>No website available</span>
               )}
             </div>
           </div>

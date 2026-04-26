@@ -343,7 +343,7 @@ export async function POST(req: NextRequest) {
           lng: { type: "number" },
           duration: { type: "number", description: "Minutes at this stop" },
           travelTime: { type: "number", description: "Minutes to travel to the NEXT stop, 0 for the last stop" },
-          why: { type: "string", description: "One sentence on why this stop fits the theme" },
+          why: { type: "string", description: "One sentence on why this stop fits the theme. When referencing children, use first names only — NEVER include ages in parentheses (e.g. write 'Beau and Miles' not 'Beau (10) and Miles (7)')." },
           familyNote: { type: "string", description: `Specific note for this family: ${childAgesContext}` },
           themeRelevance: { type: "string", description: `Specific justification for why this exact venue directly serves the theme "${prompt}". Name what happens at this venue that fits the theme. Avoid vague phrases like "provides atmosphere", "complements", or "adds variety". If you cannot justify the stop concretely, choose a different venue.` },
         },
@@ -363,7 +363,8 @@ ABSOLUTE RULES — violating any of these means the tour fails:
 2. Every stop MUST directly serve the theme. No tangential sightseeing added for variety.
 3. ${transport === "Walking" ? `Walking tour: every consecutive stop pair MUST be within ${maxWalk} minutes walk (~${maxDistMeters}m) of each other. Cluster tightly in one neighborhood.` : transport === "Metro / Transit" ? "Metro tour: stops can span the city but must be reachable by public transit." : "Car tour: no distance constraint."}
 4. Total time (sum of all duration + travelTime) must not exceed ${maxMinutes} minutes.
-5. familyNote MUST reference the specific children: ${childAgesContext}. Tailor to their ages.${anchorInstruction}`;
+5. familyNote MUST reference the specific children: ${childAgesContext}. Tailor to their ages.
+6. In the why field, NEVER include ages in parentheses after names. Write "Beau and Miles" not "Beau (10) and Miles (7)". First names alone are sufficient.${anchorInstruction}`;
 
     const userMessage = `${seededContext}Tour theme: ${prompt}. Destination: ${destinationCity}. Duration: ${durationLabel || "Half day (4 hrs)"}. Transport: ${transport}. Family: ${familyContext || "not specified"}`;
 
