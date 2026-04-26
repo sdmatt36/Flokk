@@ -204,6 +204,8 @@ export function synthesizeHotelVaultDocument(opts: {
     if (checkInItem.scheduledDate) merged.checkIn = checkInItem.scheduledDate;
     if (checkInItem.address) merged.address = checkInItem.address;
     if (checkInItem.confirmationCode) merged.confirmationCode = checkInItem.confirmationCode;
+    if (checkInItem.bookingSource) merged.bookingSource = checkInItem.bookingSource;
+    if (checkInItem.managementUrl) merged.managementUrl = checkInItem.managementUrl;
   }
 
   if (checkOutItem) {

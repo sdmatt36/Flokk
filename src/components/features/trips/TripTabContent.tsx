@@ -1694,6 +1694,8 @@ type ItineraryItemLocal = {
   sortOrder: number;
   bookingUrl?: string | null;
   needsVerification?: boolean | null;
+  bookingSource?: string | null;
+  managementUrl?: string | null;
 };
 
 type UnifiedDayItem = {
@@ -3820,6 +3822,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
                       {costLabel && <><span style={lblStyle}>Total</span><span style={rowStyle}>{costLabel}</span></>}
                       {guestsLabel && <><span style={lblStyle}>Guests</span><span style={rowStyle}>{guestsLabel}</span></>}
+                      {sit.bookingSource && sit.bookingSource !== "unknown" && (() => {
+                        const SRC_LABEL: Record<string, string> = { "booking.com": "Booking.com", airbnb: "Airbnb", "hotels.com": "Hotels.com", expedia: "Expedia", marriott: "Marriott", hilton: "Hilton", hyatt: "Hyatt", vrbo: "VRBO", direct: "Direct" };
+                        return <><span style={lblStyle}>Booked via</span><span style={rowStyle}>{SRC_LABEL[sit.bookingSource] ?? sit.bookingSource}</span></>;
+                      })()}
                     </div>
                     {sit.address && (
                       <a
@@ -3829,6 +3835,16 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                         style={{ display: "block", textAlign: "center", backgroundColor: "#C4664A", color: "#fff", fontWeight: 600, padding: "12px", borderRadius: "10px", fontSize: "14px", textDecoration: "none", marginTop: "8px" }}
                       >
                         Open in Maps
+                      </a>
+                    )}
+                    {sit.managementUrl && (
+                      <a
+                        href={sit.managementUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: "block", textAlign: "center", backgroundColor: "transparent", color: "#C4664A", border: "1.5px solid #C4664A", fontWeight: 600, padding: "12px", borderRadius: "10px", fontSize: "14px", textDecoration: "none", marginTop: "8px" }}
+                      >
+                        Manage booking
                       </a>
                     )}
                     <button
@@ -7019,6 +7035,11 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                   if (booking.contactPhone) rows.push({ label: "Phone", value: String(booking.contactPhone) });
                   if (Array.isArray(booking.guestNames) && booking.guestNames.length > 0) rows.push({ label: "Guests", value: (booking.guestNames as string[]).join(", ") });
                   // For flight-type docs, find matching Flight record (legacy path)
+                  const HOTEL_SOURCE_LABEL: Record<string, string> = { "booking.com": "Booking.com", airbnb: "Airbnb", "hotels.com": "Hotels.com", expedia: "Expedia", marriott: "Marriott", hilton: "Hilton", hyatt: "Hyatt", vrbo: "VRBO", direct: "Direct" };
+                  const hotelBookingSource = (booking.type as string) === "hotel" ? (booking.bookingSource as string | null | undefined) ?? null : null;
+                  const hotelManagementUrl = (booking.type as string) === "hotel" ? (booking.managementUrl as string | null | undefined) ?? null : null;
+                  const hotelSourceLabel = hotelBookingSource && hotelBookingSource !== "unknown" ? (HOTEL_SOURCE_LABEL[hotelBookingSource] ?? hotelBookingSource) : null;
+                  if (hotelSourceLabel) rows.push({ label: "Booked via", value: hotelSourceLabel });
                   const matchedFlight = isFlightType && !isFlightWithLegs
                     ? flights.find(f => f.flightNumber === (booking.flightNumber as string))
                     : null;
@@ -7160,7 +7181,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                       {isFlightType && !isFlightWithLegs && (
                         <p style={{ fontSize: "11px", color: "#BBBBBB", marginTop: "10px" }}>Re-forward confirmation to update times</p>
                       )}
-                      {(booking.type as string) === "lodging" && typeof booking.address === "string" && booking.address && (
+                      {(booking.type as string) === "hotel" && typeof booking.address === "string" && booking.address && (
                         <a
                           href={`https://maps.google.com/?q=${encodeURIComponent(booking.address)}`}
                           target="_blank"
@@ -7168,6 +7189,16 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                           style={{ display: "inline-block", marginTop: "10px", fontSize: "12px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
                         >
                           Open in Maps →
+                        </a>
+                      )}
+                      {hotelManagementUrl && (
+                        <a
+                          href={hotelManagementUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: "inline-block", marginTop: "8px", fontSize: "12px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
+                        >
+                          Manage booking →
                         </a>
                       )}
                       {!!(booking.url || booking.bookingUrl) && (

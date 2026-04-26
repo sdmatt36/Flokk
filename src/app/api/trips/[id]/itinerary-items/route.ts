@@ -51,6 +51,8 @@ export async function GET(
       arrivalLng: true,
       sortOrder: true,
       needsVerification: true,
+      bookingSource: true,
+      managementUrl: true,
     },
   });
 

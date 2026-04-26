@@ -861,6 +861,8 @@ model ItineraryItem {
   sortOrder         Int      @default(0)
   needsVerification Boolean  @default(false)
   rooms             Json?
+  bookingSource     String?  // "booking.com" | "airbnb" | "hotels.com" | "expedia" | "marriott" | "hilton" | "hyatt" | "vrbo" | "direct" | "unknown"
+  managementUrl     String?  // link to manage reservation on platform
   createdAt         DateTime @default(now())
 }
 

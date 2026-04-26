@@ -16,6 +16,7 @@ import { extractOperatorPlan, looksLikeOperatorPlan } from "@/lib/operator-plan-
 import { buildTripFromExtraction } from "@/lib/trip-builder";
 import { inferPlatformFromUrl } from "@/lib/saved-item-types";
 import { isSaveableBooking, createBookingSavedItem } from "@/lib/booking-saved-item";
+import { detectBookingSource } from "@/lib/lodging/detect-source";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -1633,6 +1634,33 @@ Field notes:
         if (hotelGeo) await db.itineraryItem.update({ where: { id: checkOutItem.id }, data: { latitude: hotelGeo.lat, longitude: hotelGeo.lng } });
         console.log("[email-inbound] created hotel check-out ItineraryItem:", checkOutItem.id, "dayIndex:", checkOutDayIndex);
       }
+
+      // Detect booking source from email metadata and persist on both lodging items
+      const { source: detectedSource, managementUrl: detectedManagementUrl } = detectBookingSource({
+        contactEmail: (extracted.contactEmail as string | null) ?? null,
+        vendorName: hotelName,
+      });
+      const lodgingIds = [checkInItem.id, ...(checkOutDate ? [] : [])];
+      // Update check-in item
+      await db.itineraryItem.update({
+        where: { id: checkInItem.id },
+        data: { bookingSource: detectedSource, managementUrl: detectedManagementUrl },
+      });
+      // Update check-out item if it exists (re-find by conf code + title prefix)
+      if (hotelConf) {
+        const co = await db.itineraryItem.findFirst({
+          where: { tripId: resolvedTripId, confirmationCode: hotelConf, type: "LODGING", title: { startsWith: "Check-out:" } },
+          select: { id: true },
+        });
+        if (co) {
+          await db.itineraryItem.update({
+            where: { id: co.id },
+            data: { bookingSource: detectedSource, managementUrl: detectedManagementUrl },
+          });
+        }
+      }
+      console.log(`[email-inbound] hotel booking source: ${detectedSource} managementUrl: ${detectedManagementUrl ?? "none"}`);
+      void lodgingIds; // suppress unused var
 
       // Vault contact + key info + doc
       if (matchedTrip && (extracted.contactPhone || extracted.contactEmail)) {
