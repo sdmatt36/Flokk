@@ -979,8 +979,13 @@ Field notes:
     // A trip-scoped check misses cases where a prior forward mismatched to the wrong trip —
     // the code already exists on that trip, so a re-forward to the correct trip must be blocked too.
     // Only applied when confirmationCode is non-null — null-code bookings are allowed through.
+    //
+    // Pre-extraction dedup removed for flights in Phase 2A.1 — writeFlightFromEmail now handles
+    // dedup at the write layer (find-or-replace on FlightBooking by tripId+confirmationCode).
+    // See src/lib/flights/extract-and-write.ts. Guard retained for hotel/activity types which
+    // do not yet have write-layer dedup.
     const incomingConfCode = (extracted.confirmationCode as string | null) ?? null;
-    if (incomingConfCode) {
+    if (incomingConfCode && extracted.type !== "flight") {
       const existing = await db.itineraryItem.findFirst({
         where: { confirmationCode: incomingConfCode, familyProfileId: familyProfile.id },
         select: { id: true, title: true, tripId: true },
