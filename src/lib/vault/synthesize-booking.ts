@@ -5,24 +5,23 @@
  *
  * TripDocument becomes archive-only. The Vault GET endpoint calls
  * synthesizeVaultDocuments() which rebuilds each booking card's content
- * from the authoritative typed source (FlightBooking+Flight, ItineraryItem,
- * ManualActivity). TripDocument.content fields fill gaps for fields not yet
- * in typed models (totalCost, currency, guestNames, bookingUrl).
+ * from the authoritative typed source (FlightBooking+Flight, ItineraryItem).
+ * TripDocument.content fields fill gaps for fields not yet in typed models
+ * (totalCost, currency, guestNames, bookingUrl).
  *
  * Returns the same { id, label, type, url, content } shape the frontend
- * already consumes — frontend render code for non-flight types is unchanged.
+ * already consumes — frontend render code is unchanged.
  *
- * Manual activities get synthetic id "manual-activity:{id}". PATCH and DELETE
- * handlers in vault/documents/[documentId]/route.ts detect this prefix and
- * route to ManualActivity directly.
+ * Vault scope: forwarded confirmation bookings only.
+ * ManualActivity, tour stops, and saves are NOT in Vault scope — they have
+ * proper homes in the Saved tab, Itinerary, and Tours tab.
  *
- * Phase Vault Multi-Leg additions:
- * - synthesizeFlightVaultDocument now accepts tripStartDate + tripEndDate.
- *   Only Flight legs whose departureDate or arrivalDate falls within [startDate,
- *   endDate] are included in the synthesized card. This lets the same FHMI74
- *   FlightBooking show different leg projections on the Sri Lanka vs London Vault.
- * - `_flightBookingId` is included in synthesized flight content so the frontend
- *   edit handler can open the booking-aware EditFlightModal.
+ * Phase Vault Multi-Leg:
+ * - synthesizeFlightVaultDocument partitions legs by trip date range.
+ * - `_flightBookingId` is included in synthesized flight content.
+ * - synthesizeOrphanFlightBookingVaultDocument handles FlightBookings that
+ *   have no corresponding TripDocument. These get id `flight-booking:{id}`.
+ *   PATCH/DELETE in vault/documents/[documentId]/route.ts handle this prefix.
  *
  * Leg-belongs-to-trip rule:
  *   A Flight leg belongs to a trip T if:
@@ -37,7 +36,6 @@
 import type {
   TripDocument,
   ItineraryItem,
-  ManualActivity,
   FlightBooking,
   Flight,
 } from "@prisma/client";
@@ -62,7 +60,7 @@ function parseContent(raw: string | null | undefined): RawContent {
   }
 }
 
-// ── FLIGHT synthesizer ────────────────────────────────────────────────────────
+// ── FLIGHT synthesizer (TripDocument-backed) ──────────────────────────────────
 
 export function synthesizeFlightVaultDocument(opts: {
   tripDocument: TripDocument;
@@ -76,71 +74,7 @@ export function synthesizeFlightVaultDocument(opts: {
   let merged: RawContent = { ...base };
 
   if (flightBooking && flightBooking.flights.length > 0) {
-    // Sort all legs chronologically
-    let sorted = [...flightBooking.flights].sort((a, b) => {
-      const ad = `${a.departureDate}T${a.departureTime || "00:00"}`;
-      const bd = `${b.departureDate}T${b.departureTime || "00:00"}`;
-      return ad.localeCompare(bd);
-    });
-
-    // Partition: keep only legs whose dep or arr date falls within this trip's date range.
-    // Fallback to all legs if nothing survives (e.g. trip dates not available).
-    if (tripStartDate && tripEndDate) {
-      const filtered = sorted.filter((f) => {
-        const dep = f.departureDate; // YYYY-MM-DD
-        const arr = f.arrivalDate;   // YYYY-MM-DD | null
-        return (
-          (dep >= tripStartDate && dep <= tripEndDate) ||
-          (!!arr && arr >= tripStartDate && arr <= tripEndDate)
-        );
-      });
-      if (filtered.length > 0) sorted = filtered;
-      // else: defensive fallback — show all legs rather than empty card
-    }
-
-    const first = sorted[0];
-    const last = sorted[sorted.length - 1];
-
-    const legs = sorted.map((f) => ({
-      from: f.fromAirport,
-      fromCity: f.fromCity,
-      to: f.toAirport,
-      toCity: f.toCity,
-      flightNumber: f.flightNumber,
-      airline: f.airline,
-      departureDate: f.departureDate,
-      departureTime: f.departureTime,
-      arrivalDate: f.arrivalDate ?? null,
-      arrivalTime: f.arrivalTime ?? null,
-    }));
-
-    merged = {
-      // Preserve TripDocument-only fields not yet in typed models
-      totalCost: base.totalCost ?? null,
-      currency: base.currency ?? null,
-      guestNames: base.guestNames ?? [],
-      bookingUrl: base.bookingUrl ?? null,
-      // Override route/time fields from typed model (authoritative)
-      type: "flight",
-      vendorName: flightBooking.airline ?? base.vendorName ?? null,
-      airline: flightBooking.airline ?? base.airline ?? null,
-      confirmationCode: flightBooking.confirmationCode ?? base.confirmationCode ?? null,
-      cabinClass: flightBooking.cabinClass ?? base.cabinClass ?? null,
-      fromAirport: first.fromAirport,
-      fromCity: first.fromCity,
-      toAirport: last.toAirport,
-      toCity: last.toCity,
-      departureDate: first.departureDate,
-      departureTime: first.departureTime,
-      arrivalDate: last.arrivalDate ?? null,
-      arrivalTime: last.arrivalTime ?? null,
-      // flightNumber from first leg — frontend uses this to match Flight record
-      // for the legacy EditFlightModal path (flights.find by flightNumber)
-      flightNumber: first.flightNumber,
-      legs,
-      // Used by the booking-aware EditFlightModal path (Phase Vault Multi-Leg)
-      _flightBookingId: flightBooking.id,
-    };
+    merged = buildFlightContent(flightBooking, base, tripStartDate, tripEndDate);
   }
 
   return {
@@ -149,6 +83,108 @@ export function synthesizeFlightVaultDocument(opts: {
     type: tripDocument.type,
     url: tripDocument.url ?? null,
     content: JSON.stringify(merged),
+  };
+}
+
+// ── FLIGHT synthesizer (orphan — no TripDocument) ─────────────────────────────
+// Used when a FlightBooking exists but no flight-type TripDocument was created
+// (e.g. email landed in wrong trip, or pre-Phase-Vault import).
+
+export function synthesizeOrphanFlightBookingVaultDocument(opts: {
+  flightBooking: FlightBooking & { flights: Flight[] };
+  tripStartDate?: string | null;
+  tripEndDate?: string | null;
+}): VaultDocument {
+  const { flightBooking, tripStartDate, tripEndDate } = opts;
+  const content = buildFlightContent(flightBooking, {}, tripStartDate, tripEndDate);
+  const first = (content.legs as RawContent[] | undefined)?.[0];
+
+  const label = flightBooking.confirmationCode
+    ? `Flight ${flightBooking.confirmationCode}`
+    : first
+    ? `${String(first.from ?? "")} → ${String((content.legs as RawContent[])[((content.legs as RawContent[]).length - 1)].to ?? "")}`
+    : "Flight booking";
+
+  return {
+    id: `flight-booking:${flightBooking.id}`,
+    label,
+    type: "booking",
+    url: null,
+    content: JSON.stringify(content),
+  };
+}
+
+// ── Shared flight content builder ─────────────────────────────────────────────
+
+function buildFlightContent(
+  flightBooking: FlightBooking & { flights: Flight[] },
+  base: RawContent,
+  tripStartDate?: string | null,
+  tripEndDate?: string | null
+): RawContent {
+  // Sort all legs chronologically
+  let sorted = [...flightBooking.flights].sort((a, b) => {
+    const ad = `${a.departureDate}T${a.departureTime || "00:00"}`;
+    const bd = `${b.departureDate}T${b.departureTime || "00:00"}`;
+    return ad.localeCompare(bd);
+  });
+
+  // Partition: keep only legs whose dep or arr date falls within this trip's date range.
+  // Fallback to all legs if nothing survives (trip dates not available, or all out of range).
+  if (tripStartDate && tripEndDate) {
+    const filtered = sorted.filter((f) => {
+      const dep = f.departureDate; // YYYY-MM-DD
+      const arr = f.arrivalDate;   // YYYY-MM-DD | null
+      return (
+        (dep >= tripStartDate && dep <= tripEndDate) ||
+        (!!arr && arr >= tripStartDate && arr <= tripEndDate)
+      );
+    });
+    if (filtered.length > 0) sorted = filtered;
+    // else: defensive fallback — show all legs rather than empty card
+  }
+
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+
+  const legs = sorted.map((f) => ({
+    from: f.fromAirport,
+    fromCity: f.fromCity,
+    to: f.toAirport,
+    toCity: f.toCity,
+    flightNumber: f.flightNumber,
+    airline: f.airline,
+    departureDate: f.departureDate,
+    departureTime: f.departureTime,
+    arrivalDate: f.arrivalDate ?? null,
+    arrivalTime: f.arrivalTime ?? null,
+  }));
+
+  return {
+    // Preserve TripDocument-only fields not yet in typed models (empty for orphan cards)
+    totalCost: base.totalCost ?? null,
+    currency: base.currency ?? null,
+    guestNames: base.guestNames ?? [],
+    bookingUrl: base.bookingUrl ?? null,
+    // Override route/time fields from typed model (authoritative)
+    type: "flight",
+    vendorName: flightBooking.airline ?? base.vendorName ?? null,
+    airline: flightBooking.airline ?? base.airline ?? null,
+    confirmationCode: flightBooking.confirmationCode ?? base.confirmationCode ?? null,
+    cabinClass: flightBooking.cabinClass ?? base.cabinClass ?? null,
+    fromAirport: first?.fromAirport ?? null,
+    fromCity: first?.fromCity ?? null,
+    toAirport: last?.toAirport ?? null,
+    toCity: last?.toCity ?? null,
+    departureDate: first?.departureDate ?? null,
+    departureTime: first?.departureTime ?? null,
+    arrivalDate: last?.arrivalDate ?? null,
+    arrivalTime: last?.arrivalTime ?? null,
+    // flightNumber from first leg — used by legacy EditFlightModal path
+    flightNumber: first?.flightNumber ?? null,
+    legs,
+    // Used by the booking-aware EditFlightModal (Phase Vault Multi-Leg)
+    _flightBookingId: flightBooking.id,
   };
 }
 
@@ -165,7 +201,6 @@ export function synthesizeHotelVaultDocument(opts: {
   const merged: RawContent = { ...base, type: "hotel" };
 
   if (checkInItem) {
-    // scheduledDate on check-in ItineraryItem is authoritative for check-in date
     if (checkInItem.scheduledDate) merged.checkIn = checkInItem.scheduledDate;
     if (checkInItem.address) merged.address = checkInItem.address;
     if (checkInItem.confirmationCode) merged.confirmationCode = checkInItem.confirmationCode;
@@ -211,7 +246,6 @@ export function synthesizeActivityLikeVaultDocument(opts: {
       if (itineraryItem.arrivalTime) merged.arrivalTime = itineraryItem.arrivalTime;
     }
 
-    // For activity: prefer ItineraryItem.title as activityName if not already set
     if (bookingType === "activity" && itineraryItem.title && !merged.activityName) {
       merged.activityName = itineraryItem.title;
     }
@@ -223,34 +257,6 @@ export function synthesizeActivityLikeVaultDocument(opts: {
     type: tripDocument.type,
     url: tripDocument.url ?? null,
     content: JSON.stringify(merged),
-  };
-}
-
-// ── MANUAL ACTIVITY synthesizer ───────────────────────────────────────────────
-
-export function synthesizeManualActivityVaultDocument(ma: ManualActivity): VaultDocument {
-  const content: RawContent = {
-    type: "activity",
-    activityName: ma.title,
-    vendorName: ma.venueName ?? null,
-    address: ma.address ?? null,
-    departureDate: ma.date,
-    departureTime: ma.time ?? null,
-    arrivalTime: ma.endTime ?? null,
-    totalCost: ma.price ?? null,
-    currency: ma.currency ?? null,
-    confirmationCode: ma.confirmationCode ?? null,
-    bookingUrl: ma.website ?? null,
-    _source: "manual-activity",
-    _manualActivityId: ma.id,
-  };
-
-  return {
-    id: `manual-activity:${ma.id}`,
-    label: ma.title,
-    type: "booking",
-    url: ma.website ?? null,
-    content: JSON.stringify(content),
   };
 }
 
@@ -281,8 +287,8 @@ export async function synthesizeVaultDocuments(tripId: string, prisma?: any): Pr
   })) as TripDocument[];
 
   const results: VaultDocument[] = [];
-  // Track conf codes already covered by TripDocument-sourced bookings for de-dup
-  const tdConfCodes = new Set<string>();
+  // Track conf codes covered by TripDocument-sourced flight bookings for orphan dedup
+  const tdFlightConfCodes = new Set<string>();
 
   for (const doc of tripDocs) {
     if (doc.type !== "booking") {
@@ -301,9 +307,8 @@ export async function synthesizeVaultDocuments(tripId: string, prisma?: any): Pr
     const bookingType = ((base.type as string | undefined) ?? "").toLowerCase();
     const confCode = (base.confirmationCode as string | null | undefined) ?? null;
 
-    if (confCode) tdConfCodes.add(confCode);
-
     if (bookingType === "flight") {
+      if (confCode) tdFlightConfCodes.add(confCode);
       const flightBooking = confCode
         ? ((await db.flightBooking.findUnique({
             where: { unique_trip_confirmation: { tripId, confirmationCode: confCode } },
@@ -332,7 +337,6 @@ export async function synthesizeVaultDocuments(tripId: string, prisma?: any): Pr
       results.push(synthesizeHotelVaultDocument({ tripDocument: doc, checkInItem, checkOutItem }));
 
     } else if (["activity", "train", "car_rental", "restaurant"].includes(bookingType)) {
-      // ItineraryItem.type is uppercase: ACTIVITY, TRAIN, CAR_RENTAL, RESTAURANT
       const itemType = bookingType.toUpperCase();
       const itineraryItem = confCode
         ? ((await db.itineraryItem.findFirst({
@@ -355,20 +359,31 @@ export async function synthesizeVaultDocuments(tripId: string, prisma?: any): Pr
     }
   }
 
-  // 3. Append ManualActivity rows as synthetic booking docs
-  // De-dup: skip if a TripDocument-sourced booking shares the same confirmationCode
-  const manualActivities = (await db.manualActivity.findMany({
-    where: { tripId, deletedAt: null },
+  // 3. Append FlightBookings that have no corresponding TripDocument.
+  // A FlightBooking is "covered" if its confirmationCode is already in tdFlightConfCodes.
+  // Null-confirmationCode bookings are never covered and always appended (if they have legs).
+  const allFlightBookings = (await db.flightBooking.findMany({
+    where: { tripId },
+    include: { flights: true },
     orderBy: { createdAt: "asc" },
-  })) as ManualActivity[];
+  })) as (FlightBooking & { flights: Flight[] })[];
 
-  for (const ma of manualActivities) {
-    if (ma.confirmationCode && tdConfCodes.has(ma.confirmationCode)) continue;
-    results.push(synthesizeManualActivityVaultDocument(ma));
+  const fbConfCodesSeen = new Set<string>();
+  for (const fb of allFlightBookings) {
+    // Skip if a TripDocument-backed flight card already covers this confirmationCode
+    if (fb.confirmationCode && tdFlightConfCodes.has(fb.confirmationCode)) continue;
+    // Dedup within orphan FlightBookings sharing the same confirmationCode
+    if (fb.confirmationCode && fbConfCodesSeen.has(fb.confirmationCode)) continue;
+    // Skip bookings with no legs (nothing to display)
+    if (fb.flights.length === 0) continue;
+    if (fb.confirmationCode) fbConfCodesSeen.add(fb.confirmationCode);
+    results.push(
+      synthesizeOrphanFlightBookingVaultDocument({ flightBooking: fb, tripStartDate, tripEndDate })
+    );
   }
 
   console.log(
-    `[vault-synthesize] tripId=${tripId} tripDocs=${tripDocs.length} manualActivities=${manualActivities.length} total=${results.length} tripRange=${tripStartDate ?? "?"}–${tripEndDate ?? "?"}`
+    `[vault-synthesize] tripId=${tripId} tripDocs=${tripDocs.length} orphanFlightBookings=${fbConfCodesSeen.size + allFlightBookings.filter(fb => !fb.confirmationCode && fb.flights.length > 0).length} total=${results.length} tripRange=${tripStartDate ?? "?"}–${tripEndDate ?? "?"}`
   );
 
   return results;

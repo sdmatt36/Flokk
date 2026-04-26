@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 
-const MANUAL_ACTIVITY_PREFIX = "manual-activity:";
+const FLIGHT_BOOKING_PREFIX = "flight-booking:";
 
 // ── PATCH ─────────────────────────────────────────────────────────────────────
 
@@ -15,65 +15,12 @@ export async function PATCH(
   const { id: tripId, documentId } = await params;
   const body = await req.json() as { content?: string; label?: string };
 
-  // ── Manual activity: synthetic doc, route to ManualActivity directly ──
-  if (documentId.startsWith(MANUAL_ACTIVITY_PREFIX)) {
-    const maId = documentId.slice(MANUAL_ACTIVITY_PREFIX.length);
-    const parsed = (() => {
-      try { return JSON.parse(body.content ?? "{}") as Record<string, unknown>; } catch { return {}; }
-    })();
-
-    const updated = await db.manualActivity.update({
-      where: { id: maId },
-      data: {
-        ...(body.label ? { title: body.label } : {}),
-        ...(parsed.activityName && typeof parsed.activityName === "string"
-          ? { title: parsed.activityName }
-          : {}),
-        ...(parsed.address && typeof parsed.address === "string"
-          ? { address: parsed.address }
-          : {}),
-        ...(parsed.departureDate && typeof parsed.departureDate === "string"
-          ? { date: parsed.departureDate }
-          : {}),
-        ...(parsed.departureTime && typeof parsed.departureTime === "string"
-          ? { time: parsed.departureTime }
-          : {}),
-        ...(parsed.arrivalTime && typeof parsed.arrivalTime === "string"
-          ? { endTime: parsed.arrivalTime }
-          : {}),
-        ...(typeof parsed.totalCost === "number" ? { price: parsed.totalCost } : {}),
-        ...(parsed.currency && typeof parsed.currency === "string"
-          ? { currency: parsed.currency }
-          : {}),
-        ...(parsed.confirmationCode !== undefined
-          ? { confirmationCode: (parsed.confirmationCode as string | null) ?? null }
-          : {}),
-      },
-    });
-
-    // Return a synthetic VaultDocument shape matching what the frontend expects
-    const content: Record<string, unknown> = {
-      type: "activity",
-      activityName: updated.title,
-      vendorName: updated.venueName ?? null,
-      address: updated.address ?? null,
-      departureDate: updated.date,
-      departureTime: updated.time ?? null,
-      arrivalTime: updated.endTime ?? null,
-      totalCost: updated.price ?? null,
-      currency: updated.currency ?? null,
-      confirmationCode: updated.confirmationCode ?? null,
-      bookingUrl: updated.website ?? null,
-      _source: "manual-activity",
-      _manualActivityId: updated.id,
-    };
-    return NextResponse.json({
-      id: `${MANUAL_ACTIVITY_PREFIX}${updated.id}`,
-      label: updated.title,
-      type: "booking",
-      url: updated.website ?? null,
-      content: JSON.stringify(content),
-    });
+  // ── flight-booking: synthetic doc — edits go through the dedicated endpoint ──
+  if (documentId.startsWith(FLIGHT_BOOKING_PREFIX)) {
+    return NextResponse.json(
+      { error: "Use /api/trips/[id]/flight-bookings/[bookingId] to edit flight bookings" },
+      { status: 400 }
+    );
   }
 
   // ── Regular TripDocument PATCH ────────────────────────────────────────────
@@ -110,8 +57,6 @@ export async function PATCH(
         const confCode = (parsed.confirmationCode as string | null | undefined) ?? null;
 
         if (bookingType === "hotel" && confCode) {
-          // Write through checkIn → LODGING check-in ItineraryItem.scheduledDate
-          // Write through checkOut → LODGING check-out ItineraryItem.scheduledDate
           const lodgingItems = await tx.itineraryItem.findMany({
             where: { tripId, confirmationCode: confCode, type: "LODGING" },
             select: { id: true, title: true },
@@ -132,7 +77,6 @@ export async function PATCH(
           }
 
         } else if (["activity", "train", "car_rental"].includes(bookingType) && confCode) {
-          // Write through date/time changes to ItineraryItem
           const itItem = await tx.itineraryItem.findFirst({
             where: { tripId, confirmationCode: confCode, type: bookingType.toUpperCase() },
             select: { id: true },
@@ -154,8 +98,8 @@ export async function PATCH(
             });
           }
         }
-        // Note: flight edits go through EditFlightModal → PATCH /api/trips/[id]/flights/[flightId]
-        // which updates Flight directly. The Vault PATCH for flights only archives TripDocument.
+        // Note: flight edits go through EditFlightModal → PATCH /api/trips/[id]/flight-bookings/[bookingId]
+        // which updates FlightBooking + Flight directly. Vault PATCH for flights only archives TripDocument.
       } catch { /* ignore write-through failures — TripDocument update already succeeded */ }
     }
 
@@ -175,13 +119,21 @@ export async function DELETE(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id: tripId, documentId } = await params;
 
-  // ── Manual activity: synthetic doc, soft-delete ManualActivity ──
-  if (documentId.startsWith(MANUAL_ACTIVITY_PREFIX)) {
-    const maId = documentId.slice(MANUAL_ACTIVITY_PREFIX.length);
-    await db.manualActivity.update({
-      where: { id: maId },
-      data: { deletedAt: new Date() },
+  // ── flight-booking: synthetic doc — delete FlightBooking + its Flight rows ──
+  if (documentId.startsWith(FLIGHT_BOOKING_PREFIX)) {
+    const fbId = documentId.slice(FLIGHT_BOOKING_PREFIX.length);
+    const fb = await db.flightBooking.findUnique({
+      where: { id: fbId },
+      select: { id: true, tripId: true },
     });
+    if (!fb || fb.tripId !== tripId) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    await db.$transaction(async (tx) => {
+      // Flight rows cascade-delete via FK, but explicit delete is safe too
+      await tx.flight.deleteMany({ where: { flightBookingId: fbId } });
+      await tx.flightBooking.delete({ where: { id: fbId } });
+    }, { timeout: 30000 });
     return NextResponse.json({ success: true });
   }
 
@@ -207,7 +159,6 @@ export async function DELETE(
               select: { id: true },
             });
             if (flightBooking) {
-              // Flight rows cascade-delete via FK when FlightBooking is deleted
               await tx.flightBooking.delete({ where: { id: flightBooking.id } });
               console.log(
                 `[vault-delete] cascaded FlightBooking ${flightBooking.id} (code=${confCode})`

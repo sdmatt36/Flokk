@@ -25,6 +25,7 @@ const db = new PrismaClient({ adapter });
 // ── Trip IDs ──────────────────────────────────────────────────────────────────
 const TRIP_SRI_LANKA = "cmmx09fra000004if78drj98m";
 const TRIP_SEOUL     = "cmmx6428k000004jlxgel7s86";
+const TRIP_LONDON    = "cmnhgoflq000004l4403jm4mx";
 
 type CheckResult = { name: string; pass: boolean; notes: string[] };
 
@@ -183,7 +184,7 @@ async function checkActivityDoc(): Promise<CheckResult[]> {
   const aDocs = docs.filter(d => {
     try {
       const c = JSON.parse(d.content) as Record<string, unknown>;
-      return c.type === "activity" && !d.id.startsWith("manual-activity:");
+      return c.type === "activity";
     } catch { return false; }
   });
 
@@ -201,38 +202,32 @@ async function checkActivityDoc(): Promise<CheckResult[]> {
   return results;
 }
 
-// ── Manual activity checks (Seoul trip) ──────────────────────────────────────
+// ── Vault scope check: manual-activity docs must NOT appear ──────────────────
+// ManualActivity was removed from Vault scope. Seoul has 24 ManualActivity rows —
+// none should appear in synthesized output.
 
-async function checkManualActivities(): Promise<CheckResult[]> {
+async function checkVaultScope(): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
 
   const docs = await synthesizeVaultDocuments(TRIP_SEOUL, db);
+
   const maDocs = docs.filter(d => d.id.startsWith("manual-activity:"));
-
   const notes1: string[] = [];
-  notes1.push(`manual-activity docs returned: ${maDocs.length}`);
-  results.push(check("MA-1: at least 1 manual-activity doc returned for Seoul", maDocs.length >= 1, notes1));
+  notes1.push(`manual-activity: prefixed docs: ${maDocs.length} (Seoul has 24 ManualActivity rows)`);
+  results.push(check("SCOPE-1: no manual-activity docs in Seoul Vault", maDocs.length === 0, notes1));
 
-  if (maDocs.length === 0) return results;
-
-  const ma = maDocs[0];
-  const c = JSON.parse(ma.content) as Record<string, unknown>;
-
+  // Any flight-booking: cards present must have non-empty legs (proves the empty-legs guard works)
+  const fbDocs = docs.filter(d => d.id.startsWith("flight-booking:"));
+  const allFbDocsHaveLegs = fbDocs.every(d => {
+    try {
+      const c = JSON.parse(d.content) as Record<string, unknown>;
+      return Array.isArray(c.legs) && (c.legs as unknown[]).length > 0;
+    } catch { return false; }
+  });
   const notes2: string[] = [];
-  notes2.push(`id=${ma.id}, type=${ma.type}, content._source=${c._source}`);
-  results.push(check("MA-2: id has manual-activity: prefix", ma.id.startsWith("manual-activity:"), notes2));
-
-  const notes3: string[] = [];
-  notes3.push(`content._source = ${c._source}`);
-  results.push(check("MA-3: content._source is manual-activity", c._source === "manual-activity", notes3));
-
-  const notes4: string[] = [];
-  notes4.push(`type = ${ma.type}`);
-  results.push(check("MA-4: type is booking", ma.type === "booking", notes4));
-
-  const notes5: string[] = [];
-  notes5.push(`activityName = ${c.activityName}`);
-  results.push(check("MA-5: activityName is present", !!c.activityName, notes5));
+  notes2.push(`Seoul total docs: ${docs.length} (tripDocs=7, orphan flight-booking: cards=${fbDocs.length})`);
+  notes2.push(`all flight-booking: cards have legs: ${allFbDocsHaveLegs}`);
+  results.push(check("SCOPE-2: all flight-booking: cards have non-empty legs", allFbDocsHaveLegs, notes2));
 
   return results;
 }
@@ -266,57 +261,49 @@ async function checkNonBookingPassthrough(): Promise<CheckResult[]> {
   return results;
 }
 
-// ── London FHMI74 partitioning check ─────────────────────────────────────────
-// London trip: Jul 4–Jul 7, 2026.
-// Only leg whose dep/arr falls in that range should appear (CMB→LHR, dep/arr Jul 4).
-// Current London DB state has 1 stale leg (UL3335), so this exercises the defensive
-// fallback path (no legs in range → all legs shown). Documents the real DB state.
+// ── London flight card check (orphan FlightBooking path) ─────────────────────
+// London has NO flight-type TripDocument. Its FlightBooking (FHMI74, NRT→LHR stale)
+// must surface via the orphan FlightBooking path with id `flight-booking:{id}`.
+// Diagnostic confirmed: 2 FlightBookings on London (FHMI74 + null confCode orphan).
 
-async function checkLondonPartitioning(): Promise<CheckResult[]> {
+async function checkLondonFlightCard(): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
 
-  // Find the London trip dynamically by locating a TripDocument for FHMI74 that
-  // is NOT on the Sri Lanka trip.
-  const londonRows = await db.$queryRaw<{ tripId: string }[]>`
-    SELECT "tripId" FROM "TripDocument"
-    WHERE type = 'booking'
-      AND content::jsonb->>'confirmationCode' = 'FHMI74'
-      AND "tripId" != ${TRIP_SRI_LANKA}
-    LIMIT 1
-  `;
+  const docs = await synthesizeVaultDocuments(TRIP_LONDON, db);
 
-  if (londonRows.length === 0) {
-    results.push({ name: "LONDON-0: London FHMI74 TripDocument found", pass: true, notes: ["No London FHMI74 TripDocument — skipping London partitioning checks"] });
-    return results;
-  }
-
-  const londonTripId = londonRows[0].tripId;
-  const notes0: string[] = [];
-  notes0.push(`londonTripId = ${londonTripId}`);
-  results.push(check("LONDON-0: found London FHMI74 TripDocument", true, notes0));
-
-  const docs = await synthesizeVaultDocuments(londonTripId, db);
   const flightDocs = docs.filter(d => d.type === "booking" && (() => {
     try { return (JSON.parse(d.content) as Record<string, unknown>).type === "flight"; } catch { return false; }
   })());
 
   const notes1: string[] = [];
   notes1.push(`London flight docs: ${flightDocs.length}`);
-  results.push(check("LONDON-1: at least 1 flight doc for London", flightDocs.length >= 1, notes1));
+  results.push(check("LONDON-1: at least 1 flight doc via orphan FlightBooking path", flightDocs.length >= 1, notes1));
 
   if (flightDocs.length === 0) return results;
 
-  const c = JSON.parse(flightDocs[0].content) as Record<string, unknown>;
-  const legs = (Array.isArray(c.legs) ? c.legs : []) as Array<Record<string, unknown>>;
+  // Find the FHMI74 card specifically
+  const fhmi74Doc = flightDocs.find(d => {
+    try { return (JSON.parse(d.content) as Record<string, unknown>).confirmationCode === "FHMI74"; } catch { return false; }
+  }) ?? flightDocs[0];
 
   const notes2: string[] = [];
-  notes2.push(`_flightBookingId = ${c._flightBookingId}`);
-  results.push(check("LONDON-2: _flightBookingId present", !!c._flightBookingId && typeof c._flightBookingId === "string", notes2));
+  notes2.push(`id = ${fhmi74Doc.id}`);
+  results.push(check("LONDON-2: flight card id has flight-booking: prefix (no TripDocument)", fhmi74Doc.id.startsWith("flight-booking:"), notes2));
+
+  const c = JSON.parse(fhmi74Doc.content) as Record<string, unknown>;
+  const legs = (Array.isArray(c.legs) ? c.legs : []) as Array<Record<string, unknown>>;
 
   const notes3: string[] = [];
-  notes3.push(`legs count: ${legs.length}, legs: ${legs.map(l => `${l.from}→${l.to} dep=${l.departureDate}`).join(", ")}`);
-  // London DB currently has 1 stale leg. Either 1 leg (in-range or fallback) is acceptable.
-  results.push(check("LONDON-3: legs array is non-empty", legs.length >= 1, notes3));
+  notes3.push(`_flightBookingId = ${c._flightBookingId}`);
+  results.push(check("LONDON-3: _flightBookingId present in content", !!c._flightBookingId && typeof c._flightBookingId === "string", notes3));
+
+  const notes4: string[] = [];
+  notes4.push(`legs count: ${legs.length}, legs: ${legs.map(l => `${l.from}→${l.to} dep=${l.departureDate}`).join(", ")}`);
+  results.push(check("LONDON-4: legs array is non-empty (stale NRT→LHR row)", legs.length >= 1, notes4));
+
+  const notes5: string[] = [];
+  notes5.push(`confirmationCode = ${c.confirmationCode}`);
+  results.push(check("LONDON-5: FHMI74 card confirmationCode = FHMI74", c.confirmationCode === "FHMI74", notes5));
 
   return results;
 }
@@ -330,9 +317,9 @@ async function main() {
     ...(await checkSriLankaFlight()),
     ...(await checkHotelDoc()),
     ...(await checkActivityDoc()),
-    ...(await checkManualActivities()),
+    ...(await checkVaultScope()),
     ...(await checkNonBookingPassthrough()),
-    ...(await checkLondonPartitioning()),
+    ...(await checkLondonFlightCard()),
   ];
 
   const passCount = allResults.filter(r => r.pass).length;
