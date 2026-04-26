@@ -5,6 +5,68 @@ Update this document FIRST whenever a feature is discussed, before any code is w
 
 ---
 
+## Conversation Capture Rule (Operating Discipline)
+
+Established Chat 38, April 26 2026.
+
+Every meaningful product decision discussed in chat goes into this spec doc within the same session it's made, regardless of whether code shipped. This rule exists because chat threads get lost between sessions and the cost of re-litigating decisions across threads is high.
+
+### Practical application
+
+- After any product conversation that produces a decision, append to this doc before moving to the next prompt
+- Decisions Log section at the bottom serves as the chronological index, but the decision content itself goes into the relevant feature section
+- Handoff docs maintain a "Decisions Log" listing what was discussed but not built, so the next chat doesn't re-litigate
+- If a decision conflicts with an earlier decision, log both with timestamps — don't overwrite
+
+### Why this matters
+
+Chat threads have practical context limits. Without a canonical doc, every new chat starts from zero on previously settled questions. This compounds badly: a question discussed three chats ago gets relitigated, the new answer drifts from the original answer, and the product fragments. The spec doc is the source of truth for decisions; chat is where they're made.
+
+---
+
+## Schema Change Completeness Rule (Operating Discipline)
+
+Established Chat 38, April 26 2026, after the Okinawa flight Vault duplicate / missing outbound bug surfaced as a legacy migration gap. Tightened further after the Okinawa Day 1 itinerary repair revealed that backfilled rows missing dayIndex were silently filtered out of the UI even though they existed in the DB.
+
+### Core principle
+
+Schema migrations and write-architecture changes are NOT done when the new code path works for new data. They are done when ALL existing data has been migrated to the new shape AND legacy code paths have been removed.
+
+Every prompt that touches a Prisma model, adds a new write path, or changes how data is structured MUST explicitly address all four of:
+
+1. **New data path** — new writes produce new-shape data, with tests
+2. **Existing data backfill** — audit query showing legacy row count, idempotent backfill script, executed and spot-checked before "shipped"
+3. **Read-path compatibility** — reads handle both shapes during transition window, OR legacy shape is fully migrated and legacy reads removed in same prompt
+4. **Legacy-data regression test** — added to the test suite using old-shape data, verifying correct output after migration
+
+If any of these four are missing from a schema-change prompt, the prompt is incomplete.
+
+### Backfill data shape completeness
+
+Backfill scripts and one-time data repairs MUST set every field that participates in any UI filter, sort, grouping, or rendering decision. Not just the fields that look "required" in the schema — the fields that the READING code uses to decide whether to display the row at all.
+
+Concrete example: ItineraryItem.dayIndex is nullable in the schema but is the primary filter key for the day view. A repaired row with dayIndex: null exists in the DB but never renders. Backfills must derive dayIndex from scheduledDate relative to trip startDate, populate it explicitly, and verify the row appears in the rendered surface.
+
+Verification step in repair prompts must include: "open the affected UI surface and confirm the repaired row renders" — not just "confirm the row exists in DB."
+
+### Why this matters
+
+Without this discipline, every schema change creates a permanent dual-state: some users have old-shape data, others have new-shape data. Code paths drift apart. Bugs surface at runtime, not in tests, because tests only cover the shape the developer remembered to set up. The Okinawa Vault bug today (April 7 extractor created TripDocument-per-leg; April 25 extractor created FlightBooking-with-Flights; old data was never migrated; synthesizer rendered duplicates and itinerary missed legs) is the canonical example of this failure mode. The follow-on dayIndex repair gap (DB row existed but wasn't rendered) is the second-order example.
+
+### Working rule
+
+When drafting prompts for schema changes, the prompt body must include:
+
+- "PART X — Audit existing data" (count and inspect rows of old shape)
+- "PART X — Backfill script" (idempotent migration with rollback safety, sets every field that participates in UI rendering)
+- "PART X — Read-path compatibility OR legacy removal" (explicit choice, not implicit)
+- "PART X — Regression test for old-shape data" (added to existing test suite)
+- "PART X — UI verification" (confirm repaired/migrated rows actually render in their target surface)
+
+When reviewing prompts mid-session, both Matt and Claude should check for these parts. If missing, the prompt is rewritten before firing.
+
+---
+
 ## Tours
 
 ### Tour Generation
@@ -264,6 +326,301 @@ When `Trip.status` transitions to `COMPLETED`, any GeneratedTours linked to that
 
 ---
 
+## Tour Stop Detail Standards
+
+### Core principle (Decision: Chat 38, April 26 2026)
+
+Tours that don't expose URLs and ticket info push planning work back onto the user. They have to Google every stop separately. Tours that DO expose this become the planning artifact itself — the user opens the tour card, sees everything they need, and decides whether to proceed. This is the difference between a "list of places" and a "plan."
+
+### URL is mandatory
+
+Every tour stop and every AI/Flokk-generated recommendation has a URL by default. Source: Google Places Place Details API (the `website` field for businesses, the venue's official website for landmarks). If Places returns no website, URL falls back to the Place's Google Maps URL so the user can at least navigate to the venue. NEVER ship a tour stop or recommendation with a null URL — that's a generation defect, not a permitted state.
+
+Persistence:
+- TourStop.url (String?) — nullable in schema for backward compatibility, treated as required for new generations
+- SavedItem.url — copied from TourStop.url at save-to-trip time (already exists)
+
+### Stop description ("why") is mandatory and visible
+
+Tour generation already captures a `why` field per stop ("Free public access to 360-degree London views...") describing why this stop fits the theme and family. This text:
+
+- Persists on TourStop.why (already exists)
+- Copies to SavedItem.notes at save-to-trip time
+- Is VISIBLE in the tour card's expand-in-place view (not just stop name + duration)
+- Is VISIBLE in the SavedItem modal when opened from itinerary
+
+Current bug (Chat 38): expand-in-place view shows only "20 min · 3 min walk" with no `why`. The Sky Garden modal shows generic "Saved based on your family's interests" instead of the original tour-generated `why`. Both surfaces should display the actual generated rationale.
+
+### Ticket / booking-ahead signal
+
+Tour stops expose a `ticketRequired` signal:
+- "free" — no ticket, walk-in (Borough Market, public parks)
+- "ticket-required" — need to buy ticket on arrival or in advance (Tower of London, paid museums)
+- "advance-booking-recommended" — free or paid but reservations recommended (Sky Garden, popular restaurants)
+- "unknown" — fallback when Google Places doesn't return enough signal
+
+Source: Google Places Place Details API + heuristic on category. Available signals:
+- `priceLevel` field (free venues are 0/null)
+- `editorialSummary` field (often mentions "advance booking" / "tickets required")
+- Category `museum` + `priceLevel >= 1` → ticket-required
+- Category `tourist_attraction` + popularity → advance-booking-recommended
+
+Surface in expand-in-place card view as small pill next to duration: "Free · 20 min" or "Tickets · 20 min" or "Book ahead · 20 min".
+
+Surface in SavedItem modal as a banner: "Tickets required — book in advance to skip the line" with a CTA linking to ticket URL if available.
+
+### Tour stops in expand-in-place view must be clickable
+
+Each stop in the expanded tour card view (40×40 thumbnail + name + duration) is currently read-only. Should be tappable — opens the same SavedItem-style modal pattern used in itinerary. Modal shows: hero image, title, location, why description, URL, ticket signal, rating affordance, notes.
+
+Implementation: tour stops in expand-in-place fetch from /api/tours/[id] (already does), but the tap interaction needs a click handler that opens a modal pre-populated with TourStop fields. If user has saved the tour to a trip (so SavedItem exists), the modal can be the SavedItem modal directly. If tour isn't saved yet, the modal is a read-only TourStop modal with "Save to trip →" CTA.
+
+Status: Designed, not yet built. Phase: queued for next session.
+
+---
+
+## "Be Helpful" Principle (Cross-Surface)
+
+Flokk's planning surface is built around one organizing question: how can we be genuinely helpful to a family planning a trip? Not "what's the most popular thing to do" but "what does this specific family, on this specific trip, actually need to know?"
+
+This principle is a core differentiator against generic OTAs and AI travel apps. It drives two distinct (but related) feature areas:
+
+1. **Family-Context Awareness** — surfacing family-utility spots (playgrounds, gelato, rest stops) that match the family's rhythm
+2. **Time-Bound Events Intelligence** — surfacing what's happening at the destination DURING the user's specific travel window (sports, shows, festivals, concerts)
+
+Both share infrastructure: AI extraction layer, cohort-weighted surfacing, Trip Intelligence cards, Recommendations integration, future conversational chat. Both are core differentiators.
+
+---
+
+## Family-Context Awareness
+
+### Core principle (Decision: Chat 38, April 26 2026)
+
+Flokk plans for the family rhythm, not just the itinerary. Most travel apps surface "what to do." Flokk surfaces "what to do AND when the kids will need a break AND where to grab gelato AND where the bathroom is." This is the family-traveler reality that travel content has historically ignored.
+
+### Why this matters
+
+Tours and itineraries that don't account for family rhythm push the burden onto parents to mentally interleave wiggle breaks, snack stops, and rest points around the formal stops. Most parents do this work invisibly while traveling. When Flokk does it for them — surfacing the playground 3 blocks away, the gelato spot near the museum, the public restroom on the route — we save real time and reduce travel friction. This is the kind of "plan a trip with us" promise that compounds: families who feel taken care of return, recommend, and rate.
+
+### Surfaces
+
+#### 1. Tour-level family interstitials
+
+Between themed tour stops, generation surfaces nearby family-utility spots as inline interstitials:
+
+- Wiggle breaks: playgrounds, plazas, squares, parks, fountains
+- Snack/coffee spots: cafés, gelato, ice cream, bakeries, kid-friendly quick bites
+- Rest spots: shaded benches, viewpoints, public restrooms, water refill
+- Photo stops: scenic moments families want to capture
+
+Visual treatment: distinct from formal tour stops. Lighter card, smaller image, labeled "Wiggle break" or "Snack stop." User can tap, dismiss, or save.
+
+Generation logic:
+- Inserted between formal stops based on rhythm (every 2-3 stops or after long-distance walks)
+- Pulled from Google Places nearby search keyed to family-friendly category list
+- Filtered by Flokk family ratings when available (cohort-weighted)
+- Matched to youngest child age — playgrounds for under 8, cafés/photo stops for older
+
+#### 2. Trip Intelligence family-utility cards
+
+When a trip is created, Trip Intelligence proactively surfaces family-utility intel for that destination, alongside existing booking-focused intel:
+
+- "Playground 3 blocks from your hotel — great for jet-lag day"
+- "Gelato spot 200m from the Colosseum has been a hit with 12 Flokk families"
+- "This piazza is a perfect after-lunch wiggle break for kids 5-8"
+- "Public restrooms can be hard to find in [neighborhood] — these 3 spots are reliable"
+- "Stroller-friendly route from hotel to [attraction]"
+
+Cards appear as IntelItem entries with category `family-utility` (new category to add to IntelItem.category union). actionType varies: `link` for informational, `view` for surfaced Flokk-rated spots, `add` for "add to itinerary."
+
+#### 3. AI Recommendations on Trip page
+
+Currently random/generic. Should be:
+- Hotel-anchored (proximity to lodging)
+- Family-utility weighted
+- Cohort-informed (validated by similar Flokk families)
+- Real and actionable (URLs, hours, age range labels)
+- Family-rhythm aware (no three back-to-back museums for toddlers)
+
+### Data sources
+
+- Google Places API: nearby search by family-friendly categories (playground, café, public_restroom, ice_cream_shop, park, plaza)
+- Flokk family ratings: cohort-weighted aggregate from completed trips
+- Behavioral profile (Phase 2A): youngest child age, pace preference, geographic pattern
+- Trip context: hotel coords (anchor), transport mode, day of trip (jet-lag day vs Day 5 reset)
+
+### Cross-surface consistency
+
+Family-utility spots surface consistently across:
+- Tour generation (interstitials)
+- Trip Intelligence (proactive cards)
+- Recommendations tab
+- Future: Flokk-Claude conversational chat ("we're at X, where's the closest playground?")
+
+A shared Family Utility Service aggregates the queries. Both tour generator and trip intelligence call one resolver, not duplicate Places logic.
+
+### Phasing
+
+**Phase A (foundational)**:
+- New `IntelItem.category = "family-utility"`
+- Trip Intelligence emits proactive family-utility cards on trip creation
+- Cards include URL, hours, age range, why-this-fits-your-family
+
+**Phase B (tour integration)**:
+- Tour generation injects interstitials between formal stops
+- Visual treatment distinct from formal stops
+- User can dismiss, save, or reorder
+
+**Phase C (recommendations engine)**:
+- Recommendations tab becomes hotel-anchored + family-utility-weighted
+- Replaces current random/generic surface
+- Integrates behavioral profile + cohort signals (Phase 2A consumer)
+
+**Phase D (cross-surface Family Utility Service)**:
+- Shared backend resolver for all family-utility queries
+- Cohort-rating cache for Flokk-validated spots
+- Powers conversational chat when shipped
+
+### Schema additions needed
+
+- `IntelItem.category` enum extended with `"family-utility"`
+- New table or schema field for cached cohort-rated family-utility spots
+- Possibly: `FamilyUtilitySpot` model (placeId, name, lat, lng, category, cohortRatings, lastVerified)
+
+---
+
+## Time-Bound Events Intelligence
+
+### Core principle (Decision: Chat 38, April 26 2026)
+
+Most travel apps surface "things to do" — places that exist year-round. They miss the time-sensitive window of "what's happening WHILE you're there." For sports fans, theatre lovers, concert-goers, festival hunters — this matters more than another museum recommendation. Catching a Premier League match in London or a Broadway show in New York can BE the trip highlight.
+
+Flokk extracts and surfaces local events that fall within the user's travel dates: sports matches, concerts, theatre/Broadway/West End shows, festivals, art exhibitions, seasonal markets, cultural events, parades.
+
+### Approach: AI extraction, not API licensing
+
+Events are extracted by AI from public web sources, NOT pulled from licensed structured APIs (Sportradar, Ticketmaster Discovery, Songkick, etc). The AI extraction layer:
+
+1. Identifies relevant sources for the destination (team sites, venue sites, ticketing aggregators, city tourism pages, local culture blogs)
+2. Scrapes/fetches public pages for events in the user's date range
+3. Extracts structured event data: title, date, time, venue, ticket URL
+4. Caches results per-destination per-date-range with provenance (source URL + extraction timestamp)
+5. Surfaces ticket URLs as outbound links — affiliate codes layered on over time as partnerships are established
+
+This is cheaper than API licensing, more flexible (web has more coverage than any single API), and naturally compatible with affiliate monetization.
+
+### Categories surfaced
+
+- **Sports**: home games for local teams (NFL, NBA, MLB, NHL, Premier League, La Liga, Serie A, Bundesliga, MLS, NPB, KBO, cricket, rugby, tennis tournaments, golf majors, F1)
+- **Theatre & shows**: Broadway, West End, regional theatre, touring productions
+- **Concerts**: arena/stadium tours, club shows, classical/symphony, jazz festivals
+- **Festivals**: seasonal (Cherry Blossom, Oktoberfest, Carnival, Diwali), cultural, food, music
+- **Markets**: Christmas markets, weekly farmers markets, night markets, antique fairs
+- **Exhibitions**: special museum exhibits with limited runs
+- **Live experiences**: parades, fireworks, light shows, free public events
+
+### Affiliate path (parallel work, not blocking)
+
+Major event/ticket platforms with affiliate programs to onboard:
+- Ticketmaster Affiliate Program
+- StubHub
+- Vivid Seats
+- Eventbrite
+- Fever (events/experiences aggregator)
+- SeatGeek
+- TodayTix (last-minute theatre)
+
+When AI extraction returns a ticket URL pointing to one of these platforms, the affiliate enrichment layer rewrites the URL with the appropriate tracking code at surface time. Same pattern as existing GetYourGuide (partner_id: 9ZETRF4) and Booking.com (CJ Affiliate) integrations.
+
+If extraction returns a URL pointing to a platform we don't have affiliate access to, surface as-is (no rewrite). Building affiliate relationships is parallel work — not a blocker for shipping events extraction.
+
+### Surfaces
+
+#### 1. Trip Intelligence Events card
+
+When a trip is created, Trip Intelligence runs an events extraction pass for the destination + date range. Returns a structured list:
+
+- "Tottenham vs Arsenal — Saturday July 5, 2pm at Tottenham Hotspur Stadium" (URL to tickets)
+- "Hamilton at Victoria Palace Theatre — running through your visit" (URL to tickets)
+- "Sunday market at Borough Market — Sundays 10am-4pm, your visit covers 1 Sunday"
+- "Edinburgh Fringe Festival — your visit overlaps with peak week"
+
+Card type: IntelItem with category `events`. Each event entry: title, date/time, venue, ticket URL, "your visit covers [N] performances" if recurring.
+
+#### 2. Recommendations tab Events section
+
+Dedicated Events section on the trip's Recommendations tab. Filterable by category (sports / shows / festivals / markets). Sortable by date. Each event card: title, venue, date/time, ticket link, "Save to itinerary" CTA.
+
+#### 3. Tour generation awareness (deferred)
+
+Future: tour generator considers events as fixed schedule anchors. If user is going to a 7pm match, daytime tour ends near the stadium.
+
+### Schema
+
+Single cached Event model. Provenance fields support affiliate enrichment and quality auditing.
+
+```prisma
+model Event {
+  id                String   @id @default(cuid())
+  category          String   // "sports" | "theatre" | "concert" | "festival" | "market" | "exhibition" | "live"
+  subCategory       String?  // "premier_league" | "broadway" | "music_festival" | etc
+  title             String
+  description       String?
+  venueName         String
+  venueCity         String
+  venueCountry      String
+  venueLat          Float?
+  venueLng          Float?
+  startDate         DateTime
+  endDate           DateTime?
+  isRecurring       Boolean  @default(false)
+  recurrencePattern String?
+  ticketUrl         String?
+  imageUrl          String?
+  sourceUrl         String
+  extractedAt       DateTime @default(now())
+  extractionModel   String
+  affiliatePartner  String?
+  expiresAt         DateTime
+
+  @@index([venueCity, startDate])
+  @@index([category, venueCity, startDate])
+}
+```
+
+API route: `GET /api/events?city=London&startDate=2026-07-04&endDate=2026-07-07` returns cached Events. If no cache hit OR cache expired, triggers extraction job (Sonnet for first hit, Haiku for refresh).
+
+### Personalization
+
+User's Family Profile interests drive prioritization:
+- Profile interest "sports" → events in sports category surface first
+- Profile interest "theatre" → shows surface first
+- No interest match → all categories shown, sorted by date
+
+Behavioral profile (Phase 2A): family historical save patterns boost matching event categories.
+
+### Phasing
+
+**Phase A (foundational)**:
+- Event schema + cache layer
+- AI extraction service (sports + theatre as initial categories)
+- Trip Intelligence emits Events card on trip creation
+- Surface ticket URLs as outbound links (no affiliate rewrites yet)
+
+**Phase B (expansion)**:
+- Concerts, festivals, markets, exhibitions
+- Recommendations tab Events section with filtering and save-to-itinerary
+
+**Phase C (affiliate enrichment)**:
+- Affiliate URL rewrite layer
+- Onboard Ticketmaster, StubHub, Vivid Seats, Eventbrite affiliate programs
+- Track click-through and conversion via affiliate dashboards
+
+**Phase D (Tour integration)**:
+- Tour generator considers events as schedule anchors
+
+---
+
 ## Spots Community Feature
 - Currently early implementation
 - Major rebuild planned: continent → country → city → category nav
@@ -314,6 +671,13 @@ When `Trip.status` transitions to `COMPLETED`, any GeneratedTours linked to that
 - Tour image card treatment for standalone /tour library: NEEDS DESIGN (spec = full hero cards, current = city pill popovers)
 - Spots rebuild full spec: NEEDS COLLECTION FROM PRIOR HANDOFFS
 - Gamification tier specifics (Explorer / Navigator / Pioneer): TBD in dedicated phase
+- Tour stop ticket signal heuristic — needs validation at scale (Google Places editorialSummary parsing reliability)
+- Family-utility category taxonomy — full list needs to be defined (playground, plaza, café, gelato, restroom, water_refill, viewpoint, photo_stop, etc.)
+- AI events extraction prompt design — confidence scoring, source authority weighting, extraction quality auditing
+- Affiliate partnership timeline — which event/ticket platforms to onboard first (Ticketmaster vs Eventbrite vs StubHub priority)
+- Scraping resilience — Ticketmaster, StubHub aggressively block bots; ScrapingBee proxy or alternative needed for protected sources
+- Cohort-rating storage for family-utility spots — separate model vs reusing existing rating tables
+- Legacy data systematic repair — booking DRP8E8 on trip cmmycshfj000004jpyadzdp8y still has missing leg per audit script; needs review next session
 
 ---
 
@@ -363,6 +727,30 @@ Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product
 - BookingIntelCard: tours category added + contextual button labels (Build/Manage/Link/Book by category)
 
 **Conversation capture rule established**: every product decision goes into spec within same session.
+
+**Small Fix B — Trip Intelligence (commits e00b01d, b89ee2c)**
+- Explicit `actionType` field added to `IntelItem` type: `"book" | "link" | "build" | "view" | "manage" | "add" | null`
+- All `items.push()` calls in booking-intel route now set actionType explicitly (no inference)
+- `TripIntelDismissal` model added to schema; migration applied via Supabase MCP
+- Per-item dismiss UI in `BookingIntelCard`: X button → inline confirm → optimistic remove → POST to `/api/trips/${tripId}/intel-dismissals`
+- "Show N dismissed items" toggle + restore affordance → DELETE to `/api/trips/${tripId}/intel-dismissals/${itemId}`
+- Redundant `toursCount` secondary fetch removed; tours now surface as a proper IntelItem
+
+**Conversation Capture Rule** elevated to top-level operating discipline (this section)
+
+**Schema Change Completeness Rule** established (4-part checklist: new data path, backfill, read-path compatibility, regression test) plus Backfill Data Shape Completeness sub-rule (must populate all UI-rendering fields, must verify in UI not just DB)
+
+**Tour Stop Detail Standards** specced: URL mandatory by default (Google Places website field, fallback to Maps URL), `why` description visible in expand-in-place and SavedItem modal, ticket signal (free / ticket-required / advance-booking-recommended / unknown), expand-in-place stops tappable — designed, not yet built
+
+**"Be Helpful" cross-surface principle** established as product differentiator against OTAs — umbrella for Family-Context Awareness and Time-Bound Events Intelligence
+
+**Family-Context Awareness** specced (Phases A–D): family-utility interstitials in tours, Trip Intelligence family-utility IntelItem cards, hotel-anchored recommendations engine, shared Family Utility Service backend resolver; new `IntelItem.category = "family-utility"` needed
+
+**Time-Bound Events Intelligence** specced (Phases A–D): AI extraction from public web (not API licensing), sports + theatre + concerts + festivals + markets + exhibitions; affiliate URL rewrite layer (Ticketmaster, StubHub, Vivid Seats, Eventbrite, Fever, SeatGeek, TodayTix); Event schema designed; Trip Intelligence emits Events card; Recommendations tab Events section
+
+**Okinawa flight Vault repair shipped** (commit 93316ed): universal synthesizer dedup by confCode (prevents two old-era per-leg TripDocuments from rendering duplicate Vault cards) + Okinawa SQL data repair (inserted missing HND→OKA Flight row + ItineraryItem) + legacy audit script; audit identified 1 other user (booking DRP8E8, trip cmmycshfj000004jpyadzdp8y) with missing leg
+
+**Okinawa Day 1 dayIndex repair**: follow-up UPDATE set `dayIndex = 0` on the inserted ItineraryItem; dayIndex completeness requirement now codified in Schema Change Completeness Rule
 
 ### Prior — Chat 37 (reconstructed from codebase + handoff references)
 
