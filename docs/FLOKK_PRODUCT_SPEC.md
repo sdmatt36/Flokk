@@ -3,6 +3,8 @@ This document is the source of truth for what Flokk's features are supposed to d
 Implementation state may lag specification — that is expected.
 Update this document FIRST whenever a feature is discussed, before any code is written.
 
+---
+
 ## Tours
 
 ### Tour Generation
@@ -61,12 +63,27 @@ Connecting items:
 - If user removes a saved tour from their account, the corresponding itinerary items must cascade-delete (no orphans on the trip)
 - "Delete tour" or "I'm not doing this" action should be one click and clean both the tour and the trip itinerary
 
+### Tour-Trip Context Flow (FIXED — Chat 38, Apr 26 2026)
+
+When a tour is generated from a Trip's Tours tab, the `tripId` must flow through to the generate API so hotel anchor logic fires. Prior to Chat 38 fix, the form sent `tripId: undefined` in all cases.
+
+Fix shipped:
+- "Build a tour →" link in `ToursContent` now includes `?tripId=${tripId}` query param
+- `/tour/page.tsx` reads `?tripId` from URL on mount, stores in state
+- POST body to `/api/tours/generate` now includes `tripId` when present
+- Hotel anchor logic in generate route fires when `tripId` is present (looks up LODGING check-in item's lat/lng)
+
+Consequence of missing `tripId` before fix: tours generated from the trip context appeared in the standalone `/tour` library but NOT on the trip's Tours tab (no SavedItem → no `tripId` linkage). Also hotel anchor didn't fire → first stop could be far from lodging.
+
+Users with pre-fix tours must manually "Save stops to a trip" from the standalone `/tour` library to make those tours appear on the trip's Tours tab. Regenerating from the trip context after this fix is recommended to also get hotel anchor.
+
 ### Tour Library / Profile View
-- All of a user's tours should appear on their profile or trips page
-- Display style: image card with tour title (NOT current dropdown-by-city list)
-- Click image card → opens tour view
-- Visual treatment matches the rest of Flokk's editorial design (not utilitarian)
-- ⚠ CURRENT STATE: dropdown-by-city pills with identical titles (placeholder, not the spec)
+- All of a user's tours appear in the standalone `/tour` page library (grouped by city pills)
+- Trips tab → Tours tab shows tours SAVED to that specific trip (via SavedItem linkage)
+- ✓ Partial (Chat 38): Trip Tours tab cards now use full-width 180px hero image design matching RecentSavesCards pattern: title (Playfair Display, navy), MapPin location row, terracotta stop·transport pill, day label, expand-in-place stops, "View tour" terracotta button
+- ✓ Partial (Chat 38): `/tour` standalone library popover now shows 40×40 thumbnail + stop count + transport per tour row
+- ⚠ STILL NEEDED: standalone `/tour` library should become a grid of full hero cards (not city pills), matching the Trip Tours tab card design. This is the "tour library" spec.
+- Click image/title on trip tour card → expands inline to show stop list (name, duration, walk time). "View tour →" button navigates to full tour page.
 
 ### Tour Sharing (Three States)
 1. Private (default): only author's family can see
@@ -77,45 +94,6 @@ Connecting items:
 - Each tour has a stable URL with ?id= query param
 - URL pushes to history on generation (refresh preserves tour) ✓ shipped
 - Public share URLs route through /share/tour/[token] (not /tour?id=)
-
-## Spots Community Feature
-- Currently early implementation
-- Major rebuild planned: continent → country → city → category nav
-- Featured cities landing page exists at /discover/spots
-- Anonymous tours from completed trips feed into Spots data
-- Family-weighted ratings filter what each viewer sees
-- Detailed redesign spec exists in earlier session handoffs (TBD: collect into this doc)
-
-## Trips
-
-### Trip Data Model
-- `destinationCity`: must contain a CITY name (Edinburgh, Tokyo, Colombo) — NOT a country or region
-- `destinationCountry`: contains the country (UK, Japan, Sri Lanka)
-- `title`: free-form ("Scotland - July 2026" is acceptable as a title)
-- `destinationCity` is the field used for tour city-match suggestions, save deduplication, and Spots filtering — it MUST be city-level for those features to work
-
-### Trip Creation
-- ⚠ CURRENT STATE: trip creation flow does not validate or enforce city-level `destinationCity`. Some trips have country/region names in `destinationCity` (e.g., "Scotland" instead of "Edinburgh", "Ireland" instead of "Dublin"). This breaks tour city-match suggestions.
-- NEEDS BUILD: trip creation form should geocode the user input or constrain to city-level when storing `destinationCity`. Country and region trips need a different model (multi-city or "regional" trip type).
-
-## Saves
-[to be filled in as we discuss]
-
-## Family Profile
-[to be filled in as we discuss]
-
-## Email Pipeline
-[to be filled in as we discuss]
-
-## Booking Portal
-[to be filled in as we discuss]
-
-## Mobile / Companion Vision (Future)
-- Native iOS app with chat-based companion
-- "We're between stop 3 and 4, kids are tired, what's nearby?" use case
-- Real-time location-aware suggestions
-- AI grounded in family profile + community ratings + current trip context
-- This is the long-term product thesis (see business plan v3.1 in flight)
 
 ---
 
@@ -173,18 +151,230 @@ Tour-saved items currently get `categoryTags: []`. The save flow sets `extractio
 
 Fix path: store TourStop.placeType from Place Details API call, map to SavedItem.categoryTags at save-to-trip time.
 
-Status: Designed, will be addressed alongside Track 2 (personalization layer) since both touch the same SavedItem write path.
+Status: Designed, will be addressed alongside Phase 2A (FamilyBehavioralProfile) since both touch the same SavedItem write path.
 
-### Decisions Log
+### Tour Builder Form Refinement (Phase E spec — from Chat 37)
 
-Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product decision discussed in chat goes into this spec doc within the same session, regardless of whether code shipped. Handoff docs maintain a "Decisions Log" listing what was discussed but not built. This prevents next-chat re-litigation of decisions already made.
+Add optional Refine section (collapsible, default closed). Default form stays simple (city, length, transport).
+
+Optional refinement controls:
+- **Neighborhood pill suggestions** — sourced from Google Places, presented as soft anchors; user selects one or more. These are soft constraints, not hard: Claude biases toward stops near the neighborhood(s) but can include stops elsewhere if theme warrants.
+- **Vibe toggle**: Touristy ↔ Local — "Touristy" biases toward well-known landmarks; "Local" biases toward resident-frequented spots.
+- **Rhythm toggle**: Theme-focused ↔ With family breaks — "With family breaks" inserts a rest stop (café, park, gelato) roughly every 2-3 stops. The break stop is labeled as a rest point, not a themed attraction.
+- **Open textarea**: Trip-specific context the user can write ("The kids have already seen the Eiffel Tower from our hotel — skip obvious tourist traps").
+
+All refinement inputs flow into the Claude generation prompt as soft preferences in the system message. They don't change the schema.
+
+⚠ NEEDS BUILD: form revamp to add this optional section. UX TBD (accordion vs step 2 modal).
+
+---
+
+## Tours — Public Surfacing & Community
+
+### When tours go public (Decision: Chat 38, April 26 2026)
+
+Tours go public on save-to-trip, NOT on generation. The save-to-trip action is the user's implicit quality vote — they wouldn't save a bad tour. This avoids polluting Discover/Spots with abandoned generations while still aggressively growing community content.
+
+Estimated contribution baseline: 33 families × 5 trips/year × 1 saved tour per trip = 165 community tours per year. Grows with userbase.
+
+### Family attribution (Decision: Chat 38)
+
+Hybrid model. Tours are anonymous by default at the public/Discover layer. Family can opt to attribute themselves explicitly if they want credit. Most won't bother — the value is in the tour content, not the byline. Anonymous baseline keeps privacy floor high.
+
+### Family retains tour in trip history regardless
+
+Even when public, the saving family retains the tour in their trip history and can share it explicitly. Public surfacing is about discovery, not ownership transfer.
+
+### Clone-to-account flow (Decision: Chat 38)
+
+This is the entire point of the platform. A user sees a tour in Discover/Spots → taps it → "Save to my trip" → fresh GeneratedTour + TourStops in their account, on the day they pick. Original creator unchanged. Cloned tour develops its own rating history independently.
+
+The compounding loop:
+- Tour goes public on save-to-trip
+- Other families clone it
+- Each clone gets rated after that family's trip
+- Aggregate ratings + cohort-weighted ratings (kids ages, season, transport mode) drive surfacing for future families
+- High-quality tours bubble up; low-quality fade
+
+⚠ NEEDS BUILD: clone-to-account API route (`POST /api/tours/[id]/clone`), Discover viewer page, "Save to my trip" CTA from public view.
+
+Note: Trip-level cloning already exists (`/api/trips/clone/route.ts`, `/api/trips/[id]/clone/route.ts`, `Trip.cloneCount` field). Tour-level cloning is a separate, not-yet-built path.
+
+### Clone notifications (gamification, from Chat 37)
+
+Tour creators receive notifications when their tour is cloned. "Your London family ramen tour was saved by 3 families this month." This is part of the broader gamification system (Explorer, Navigator, Pioneer tiers). Specifics of points/tier impact: TBD per Chat 37+ discussions on gamification — defer detailed mechanics to gamification phase.
+
+⚠ NEEDS BUILD: notification system, creator attribution tracking.
+
+### Rating loop feedback (Decision: Chat 37 confirmed Chat 38)
+
+Ratings flow back into tour surfacing. When a tour is rated 5-stars by a family with kids 5-10, the same tour gets boosted in Discover for OTHER families with kids 5-10. Cohort-weighted, not flat-aggregated. A 5-star from a backpacking childless couple boosts surfacing for backpacking childless couples, NOT for families with toddlers. Heterogeneous ratings across cohorts = ambiguous signal = neutral surfacing weight.
+
+This is Phase F per Chat 37. Schema and infrastructure to be designed in dedicated phase. Conceptual agreement: yes, cohort-weighted ratings drive surfacing.
+
+⚠ NEEDS BUILD: cohort rating aggregation, surfacing score field on GeneratedTour, Discover sort logic.
+
+---
+
+## Tours — Discover / Spots Surface (Roadmap, Phase E+)
+
+Public tours surface on a Discover/Spots Tours area:
+- Filterable by city, theme, transport mode, kid age band, family composition
+- Sorted by aggregate cohort-weighted rating (see Rating Loop above)
+- Each tour card shows: hero image (composite of stops), title, city, stop count, transport, rating, "Save to my trip" CTA
+- Card click → full tour viewer page (the existing tour detail page becomes the public viewer for anonymous access)
+- Save flow: trip picker (existing pattern) → clone-to-account → user is taken to their trip with tour added on selected day
+
+⚠ NEEDS BUILD: public tour viewer page, Discover filtering UI, Spots integration.
+
+---
+
+## Tours — Schema & Plumbing Status
+
+### Already in schema (as of Chat 38)
+
+- `GeneratedTour.isPublic` (Boolean, default false) — flag for public surfacing
+- `GeneratedTour.deletedAt` (DateTime?) — soft delete
+- `GeneratedTour.originalTargetStops` (Int) — for under-emission tracking
+- `GeneratedTour.categoryTags` (String[]) — currently always empty (categorization pipeline open bug)
+- `TourStop.imageUrl` (String?) — stop photo
+- `TourStop.savedItemId` (String? FK → SavedItem) — nullable; set on save-to-trip
+- `Trip.cloneCount` (Int) — trip-level clone counter; exists, used by trip clone routes
+
+### Pending schema additions (per Chat 37)
+
+- `GeneratedTour.shareToken` (String? unique) — for unauthenticated public viewer URLs `/share/tour/[token]`
+- `GeneratedTour.contributedToSpots` (Boolean, default false) — separate flag from isPublic; set when trip completes
+- `GeneratedTour.contributedAt` (DateTime?)
+- `GeneratedTour.surfacingScore` (Float?) — cohort-weighted aggregate rating for Discover sort order
+
+### Pending API routes (per Chat 37)
+
+- `POST /api/tours/[id]/share` — create shareToken, set isPublic=true
+- `DELETE /api/tours/[id]/share` — revoke token, set isPublic=false
+- `GET /api/tours/share/[token]` — public read (no auth required)
+- `POST /api/tours/[id]/clone` — clone tour stops to caller's account
+- Public viewer page: `/share/tour/[token]`
+
+### Trigger: contributedToSpots
+
+When `Trip.status` transitions to `COMPLETED`, any GeneratedTours linked to that trip (via SavedItem.tourId + SavedItem.tripId) should have `contributedToSpots = true` and `contributedAt = now()` set. This is the automated community feed trigger. No user action required beyond completing the trip.
+
+⚠ NEEDS BUILD: all items in this section.
+
+---
+
+## Spots Community Feature
+- Currently early implementation
+- Major rebuild planned: continent → country → city → category nav
+- Featured cities landing page exists at /discover/spots
+- Anonymous tours from completed trips feed into Spots data
+- Family-weighted ratings filter what each viewer sees
+- Detailed redesign spec exists in earlier session handoffs (TBD: collect into this doc)
+
+---
+
+## Trips
+
+### Trip Data Model
+- `destinationCity`: must contain a CITY name (Edinburgh, Tokyo, Colombo) — NOT a country or region
+- `destinationCountry`: contains the country (UK, Japan, Sri Lanka)
+- `title`: free-form ("Scotland - July 2026" is acceptable as a title)
+- `destinationCity` is the field used for tour city-match suggestions, save deduplication, and Spots filtering — it MUST be city-level for those features to work
+
+### Trip Creation
+- ⚠ CURRENT STATE: trip creation flow does not validate or enforce city-level `destinationCity`. Some trips have country/region names in `destinationCity` (e.g., "Scotland" instead of "Edinburgh", "Ireland" instead of "Dublin"). This breaks tour city-match suggestions.
+- NEEDS BUILD: trip creation form should geocode the user input or constrain to city-level when storing `destinationCity`. Country and region trips need a different model (multi-city or "regional" trip type).
+
+---
+
+## Saves
+[to be filled in as we discuss]
+
+## Family Profile
+[to be filled in as we discuss]
+
+## Email Pipeline
+[to be filled in as we discuss]
+
+## Booking Portal
+[to be filled in as we discuss]
+
+## Mobile / Companion Vision (Future)
+- Native iOS app with chat-based companion
+- "We're between stop 3 and 4, kids are tired, what's nearby?" use case
+- Real-time location-aware suggestions
+- AI grounded in family profile + community ratings + current trip context
+- This is the long-term product thesis (see business plan v3.1 in flight)
 
 ---
 
 ## Open Questions / TBD
-- Tour-trip cascade behavior on tour deletion: NEEDS BUILD
-- Tour image card treatment for profile/trips page: NEEDS DESIGN
+- Tour-trip cascade behavior on tour deletion: NEEDS BUILD (unlink-from-trip currently does NOT cascade-delete ItineraryItems)
+- Tour image card treatment for standalone /tour library: NEEDS DESIGN (spec = full hero cards, current = city pill popovers)
 - Spots rebuild full spec: NEEDS COLLECTION FROM PRIOR HANDOFFS
+- Gamification tier specifics (Explorer / Navigator / Pioneer): TBD in dedicated phase
+
+---
+
+## Decisions Log
+
+Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product decision discussed in chat goes into this spec doc within the same session, regardless of whether code shipped. This prevents next-chat re-litigation of decisions already made.
+
+### April 26, 2026 — Chat 38
+
+**Booking architecture (12 commits shipped)**
+- FlightBooking schema + Flight leg model + synthesizer-backed Vault read
+- Leg partitioning, multi-trip extraction, ItineraryItem cleanup (deleteMany before writes)
+- Day view polish: FLIGHT Remove button color, layover duration widget, suppress "From hotel" header before cross-destination departures
+- stale flight ItineraryItem cleanup script (deleted 9 rows in prod)
+
+**Tours quality — Track 1 (commit df299a6, shipped)**
+- Under-emission retry (Attempt 3 fills missing stops, DO NOT REPEAT list)
+- Walk retry noop bug fix (dry-run pattern preserves originals until retry is confirmed better)
+- Clustering hint rewrite (removes "fewer stops" escape hatch — Claude must return target count)
+- Cluster diameter check (O(n²) pairwise Haversine, age-based thresholds: 1.5km/3km/5km)
+- Hotel anchor logic: tripId → LODGING check-in lookup → inject lat/lng into system prompt → post-generation proximity validation
+
+**Tours tripId flow — fixed (commit 8395e20)**
+- "Build a tour →" link now passes `?tripId=` query param
+- `/tour/page.tsx` reads param, includes in POST body
+- Generates from trip context now correctly trigger hotel anchor and link to trip's Tours tab
+
+**Tours personalization — Track 2 (designed, not built)**
+- Pure behavioral inference approach (skip manual tier UI)
+- Three-source weighted blend: saves (SavedItem) + itineraries (ItineraryItem) + tour history
+- FamilyBehavioralProfile + CohortBehavioralProfile schemas (not yet in Prisma)
+- Haiku nightly batch refresh + Sonnet on-demand refresh when user opens tour builder
+- Surfaced as prompt injection (soft preferences), not hard filter
+
+**Tours public surfacing decisions**
+- Tours go public on save-to-trip, NOT on generation (save = implicit quality vote)
+- Attribution: anonymous by default, opt-in for family byline
+- Clone-to-account: new GeneratedTour + TourStops in cloning family's account, independent rating history
+- Clone notifications: yes, gamified ("your tour was saved by N families") — defer mechanics to gamification phase
+- Rating loop: cohort-weighted (5-star from family with kids 5-10 boosts surfacing for similar families only)
+- Real-time rating prompts: push notification at scheduled item end-time (pending iOS)
+
+**Tours cosmetic polish (commits 23e3ce3, f0c4ac0, 7eb6b36)**
+- Trip Tours tab: full-width hero card matching RecentSavesCards pattern + expand-in-place stops
+- "Visit website" → "Link" on stop cards
+- HTML entity decode helper applied to all tour/stop name and why renders
+- BookingIntelCard: tours category added + contextual button labels (Build/Manage/Link/Book by category)
+
+**Conversation capture rule established**: every product decision goes into spec within same session.
+
+### Prior — Chat 37 (reconstructed from codebase + handoff references)
+
+Note: Chat 37 handoff docx at `/mnt/project/Flokk_Chat37_Handoff.docx` was inaccessible in Chat 38 session. The following is reconstructed from codebase evidence and session summary references. Full retrieval deferred.
+
+- Tour phase roadmap: Phase C (per-stop remove + regenerate-missing-stops) — shipped; Phase D (interest tiering) — designed; Phase E (save-without-trip polish + Discover surfacing) — specced; Phase F (rating loop) — conceptually agreed
+- Clone notifications: agreed in principle, mechanics deferred to gamification phase
+- Cohort-weighted ratings: agreed — heterogeneous cohort ratings carry neutral surfacing weight
+- Tour Builder form refinement: neighborhood pills (soft anchors), vibe toggle (Touristy ↔ Local), rhythm toggle (Theme-focused ↔ With family breaks), open textarea — all to go in collapsible "Refine" section
+- Tour public share schema: shareToken (String? unique), contributedToSpots (Boolean), contributedAt (DateTime?) — not yet in schema as of Chat 38
+- contributedToSpots trigger: Trip.status → COMPLETED fires the flag
+- `/share/tour/[token]` public viewer page: specced, not built
 
 ---
 
