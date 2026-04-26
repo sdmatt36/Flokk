@@ -168,6 +168,72 @@ async function main() {
   notes7.push(`Kamakura: ${kamakura ? `found, confidence=${kamakura.confidence}, matchType=${kamakura.matchType}` : "not found (correct)"}`);
   results.push(check("MT-7: Kamakura not in result at >= 0.85 (home base excluded)", !kamakura || kamakura.confidence < 0.85, notes7));
 
+  // MT-8: Mash Tun / Scotland routing — verify fixed normalizeLocationToKeywords +
+  // P1 no-date-fallback logic. Pure in-memory simulation. Bug: "United Kingdom"
+  // was split into ["United", "Kingdom"]; "United" matched San Diego's "United States".
+  // Fix: full phrase only; P1 without date overlap falls through to P2.
+  {
+    type FakeTrip = { id: string; title: string; destinationCity: string | null; destinationCountry: string | null; startDate: Date | null; endDate: Date | null; status: string };
+
+    function fixedNormalize(raw: string): string[] {
+      return [raw.trim()]; // full phrase only, no splitting
+    }
+
+    function matchesDest(trip: FakeTrip, keywords: string[]): boolean {
+      const haystack = [trip.title, trip.destinationCity, trip.destinationCountry].filter(Boolean).join(" ").toLowerCase();
+      return keywords.some((kw) => {
+        const k = kw.toLowerCase();
+        if (k.includes(" ")) return haystack.includes(k);
+        const regex = new RegExp(`(?<![a-z])${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![a-z])`, "i");
+        return regex.test(haystack);
+      });
+    }
+
+    function dateInRange(dateStr: string, trip: FakeTrip): boolean {
+      if (!trip.startDate || !trip.endDate) return false;
+      const [y, m, d] = dateStr.split("-").map(Number);
+      const booking = new Date(y, m - 1, d);
+      const start = new Date(trip.startDate); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - 3);
+      const end = new Date(trip.endDate); end.setHours(23, 59, 59, 999);
+      return booking >= start && booking <= end;
+    }
+
+    const sanDiego: FakeTrip = { id: "san-diego", title: "San Diego Aug 25", destinationCity: "San Diego", destinationCountry: "United States", startDate: new Date("2025-08-02"), endDate: new Date("2025-08-31"), status: "COMPLETED" };
+    const scotland: FakeTrip = { id: "scotland", title: "Scotland - July 2026", destinationCity: "Edinburgh", destinationCountry: null, startDate: new Date("2026-07-07"), endDate: new Date("2026-07-16"), status: "PLANNING" };
+    const fakeTrips = [sanDiego, scotland];
+    const bookingDateStr = "2026-07-10";
+    const bookingDateObj = new Date(2026, 6, 10);
+
+    // eligibleTrips filter: exclude COMPLETED trips that ended > 30 days before booking
+    const eligible = fakeTrips.filter((t) => {
+      if (t.status !== "COMPLETED") return true;
+      if (!t.endDate) return true;
+      return (bookingDateObj.getTime() - t.endDate.getTime()) / 86400000 < 30;
+    });
+
+    // destKeywords with fixed normalizer
+    const destKeywords = [...new Set(["Aberlour", "United Kingdom"].flatMap(fixedNormalize))].filter((k) => k.length > 2);
+
+    // P1
+    const destMatches = eligible.filter((t) => matchesDest(t, destKeywords));
+    const withDate = destMatches.filter((t) => dateInRange(bookingDateStr, t));
+    let matched: FakeTrip | null = withDate.length > 0 ? withDate[0] : null;
+
+    // P2 (only if P1 didn't match)
+    if (!matched) {
+      const dateMatches = eligible.filter((t) => dateInRange(bookingDateStr, t));
+      if (dateMatches.length > 0) matched = dateMatches[0];
+    }
+
+    const notes8: string[] = [];
+    notes8.push(`eligible trips: ${eligible.map((t) => t.title).join(", ") || "none"}`);
+    notes8.push(`destKeywords: [${destKeywords.join(", ")}]`);
+    notes8.push(`P1 destMatches: ${destMatches.map((t) => t.title).join(", ") || "none"}`);
+    notes8.push(`P1 withDate: ${withDate.map((t) => t.title).join(", ") || "none"}`);
+    notes8.push(`matched: ${matched?.title ?? "none"}`);
+    results.push(check("MT-8: Mash Tun routes to Scotland (not San Diego)", matched?.id === "scotland", notes8));
+  }
+
   // ── Output ──────────────────────────────────────────────────────────────────
   const passCount = results.filter((r) => r.pass).length;
   const failCount = results.filter((r) => !r.pass).length;

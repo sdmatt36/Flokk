@@ -270,8 +270,10 @@ function normalizeLocationToKeywords(raw: string): string[] {
   const key = raw.trim().toLowerCase();
   const mapped = AIRPORT_TO_CITY[key];
   if (mapped) return [mapped.city, mapped.country];
-  const tokens = raw.split(/[\s,/-]+/).filter((v) => v.length > 2);
-  return [raw.trim(), ...tokens];
+  // Full phrase only — no single-word splitting.
+  // Splitting "United Kingdom" into ["United", "Kingdom"] causes false positives
+  // where "United" matches "United States" in an unrelated trip's country.
+  return [raw.trim()];
 }
 
 // Home airports — when a flight departs AND arrives at one of these, it is
@@ -682,6 +684,18 @@ Field notes:
     // ── Match trip ─────────────────────────────────────────────────────────────
     const bookingDate = (extracted.checkIn ?? extracted.departureDate) as string | null;
 
+    // Exclude COMPLETED trips that ended more than 30 days before the booking date.
+    // Stale completed trips should never receive new bookings via keyword overlap.
+    const bookingDateObj = bookingDate
+      ? (() => { const [y, m, d] = bookingDate.split("-").map(Number); return new Date(y, m - 1, d); })()
+      : null;
+    const eligibleTrips = trips.filter((t) => {
+      if ((t.status as string) !== "COMPLETED") return true;
+      if (!bookingDateObj || !t.endDate) return true;
+      const daysSinceTripEnd = (bookingDateObj.getTime() - new Date(t.endDate).getTime()) / 86400000;
+      return daysSinceTripEnd < 30;
+    });
+
     // Destination keywords from Claude-extracted location fields, normalized
     // through AIRPORT_TO_CITY so IATA codes / full airport names expand to
     // canonical city/country strings that match trip.destinationCity/Country.
@@ -739,7 +753,7 @@ Field notes:
       !!toIATA   && HOME_AIRPORTS.has(toIATA);
 
     if (isRoundTrip && bookingDate) {
-      const roundTripMatches = trips.filter((t) => dateInTripRange(bookingDate, t));
+      const roundTripMatches = eligibleTrips.filter((t) => dateInTripRange(bookingDate, t));
       console.log(`[email-match] P0 round-trip (${fromIATA}→${toIATA}) date matches (${roundTripMatches.length}): ${roundTripMatches.map(t => `"${t.title}"`).join(", ")}`);
       if (roundTripMatches.length === 1) {
         matchedTrip = roundTripMatches[0];
@@ -760,7 +774,7 @@ Field notes:
     // For hotels/activities: city matches the local trip.
     // Skipped if P0 already matched (round trip).
     if (!matchedTrip && destKeywords.length > 0) {
-      const destMatches = trips.filter((t) => tripMatchesDestination(t, destKeywords));
+      const destMatches = eligibleTrips.filter((t) => tripMatchesDestination(t, destKeywords));
       console.log(`[email-match] P1 dest matches (${destMatches.length}): ${destMatches.map(t => `"${t.title}"`).join(", ")}`);
       if (destMatches.length > 0) {
         // Promote trips that match the full extracted city phrase over partial token matches.
@@ -774,15 +788,19 @@ Field notes:
         });
         const promotedMatches = exactPhraseMatches.length > 0 ? exactPhraseMatches : destMatches;
         const withDate = bookingDate ? promotedMatches.filter((t) => dateInTripRange(bookingDate, t)) : [];
-        const candidates = withDate.length > 0 ? withDate : promotedMatches;
-        candidates.sort(sortByRelevance);
-        matchedTrip = candidates[0];
+        // Only commit to a P1 match if the date also overlaps.
+        // If no promoted match has a date in range, fall through to P2
+        // so date-based matching can find the correct trip.
+        if (withDate.length > 0) {
+          withDate.sort(sortByRelevance);
+          matchedTrip = withDate[0];
+        }
       }
     }
 
     // Priority 2: Date overlap only — when destination wasn't extracted or didn't match
     if (!matchedTrip && bookingDate) {
-      const dateMatches = trips.filter((t) => dateInTripRange(bookingDate, t));
+      const dateMatches = eligibleTrips.filter((t) => dateInTripRange(bookingDate, t));
       console.log(`[email-match] P2 date matches (${dateMatches.length}): ${dateMatches.map(t => `"${t.title}"`).join(", ")}`);
       if (dateMatches.length > 0) {
         dateMatches.sort((a, b) => {
@@ -800,7 +818,7 @@ Field notes:
 
     // Priority 3: Subject word match as weak fallback (only if neither destination nor date matched)
     if (!matchedTrip && subjectWords.length > 0) {
-      const subjectMatches = trips.filter((t) => tripMatchesDestination(t, subjectWords));
+      const subjectMatches = eligibleTrips.filter((t) => tripMatchesDestination(t, subjectWords));
       if (subjectMatches.length > 0) {
         console.log(`[email-match] P3 subject matches (${subjectMatches.length}): ${subjectMatches.map(t => `"${t.title}"`).join(", ")}`);
         subjectMatches.sort(sortByRelevance);
