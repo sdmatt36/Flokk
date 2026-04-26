@@ -5,6 +5,18 @@ import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 
+function decodeHtmlEntities(str: string | null | undefined): string {
+  if (!str) return "";
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+}
+
 function cleanDisplayDescription(raw: string | null | undefined): string {
   if (!raw) return "";
   let s = raw;
@@ -5992,33 +6004,38 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
         {tours.map(tour => (
           <div key={tour.id} style={{
             borderRadius: "12px",
-            border: "1px solid rgba(27,58,92,0.12)",
-            overflow: "hidden",
+            border: "1px solid #E5E7EB",
             backgroundColor: "#fff",
+            padding: "16px",
+            display: "flex",
+            gap: "14px",
+            alignItems: "flex-start",
           }}>
             {tour.coverImage && (
-              <div style={{ height: "120px", overflow: "hidden" }}>
-                <img src={tour.coverImage} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              </div>
+              <img
+                src={tour.coverImage}
+                alt=""
+                style={{ width: "80px", height: "80px", objectFit: "cover", borderRadius: "8px", flexShrink: 0 }}
+              />
             )}
-            <div style={{ padding: "14px 16px" }}>
-              <p style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", margin: 0, fontFamily: "var(--font-playfair, serif)" }}>
-                {tour.title}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", margin: 0, fontFamily: "var(--font-playfair, serif)", lineHeight: 1.3 }}>
+                {decodeHtmlEntities(tour.title)}
               </p>
-              <p style={{ fontSize: "12px", color: "#6B7280", margin: "4px 0 0", lineHeight: 1.4 }}>
+              <p style={{ fontSize: "12px", color: "#717171", margin: "4px 0 0", lineHeight: 1.4 }}>
                 {tour.stopCount} {tour.stopCount === 1 ? "stop" : "stops"}
                 {tour.days.length > 0 && ` · ${dayLabel(tour.days)}`}
               </p>
-              <div style={{ display: "flex", gap: "12px", marginTop: "12px", alignItems: "center" }}>
+              <div style={{ display: "flex", gap: "16px", marginTop: "10px", alignItems: "center" }}>
                 <a
                   href={`/tour?id=${tour.id}`}
-                  style={{ fontSize: "13px", color: "#1B3A5C", fontWeight: 600 }}
+                  style={{ fontSize: "13px", color: "#C4664A", fontWeight: 600 }}
                 >
                   View tour →
                 </a>
                 <button
                   onClick={() => setCancelTarget(tour)}
-                  style={{ fontSize: "13px", color: "#C4664A", fontWeight: 600, background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                  style={{ fontSize: "13px", color: "#9CA3AF", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: 0 }}
                 >
                   Cancel tour
                 </button>

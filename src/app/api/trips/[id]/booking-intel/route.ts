@@ -86,7 +86,7 @@ function getLogisticsItems(city: string | null, country: string | null): Logisti
 
 export type IntelItem = {
   id: string;
-  category: "flights" | "hotel" | "activities" | "documents" | "logistics";
+  category: "flights" | "hotel" | "activities" | "tours" | "documents" | "logistics";
   title: string;
   reason: string;
   status: "booked" | "saved" | "missing";
@@ -141,6 +141,13 @@ export async function GET(
         },
       })
     : [];
+
+  // ── Tours count ────────────────────────────────────────────────────────────
+  const linkedTourSaves = await db.savedItem.findMany({
+    where: { tripId, tourId: { not: null }, deletedAt: null },
+    select: { tourId: true },
+  });
+  const tourCount = new Set(linkedTourSaves.map(s => s.tourId)).size;
 
   const items: IntelItem[] = [];
   const { destinationCity, destinationCountry, flights, savedItems, manualActivities, itineraryItems, keyInfo, documents } = trip;
@@ -261,6 +268,29 @@ export async function GET(
       reason: `Popular tours and attractions in ${destinationCity ?? "your destination"} sell out — add and book early.`,
       status: "missing",
       urgency: activityUrgency(daysAway),
+      bookingUrl: null,
+    });
+  }
+
+  // ── Tours ──────────────────────────────────────────────────────────────────
+  if (tourCount > 0) {
+    items.push({
+      id: "tours",
+      category: "tours",
+      title: "Tours",
+      reason: `${tourCount} AI-planned tour${tourCount > 1 ? "s" : ""} saved to this trip.`,
+      status: "booked",
+      urgency: "when ready",
+      bookingUrl: null,
+    });
+  } else if (daysAway <= WINDOW_DAYS) {
+    items.push({
+      id: "tours",
+      category: "tours",
+      title: "Day tours",
+      reason: `Plan your days in ${destinationCity ?? "your destination"} with AI-curated stop-by-stop tours.`,
+      status: "missing",
+      urgency: "when ready",
       bookingUrl: null,
     });
   }

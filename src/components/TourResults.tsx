@@ -28,6 +28,18 @@ type TripOption = {
   endDate: string | null;
 };
 
+function decodeHtmlEntities(str: string | null | undefined): string {
+  if (!str) return "";
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+}
+
 type Props = {
   stops: Stop[];
   removedStops: Stop[];
@@ -51,7 +63,7 @@ function RemovalPlaceholder({ stop, onUndo }: { stop: Stop; onUndo: () => void }
     <div className="relative overflow-hidden rounded-xl border border-[#1B3A5C]/20 bg-[#1B3A5C]/5 px-4 py-3 mb-3">
       <div className="flex items-center justify-between gap-3">
         <span className="text-sm text-[#1B3A5C]">
-          Removed <span className="font-semibold">{stop.name}</span>
+          Removed <span className="font-semibold">{decodeHtmlEntities(stop.name)}</span>
         </span>
         <button
           type="button"
@@ -392,7 +404,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
                   <div className="w-5 h-5 rounded-full bg-[#C4664A] flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">
                     {index + 1}
                   </div>
-                  <span className="text-sm font-semibold text-[#1B3A5C] leading-snug">{stop.name}</span>
+                  <span className="text-sm font-semibold text-[#1B3A5C] leading-snug">{decodeHtmlEntities(stop.name)}</span>
                 </div>
 
                 {stop.websiteUrl && (
@@ -404,7 +416,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
                     className="inline-flex items-center gap-1 text-xs text-[#1B3A5C] hover:text-[#C4664A] transition-colors"
                   >
                     <ExternalLink size={12} />
-                    Visit website
+                    Link
                   </a>
                 )}
 
@@ -422,7 +434,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
                 </div>
 
                 {stop.why && (
-                  <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">{stop.why}</p>
+                  <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">{decodeHtmlEntities(stop.why)}</p>
                 )}
 
                 {stop.familyNote && (
@@ -469,7 +481,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
             <div className="mt-3 space-y-2">
               {removedStops.map(stop => (
                 <div key={stop.id} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
-                  <span className="text-sm text-gray-700">{stop.name}</span>
+                  <span className="text-sm text-gray-700">{decodeHtmlEntities(stop.name)}</span>
                   <button
                     type="button"
                     onClick={() => onPermanentRestore(stop)}
