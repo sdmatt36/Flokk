@@ -975,9 +975,9 @@ Field notes:
       }
     }
 
-    // Duplicate guard: check confirmationCode across ALL trips for this profile.
-    // A trip-scoped check misses cases where a prior forward mismatched to the wrong trip —
-    // the code already exists on that trip, so a re-forward to the correct trip must be blocked too.
+    // Duplicate guard: check confirmationCode scoped to the resolved trip.
+    // Phase Vault: narrowed from profile-global to trip-scoped so that re-forwarding
+    // a booking to a different trip (e.g. a code that was previously mismatched) now succeeds.
     // Only applied when confirmationCode is non-null — null-code bookings are allowed through.
     //
     // Pre-extraction dedup removed for flights in Phase 2A.1 — writeFlightFromEmail now handles
@@ -985,13 +985,13 @@ Field notes:
     // See src/lib/flights/extract-and-write.ts. Guard retained for hotel/activity types which
     // do not yet have write-layer dedup.
     const incomingConfCode = (extracted.confirmationCode as string | null) ?? null;
-    if (incomingConfCode && extracted.type !== "flight") {
+    if (incomingConfCode && extracted.type !== "flight" && resolvedTripId) {
       const existing = await db.itineraryItem.findFirst({
-        where: { confirmationCode: incomingConfCode, familyProfileId: familyProfile.id },
+        where: { confirmationCode: incomingConfCode, tripId: resolvedTripId },
         select: { id: true, title: true, tripId: true },
       });
       if (existing) {
-        console.log(`[email-inbound] duplicate detected globally — confirmationCode: ${incomingConfCode} already exists as "${existing.title}" on trip ${existing.tripId ?? "unassigned"} — skipping`);
+        console.log(`[email-inbound] duplicate detected (trip-scoped) — confirmationCode: ${incomingConfCode} already exists as "${existing.title}" on trip ${existing.tripId ?? "unassigned"} — skipping`);
         await logExtraction({ ...logCtx, outcome: "dropped", errorMessage: `duplicate confirmationCode: ${incomingConfCode}` });
         return NextResponse.json({ received: true, skipped: "duplicate" });
       }

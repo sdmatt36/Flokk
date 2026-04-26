@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { synthesizeVaultDocuments } from "@/lib/vault/synthesize-booking";
 
 export async function GET(
   _req: Request,
@@ -9,10 +10,7 @@ export async function GET(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id: tripId } = await params;
-  const documents = await db.tripDocument.findMany({
-    where: { tripId },
-    orderBy: { createdAt: "asc" },
-  });
+  const documents = await synthesizeVaultDocuments(tripId, db);
   return NextResponse.json(documents);
 }
 
