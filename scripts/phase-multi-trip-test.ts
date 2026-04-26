@@ -151,15 +151,22 @@ async function main() {
   notes4.push(`Seoul: ${seoul ? `found, confidence=${seoul.confidence}` : "not found (correct)"}`);
   results.push(check("MT-4: Seoul not in result (or confidence < 0.85)", !seoul || seoul.confidence < 0.85, notes4));
 
-  // MT-5: Sri Lanka is the primary match (matchType="primary-match")
+  // MT-5: Sri Lanka has confidence >= 0.9 (primary-match seed 0.9, upgraded to 0.95 by SIN→CMB leg match)
   const notes5: string[] = [];
-  notes5.push(`Sri Lanka matchType: ${sriLanka?.matchType ?? "N/A"}`);
-  results.push(check("MT-5: Sri Lanka matchType is primary-match", sriLanka?.matchType === "primary-match", notes5));
+  notes5.push(`Sri Lanka confidence=${sriLanka?.confidence ?? "N/A"} matchType=${sriLanka?.matchType ?? "N/A"}`);
+  results.push(check("MT-5: Sri Lanka confidence >= 0.9", !!sriLanka && sriLanka.confidence >= 0.9, notes5));
 
-  // MT-6: London matchType is leg-date-match (CMB→LHR Jul 4 falls within London Jul 4–Jul 7)
+  // MT-6: London matchType is leg-dest-date-match (toCity=London + Jul 4 in London range)
   const notes6: string[] = [];
   notes6.push(`London matchType: ${london?.matchType ?? "N/A"}`);
-  results.push(check("MT-6: London matchType is leg-date-match", london?.matchType === "leg-date-match", notes6));
+  results.push(check("MT-6: London matchType is leg-dest-date-match", london?.matchType === "leg-dest-date-match", notes6));
+
+  // MT-7: Kamakura NOT in result at >= 0.85 (date-range home base trip must be excluded)
+  const TRIP_KAMAKURA = "cmmyhbk8g000004jpof1i3g52";
+  const kamakura = related.find((r) => r.trip.id === TRIP_KAMAKURA);
+  const notes7: string[] = [];
+  notes7.push(`Kamakura: ${kamakura ? `found, confidence=${kamakura.confidence}, matchType=${kamakura.matchType}` : "not found (correct)"}`);
+  results.push(check("MT-7: Kamakura not in result at >= 0.85 (home base excluded)", !kamakura || kamakura.confidence < 0.85, notes7));
 
   // ── Output ──────────────────────────────────────────────────────────────────
   const passCount = results.filter((r) => r.pass).length;

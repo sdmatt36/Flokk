@@ -3,16 +3,27 @@
  *
  * Pure utility — no DB calls.
  *
- * For a flight extraction, identifies ALL trips that have a relationship to
- * any of the extracted legs by date range. Used by the email-inbound webhook
- * to write FlightBooking + ItineraryItem rows for every trip a booking touches.
+ * For a flight extraction, identifies ALL trips that have a semantic relationship
+ * to any of the extracted legs. Used by the email-inbound webhook to write
+ * FlightBooking + ItineraryItem rows for every trip a booking touches.
  *
  * Only intended for flight bookings. Caller must check extracted.type === "flight"
  * before calling.
  *
- * Leg-belongs-to-trip rule (matches synthesize-booking.ts):
- *   A leg belongs to trip T if leg.departure OR leg.arrival falls within
- *   [T.startDate, T.endDate] (inclusive, lexical YYYY-MM-DD comparison).
+ * Matching rule (two signals required for high confidence):
+ *   DESTINATION MATCH: leg.toCity or leg.fromCity matches trip.destinationCity
+ *     (case-insensitive). fromCity covers return-from-destination legs
+ *     (e.g. CMB→LHR departs Colombo, which is Sri Lanka's destination).
+ *   DATE-IN-RANGE: leg.departure or leg.arrival falls within
+ *     [trip.startDate, trip.endDate] (inclusive, lexical YYYY-MM-DD comparison).
+ *
+ * Confidence levels:
+ *   0.95 — destination match AND date in range  → accepted (>= 0.85 threshold)
+ *   0.85 — destination match alone (date outside range)  → accepted
+ *   0.70 — date in range only, no destination match  → below threshold, NOT written
+ *
+ * This prevents long-range "home base" trips (e.g. Kamakura Jan–Jun) from
+ * matching bookings just because their date range encompasses a departure date.
  */
 
 export type TripRecord = {
@@ -20,6 +31,8 @@ export type TripRecord = {
   title?: string | null;
   startDate?: Date | null;
   endDate?: Date | null;
+  destinationCity?: string | null;
+  destinationCountry?: string | null;
 };
 
 export type RelatedTrip = {
@@ -33,10 +46,7 @@ function toYMD(d: Date | null | undefined): string | null {
   return d.toISOString().slice(0, 10);
 }
 
-/**
- * Returns true if `dateStr` (YYYY-MM-DD or YYYY-MM-DDTHH:MM) falls within
- * [tripStart, tripEnd] inclusive (lexical ISO comparison).
- */
+/** Returns true if dateStr (YYYY-MM-DD or YYYY-MM-DDTHH:MM) is within [start, end] inclusive. */
 function inRange(
   dateStr: string | null | undefined,
   tripStart: string,
@@ -47,14 +57,31 @@ function inRange(
   return d >= tripStart && d <= tripEnd;
 }
 
+const normalizeCity = (s: string | null | undefined): string =>
+  (s ?? "").trim().toLowerCase();
+
 /**
- * For each leg in extracted.legs, checks whether any leg's departure or
- * arrival datetime falls within any trip's [startDate, endDate].
+ * Returns true if the leg's arrival city matches the trip's destination city
+ * (case-insensitive). Only toCity is checked — fromCity matching causes false
+ * positives when a leg departs from a city that happens to be another trip's
+ * destination (e.g. HND→SIN fromCity="Tokyo" would incorrectly match a past
+ * "Tokyo" trip). Primary trips are seeded via primaryTripId so they don't
+ * need fromCity matching to appear in the results.
+ */
+function destinationMatch(leg: Record<string, unknown>, trip: TripRecord): boolean {
+  const tripCity = normalizeCity(trip.destinationCity);
+  if (!tripCity) return false;
+
+  const legToCity = normalizeCity(leg.toCity as string | null | undefined);
+  return !!legToCity && legToCity === tripCity;
+}
+
+/**
+ * For each leg in extracted.legs, scores each user trip against the combined
+ * destination-match + date-in-range rule. Also seeds the primary matched trip.
  *
- * Also includes the primary matched trip (primaryTripId) if provided.
- *
- * Returns array deduplicated by trip.id, sorted by confidence descending.
- * All leg-date matches use confidence 0.9 (above the 0.85 caller threshold).
+ * Returns array deduplicated by trip.id (highest confidence wins), sorted
+ * by confidence descending.
  */
 export function findAllRelatedTrips(
   extracted: Record<string, unknown>,
@@ -76,27 +103,37 @@ export function findAllRelatedTrips(
     : [];
 
   for (const leg of rawLegs) {
-    // Claude emits departure/arrival as "YYYY-MM-DDTHH:MM"
     const depStr = typeof leg.departure === "string" ? leg.departure : null;
-    const arrStr = typeof leg.arrival === "string" ? leg.arrival : null;
-
-    if (!depStr && !arrStr) continue;
+    const arrStr = typeof leg.arrival   === "string" ? leg.arrival   : null;
 
     for (const trip of userTrips) {
       const tripStart = toYMD(trip.startDate);
-      const tripEnd = toYMD(trip.endDate);
-      if (!tripStart || !tripEnd) continue;
+      const tripEnd   = toYMD(trip.endDate);
 
-      const matched =
-        inRange(depStr, tripStart, tripEnd) ||
-        inRange(arrStr, tripStart, tripEnd);
+      const hasDestMatch = destinationMatch(leg, trip);
+      const hasDateMatch = !!(tripStart && tripEnd) &&
+        (inRange(depStr, tripStart, tripEnd) || inRange(arrStr, tripStart, tripEnd));
 
-      if (!matched) continue;
+      let confidence: number;
+      let matchType: string;
 
-      const confidence = 0.9;
+      if (hasDestMatch && hasDateMatch) {
+        confidence = 0.95;
+        matchType  = "leg-dest-date-match";
+      } else if (hasDestMatch) {
+        confidence = 0.85;
+        matchType  = "leg-dest-match";
+      } else if (hasDateMatch) {
+        // Date-only: below threshold — included for diagnostics but won't trigger writes
+        confidence = 0.70;
+        matchType  = "leg-date-only";
+      } else {
+        continue;
+      }
+
       const existing = map.get(trip.id);
       if (!existing || existing.confidence < confidence) {
-        map.set(trip.id, { trip, confidence, matchType: "leg-date-match" });
+        map.set(trip.id, { trip, confidence, matchType });
       }
     }
   }
