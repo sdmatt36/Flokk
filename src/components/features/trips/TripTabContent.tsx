@@ -2850,6 +2850,21 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                   !(it.itemType === "itinerary" && it.itineraryItem?.type === "LODGING")
                                 );
                                 if (!firstWithCoords?.lat || !firstWithCoords?.lng) return null;
+
+                                // Suppress "From [hotel] · Directions →" when the first item of the day is a FLIGHT
+                                // departing from a different city than the trip's destination. Prevents nonsensical
+                                // directions like "From London hotel → HND→SIN" when the user is in Tokyo, or
+                                // "From London hotel → CMB→LHR" when the user is in Colombo. Only show when the
+                                // flight departs from the same city (local airport transfer, e.g. hotel → KIX).
+                                const firstDayItItem = firstWithCoords.itineraryItem;
+                                if (firstDayItItem?.type === "FLIGHT") {
+                                  const flightFromCity = (firstDayItItem.fromCity ?? "").trim().toLowerCase();
+                                  const tripDestCity = (destinationCity ?? "").trim().toLowerCase();
+                                  if (!flightFromCity || !tripDestCity || flightFromCity !== tripDestCity) {
+                                    return null;
+                                  }
+                                }
+
                                 const hotelName = activeLodging.title.replace(/^check-in:\s*/i, "");
                                 const directionsUrl = getDirectionsUrl(activeLodging.latitude!, activeLodging.longitude!, firstWithCoords.lat, firstWithCoords.lng);
                                 return (
