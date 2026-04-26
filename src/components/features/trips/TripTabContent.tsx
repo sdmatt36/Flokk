@@ -6043,6 +6043,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [activityDefaultDate, setActivityDefaultDate] = useState<string | undefined>(undefined);
   const [editingFlight, setEditingFlight] = useState<Flight | null>(null);
   const [editingFlightVaultDocId, setEditingFlightVaultDocId] = useState<string | null>(null);
+  const [editingFlightBookingId, setEditingFlightBookingId] = useState<string | null>(null);
   const [editingVaultDoc, setEditingVaultDoc] = useState<{ id: string; label: string; content: Record<string, unknown> } | null>(null);
   const [vaultDocSaving, setVaultDocSaving] = useState(false);
   const [editActivityName, setEditActivityName] = useState<string | null>(null);
@@ -6455,6 +6456,23 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         />
       )}
 
+      {editingFlightBookingId && tripId && (
+        <EditFlightModal
+          flightBookingId={editingFlightBookingId}
+          tripId={tripId}
+          onClose={() => { setEditingFlightBookingId(null); setEditingFlightVaultDocId(null); }}
+          onBookingSaved={() => {
+            // Re-fetch vault documents so the card reflects updated leg data
+            fetch(`/api/trips/${tripId}/vault/documents`)
+              .then(r => r.json())
+              .then((docs: VaultDocument[]) => setDocuments(docs))
+              .catch(() => {});
+            setEditingFlightBookingId(null);
+            setEditingFlightVaultDocId(null);
+          }}
+        />
+      )}
+
       {(showActivityModal || editingActivity) && tripId && (
         <AddActivityModal
           tripId={tripId}
@@ -6675,12 +6693,10 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                   let booking: Record<string, unknown> = {};
                   try { booking = JSON.parse(d.content ?? "{}"); } catch { /* ignore */ }
                   const typeLabel = (booking.type as string | undefined)?.toUpperCase() ?? "BOOKING";
+                  const isFlightType = (booking.type as string) === "flight";
+                  const flightLegs = isFlightType && Array.isArray(booking.legs) ? (booking.legs as Array<Record<string, unknown>>) : [];
+                  const isFlightWithLegs = flightLegs.length > 0;
                   const rows: { label: string; value: string }[] = [];
-                  if (booking.fromCity && booking.toCity) {
-                    rows.push({ label: "Route", value: `${booking.fromCity} → ${booking.toCity}` });
-                  } else if (booking.fromAirport && booking.toAirport) {
-                    rows.push({ label: "Route", value: `${booking.fromAirport} → ${booking.toAirport}` });
-                  }
                   function fmtVaultDate(d: unknown): string {
                     if (!d) return "";
                     try {
@@ -6688,23 +6704,36 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                       return dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
                     } catch { return String(d); }
                   }
+                  if (!isFlightWithLegs) {
+                    if (booking.fromCity && booking.toCity) {
+                      rows.push({ label: "Route", value: `${booking.fromCity} → ${booking.toCity}` });
+                    } else if (booking.fromAirport && booking.toAirport) {
+                      rows.push({ label: "Route", value: `${booking.fromAirport} → ${booking.toAirport}` });
+                    }
+                  }
                   if (booking.activityName) rows.push({ label: "Activity", value: String(booking.activityName) });
-                  if (booking.departureDate) rows.push({ label: "Departure", value: `${fmtVaultDate(booking.departureDate)}${booking.departureTime ? ` at ${booking.departureTime}` : ""}` });
-                  if (booking.arrivalDate) rows.push({ label: "Arrival", value: `${fmtVaultDate(booking.arrivalDate)}${booking.arrivalTime ? ` at ${booking.arrivalTime}` : ""}` });
+                  if (!isFlightWithLegs && booking.departureDate) rows.push({ label: "Departure", value: `${fmtVaultDate(booking.departureDate)}${booking.departureTime ? ` at ${booking.departureTime}` : ""}` });
+                  if (!isFlightWithLegs && booking.arrivalDate) rows.push({ label: "Arrival", value: `${fmtVaultDate(booking.arrivalDate)}${booking.arrivalTime ? ` at ${booking.arrivalTime}` : ""}` });
                   if (booking.checkIn) rows.push({ label: "Check-in", value: fmtVaultDate(booking.checkIn) });
                   if (booking.checkOut) rows.push({ label: "Check-out", value: fmtVaultDate(booking.checkOut) });
                   if (booking.address) rows.push({ label: "Address", value: String(booking.address) });
+                  if (isFlightWithLegs && booking.airline) rows.push({ label: "Airline", value: String(booking.airline) });
+                  if (isFlightWithLegs && booking.cabinClass) rows.push({ label: "Cabin", value: String(booking.cabinClass) });
                   if (booking.confirmationCode) rows.push({ label: "Confirmation", value: String(booking.confirmationCode) });
                   if (booking.totalCost) rows.push({ label: "Total", value: `${booking.totalCost}${booking.currency ? ` ${booking.currency}` : ""}` });
                   if (booking.contactPhone) rows.push({ label: "Phone", value: String(booking.contactPhone) });
                   if (Array.isArray(booking.guestNames) && booking.guestNames.length > 0) rows.push({ label: "Guests", value: (booking.guestNames as string[]).join(", ") });
-                  // For flight-type docs, find matching Flight record
-                  const matchedFlight = (booking.type as string) === "flight"
+                  // For flight-type docs, find matching Flight record (legacy path)
+                  const matchedFlight = isFlightType && !isFlightWithLegs
                     ? flights.find(f => f.flightNumber === (booking.flightNumber as string))
                     : null;
 
                   function handleVaultEdit() {
-                    if (matchedFlight) {
+                    const fbId = booking._flightBookingId as string | null | undefined;
+                    if (isFlightType && fbId) {
+                      setEditingFlightBookingId(fbId);
+                      setEditingFlightVaultDocId(d.id);
+                    } else if (matchedFlight) {
                       setEditingFlightVaultDocId(d.id);
                       setEditingFlight(matchedFlight);
                     } else {
@@ -6775,8 +6804,10 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
                         <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", color: "#C4664A", backgroundColor: "rgba(196,102,74,0.08)", borderRadius: "999px", padding: "2px 8px" }}>{typeLabel}</span>
                         <span style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a" }}>
-                          {(booking.type as string) === "flight"
-                            ? (booking.fromAirport && booking.toAirport)
+                          {isFlightType
+                            ? isFlightWithLegs
+                              ? [...flightLegs.map(l => String(l.from ?? "")), String(flightLegs[flightLegs.length - 1].to ?? "")].filter(Boolean).join(" → ") || "Flight details"
+                              : (booking.fromAirport && booking.toAirport)
                               ? `${booking.fromAirport} → ${booking.toAirport}`
                               : (booking.fromCity && booking.toCity)
                               ? `${booking.fromCity} → ${booking.toCity}`
@@ -6816,7 +6847,22 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                           ))}
                         </div>
                       )}
-                      {(booking.type as string) === "flight" && (
+                      {isFlightWithLegs && (
+                        <div style={{ marginTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                          {flightLegs.map((leg, legIdx) => (
+                            <div key={legIdx} style={{ borderLeft: "2px solid rgba(196,102,74,0.35)", paddingLeft: "10px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                <span style={{ fontSize: "13px", fontWeight: 700, color: "#1B3A5C" }}>{String(leg.from ?? "")} → {String(leg.to ?? "")}</span>
+                                <span style={{ fontSize: "11px", color: "#aaa" }}>{String(leg.flightNumber ?? "")}</span>
+                              </div>
+                              <span style={{ fontSize: "12px", color: "#717171" }}>
+                                {fmtVaultDate(leg.departureDate)}{leg.departureTime ? ` · ${leg.departureTime}` : ""}{leg.arrivalTime ? ` → ${leg.arrivalTime}` : ""}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {isFlightType && !isFlightWithLegs && (
                         <p style={{ fontSize: "11px", color: "#BBBBBB", marginTop: "10px" }}>Re-forward confirmation to update times</p>
                       )}
                       {(booking.type as string) === "lodging" && typeof booking.address === "string" && booking.address && (

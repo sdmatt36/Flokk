@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { AIRLINES } from "@/lib/airlines";
 import { getAirportByCode } from "@/lib/airports";
@@ -27,12 +27,51 @@ type Flight = {
   status?: string;
 };
 
-interface EditFlightModalProps {
+type BookingLeg = {
+  id: string;
+  flightNumber: string;
+  fromAirport: string;
+  fromCity: string;
+  toAirport: string;
+  toCity: string;
+  departureDate: string;
+  departureTime: string;
+  arrivalDate: string | null;
+  arrivalTime: string | null;
+  airline: string;
+};
+
+type FlightBookingFull = {
+  id: string;
+  airline: string | null;
+  cabinClass: string | null;
+  confirmationCode: string | null;
+  flights: BookingLeg[];
+};
+
+// ── Legacy mode (single Flight) ───────────────────────────────────────────────
+
+interface LegacyProps {
   flight: Flight;
   tripId: string;
   onClose: () => void;
   onSaved: (updated: Flight) => void;
+  flightBookingId?: never;
+  onBookingSaved?: never;
 }
+
+// ── Booking mode (multi-leg FlightBooking) ────────────────────────────────────
+
+interface BookingProps {
+  flightBookingId: string;
+  tripId: string;
+  onClose: () => void;
+  onBookingSaved: () => void;
+  flight?: never;
+  onSaved?: never;
+}
+
+type EditFlightModalProps = LegacyProps | BookingProps;
 
 const CABIN_CLASSES = [
   { value: "economy", label: "Economy" },
@@ -48,7 +87,215 @@ const FLIGHT_TYPES = [
   { value: "connection", label: "Connection" },
 ];
 
-export function EditFlightModal({ flight, tripId, onClose, onSaved }: EditFlightModalProps) {
+// ── Booking Mode Component ────────────────────────────────────────────────────
+
+function EditFlightBookingModal({ flightBookingId, tripId, onClose, onBookingSaved }: BookingProps) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const [booking, setBooking] = useState<FlightBookingFull | null>(null);
+  const [airline, setAirline] = useState("");
+  const [cabinClass, setCabinClass] = useState("economy");
+  const [confirmationCode, setConfirmationCode] = useState("");
+  const [legEdits, setLegEdits] = useState<Array<{
+    id: string;
+    flightNumber: string;
+    fromAirport: string;
+    toAirport: string;
+    departureDate: string;
+    departureTime: string;
+    arrivalDate: string;
+    arrivalTime: string;
+  }>>([]);
+
+  useEffect(() => {
+    fetch(`/api/trips/${tripId}/flight-bookings/${flightBookingId}`)
+      .then(r => r.json())
+      .then((data: FlightBookingFull) => {
+        setBooking(data);
+        setAirline(data.airline ?? "");
+        setCabinClass(data.cabinClass ?? "economy");
+        setConfirmationCode(data.confirmationCode ?? "");
+        setLegEdits(data.flights.map(f => ({
+          id: f.id,
+          flightNumber: f.flightNumber,
+          fromAirport: f.fromAirport,
+          toAirport: f.toAirport,
+          departureDate: f.departureDate,
+          departureTime: f.departureTime,
+          arrivalDate: f.arrivalDate ?? "",
+          arrivalTime: f.arrivalTime ?? "",
+        })));
+      })
+      .catch(() => setError("Could not load booking details."))
+      .finally(() => setLoading(false));
+  }, [flightBookingId, tripId]);
+
+  function updateLeg(index: number, field: string, value: string) {
+    setLegEdits(prev => prev.map((leg, i) => i === index ? { ...leg, [field]: value } : leg));
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/trips/${tripId}/flight-bookings/${flightBookingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          airline: airline || null,
+          cabinClass,
+          confirmationCode: confirmationCode || null,
+          legs: legEdits.map(leg => {
+            const fromCity = getAirportByCode(leg.fromAirport)?.city ?? leg.fromAirport;
+            const toCity = getAirportByCode(leg.toAirport)?.city ?? leg.toAirport;
+            return {
+              id: leg.id,
+              flightNumber: leg.flightNumber,
+              fromAirport: leg.fromAirport,
+              fromCity,
+              toAirport: leg.toAirport,
+              toCity,
+              departureDate: leg.departureDate,
+              departureTime: leg.departureTime,
+              arrivalDate: leg.arrivalDate || null,
+              arrivalTime: leg.arrivalTime || null,
+            };
+          }),
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to update booking");
+      onBookingSaved();
+      onClose();
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const labelStyle = { fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase" as const, letterSpacing: "0.07em", marginBottom: "5px", display: "block" };
+  const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", backgroundColor: "#fff", outline: "none", boxSizing: "border-box" as const };
+  const selectStyle = { ...inputStyle, appearance: "none" as const };
+
+  return createPortal(
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "560px", maxHeight: "90vh", overflowY: "auto", padding: "24px 20px 40px", paddingBottom: "max(40px, env(safe-area-inset-bottom))" }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+          <p style={{ fontSize: "17px", fontWeight: 800, color: "#1a1a1a" }}>Edit Flight Booking</p>
+          <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#999", padding: "4px", lineHeight: 1 }}>×</button>
+        </div>
+
+        {loading && <p style={{ fontSize: "14px", color: "#717171", textAlign: "center", padding: "32px 0" }}>Loading…</p>}
+
+        {!loading && booking && (
+          <>
+            {/* Booking-level fields */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "14px" }}>
+              <div>
+                <label style={labelStyle}>Airline</label>
+                <select value={airline} onChange={e => setAirline(e.target.value)} style={selectStyle}>
+                  <option value="">Select airline</option>
+                  {AIRLINES.map(a => <option key={a.code} value={a.name}>{a.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Cabin Class</label>
+                <select value={cabinClass} onChange={e => setCabinClass(e.target.value)} style={selectStyle}>
+                  {CABIN_CLASSES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "20px" }}>
+              <label style={labelStyle}>Confirmation Code</label>
+              <input type="text" value={confirmationCode} onChange={e => setConfirmationCode(e.target.value.toUpperCase())} style={inputStyle} />
+            </div>
+
+            {/* Per-leg editing */}
+            <p style={{ fontSize: "12px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "10px" }}>
+              Flight Legs
+            </p>
+            {legEdits.map((leg, i) => (
+              <div key={leg.id} style={{ border: "1.5px solid #E5E5E5", borderRadius: "12px", padding: "14px", marginBottom: "12px" }}>
+                <p style={{ fontSize: "13px", fontWeight: 700, color: "#1B3A5C", marginBottom: "10px" }}>
+                  Leg {i + 1}: {leg.fromAirport} → {leg.toAirport}
+                </p>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
+                  <div>
+                    <label style={labelStyle}>From</label>
+                    <AirportAutocomplete
+                      value={leg.fromAirport}
+                      onChange={v => updateLeg(i, "fromAirport", v)}
+                      ariaLabel="From airport"
+                      placeholder="From"
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>To</label>
+                    <AirportAutocomplete
+                      value={leg.toAirport}
+                      onChange={v => updateLeg(i, "toAirport", v)}
+                      ariaLabel="To airport"
+                      placeholder="To"
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
+                  <div>
+                    <label style={labelStyle}>Flight #</label>
+                    <input type="text" value={leg.flightNumber} onChange={e => updateLeg(i, "flightNumber", e.target.value.toUpperCase())} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Departure Date</label>
+                    <input type="date" value={leg.departureDate} onChange={e => updateLeg(i, "departureDate", e.target.value)} style={inputStyle} />
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                  <div>
+                    <label style={labelStyle}>Dep Time</label>
+                    <input type="time" value={leg.departureTime} onChange={e => updateLeg(i, "departureTime", e.target.value)} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Arr Time</label>
+                    <input type="time" value={leg.arrivalTime} onChange={e => updateLeg(i, "arrivalTime", e.target.value)} style={inputStyle} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {error && <p style={{ fontSize: "13px", color: "#e53e3e", marginBottom: "12px" }}>{error}</p>}
+
+        {!loading && (
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{ width: "100%", padding: "14px", backgroundColor: saving ? "#ccc" : "#1B3A5C", color: "#fff", border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: 700, cursor: saving ? "default" : "pointer", fontFamily: "inherit" }}
+          >
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ── Legacy Mode Component ─────────────────────────────────────────────────────
+
+function EditFlightLegacyModal({ flight, tripId, onClose, onSaved }: LegacyProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -261,5 +508,28 @@ export function EditFlightModal({ flight, tripId, onClose, onSaved }: EditFlight
       </div>
     </div>,
     document.body
+  );
+}
+
+// ── Public export — routes to correct mode ────────────────────────────────────
+
+export function EditFlightModal(props: EditFlightModalProps) {
+  if (props.flightBookingId) {
+    return (
+      <EditFlightBookingModal
+        flightBookingId={props.flightBookingId}
+        tripId={props.tripId}
+        onClose={props.onClose}
+        onBookingSaved={props.onBookingSaved!}
+      />
+    );
+  }
+  return (
+    <EditFlightLegacyModal
+      flight={props.flight!}
+      tripId={props.tripId}
+      onClose={props.onClose}
+      onSaved={props.onSaved!}
+    />
   );
 }

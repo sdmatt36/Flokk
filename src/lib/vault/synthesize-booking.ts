@@ -10,11 +10,28 @@
  * in typed models (totalCost, currency, guestNames, bookingUrl).
  *
  * Returns the same { id, label, type, url, content } shape the frontend
- * already consumes — frontend render code is unchanged.
+ * already consumes — frontend render code for non-flight types is unchanged.
  *
  * Manual activities get synthetic id "manual-activity:{id}". PATCH and DELETE
  * handlers in vault/documents/[documentId]/route.ts detect this prefix and
  * route to ManualActivity directly.
+ *
+ * Phase Vault Multi-Leg additions:
+ * - synthesizeFlightVaultDocument now accepts tripStartDate + tripEndDate.
+ *   Only Flight legs whose departureDate or arrivalDate falls within [startDate,
+ *   endDate] are included in the synthesized card. This lets the same FHMI74
+ *   FlightBooking show different leg projections on the Sri Lanka vs London Vault.
+ * - `_flightBookingId` is included in synthesized flight content so the frontend
+ *   edit handler can open the booking-aware EditFlightModal.
+ *
+ * Leg-belongs-to-trip rule:
+ *   A Flight leg belongs to a trip T if:
+ *     leg.departureDate >= T.startDate AND leg.departureDate <= T.endDate
+ *     OR
+ *     leg.arrivalDate >= T.startDate AND leg.arrivalDate <= T.endDate
+ *   Dates compared as YYYY-MM-DD strings (lexical ISO comparison is correct for
+ *   full date strings). If no legs survive the filter, all legs are included as
+ *   a defensive fallback.
  */
 
 import type {
@@ -50,18 +67,37 @@ function parseContent(raw: string | null | undefined): RawContent {
 export function synthesizeFlightVaultDocument(opts: {
   tripDocument: TripDocument;
   flightBooking?: (FlightBooking & { flights: Flight[] }) | null;
+  tripStartDate?: string | null;
+  tripEndDate?: string | null;
 }): VaultDocument {
-  const { tripDocument, flightBooking } = opts;
+  const { tripDocument, flightBooking, tripStartDate, tripEndDate } = opts;
   const base = parseContent(tripDocument.content);
 
   let merged: RawContent = { ...base };
 
   if (flightBooking && flightBooking.flights.length > 0) {
-    const sorted = [...flightBooking.flights].sort((a, b) => {
+    // Sort all legs chronologically
+    let sorted = [...flightBooking.flights].sort((a, b) => {
       const ad = `${a.departureDate}T${a.departureTime || "00:00"}`;
       const bd = `${b.departureDate}T${b.departureTime || "00:00"}`;
       return ad.localeCompare(bd);
     });
+
+    // Partition: keep only legs whose dep or arr date falls within this trip's date range.
+    // Fallback to all legs if nothing survives (e.g. trip dates not available).
+    if (tripStartDate && tripEndDate) {
+      const filtered = sorted.filter((f) => {
+        const dep = f.departureDate; // YYYY-MM-DD
+        const arr = f.arrivalDate;   // YYYY-MM-DD | null
+        return (
+          (dep >= tripStartDate && dep <= tripEndDate) ||
+          (!!arr && arr >= tripStartDate && arr <= tripEndDate)
+        );
+      });
+      if (filtered.length > 0) sorted = filtered;
+      // else: defensive fallback — show all legs rather than empty card
+    }
+
     const first = sorted[0];
     const last = sorted[sorted.length - 1];
 
@@ -99,9 +135,11 @@ export function synthesizeFlightVaultDocument(opts: {
       arrivalDate: last.arrivalDate ?? null,
       arrivalTime: last.arrivalTime ?? null,
       // flightNumber from first leg — frontend uses this to match Flight record
-      // for the EditFlightModal via flights.find(f => f.flightNumber === booking.flightNumber)
+      // for the legacy EditFlightModal path (flights.find by flightNumber)
       flightNumber: first.flightNumber,
       legs,
+      // Used by the booking-aware EditFlightModal path (Phase Vault Multi-Leg)
+      _flightBookingId: flightBooking.id,
     };
   }
 
@@ -223,7 +261,20 @@ export async function synthesizeVaultDocuments(tripId: string, prisma?: any): Pr
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db: any = prisma ?? defaultDb;
 
-  // 1. Fetch all TripDocument rows for this trip (preserve existing sort order)
+  // 1. Fetch trip date range for leg partitioning (flight synthesizer only)
+  const trip = (await db.trip.findUnique({
+    where: { id: tripId },
+    select: { startDate: true, endDate: true },
+  })) as { startDate: Date | null; endDate: Date | null } | null;
+
+  const tripStartDate = trip?.startDate
+    ? new Date(trip.startDate).toISOString().slice(0, 10)
+    : null;
+  const tripEndDate = trip?.endDate
+    ? new Date(trip.endDate).toISOString().slice(0, 10)
+    : null;
+
+  // 2. Fetch all TripDocument rows for this trip (preserve existing sort order)
   const tripDocs = (await db.tripDocument.findMany({
     where: { tripId },
     orderBy: { createdAt: "asc" },
@@ -259,7 +310,14 @@ export async function synthesizeVaultDocuments(tripId: string, prisma?: any): Pr
             include: { flights: true },
           })) as (FlightBooking & { flights: Flight[] }) | null)
         : null;
-      results.push(synthesizeFlightVaultDocument({ tripDocument: doc, flightBooking }));
+      results.push(
+        synthesizeFlightVaultDocument({
+          tripDocument: doc,
+          flightBooking,
+          tripStartDate,
+          tripEndDate,
+        })
+      );
 
     } else if (bookingType === "hotel") {
       const items = confCode
@@ -297,7 +355,7 @@ export async function synthesizeVaultDocuments(tripId: string, prisma?: any): Pr
     }
   }
 
-  // 2. Append ManualActivity rows as synthetic booking docs
+  // 3. Append ManualActivity rows as synthetic booking docs
   // De-dup: skip if a TripDocument-sourced booking shares the same confirmationCode
   const manualActivities = (await db.manualActivity.findMany({
     where: { tripId, deletedAt: null },
@@ -310,7 +368,7 @@ export async function synthesizeVaultDocuments(tripId: string, prisma?: any): Pr
   }
 
   console.log(
-    `[vault-synthesize] tripId=${tripId} tripDocs=${tripDocs.length} manualActivities=${manualActivities.length} total=${results.length}`
+    `[vault-synthesize] tripId=${tripId} tripDocs=${tripDocs.length} manualActivities=${manualActivities.length} total=${results.length} tripRange=${tripStartDate ?? "?"}–${tripEndDate ?? "?"}`
   );
 
   return results;

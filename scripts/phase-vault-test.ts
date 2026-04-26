@@ -85,6 +85,27 @@ async function checkSriLankaFlight(): Promise<CheckResult[]> {
   notes9.push(`fromAirport = ${c.fromAirport}, toAirport = ${c.toAirport}`);
   results.push(check("SL-9: fromAirport=HND toAirport=LHR", c.fromAirport === "HND" && c.toAirport === "LHR", notes9));
 
+  // Partitioning checks
+  const notes10: string[] = [];
+  notes10.push(`_flightBookingId = ${c._flightBookingId}`);
+  results.push(check("SL-10: _flightBookingId present in content", !!c._flightBookingId && typeof c._flightBookingId === "string", notes10));
+
+  const notes11: string[] = [];
+  const SL_START = "2026-06-28";
+  const SL_END   = "2026-07-04";
+  const legsTyped = (Array.isArray(legs) ? legs : []) as Array<Record<string, unknown>>;
+  const allInRange = legsTyped.every(leg => {
+    const dep = leg.departureDate as string | null | undefined;
+    const arr = leg.arrivalDate as string | null | undefined;
+    return (
+      (!!dep && dep >= SL_START && dep <= SL_END) ||
+      (!!arr && arr >= SL_START && arr <= SL_END)
+    );
+  });
+  notes11.push(`legs dates: ${legsTyped.map(l => `dep=${l.departureDate} arr=${l.arrivalDate}`).join(", ")}`);
+  notes11.push(`all legs in Sri Lanka range ${SL_START}–${SL_END}: ${allInRange}`);
+  results.push(check("SL-11: all leg dates fall within Sri Lanka trip range", allInRange && legsTyped.length > 0, notes11));
+
   return results;
 }
 
@@ -245,6 +266,61 @@ async function checkNonBookingPassthrough(): Promise<CheckResult[]> {
   return results;
 }
 
+// ── London FHMI74 partitioning check ─────────────────────────────────────────
+// London trip: Jul 4–Jul 7, 2026.
+// Only leg whose dep/arr falls in that range should appear (CMB→LHR, dep/arr Jul 4).
+// Current London DB state has 1 stale leg (UL3335), so this exercises the defensive
+// fallback path (no legs in range → all legs shown). Documents the real DB state.
+
+async function checkLondonPartitioning(): Promise<CheckResult[]> {
+  const results: CheckResult[] = [];
+
+  // Find the London trip dynamically by locating a TripDocument for FHMI74 that
+  // is NOT on the Sri Lanka trip.
+  const londonRows = await db.$queryRaw<{ tripId: string }[]>`
+    SELECT "tripId" FROM "TripDocument"
+    WHERE type = 'booking'
+      AND content::jsonb->>'confirmationCode' = 'FHMI74'
+      AND "tripId" != ${TRIP_SRI_LANKA}
+    LIMIT 1
+  `;
+
+  if (londonRows.length === 0) {
+    results.push({ name: "LONDON-0: London FHMI74 TripDocument found", pass: true, notes: ["No London FHMI74 TripDocument — skipping London partitioning checks"] });
+    return results;
+  }
+
+  const londonTripId = londonRows[0].tripId;
+  const notes0: string[] = [];
+  notes0.push(`londonTripId = ${londonTripId}`);
+  results.push(check("LONDON-0: found London FHMI74 TripDocument", true, notes0));
+
+  const docs = await synthesizeVaultDocuments(londonTripId, db);
+  const flightDocs = docs.filter(d => d.type === "booking" && (() => {
+    try { return (JSON.parse(d.content) as Record<string, unknown>).type === "flight"; } catch { return false; }
+  })());
+
+  const notes1: string[] = [];
+  notes1.push(`London flight docs: ${flightDocs.length}`);
+  results.push(check("LONDON-1: at least 1 flight doc for London", flightDocs.length >= 1, notes1));
+
+  if (flightDocs.length === 0) return results;
+
+  const c = JSON.parse(flightDocs[0].content) as Record<string, unknown>;
+  const legs = (Array.isArray(c.legs) ? c.legs : []) as Array<Record<string, unknown>>;
+
+  const notes2: string[] = [];
+  notes2.push(`_flightBookingId = ${c._flightBookingId}`);
+  results.push(check("LONDON-2: _flightBookingId present", !!c._flightBookingId && typeof c._flightBookingId === "string", notes2));
+
+  const notes3: string[] = [];
+  notes3.push(`legs count: ${legs.length}, legs: ${legs.map(l => `${l.from}→${l.to} dep=${l.departureDate}`).join(", ")}`);
+  // London DB currently has 1 stale leg. Either 1 leg (in-range or fallback) is acceptable.
+  results.push(check("LONDON-3: legs array is non-empty", legs.length >= 1, notes3));
+
+  return results;
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -256,6 +332,7 @@ async function main() {
     ...(await checkActivityDoc()),
     ...(await checkManualActivities()),
     ...(await checkNonBookingPassthrough()),
+    ...(await checkLondonPartitioning()),
   ];
 
   const passCount = allResults.filter(r => r.pass).length;

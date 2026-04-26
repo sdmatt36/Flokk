@@ -1,7 +1,46 @@
 # Bookings Full Audit
-**Version:** 2026-04-26  
+**Version:** 2026-04-26 (updated Phase Vault Multi-Leg)
 **Supersedes:** docs/FLIGHT_SCHEMA_AUDIT.md  
 **Status:** Source of truth for booking architecture, data flow, and known gaps.
+
+---
+
+## Phase Vault Multi-Leg (shipped 2026-04-26)
+
+### Leg partitioning rule
+
+When synthesizing a flight Vault card, the orchestrator queries `Trip.startDate` / `Trip.endDate` and passes them (as `YYYY-MM-DD` strings) to `synthesizeFlightVaultDocument`. The flight synthesizer filters `FlightBooking.flights` to legs that belong to this trip:
+
+```
+leg belongs if:
+  (leg.departureDate >= tripStartDate AND leg.departureDate <= tripEndDate)
+  OR
+  (leg.arrivalDate >= tripStartDate AND leg.arrivalDate <= tripEndDate)
+```
+
+Dates are compared as YYYY-MM-DD strings (lexical ISO comparison is correct for full date strings).
+
+**Defensive fallback:** if no legs survive the filter (trip dates unavailable or all legs out of range), all legs are included so the card is never empty.
+
+**Example — FHMI74 shared across two trips:**
+- Sri Lanka (Jun 28–Jul 4): legs HND→SIN (Jun 28), SIN→CMB (Jun 28), CMB→LHR (Jul 4) — all 3 in range → card shows 3-leg route HND → SIN → CMB → LHR
+- London (Jul 4–Jul 7): only the CMB→LHR leg (Jul 4) is in range → London card shows 1 leg
+
+### `_flightBookingId` field
+
+`synthesizeFlightVaultDocument` now includes `_flightBookingId: flightBooking.id` in the synthesized content JSON. The frontend `handleVaultEdit` function reads this field and, when present, opens the booking-aware `EditFlightModal` (booking mode) instead of the legacy single-leg modal.
+
+### New API endpoint
+
+`/api/trips/[id]/flight-bookings/[bookingId]` (GET + PATCH) returns and updates a `FlightBooking` with all its `Flight` legs. The PATCH body accepts booking-level fields (`airline`, `cabinClass`, `confirmationCode`) and an optional `legs[]` array for per-leg edits.
+
+### Frontend multi-leg card
+
+The Vault booking card for flight type now:
+- Shows the full multi-stop route in the header: `HND → SIN → CMB → LHR` (built from `booking.legs[]`)
+- Renders a per-leg block below the metadata grid: each leg shows `from → to`, `flightNumber`, departure date/time, arrival time
+- Suppresses redundant Route/Departure/Arrival from the metadata rows when legs are present
+- Adds Airline and Cabin rows (from booking-level fields) when legs are present
 
 ---
 
