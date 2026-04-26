@@ -2,8 +2,6 @@
 // Keys are lowercase substrings; a match is found if the key appears in the item title or vice versa.
 export const VENUE_IMAGES: Record<string, string> = {
   // Tokyo
-  "teamlab borderless":         "https://images.unsplash.com/photo-1554136835-98b2c56c6e20?w=800&q=80",
-  "teamlab":                    "https://images.unsplash.com/photo-1554136835-98b2c56c6e20?w=800&q=80",
   "shibuya crossing":           "https://images.unsplash.com/photo-1542051841857-5f90071e7989?w=800&q=80",
   "shibuya":                    "https://images.unsplash.com/photo-1542051841857-5f90071e7989?w=800&q=80",
   "tokyo skytree":              "https://images.unsplash.com/photo-1490806843957-31f4c9a91c65?w=800&q=80",
@@ -11,13 +9,13 @@ export const VENUE_IMAGES: Record<string, string> = {
   "senso-ji":                   "https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=800&q=80",
   "sensoji":                    "https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=800&q=80",
   "asakusa":                    "https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=800&q=80",
-  "meiji shrine":               "https://images.unsplash.com/photo-1583400421673-32a765f5e0c2?w=800&q=80",
-  "meiji":                      "https://images.unsplash.com/photo-1583400421673-32a765f5e0c2?w=800&q=80",
+  "meiji shrine":               "https://images.unsplash.com/photo-1542931287-023b922fa89b?w=800&q=80",
+  "meiji":                      "https://images.unsplash.com/photo-1542931287-023b922fa89b?w=800&q=80",
   "harajuku":                   "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?w=800&q=80",
   "takeshita":                  "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?w=800&q=80",
   "shinjuku":                   "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&q=80",
   "akihabara":                  "https://images.unsplash.com/photo-1519638831568-d9897f54ed69?w=800&q=80",
-  "tsukiji":                    "https://images.unsplash.com/photo-1601823984263-4b73e74c3fd6?w=800&q=80",
+  "tsukiji":                    "https://images.unsplash.com/photo-1535139262971-c51845709a48?w=800&q=80",
   "ueno":                       "https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=800&q=80",
   "odaiba":                     "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&q=80",
 
@@ -62,18 +60,14 @@ export const VENUE_IMAGES: Record<string, string> = {
   "jemaa el fnaa":              "https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=800&q=80",
   "medina souks":               "https://images.unsplash.com/photo-1548013146-72479768bada?w=800&q=80",
   "souks":                      "https://images.unsplash.com/photo-1548013146-72479768bada?w=800&q=80",
-  "majorelle garden":           "https://images.unsplash.com/photo-1548531853-2ac7d6d0b5af?w=800&q=80",
-  "majorelle":                  "https://images.unsplash.com/photo-1548531853-2ac7d6d0b5af?w=800&q=80",
-  "atlas mountains":            "https://images.unsplash.com/photo-1531176175280-dd4f6b261d60?w=800&q=80",
-  "atlas":                      "https://images.unsplash.com/photo-1531176175280-dd4f6b261d60?w=800&q=80",
   "bahia palace":               "https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=800&q=80",
 
   // Okinawa
-  "shuri castle":               "https://images.unsplash.com/photo-1580640810088-1ac1d5f0ffe2?w=800&q=80",
-  "shuri":                      "https://images.unsplash.com/photo-1580640810088-1ac1d5f0ffe2?w=800&q=80",
+  "shuri castle":               "https://images.unsplash.com/photo-1610641818989-c2051b5e2cfd?w=800&q=80",
+  "shuri":                      "https://images.unsplash.com/photo-1610641818989-c2051b5e2cfd?w=800&q=80",
   "churaumi aquarium":          "https://images.unsplash.com/photo-1571752726703-5e7d1f6a986d?w=800&q=80",
   "churaumi":                   "https://images.unsplash.com/photo-1571752726703-5e7d1f6a986d?w=800&q=80",
-  "katsuren castle":            "https://images.unsplash.com/photo-1580640810088-1ac1d5f0ffe2?w=800&q=80",
+  "katsuren castle":            "https://images.unsplash.com/photo-1610641818989-c2051b5e2cfd?w=800&q=80",
 
   // Thailand
   "wat phra kaew":              "https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=800&q=80",
@@ -124,11 +118,9 @@ export const DESTINATION_IMAGES: Record<string, string> = {
   "tokyo": "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800&q=80",
   "kyoto": "https://images.unsplash.com/photo-1528360983277-13d401cdc186?w=800&q=80",
   "osaka": "https://images.unsplash.com/photo-1590559899731-a382839e5549?w=800&q=80",
-  "okinawa": "https://images.unsplash.com/photo-1580640810088-1ac1d5f0ffe2?w=800&q=80",
-  "naha": "https://images.unsplash.com/photo-1580640810088-1ac1d5f0ffe2?w=800&q=80",
-  "kamakura": "https://images.unsplash.com/photo-1571890246824-795f3f28b4c4?w=800&q=80",
+  "okinawa": "https://images.unsplash.com/photo-1610641818989-c2051b5e2cfd?w=800&q=80",
+  "naha": "https://images.unsplash.com/photo-1610641818989-c2051b5e2cfd?w=800&q=80",
   "hiroshima": "https://images.unsplash.com/photo-1547981609-4b6bfe67ca0b?w=800&q=80",
-  "nara": "https://images.unsplash.com/photo-1590245349325-b90a35b30a9e?w=800&q=80",
   "fukuoka": "https://images.unsplash.com/photo-1607619056574-7b8d3ee536b2?w=800&q=80",
   "sapporo": "https://images.unsplash.com/photo-1578637387939-43c525550085?w=800&q=80",
 
@@ -148,11 +140,10 @@ export const DESTINATION_IMAGES: Record<string, string> = {
   "bali": "https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800&q=80",
   "singapore": "https://images.unsplash.com/photo-1525625293386-3f8f99389edd?w=800&q=80",
   "hong kong": "https://images.unsplash.com/photo-1536599018102-9f803c140fc1?w=800&q=80",
-  "taipei": "https://images.unsplash.com/photo-1570640820741-ebb1b80f92da?w=800&q=80",
   "hanoi": "https://images.unsplash.com/photo-1528127269322-539801943592?w=800&q=80",
   "ho chi minh": "https://images.unsplash.com/photo-1583417319070-4a69db38a482?w=800&q=80",
-  "phnom penh": "https://images.unsplash.com/photo-1508159452718-d22f6734a236?w=800&q=80",
-  "siem reap": "https://images.unsplash.com/photo-1508159452718-d22f6734a236?w=800&q=80",
+  "phnom penh": "https://images.unsplash.com/photo-1563492065599-3520f775eeed?w=800&q=80",
+  "siem reap": "https://images.unsplash.com/photo-1563492065599-3520f775eeed?w=800&q=80",
   "kuala lumpur": "https://images.unsplash.com/photo-1596422846543-75c6fc197f07?w=800&q=80",
 
   // Middle East
@@ -161,8 +152,8 @@ export const DESTINATION_IMAGES: Record<string, string> = {
   "istanbul": "https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?w=800&q=80",
 
   // South Asia
-  "colombo": "https://images.unsplash.com/photo-1567591370078-c3a7f7c91b88?w=800&q=80",
-  "galle": "https://images.unsplash.com/photo-1567591370078-c3a7f7c91b88?w=800&q=80",
+  "colombo": "https://images.unsplash.com/photo-1586500036706-41963de24d8b?w=800&q=80",
+  "galle": "https://images.unsplash.com/photo-1586500036706-41963de24d8b?w=800&q=80",
   "kathmandu": "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=800&q=80",
 
   // Europe
@@ -177,9 +168,8 @@ export const DESTINATION_IMAGES: Record<string, string> = {
   "amsterdam": "https://images.unsplash.com/photo-1534351590666-13e3e96b5017?w=800&q=80",
   "berlin": "https://images.unsplash.com/photo-1560969184-10fe8719e047?w=800&q=80",
   "prague": "https://images.unsplash.com/photo-1541849546-216549ae216d?w=800&q=80",
-  "vienna": "https://images.unsplash.com/photo-1516550893885-985c836c5113?w=800&q=80",
+  "vienna": "https://images.unsplash.com/photo-1516550893923-42d28e5677af?w=800&q=80",
   "zurich": "https://images.unsplash.com/photo-1515488764276-beab7607c1e6?w=800&q=80",
-  "dubrovnik": "https://images.unsplash.com/photo-1555990538-1e05be37f9d8?w=800&q=80",
   "santorini": "https://images.unsplash.com/photo-1530841377377-3ff06c0ca713?w=800&q=80",
   "athens": "https://images.unsplash.com/photo-1555993539-1732b0258235?w=800&q=80",
   "reykjavik": "https://images.unsplash.com/photo-1520769669658-f07657f5a307?w=800&q=80",
@@ -229,7 +219,7 @@ export const DESTINATION_IMAGES: Record<string, string> = {
   "indonesia": "https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800&q=80",
   "korea": "https://images.unsplash.com/photo-1538485399081-7191377e8241?w=800&q=80",
   "south korea": "https://images.unsplash.com/photo-1538485399081-7191377e8241?w=800&q=80",
-  "sri lanka": "https://images.unsplash.com/photo-1567591370078-c3a7f7c91b88?w=800&q=80",
+  "sri lanka": "https://images.unsplash.com/photo-1586500036706-41963de24d8b?w=800&q=80",
   "morocco": "https://images.unsplash.com/photo-1489749798305-4fea3ae63d43?w=800&q=80",
   "italy": "https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=800&q=80",
   "france": "https://images.unsplash.com/photo-1499856871958-5b9627545d1a?w=800&q=80",
@@ -238,7 +228,7 @@ export const DESTINATION_IMAGES: Record<string, string> = {
   "australia": "https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=800&q=80",
   "mexico": "https://images.unsplash.com/photo-1518659526054-190340b32735?w=800&q=80",
   "vietnam": "https://images.unsplash.com/photo-1528127269322-539801943592?w=800&q=80",
-  "cambodia": "https://images.unsplash.com/photo-1508159452718-d22f6734a236?w=800&q=80",
+  "cambodia": "https://images.unsplash.com/photo-1563492065599-3520f775eeed?w=800&q=80",
   "nepal": "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=800&q=80",
   "peru": "https://images.unsplash.com/photo-1526392060635-9d6019884377?w=800&q=80",
   "iceland": "https://images.unsplash.com/photo-1520769669658-f07657f5a307?w=800&q=80",
