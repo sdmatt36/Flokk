@@ -2600,6 +2600,32 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     };
   }
 
+  /**
+   * Computes layover/connection duration between two adjacent flight legs.
+   * Returns formatted string like "3h 30m" or null if data is missing/invalid/> 24h.
+   */
+  function computeLayoverDuration(
+    prevDate: string | null,
+    prevArrivalTime: string | null,
+    nextDate: string | null,
+    nextDepartureTime: string | null,
+  ): string | null {
+    if (!prevArrivalTime || !nextDepartureTime || !prevDate || !nextDate) return null;
+    const [prevH, prevM] = prevArrivalTime.split(":").map(Number);
+    const [nextH, nextM] = nextDepartureTime.split(":").map(Number);
+    if ([prevH, prevM, nextH, nextM].some(isNaN)) return null;
+    const prevTotalMin = prevH * 60 + prevM;
+    const nextTotalMin = nextH * 60 + nextM;
+    const dayDiff = Math.round((new Date(nextDate).getTime() - new Date(prevDate).getTime()) / (1000 * 60 * 60 * 24));
+    const diffMin = nextTotalMin + dayDiff * 1440 - prevTotalMin;
+    if (diffMin < 0 || diffMin > 24 * 60) return null;
+    const hours = Math.floor(diffMin / 60);
+    const mins = Math.round(diffMin % 60);
+    if (hours === 0) return `${mins}m`;
+    if (mins === 0) return `${hours}h`;
+    return `${hours}h ${mins}m`;
+  }
+
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [leftHeight, setLeftHeight] = useState<number | null>(null);
   const leftPanelRef = useRef<HTMLDivElement>(null);
@@ -3196,7 +3222,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                     {bookedBadge}
                                                     {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {it.confirmationCode}</span>}
                                                     {paxLabel && <span style={{ fontSize: "11px", color: "#999" }}>{paxLabel}</span>}
-                                                    <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
+                                                    <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#e53e3e", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                                   </div>
                                                 </div>
                                                 <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
@@ -3320,6 +3346,31 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 </div>,
                                 prevHasCoords && nextHasCoords ? (
                                   (() => {
+                                    const prevIsFlightType = prevIt?.type === "FLIGHT";
+                                    const nextIsFlightType = nextItItem?.type === "FLIGHT";
+
+                                    // Between two adjacent flight legs: show layover/connection instead of drive/walk
+                                    if (prevIsFlightType && nextIsFlightType) {
+                                      const sameBooking = !!prevIt?.confirmationCode && prevIt.confirmationCode === nextItItem?.confirmationCode;
+                                      const layoverLabel = sameBooking ? "Layover" : "Connection";
+                                      const layoverDuration = computeLayoverDuration(
+                                        prevIt?.scheduledDate ?? null,
+                                        prevIt?.arrivalTime ?? null,
+                                        nextItItem?.scheduledDate ?? null,
+                                        nextItItem?.departureTime ?? null,
+                                      );
+                                      if (!layoverDuration) return null;
+                                      return (
+                                        <div key={`transit_${idx}`} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "2px 28px 6px", marginBottom: "2px" }}>
+                                          <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(0,0,0,0.06)" }} />
+                                          <span style={{ fontSize: "11px", color: "#888", whiteSpace: "nowrap" }}>
+                                            {layoverLabel} · {layoverDuration}
+                                          </span>
+                                          <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(0,0,0,0.06)" }} />
+                                        </div>
+                                      );
+                                    }
+
                                     const transit = computeTransit(fromCoords!.lat, fromCoords!.lng, toCoords!.lat, toCoords!.lng);
                                     return (
                                       <div key={`transit_${idx}`} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "2px 28px 6px", marginBottom: "2px" }}>

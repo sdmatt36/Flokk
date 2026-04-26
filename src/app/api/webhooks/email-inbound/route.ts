@@ -1153,10 +1153,19 @@ Field notes:
       // leaving duplicates. deleteMany is idempotent — returns 0 on first write.
       if (outboundConf) {
         const deleted = await db.itineraryItem.deleteMany({
-          where: { tripId: resolvedTripId, confirmationCode: outboundConf, type: "FLIGHT" },
+          where: {
+            tripId: resolvedTripId,
+            confirmationCode: outboundConf,
+            OR: [
+              { type: "FLIGHT" },
+              // Legacy ACTIVITY-type orphans (e.g. "Flight arrival" rows written
+              // when the extractor didn't recognise the email as a flight booking)
+              { type: "ACTIVITY", title: { contains: "Flight", mode: "insensitive" } },
+            ],
+          },
         });
         if (deleted.count > 0) {
-          console.log(`[email-inbound] cleared ${deleted.count} stale FLIGHT ItineraryItem(s) for ${outboundConf} on trip ${resolvedTripId}`);
+          console.log(`[email-inbound] cleared ${deleted.count} stale FLIGHT/ACTIVITY ItineraryItem(s) for ${outboundConf} on trip ${resolvedTripId}`);
         }
       }
 
@@ -1389,13 +1398,20 @@ Field notes:
             continue;
           }
 
-          // Delete stale FLIGHT ItineraryItems before writing partitioned legs
+          // Delete stale FLIGHT + legacy ACTIVITY-type orphan ItineraryItems before writing partitioned legs
           if (outboundConf) {
             const relDeleted = await db.itineraryItem.deleteMany({
-              where: { tripId: relTripId, confirmationCode: outboundConf, type: "FLIGHT" },
+              where: {
+                tripId: relTripId,
+                confirmationCode: outboundConf,
+                OR: [
+                  { type: "FLIGHT" },
+                  { type: "ACTIVITY", title: { contains: "Flight", mode: "insensitive" } },
+                ],
+              },
             });
             if (relDeleted.count > 0) {
-              console.log(`[email-inbound] (multi-trip) cleared ${relDeleted.count} stale FLIGHT ItineraryItem(s) for ${outboundConf} on trip ${relTripId}`);
+              console.log(`[email-inbound] (multi-trip) cleared ${relDeleted.count} stale FLIGHT/ACTIVITY ItineraryItem(s) for ${outboundConf} on trip ${relTripId}`);
             }
           }
 
