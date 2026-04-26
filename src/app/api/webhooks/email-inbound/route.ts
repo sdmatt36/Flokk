@@ -1147,6 +1147,19 @@ Field notes:
 
       console.log(`[email-inbound] creating ${flightLegs.length} flight ItineraryItem(s) for confirmation ${outboundConf ?? "(no code)"}`);
 
+      // Delete stale FLIGHT ItineraryItems before writing fresh legs.
+      // The upsert key includes fromAirport+toAirport, so airport corrections
+      // (e.g. NRT→HND) create new rows rather than updating existing ones,
+      // leaving duplicates. deleteMany is idempotent — returns 0 on first write.
+      if (outboundConf) {
+        const deleted = await db.itineraryItem.deleteMany({
+          where: { tripId: resolvedTripId, confirmationCode: outboundConf, type: "FLIGHT" },
+        });
+        if (deleted.count > 0) {
+          console.log(`[email-inbound] cleared ${deleted.count} stale FLIGHT ItineraryItem(s) for ${outboundConf} on trip ${resolvedTripId}`);
+        }
+      }
+
       const createdLegItemIds: string[] = [];
       const writeFlightLegs: WriteFlightLeg[] = [];
 
@@ -1374,6 +1387,16 @@ Field notes:
           if (relFlightLegs.length === 0) {
             console.log(`[email-inbound] multi-trip: no partitioned legs for trip "${relatedTrip.title ?? relTripId}" — skipping`);
             continue;
+          }
+
+          // Delete stale FLIGHT ItineraryItems before writing partitioned legs
+          if (outboundConf) {
+            const relDeleted = await db.itineraryItem.deleteMany({
+              where: { tripId: relTripId, confirmationCode: outboundConf, type: "FLIGHT" },
+            });
+            if (relDeleted.count > 0) {
+              console.log(`[email-inbound] (multi-trip) cleared ${relDeleted.count} stale FLIGHT ItineraryItem(s) for ${outboundConf} on trip ${relTripId}`);
+            }
           }
 
           // ── ItineraryItems for related trip (partitioned legs only) ────────────

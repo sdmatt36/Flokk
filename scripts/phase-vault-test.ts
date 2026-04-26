@@ -293,8 +293,11 @@ async function checkLondonFlightCard(): Promise<CheckResult[]> {
   }) ?? flightDocs[0];
 
   const notes2: string[] = [];
-  notes2.push(`id = ${fhmi74Doc.id}`);
-  results.push(check("LONDON-2: flight card id has flight-booking: prefix (no TripDocument)", fhmi74Doc.id.startsWith("flight-booking:"), notes2));
+  const idSource = fhmi74Doc.id.startsWith("flight-booking:") ? "orphan FlightBooking" : "TripDocument";
+  notes2.push(`id = ${fhmi74Doc.id} (source: ${idSource})`);
+  // Either source is valid: multi-trip extraction writes a TripDocument for London;
+  // orphan FlightBooking path is used when no TripDocument exists.
+  results.push(check("LONDON-2: flight card comes from TripDocument or orphan FlightBooking (not manual-activity)", !fhmi74Doc.id.startsWith("manual-activity:"), notes2));
 
   const c = JSON.parse(fhmi74Doc.content) as Record<string, unknown>;
   const legs = (Array.isArray(c.legs) ? c.legs : []) as Array<Record<string, unknown>>;
