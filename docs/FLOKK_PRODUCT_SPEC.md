@@ -147,6 +147,20 @@ Users with pre-fix tours must manually "Save stops to a trip" from the standalon
 - ⚠ STILL NEEDED: standalone `/tour` library should become a grid of full hero cards (not city pills), matching the Trip Tours tab card design. This is the "tour library" spec.
 - Click image/title on trip tour card → expands inline to show stop list (name, duration, walk time). "View tour →" button navigates to full tour page.
 
+### Trip Tours Tab Self-Containment (Decision: Chat 38, April 26 2026)
+
+The Trip's Tours tab IS the tour viewer for the trip's owner. The user does NOT navigate away from their trip to view their own tour. When the user taps a tour card on the Trip Tours tab, the expand-in-place experience surfaces:
+
+- Map with numbered stops (1–5 pins)
+- Stop list with image, name, ticket pill, why description, duration, walk time, Link
+- Per-stop tap opens stop detail modal (already shipped)
+
+The "View tour" button on the Trip Tours tab card is REMOVED — it's redundant when expansion shows everything. Owner stays in trip context.
+
+The full `/tour/[id]` page becomes the PUBLIC VIEWER for shared/cloned tours surfaced via Discover/Spots. Anonymous strangers tapping a public tour see this page; owners never need to.
+
+Status: Designed. Build queued for Chat 39 opening prompt.
+
 ### Tour Sharing (Three States)
 1. Private (default): only author's family can see
 2. Shared via token: explicit share action generates token, sets isPublic=true
@@ -678,6 +692,7 @@ Behavioral profile (Phase 2A): family historical save patterns boost matching ev
 - Scraping resilience — Ticketmaster, StubHub aggressively block bots; ScrapingBee proxy or alternative needed for protected sources
 - Cohort-rating storage for family-utility spots — separate model vs reusing existing rating tables
 - Legacy data systematic repair — booking DRP8E8 on trip cmmycshfj000004jpyadzdp8y still has missing leg per audit script; needs review next session
+- Tour viewer redesign — Trip Tours tab should host map inline; `/tour/[id]` becomes public viewer for shared/cloned tours (queued for Chat 39)
 
 ---
 
@@ -751,6 +766,8 @@ Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product
 **Okinawa flight Vault repair shipped** (commit 93316ed): universal synthesizer dedup by confCode (prevents two old-era per-leg TripDocuments from rendering duplicate Vault cards) + Okinawa SQL data repair (inserted missing HND→OKA Flight row + ItineraryItem) + legacy audit script; audit identified 1 other user (booking DRP8E8, trip cmmycshfj000004jpyadzdp8y) with missing leg
 
 **Okinawa Day 1 dayIndex repair**: follow-up UPDATE set `dayIndex = 0` on the inserted ItineraryItem; dayIndex completeness requirement now codified in Schema Change Completeness Rule
+
+**Trip Tours tab self-containment**: Trip Tours tab redesigned to be self-contained — map + stops inline in expand-in-place, "View tour" button removed. Full `/tour/[id]` page repurposed as public viewer for shared/cloned tours surfaced via Discover/Spots.
 
 ### Prior — Chat 37 (reconstructed from codebase + handoff references)
 
