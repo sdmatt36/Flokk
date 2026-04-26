@@ -119,6 +119,68 @@ Connecting items:
 
 ---
 
+## Tours Personalization & Quality
+
+### Tour Personalization Layer (Designed, Not Built)
+
+Three-layer personalization for tour generation:
+
+1. **Interest tiering**: User's existing FamilyInterest entries get a tier field (most/mid/least, weights 3/2/1). Tour generation uses these weights to bias venue selection. Tier UI lives on the profile and home pages where interests already render.
+
+2. **Behavioral analysis**: AI extraction layer reads the user's saves (SavedItem), trip itineraries (ItineraryItem), and tour history. Identifies patterns ("user has 8 sushi saves in Tokyo, 3 ramen", "user repeatedly saves castle/historical sites in Europe"). Surfaces these patterns into the tour generation prompt as soft preferences.
+
+3. **Proactive nudges**: When the user opens the Tour Builder, the system surfaces underexplored interests via prompts: "I see you've focused on Food and Culture but not Outdoor — want to weave that in?" Doesn't wait for the user to ask.
+
+### Hotel-Anchored Tour Endpoints (Built — Chat 38, Apr 26 2026)
+
+When tour is generated from a trip context (tripId passed in request body), the system looks up the trip's active LODGING check-in item and uses its lat/lng as an anchor. The anchor is injected into the system prompt. Post-generation validation checks first and last stops:
+- Walking: first/last stop within 1km of lodging
+- Metro/Transit: first stop within 1.5km or a transit station within 800m
+- Driving: first/last stop within 5km
+
+If anchor validation fails, `anchorViolation: { distance, threshold }` is returned in the response (no auto-retry — user regenerates via "Start over"). Round-trip-from-base logic. Standalone Tour Builder generations (no tripId) preserve existing unconstrained behavior.
+
+### Default Constraints by Mode + Age (Built — Chat 38, Apr 26 2026)
+
+Walking tour with youngest child:
+- Under 5: max 6 min between adjacent stops (~480m), max cluster diameter 1.5km
+- 5–10: max 10 min between adjacent stops (~800m), max cluster diameter 3km
+- Over 10 or no kids: max 15 min between adjacent stops (~1200m), max cluster diameter 5km
+
+Cluster diameter = max pairwise distance across ALL stops (not just adjacent). Catches geographically incoherent results like Edinburgh Zoo + Gorgie City Farm (2.6km apart) that adjacent-only checks miss. `clusterViolation: { maxDistance, threshold }` returned in response when exceeded; sets `partialTour: true`.
+
+Metro/Transit and Driving: no cluster diameter constraint currently.
+
+### Walk Retry Architecture (Built — Chat 38, Apr 26 2026)
+
+Walk retry (Attempt 2) runs in **dry-run mode**: Claude generates stops, they pass through resolveAgainstPlaces + themeRelevance, but are not written to DB. Original stops survive. Only if retryViolations < walkViolations does the system atomically delete originals and commit the retry. If retry is equal or worse, original stops are kept intact. Previous version had a destructive noop bug where originals were deleted before the retry ran.
+
+### Under-Emission Retry (Built — Chat 38, Apr 26 2026)
+
+Attempt 3 triggers when `completedStops.length < targetStops` after all prior attempts. Sends a separate Claude request asking for exactly the missing N stops, with already-accepted stop names listed as "DO NOT REPEAT." Each new stop goes through the same resolveAgainstPlaces + themeRelevance gates. Appends to (not replaces) existing DB stops.
+
+### themeRelevance Enforcement Fix (Built — Chat 38, Apr 26 2026)
+
+Previous version incremented `rejectedCount` for weak themeRelevance but still wrote the stop to DB and pushed to completedStops. Fixed: weak themeRelevance now correctly skips DB write and stop collection.
+
+### Real-Time Rating Prompts (Spec, Pending iOS)
+
+When the iOS app ships, every itinerary item triggers a push notification at its scheduled end-time (or 30 min after) prompting in-the-moment rating. Web users see in-app prompts at the same trigger. Replaces the post-trip-only rating model. In-the-moment ratings capture the actual experience while fresh. Critical for the rating loop's quality.
+
+### Tour-Save Categorization Pipeline (Open Issue)
+
+Tour-saved items currently get `categoryTags: []`. The save flow sets `extractionStatus: "ENRICHED"` at create time, bypassing `enrichSavedItem()`. Consequence: tour-saved items don't appear in Saves tab category filters, don't feed behavioral profile, don't feed recommendation engine, don't reach Spots community feedback loop.
+
+Fix path: store TourStop.placeType from Place Details API call, map to SavedItem.categoryTags at save-to-trip time.
+
+Status: Designed, will be addressed alongside Track 2 (personalization layer) since both touch the same SavedItem write path.
+
+### Decisions Log
+
+Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product decision discussed in chat goes into this spec doc within the same session, regardless of whether code shipped. Handoff docs maintain a "Decisions Log" listing what was discussed but not built. This prevents next-chat re-litigation of decisions already made.
+
+---
+
 ## Open Questions / TBD
 - Tour-trip cascade behavior on tour deletion: NEEDS BUILD
 - Tour image card treatment for profile/trips page: NEEDS DESIGN

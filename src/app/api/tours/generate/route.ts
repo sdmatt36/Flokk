@@ -156,10 +156,12 @@ export async function POST(req: NextRequest) {
     familyProfileId?: string;
     durationLabel?: string;
     transport?: string;
+    tripId?: string;
   };
   const { prompt, destinationCity } = body;
   const durationLabel = body.durationLabel ?? "";
   const transport = body.transport ?? "Walking";
+  const tripId = body.tripId ?? null;
 
   if (!prompt || !destinationCity) {
     return NextResponse.json({ error: "prompt and destinationCity are required" }, { status: 400 });
@@ -226,6 +228,29 @@ export async function POST(req: NextRequest) {
     }
 
     const maxWalk = maxWalkMinutes(youngestChildAge);
+    const maxDistMeters = maxWalk * 80;
+
+    // ── Hotel anchor lookup ───────────────────────────────────────────────────
+    let anchorLat: number | null = null;
+    let anchorLng: number | null = null;
+    if (tripId) {
+      const lodging = await db.itineraryItem.findFirst({
+        where: {
+          tripId,
+          type: "LODGING",
+          title: { startsWith: "Check-in:", mode: "insensitive" },
+          latitude: { not: null },
+          longitude: { not: null },
+        },
+        orderBy: { scheduledDate: "asc" },
+        select: { latitude: true, longitude: true },
+      });
+      if (lodging?.latitude && lodging.longitude) {
+        anchorLat = lodging.latitude;
+        anchorLng = lodging.longitude;
+        console.log(`[tour-anchor] using lodging anchor ${anchorLat},${anchorLng} for trip ${tripId}`);
+      }
+    }
 
     const cityPattern = `%${destinationCity}%`;
     const [manualActivityRows, itineraryItemRows] = await Promise.all([
@@ -297,21 +322,35 @@ export async function POST(req: NextRequest) {
       },
     };
 
+    // ── Anchor instruction (injected into system prompt when trip context exists) ──
+    const anchorInstruction = anchorLat !== null && anchorLng !== null
+      ? `\n\nThe user's lodging is at coordinates ${anchorLat}, ${anchorLng}. The tour must be anchored near this location:\n- Walking: first stop within 1km of lodging, last stop within 1km of lodging (round-trip from base)\n- Metro / Transit: first stop within 1.5km of lodging or a transit station within 800m of lodging\n- Driving: first stop within 5km of lodging, last stop within 5km of lodging`
+      : "";
+
     const systemPrompt = `You are a family travel expert building themed day tours. Call emit_tour_stop exactly ${targetStops} times — once per stop, in order.
 
 ABSOLUTE RULES — violating any of these means the tour fails:
 1. Every stop MUST be a real, operating venue physically located IN ${destinationCity}. No venues from other cities. No "branch" workarounds. No closed or fictional places.
 2. Every stop MUST directly serve the theme. No tangential sightseeing added for variety.
-3. ${transport === "Walking" ? `Walking tour: every consecutive stop pair MUST be within ${maxWalk} minutes walk (~${maxWalk * 80}m) of each other. Cluster tightly in one neighborhood.` : transport === "Metro / Transit" ? "Metro tour: stops can span the city but must be reachable by public transit." : "Car tour: no distance constraint."}
+3. ${transport === "Walking" ? `Walking tour: every consecutive stop pair MUST be within ${maxWalk} minutes walk (~${maxDistMeters}m) of each other. Cluster tightly in one neighborhood.` : transport === "Metro / Transit" ? "Metro tour: stops can span the city but must be reachable by public transit." : "Car tour: no distance constraint."}
 4. Total time (sum of all duration + travelTime) must not exceed ${maxMinutes} minutes.
-5. familyNote MUST reference the specific children: ${childAgesContext}. Tailor to their ages.`;
+5. familyNote MUST reference the specific children: ${childAgesContext}. Tailor to their ages.${anchorInstruction}`;
 
     const userMessage = `${seededContext}Tour theme: ${prompt}. Destination: ${destinationCity}. Duration: ${durationLabel || "Half day (4 hrs)"}. Transport: ${transport}. Family: ${familyContext || "not specified"}`;
 
     type PersistedStop = ResolvedStop & { id: string; orderIndex: number };
 
-    async function runStream(attempt: number, extraInstruction = ""): Promise<{ completedStops: PersistedStop[]; rejectedCount: number; partialTour: boolean }> {
-      if (attempt > 0) {
+    // ── runStream — core generation loop ─────────────────────────────────────
+    // dryRun=true: resolves and validates stops but does NOT write to DB.
+    //   Used for walk-retry dry run so original stops survive if retry is rejected.
+    // dryRun=false (default): writes each accepted stop to DB immediately.
+    async function runStream(
+      attempt: number,
+      extraInstruction = "",
+      dryRun = false,
+    ): Promise<{ completedStops: PersistedStop[]; rejectedCount: number; partialTour: boolean }> {
+      // Only wipe existing stops when writing for real (not dry-run)
+      if (attempt > 0 && !dryRun) {
         await db.tourStop.deleteMany({ where: { tourId } });
       }
 
@@ -348,31 +387,36 @@ ABSOLUTE RULES — violating any of these means the tour fails:
               console.log(`[tour-relevance] "${resolved.name}" -> "${(rawStop.themeRelevance ?? "").slice(0, 120)}"`);
               const weak = hasWeakThemeRelevance(rawStop.themeRelevance);
               if (weak) {
+                // BUG FIX: previously incremented rejectedCount but still wrote to DB.
+                // Now correctly skips the stop when themeRelevance is weak.
                 console.log(`[tour-theme-weak] "${rawStop.name}" -> "${rawStop.themeRelevance ?? ""}"`);
                 rejectedCount++;
+              } else {
+                const stopId = crypto.randomUUID();
+                const idx = orderIndex++;
+
+                if (!dryRun) {
+                  await db.tourStop.create({
+                    data: {
+                      id: stopId,
+                      tourId,
+                      orderIndex: idx,
+                      name: resolved.name,
+                      address: resolved.address || null,
+                      lat: resolved.lat || null,
+                      lng: resolved.lng || null,
+                      durationMin: resolved.duration || null,
+                      travelTimeMin: resolved.travelTime || null,
+                      why: resolved.why || null,
+                      familyNote: resolved.familyNote || null,
+                      imageUrl: resolved.imageUrl,
+                      websiteUrl: resolved.websiteUrl,
+                    },
+                  });
+                }
+
+                completedStops.push({ ...resolved, id: stopId, orderIndex: idx });
               }
-              const stopId = crypto.randomUUID();
-              const idx = orderIndex++;
-
-              await db.tourStop.create({
-                data: {
-                  id: stopId,
-                  tourId,
-                  orderIndex: idx,
-                  name: resolved.name,
-                  address: resolved.address || null,
-                  lat: resolved.lat || null,
-                  lng: resolved.lng || null,
-                  durationMin: resolved.duration || null,
-                  travelTimeMin: resolved.travelTime || null,
-                  why: resolved.why || null,
-                  familyNote: resolved.familyNote || null,
-                  imageUrl: resolved.imageUrl,
-                  websiteUrl: resolved.websiteUrl,
-                },
-              });
-
-              completedStops.push({ ...resolved, id: stopId, orderIndex: idx });
             }
           } catch (e) {
             console.error("[tours/generate] failed to parse stop tool call:", e);
@@ -381,7 +425,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
           currentToolName = null;
           currentToolJson = "";
         } else if (event.type === "message_stop") {
-          console.log(`[tour-stream] attempt ${attempt}: ${completedStops.length} accepted, ${rejectedCount} rejected`);
+          console.log(`[tour-stream] attempt ${attempt}${dryRun ? " (dry-run)" : ""}: ${completedStops.length} accepted, ${rejectedCount} rejected`);
         }
       }
 
@@ -400,7 +444,6 @@ ABSOLUTE RULES — violating any of these means the tour fails:
     }
 
     // ── Walk-distance validation ───────────────────────────────────────────────
-    const maxDistMeters = maxWalk * 80;
     let walkViolations = 0;
     if (transport === "Walking" && completedStops.length >= 2) {
       for (let i = 1; i < completedStops.length; i++) {
@@ -416,36 +459,145 @@ ABSOLUTE RULES — violating any of these means the tour fails:
       }
     }
 
-    // ── Attempt 2: walk-violation retry with clustering hint ──────────────────
+    // ── Attempt 2: walk-violation retry — DRY RUN, commit only if better ─────
+    // BUG FIX: Previous version deleted original DB rows before running retry.
+    // If retry was rejected ("noop"), the DB was left empty. Now:
+    //   1. Run retry in dry-run mode (no DB writes, original rows untouched)
+    //   2. If retry improves violations: atomically delete originals + write retry
+    //   3. If retry doesn't improve: discard retry buffer, original rows survive
     if (transport === "Walking" && walkViolations > 0) {
-      const clusteringHint = `CRITICAL: The previous attempt produced stops that were too far apart for walking with kids. ALL stops MUST cluster within a single neighborhood or district. Every consecutive stop pair MUST be within ${maxWalk} minutes walk (~${maxDistMeters}m). If you cannot find ${targetStops} venues on theme within one walkable area, return fewer stops rather than spreading across the city.`;
-      console.log(`[tour-walk-retry] ${walkViolations} walk violations detected — retrying with clustering hint`);
-      const retryResult = await runStream(2, clusteringHint);
-      if (retryResult.completedStops.length >= Math.min(2, completedStops.length)) {
-        let retryViolations = 0;
-        for (let i = 1; i < retryResult.completedStops.length; i++) {
-          const prev = retryResult.completedStops[i - 1];
-          const curr = retryResult.completedStops[i];
-          if (prev.lat && prev.lng && curr.lat && curr.lng) {
-            const dist = haversineMeters(prev.lat, prev.lng, curr.lat, curr.lng);
-            if (dist > maxDistMeters) retryViolations++;
-          }
+      const clusteringHint = `CRITICAL: All stops MUST be in one walkable cluster — every stop within 1.5km of every other stop. Pick a single neighborhood or area and find all ${targetStops} stops within it. If you cannot find ${targetStops} venues meeting this constraint, return your best ${targetStops} options that are tightly clustered, NOT a smaller list spread out. Geographic clustering is more important than minor theme variety. Every consecutive stop pair MUST be within ${maxWalk} minutes walk (~${maxDistMeters}m).`;
+      console.log(`[tour-walk-retry] ${walkViolations} walk violations — dry-run retry with clustering hint`);
+      const retryResult = await runStream(2, clusteringHint, true); // dryRun=true
+
+      // Calculate violations on dry-run output
+      let retryViolations = 0;
+      for (let i = 1; i < retryResult.completedStops.length; i++) {
+        const prev = retryResult.completedStops[i - 1];
+        const curr = retryResult.completedStops[i];
+        if (prev.lat && prev.lng && curr.lat && curr.lng) {
+          const dist = haversineMeters(prev.lat, prev.lng, curr.lat, curr.lng);
+          if (dist > maxDistMeters) retryViolations++;
         }
-        if (retryViolations < walkViolations) {
-          console.log(`[tour-walk-retry-success] was ${walkViolations} violations, now ${retryViolations}`);
-          completedStops = retryResult.completedStops;
-          partialTour = retryResult.partialTour;
-          walkViolations = retryViolations;
-        } else {
-          console.log(`[tour-walk-retry-noop] retry had ${retryViolations} violations, keeping original`);
+      }
+
+      if (retryViolations < walkViolations && retryResult.completedStops.length >= Math.min(2, completedStops.length)) {
+        // Accept retry: atomically replace DB stops
+        console.log(`[tour-walk-retry-success] was ${walkViolations} violations, now ${retryViolations} — committing retry`);
+        await db.tourStop.deleteMany({ where: { tourId } });
+        let retryIdx = 0;
+        for (const s of retryResult.completedStops) {
+          await db.tourStop.create({
+            data: {
+              id: s.id,
+              tourId,
+              orderIndex: retryIdx,
+              name: s.name,
+              address: s.address || null,
+              lat: s.lat || null,
+              lng: s.lng || null,
+              durationMin: s.duration || null,
+              travelTimeMin: s.travelTime || null,
+              why: s.why || null,
+              familyNote: s.familyNote || null,
+              imageUrl: s.imageUrl,
+              websiteUrl: s.websiteUrl,
+            },
+          });
+          s.orderIndex = retryIdx++;
+        }
+        completedStops = retryResult.completedStops;
+        partialTour = retryResult.partialTour;
+        walkViolations = retryViolations;
+      } else {
+        // Discard retry buffer — original DB rows are untouched
+        console.log(`[tour-walk-retry-noop] retry had ${retryViolations} violations (original ${walkViolations}), keeping original`);
+      }
+    }
+
+    // ── Attempt 3: under-emission retry — fill missing stops ─────────────────
+    // Triggered whenever accepted stop count < targetStops after all prior attempts.
+    // Appends to (not replaces) existing stops. Passes already-accepted names so
+    // Claude doesn't repeat them. Each new stop goes through the same
+    // resolveAgainstPlaces + themeRelevance gates.
+    if (completedStops.length < targetStops) {
+      const missing = targetStops - completedStops.length;
+      const alreadyAccepted = completedStops.map(s => s.name);
+      console.log(`[tour-underemission-retry] target=${targetStops} got=${completedStops.length}, retrying for ${missing} stops`);
+
+      const fillInstruction = `ALREADY ACCEPTED STOPS — DO NOT REPEAT THESE (they are already in the tour):\n${alreadyAccepted.map((n, i) => `${i + 1}. ${n}`).join("\n")}\n\nYou must emit exactly ${missing} NEW stop(s) that are DIFFERENT from the above list. All original constraints still apply.`;
+
+      const fillTool: Anthropic.Tool = {
+        ...emitTourStopTool,
+        description: `Emit exactly ${missing} new stop(s) for the tour. Do NOT repeat any already-accepted stop.`,
+      };
+
+      const fillStream = anthropic.messages.stream({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 2048,
+        system: `${systemPrompt}\n\n${fillInstruction}`,
+        tools: [fillTool],
+        tool_choice: { type: "tool", name: "emit_tour_stop" },
+        messages: [{ role: "user", content: userMessage }],
+      });
+
+      let fillToolName: string | null = null;
+      let fillToolJson = "";
+      let fillOrderIndex = completedStops.length;
+
+      for await (const event of fillStream) {
+        if (event.type === "content_block_start" && event.content_block.type === "tool_use") {
+          fillToolName = event.content_block.name;
+          fillToolJson = "";
+        } else if (event.type === "content_block_delta" && event.delta.type === "input_json_delta") {
+          fillToolJson += event.delta.partial_json;
+        } else if (event.type === "content_block_stop" && fillToolName === "emit_tour_stop") {
+          try {
+            const rawStop = JSON.parse(fillToolJson) as RawStop;
+            const isDuplicate = alreadyAccepted.some(
+              n => n.toLowerCase() === (rawStop.name ?? "").toLowerCase()
+            );
+            if (isDuplicate) {
+              console.log(`[tour-underemission-retry] duplicate skipped: "${rawStop.name}"`);
+            } else {
+              const resolved = await resolveAgainstPlaces(rawStop, destinationCity, transport);
+              if (resolved && !hasWeakThemeRelevance(rawStop.themeRelevance)) {
+                const stopId = crypto.randomUUID();
+                const idx = fillOrderIndex++;
+                await db.tourStop.create({
+                  data: {
+                    id: stopId,
+                    tourId,
+                    orderIndex: idx,
+                    name: resolved.name,
+                    address: resolved.address || null,
+                    lat: resolved.lat || null,
+                    lng: resolved.lng || null,
+                    durationMin: resolved.duration || null,
+                    travelTimeMin: resolved.travelTime || null,
+                    why: resolved.why || null,
+                    familyNote: resolved.familyNote || null,
+                    imageUrl: resolved.imageUrl,
+                    websiteUrl: resolved.websiteUrl,
+                  },
+                });
+                completedStops.push({ ...resolved, id: stopId, orderIndex: idx });
+                console.log(`[tour-underemission-retry] added "${resolved.name}" (${completedStops.length}/${targetStops})`);
+              }
+            }
+          } catch (e) {
+            console.error("[tour-underemission-retry] parse error:", e);
+          }
+          fillToolName = null;
+          fillToolJson = "";
+        } else if (event.type === "message_stop") {
+          console.log(`[tour-underemission-retry] filled to ${completedStops.length}/${targetStops}`);
         }
       }
     }
 
     // ── Post-stream: DB is source of truth ───────────────────────────────────
-    // completedStops can diverge from DB when retries run deleteMany then
-    // are discarded (noop path) or produce fewer stops than expected.
-    // Re-fetch from DB before any further processing or response building.
+    // Re-fetch so finalStopsFromDb reflects all attempts (including under-emission fills).
     let finalStopsFromDb = await db.tourStop.findMany({
       where: { tourId, deletedAt: null },
       orderBy: { orderIndex: "asc" },
@@ -503,8 +655,66 @@ ABSOLUTE RULES — violating any of these means the tour fails:
       }
     }
 
+    // ── Cluster diameter check (walking only) ─────────────────────────────────
+    // Max pairwise distance across ALL stops, not just adjacent pairs.
+    // Catches cases like Edinburgh Zoo + Gorgie City Farm (2.6km apart) which
+    // are individually on-theme but form an unworkable walking cluster.
+    let clusterDiameter = 0;
+    const maxDiameterMeters = youngestChildAge !== null
+      ? youngestChildAge < 5 ? 1500
+        : youngestChildAge <= 10 ? 3000
+        : 5000
+      : 5000;
+
+    if (transport === "Walking" && finalStopsFromDb.length >= 2) {
+      for (let i = 0; i < finalStopsFromDb.length; i++) {
+        for (let j = i + 1; j < finalStopsFromDb.length; j++) {
+          const a = finalStopsFromDb[i];
+          const b = finalStopsFromDb[j];
+          if (a.lat != null && a.lng != null && b.lat != null && b.lng != null) {
+            const dist = haversineMeters(a.lat, a.lng, b.lat, b.lng);
+            if (dist > clusterDiameter) clusterDiameter = dist;
+          }
+        }
+      }
+    }
+
+    const clusterViolation = transport === "Walking" && clusterDiameter > maxDiameterMeters
+      ? { maxDistance: Math.round(clusterDiameter), threshold: maxDiameterMeters }
+      : null;
+
+    if (clusterViolation) {
+      console.log(`[tour-cluster-violation] diameter=${clusterViolation.maxDistance}m exceeds threshold=${clusterViolation.threshold}m (youngest age ${youngestChildAge ?? "unknown"})`);
+    }
+
+    // ── Hotel anchor proximity check ──────────────────────────────────────────
+    // Validates that first and last stops are within range of the lodging anchor.
+    // Does not auto-retry — surfaces anchorViolation in response for user to regenerate.
+    let anchorViolation: { distance: number; threshold: number } | null = null;
+    if (anchorLat !== null && anchorLng !== null && finalStopsFromDb.length >= 1) {
+      const anchorThreshold = transport === "Walking" ? 1000
+        : transport === "Metro / Transit" ? 1500
+        : 5000;
+      const firstStop = finalStopsFromDb[0];
+      const lastStop = finalStopsFromDb[finalStopsFromDb.length - 1];
+      const firstDist = (firstStop.lat != null && firstStop.lng != null)
+        ? haversineMeters(anchorLat, anchorLng, firstStop.lat, firstStop.lng)
+        : Infinity;
+      const lastDist = (lastStop.lat != null && lastStop.lng != null)
+        ? haversineMeters(anchorLat, anchorLng, lastStop.lat, lastStop.lng)
+        : Infinity;
+      if (firstDist > anchorThreshold || lastDist > anchorThreshold) {
+        const maxEndpointDist = Math.max(
+          firstDist === Infinity ? 0 : firstDist,
+          lastDist === Infinity ? 0 : lastDist,
+        );
+        anchorViolation = { distance: Math.round(maxEndpointDist), threshold: anchorThreshold };
+        console.log(`[tour-anchor-violation] first=${Math.round(firstDist)}m, last=${Math.round(lastDist)}m from lodging (threshold=${anchorThreshold}m)`);
+      }
+    }
+
     // ── Response ───────────────────────────────────────────────────────────────
-    const finalPartialTour = finalStopsFromDb.length < targetStops;
+    const finalPartialTour = finalStopsFromDb.length < targetStops || !!clusterViolation;
     return NextResponse.json({
       tourId,
       originalTargetStops: targetStops,
@@ -529,6 +739,8 @@ ABSOLUTE RULES — violating any of these means the tour fails:
       generatedAt: new Date().toISOString(),
       ...(finalPartialTour ? { partialTour: true } : {}),
       ...(finalWalkViolations > 0 ? { walkViolations: finalWalkViolations } : {}),
+      ...(clusterViolation ? { clusterViolation } : {}),
+      ...(anchorViolation ? { anchorViolation } : {}),
     });
 
   } catch (err) {
