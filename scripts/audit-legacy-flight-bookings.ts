@@ -17,6 +17,14 @@
  * Output: table of FlightBookings with missing Flight rows, sorted by gap DESC.
  * Repair is per-user, per-trip, after manual review.
  *
+ * REPAIR NOTE (learned from Okinawa trip fix, 2026-04-26):
+ * When inserting a missing Flight row, also insert a corresponding ItineraryItem
+ * of type FLIGHT. Critically, set dayIndex correctly — do NOT leave it null.
+ * Compute dayIndex from scheduledDate relative to trip startDate:
+ *   dayIndex = Math.round((new Date(scheduledDate) - new Date(tripStartDate)) / 86400000)
+ * The day view filter (TripTabContent.tsx buildUnifiedDayItems) uses strict equality
+ * `it.dayIndex === targetDayIndex`, so null rows are silently excluded from every day.
+ *
  * Run: npx tsx scripts/audit-legacy-flight-bookings.ts
  */
 
