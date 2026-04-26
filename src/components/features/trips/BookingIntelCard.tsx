@@ -7,6 +7,7 @@ const CATEGORY_LABEL: Record<IntelItem["category"], string> = {
   flights: "Flights",
   hotel: "Hotel",
   activities: "Activities",
+  tours: "Tours",
   documents: "Documents",
   logistics: "Logistics",
 };
