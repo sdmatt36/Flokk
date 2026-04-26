@@ -275,10 +275,18 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
                       {item.reason}
                     </p>
                     {/* CTAs */}
-                    {item.status === "booked" && (
+                    {item.status === "booked" && item.category !== "tours" && (
                       <span style={{ fontSize: "12px", fontWeight: 700, color: "#4CAF50" }}>
                         ✓ Booked
                       </span>
+                    )}
+                    {item.status === "booked" && item.category === "tours" && (
+                      <button
+                        onClick={onManageTours}
+                        style={{ fontSize: "12px", fontWeight: 700, color: "#4CAF50", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+                      >
+                        Manage →
+                      </button>
                     )}
                     {item.status === "saved" && (
                       <a
@@ -301,10 +309,10 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
                           textDecoration: "none",
                         }}
                       >
-                        Book →
+                        {item.category === "documents" ? "Link" : "Book"} →
                       </a>
                     )}
-                    {item.status === "missing" && !item.bookingUrl && item.category !== "flights" && (
+                    {item.status === "missing" && !item.bookingUrl && item.category !== "flights" && item.category !== "tours" && (
                       <a
                         href={getBookingUrl(item.category, destinationCity ?? "", destinationCountry ?? "", startDate, endDate)}
                         target="_blank"
@@ -312,6 +320,14 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
                         style={{ fontSize: "12px", fontWeight: 700, color: "#C4664A", textDecoration: "none" }}
                       >
                         Book →
+                      </a>
+                    )}
+                    {item.status === "missing" && item.category === "tours" && (
+                      <a
+                        href="/tour"
+                        style={{ fontSize: "12px", fontWeight: 700, color: "#C4664A", textDecoration: "none" }}
+                      >
+                        Build →
                       </a>
                     )}
                     {item.status === "missing" && item.category === "flights" && (
