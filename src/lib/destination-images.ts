@@ -138,7 +138,7 @@ export const DESTINATION_IMAGES: Record<string, string> = {
   "incheon": "https://images.unsplash.com/photo-1538485399081-7191377e8241?w=800&q=80",
 
   // Thailand
-  "chiang mai": "https://images.unsplash.com/photo-1596422846543-75c6fc197f07?w=800&q=80",
+  "chiang mai": "https://images.unsplash.com/photo-1528181304800-259b08848526?w=800&q=80",
   "chiang rai": "https://images.unsplash.com/photo-1528181304800-259b08848526?w=800&q=80",
   "bangkok": "https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=800&q=80",
   "phuket": "https://images.unsplash.com/photo-1589394815804-964ed0be2eb5?w=800&q=80",
@@ -184,6 +184,7 @@ export const DESTINATION_IMAGES: Record<string, string> = {
   "athens": "https://images.unsplash.com/photo-1555993539-1732b0258235?w=800&q=80",
   "reykjavik": "https://images.unsplash.com/photo-1520769669658-f07657f5a307?w=800&q=80",
   "ireland": "https://images.unsplash.com/photo-1467269204594-9661b134dd2b?w=800&q=80",
+  "edinburgh": "https://images.unsplash.com/photo-1506377585622-bedcbb027afc?w=800&q=80",
   "scotland": "https://images.unsplash.com/photo-1506377585622-bedcbb027afc?w=800&q=80",
 
   // Africa / Middle East
@@ -200,6 +201,7 @@ export const DESTINATION_IMAGES: Record<string, string> = {
   // Americas
   "new york": "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800&q=80",
   "los angeles": "https://images.unsplash.com/photo-1534190760961-74e8c1c5c3da?w=800&q=80",
+  "san diego": "https://images.unsplash.com/photo-1538397288585-5cf8a85d6c4c?w=800&q=80",
   "san francisco": "https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=800&q=80",
   "chicago": "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&q=80",
   "miami": "https://images.unsplash.com/photo-1514214246283-d427a95c5d2f?w=800&q=80",

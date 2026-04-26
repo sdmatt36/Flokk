@@ -1,5 +1,5 @@
 import { nanoid } from "nanoid";
-import { getTripCoverImage } from "@/lib/destination-images";
+import { getTripCoverImage, DEFAULT_COVER } from "@/lib/destination-images";
 
 export type TripBuilderInput = {
   cities: string[];              // empty array allowed
@@ -57,9 +57,12 @@ export function buildTripFromExtraction(input: TripBuilderInput): TripBuilderOut
   }
 
   // Hero: country-level for multi-city country trips, city-level otherwise.
-  const heroImageUrl = (country && cities.length >= 2)
+  // Store null if the result is DEFAULT_COVER so future map additions are picked up
+  // automatically at render time without requiring a DB update.
+  const resolvedHero = (country && cities.length >= 2)
     ? getTripCoverImage(country, country)
     : getTripCoverImage(destinationCity ?? country ?? "", country ?? "");
+  const heroImageUrl = resolvedHero === DEFAULT_COVER ? null : resolvedHero;
 
   // Status: explicit override wins, otherwise computed from endDate.
   let status: "PLANNING" | "COMPLETED";
