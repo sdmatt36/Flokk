@@ -6,6 +6,7 @@ import { Prisma } from "@prisma/client";
 import { writeFlightFromEmail, WriteFlightLeg } from "@/lib/flights/extract-and-write";
 import { findAllRelatedTrips, type TripRecord } from "@/lib/flights/find-related-trips";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
+import { resolveCanonicalUrl } from "@/lib/url-resolver";
 import { enrichSavedItem } from "@/lib/enrich-save";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
@@ -924,6 +925,7 @@ Field notes:
                 longitude: dayLng,
                 sourceType: "EMAIL_IMPORT",
                 sortOrder: day.dayIndex * 100,
+                venueUrl: resolveCanonicalUrl({ name: day.title, city: dayCityGuess ?? '' }),
               },
             });
             dayItemIds.push(created.id);
@@ -953,6 +955,7 @@ Field notes:
                 longitude: lodgingLng,
                 sourceType: "EMAIL_IMPORT",
                 sortOrder: lodging.checkInDayIndex * 100 + 50,
+                venueUrl: resolveCanonicalUrl({ name: lodging.name, city: lodging.city ?? planCities[lodging.checkInDayIndex] ?? planCities[0] ?? '' }),
               },
             });
             lodgingItemIds.push(created.id);
@@ -1610,10 +1613,11 @@ Field notes:
       const existingCheckIn = hotelConf ? await db.itineraryItem.findFirst({
         where: { tripId: resolvedTripId, confirmationCode: hotelConf, type: "LODGING", title: { startsWith: "Check-in:" } },
       }) : null;
+      const checkInVenueUrl = resolveCanonicalUrl({ name: hotelName, city: (extracted.city as string | null) ?? (extracted.toCity as string | null) ?? '' });
       const checkInItem = existingCheckIn
-        ? await db.itineraryItem.update({ where: { id: existingCheckIn.id }, data: { title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, address: (extracted.address as string | null) ?? null, totalCost: derivedTotalCost, currency: detectedCurrency, passengers, dayIndex: checkInDayIndex, rooms: extractedRooms ?? Prisma.JsonNull } })
+        ? await db.itineraryItem.update({ where: { id: existingCheckIn.id }, data: { title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, address: (extracted.address as string | null) ?? null, totalCost: derivedTotalCost, currency: detectedCurrency, passengers, dayIndex: checkInDayIndex, rooms: extractedRooms ?? Prisma.JsonNull, venueUrl: checkInVenueUrl } })
         : await db.itineraryItem.create({
-            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: "LODGING", title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, confirmationCode: hotelConf, address: (extracted.address as string | null) ?? null, totalCost: derivedTotalCost, currency: detectedCurrency, notes: null, passengers, dayIndex: checkInDayIndex, rooms: extractedRooms ?? Prisma.JsonNull },
+            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: "LODGING", title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, confirmationCode: hotelConf, address: (extracted.address as string | null) ?? null, totalCost: derivedTotalCost, currency: detectedCurrency, notes: null, passengers, dayIndex: checkInDayIndex, rooms: extractedRooms ?? Prisma.JsonNull, venueUrl: checkInVenueUrl },
           });
       // Geocode hotel by name + city
       const hotelCity = (extracted.city as string | null) ?? (extracted.toCity as string | null) ?? "";
@@ -1629,8 +1633,9 @@ Field notes:
         const existingCheckOut = hotelConf ? await db.itineraryItem.findFirst({
           where: { tripId: resolvedTripId, confirmationCode: hotelConf, type: "LODGING", title: { startsWith: "Check-out:" } },
         }) : null;
+        const checkOutVenueUrl = resolveCanonicalUrl({ name: hotelName, city: hotelCity });
         const checkOutItem = existingCheckOut
-          ? await db.itineraryItem.update({ where: { id: existingCheckOut.id }, data: { title: `Check-out: ${hotelName}`, scheduledDate: checkOutDate, departureTime: "11:00", address: (extracted.address as string | null) ?? null, passengers, dayIndex: checkOutDayIndex, rooms: extractedRooms ?? Prisma.JsonNull } })
+          ? await db.itineraryItem.update({ where: { id: existingCheckOut.id }, data: { title: `Check-out: ${hotelName}`, scheduledDate: checkOutDate, departureTime: "11:00", address: (extracted.address as string | null) ?? null, passengers, dayIndex: checkOutDayIndex, rooms: extractedRooms ?? Prisma.JsonNull, venueUrl: checkOutVenueUrl } })
           : await db.itineraryItem.create({
           data: {
             tripId: resolvedTripId,
@@ -1647,6 +1652,7 @@ Field notes:
             passengers,
             dayIndex: checkOutDayIndex,
             rooms: extractedRooms ?? Prisma.JsonNull,
+            venueUrl: checkOutVenueUrl,
           },
         });
         if (hotelGeo) await db.itineraryItem.update({ where: { id: checkOutItem.id }, data: { latitude: hotelGeo.lat, longitude: hotelGeo.lng } });
@@ -1866,13 +1872,14 @@ Field notes:
         }
       }
 
+      const catchAllVenueUrl = resolveCanonicalUrl({ name: itemTitle, city: (extracted.city as string | null) ?? (extracted.toCity as string | null) ?? '' });
       const item = existingCatchAll
         ? await db.itineraryItem.update({
             where: { id: existingCatchAll.id },
-            data: { title: itemTitle, scheduledDate: confirmedDate, departureTime: (extracted.departureTime as string | null) ?? null, arrivalTime: (extracted.arrivalTime as string | null) ?? null, fromCity: (extracted.fromCity as string | null) ?? null, toCity: (extracted.toCity as string | null) ?? null, notes: autoNotes, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex },
+            data: { title: itemTitle, scheduledDate: confirmedDate, departureTime: (extracted.departureTime as string | null) ?? null, arrivalTime: (extracted.arrivalTime as string | null) ?? null, fromCity: (extracted.fromCity as string | null) ?? null, toCity: (extracted.toCity as string | null) ?? null, notes: autoNotes, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex, venueUrl: catchAllVenueUrl },
           })
         : await db.itineraryItem.create({
-            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: catchAllType, title: itemTitle, scheduledDate: confirmedDate, departureTime: (extracted.departureTime as string | null) ?? null, arrivalTime: (extracted.arrivalTime as string | null) ?? null, fromCity: (extracted.fromCity as string | null) ?? null, toCity: (extracted.toCity as string | null) ?? null, confirmationCode: catchAllConf, notes: autoNotes, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex },
+            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: catchAllType, title: itemTitle, scheduledDate: confirmedDate, departureTime: (extracted.departureTime as string | null) ?? null, arrivalTime: (extracted.arrivalTime as string | null) ?? null, fromCity: (extracted.fromCity as string | null) ?? null, toCity: (extracted.toCity as string | null) ?? null, confirmationCode: catchAllConf, notes: autoNotes, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex, venueUrl: catchAllVenueUrl },
           });
 
       if (matchedTrip && extracted.confirmationCode) {

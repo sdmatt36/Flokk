@@ -863,6 +863,7 @@ model ItineraryItem {
   rooms             Json?
   bookingSource     String?  // "booking.com" | "airbnb" | "hotels.com" | "expedia" | "marriott" | "hilton" | "hyatt" | "vrbo" | "direct" | "unknown"
   managementUrl     String?  // link to manage reservation on platform
+  venueUrl          String?  // resolved venue/property URL per Universal URL Rule
   createdAt         DateTime @default(now())
 }
 
@@ -1014,6 +1015,7 @@ model TourStop {
   familyNote    String?
   imageUrl      String?
   websiteUrl    String?
+  placeId       String?  // Google Places place_id; used to construct Maps URL fallback
   ticketRequired String? // 'free' | 'ticket-required' | 'advance-booking-recommended' | 'unknown'
   placeTypes    String[] @default([])
   savedItemId   String?

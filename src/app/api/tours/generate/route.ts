@@ -5,6 +5,7 @@ import { resolveProfileId } from "@/lib/profile-access";
 import Anthropic from "@anthropic-ai/sdk";
 import { haversineMeters } from "@/lib/geo";
 import { optimizeRouteOrder } from "@/lib/tour-route-optimization";
+import { resolveCanonicalUrl } from "@/lib/url-resolver";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -40,7 +41,7 @@ function hasWeakThemeRelevance(text: string | undefined | null): boolean {
   return vaguePhrases.some(p => trimmed.includes(p));
 }
 
-type ResolvedStop = RawStop & { imageUrl: string | null; websiteUrl: string | null; ticketRequired: string | null; placeTypes: string[] };
+type ResolvedStop = RawStop & { imageUrl: string | null; websiteUrl: string | null; placeId: string | null; ticketRequired: string | null; placeTypes: string[] };
 
 function deriveTicketSignal(
   types: string[],
@@ -167,10 +168,10 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     const editorialSummary = detailsData.result?.editorial_summary?.overview;
     const ticketRequired = deriveTicketSignal(placeTypes, priceLevel, editorialSummary);
     console.log(`[tour-resolve] OK "${stop.name}" -> ${lat},${lng}${imageUrl ? " [photo]" : ""} ticket=${ticketRequired}`);
-    return { ...stop, lat, lng, imageUrl, websiteUrl, ticketRequired, placeTypes };
+    return { ...stop, lat, lng, imageUrl, websiteUrl, placeId: firstResult.place_id, ticketRequired, placeTypes };
   } catch (e) {
     console.error("[tour-resolve] error:", stop.name, e);
-    if (stop.lat && stop.lng && stop.lat !== 0 && stop.lng !== 0) return { ...stop, imageUrl: null, websiteUrl: null, ticketRequired: null, placeTypes: [] };
+    if (stop.lat && stop.lng && stop.lat !== 0 && stop.lng !== 0) return { ...stop, imageUrl: null, websiteUrl: resolveCanonicalUrl({ name: stop.name, city: destinationCity }), placeId: null, ticketRequired: null, placeTypes: [] };
     return null;
   }
 }
@@ -441,6 +442,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
                       familyNote: resolved.familyNote || null,
                       imageUrl: resolved.imageUrl,
                       websiteUrl: resolved.websiteUrl,
+                      placeId: resolved.placeId ?? null,
                       ticketRequired: resolved.ticketRequired,
                       placeTypes: resolved.placeTypes ?? [],
                     },
@@ -534,6 +536,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
               familyNote: s.familyNote || null,
               imageUrl: s.imageUrl,
               websiteUrl: s.websiteUrl,
+              placeId: s.placeId ?? null,
               ticketRequired: s.ticketRequired ?? null,
               placeTypes: s.placeTypes ?? [],
             },
@@ -613,6 +616,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
                     familyNote: resolved.familyNote || null,
                     imageUrl: resolved.imageUrl,
                     websiteUrl: resolved.websiteUrl,
+                    placeId: resolved.placeId ?? null,
                     ticketRequired: resolved.ticketRequired,
                     placeTypes: resolved.placeTypes ?? [],
                   },

@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { classifyActivityType } from "@/lib/activity-intelligence";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
+import { resolveCanonicalUrl } from "@/lib/url-resolver";
 import { normalizeCategorySlug } from "@/lib/categories";
 
 // Returns the city the traveler is in on a given date by looking at the most recent
@@ -139,15 +140,20 @@ export async function POST(
     },
   });
 
-  // Enrich with Google Places photo at save time (synchronous — result in same response)
+  // Enrich with Google Places photo + website at save time (synchronous — result in same response).
+  // Website resolution runs unconditionally when missing (decoupled from imageUrl gate).
   let activityEnrichedImageUrl: string | null = null;
   let activityEnrichedWebsite: string | null = null;
-  if (!activity.imageUrl) {
-    const activityCity = [trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", ");
+  const activityCity = [trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", ");
+  if (!activity.imageUrl || !activity.website) {
     const enriched = await enrichWithPlaces(activity.title, activityCity);
     const placesUpdate: { imageUrl?: string; website?: string } = {};
-    if (enriched.imageUrl) { placesUpdate.imageUrl = enriched.imageUrl; activityEnrichedImageUrl = enriched.imageUrl; }
-    if (enriched.website && !activity.website) { placesUpdate.website = enriched.website; activityEnrichedWebsite = enriched.website; }
+    if (enriched.imageUrl && !activity.imageUrl) { placesUpdate.imageUrl = enriched.imageUrl; activityEnrichedImageUrl = enriched.imageUrl; }
+    if (!activity.website) {
+      const resolvedWebsite = enriched.website ?? resolveCanonicalUrl({ name: activity.title, city: activityCity });
+      placesUpdate.website = resolvedWebsite;
+      activityEnrichedWebsite = resolvedWebsite;
+    }
     if (Object.keys(placesUpdate).length > 0) {
       await db.manualActivity.update({ where: { id: activity.id }, data: placesUpdate });
     }

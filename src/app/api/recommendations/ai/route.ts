@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import Anthropic from "@anthropic-ai/sdk";
 import { normalizeCategorySlug } from "@/lib/categories";
+import { resolveCanonicalUrl } from "@/lib/url-resolver";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -155,6 +156,11 @@ Base recommendations on the destination. Prioritize activities matching travelSt
     recommendations = (recommendations as Array<Record<string, unknown>>).map(r => ({
       ...r,
       category: normalizeCategorySlug(r.category as string | null) ?? "other",
+      websiteUrl: (r.websiteUrl as string | null) ?? resolveCanonicalUrl({
+        name: r.name as string,
+        city: trip.destinationCity ?? '',
+        country: trip.destinationCountry ?? undefined,
+      }),
     }));
   } catch {
     console.error("[recommendations/ai] JSON parse failed, raw:", raw.slice(0, 300));
