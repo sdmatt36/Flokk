@@ -193,9 +193,17 @@ Each surface listed below is either currently compliant, partially compliant, or
 - **Trip Intelligence IntelItem**: UNKNOWN. Audit needed.
 - **Recommendations**: UNKNOWN. Audit needed.
 
-### Backfill scope
+### Backfill status (COMPLETE Chat 40, commit d4e828c)
 
-Each non-compliant surface gets a backfill prompt. Same pattern as the tour categorization backfill (Chat 39 commits ba61d88 + 0ff77ae): audit SQL, idempotent script, dry-run, distribution check, live run, verification SQL.
+- ManualActivity: 12 rows backfilled (P1:0 P2:0 P3:12)
+- ItineraryItem ACTIVITY: 16 rows backfilled (P1:0 P2:0 P3:16)
+- ItineraryItem LODGING: 61 rows backfilled (P1:0 P2:0 P3:61)
+- Skipped (7 rows): titles were platform names ("Booking.com" × 6, "Airbnb" × 1) — resolver cannot derive a useful venue URL from a platform name
+- Script: scripts/backfills/2026-04-28-url-rule-backfill.ts
+- Total: 89 rows backfilled, 0 null URLs remaining in target sets
+- Universal URL Rule arc closed
+
+Note: neither ManualActivity nor ItineraryItem stores `placeId` or `country`. All 89 rows hit Priority 3 (search URL). Priority 1 and 2 become relevant when `googlePlaceId` is added to ManualActivity (queued in Backlog) and forward-path ACTIVITY extraction begins storing placeId.
 
 ---
 
@@ -306,9 +314,13 @@ Status is derived at API read-time using TripDocument joins, not from SavedItem 
 
 When status >= On itinerary, the lower-progression affordance ("+ Itinerary" button or equivalent) MUST be suppressed at the surface. Pill is the only visual indicator. To move or remove an item from itinerary, user navigates to the day view. This pattern already exists on the Trip Saved tab where "✓ Day X" replaces "+ Add to itinerary."
 
-### Phase A — SavesScreen only (Chat 40)
+### Phase A — SavesScreen (COMPLETE Chat 40, commit 18f4165)
 
-Phase A scope: `src/lib/entity-status.ts`, `src/components/ui/EntityStatusPill.tsx`, `/api/saves` GET response shape, SavesScreen migration. Phase B (Trip Saved tab) and beyond deferred.
+Scope: `src/lib/entity-status.ts`, `src/components/ui/EntityStatusPill.tsx`, `/api/saves` GET response shape, SavesScreen migration.
+
+### Phase B — Trip Saved tab (COMPLETE Chat 40, commit 16f2ffc)
+
+Scope: TripTabContent.tsx SavedHorizCard + SavedGridCard. ApiSavedItem and SavedDisplayItem types extended. apiToDisplayItem passes through all six status fields. Legacy "Booked" badge removed from SavedHorizCard title row. Day label override: `status === "on_itinerary" && dayIndex != null` → `Day ${dayIndex + 1}` (preserves "Day 4" specificity vs generic "On itinerary"). Phase C and beyond deferred.
 
 ---
 
@@ -1229,10 +1241,10 @@ Source tags: [C37] surfaced Chat 37; [C38] surfaced Chat 38; [C39] surfaced Chat
 - Per-stop X delete + add-new-stop on Trip Tours expand-in-place [C39]: COMPLETE. Chat 39 commit ad44676.
 - Phase 2 city attribution backfill [C39]: COMPLETE. Chat 39 commit 7ec8f9b.
 - ManualActivity.googlePlaceId structural improvement [C39]: store googlePlaceId on ManualActivity at creation time. Allows writeThroughCommunitySpot to dedup by placeId (priority 1) instead of (name, city) tuple, eliminating multi-city dedup ambiguity entirely.
-- Universal Entity Status Rule build [C39]: src/lib/entity-status.ts shared helper, src/components/ui/EntityStatusPill.tsx canonical pill component, migration across SavesScreen + trip Saved tab + Itinerary day view + Vault cards + Recommendations + Discover Spots + tour stop cards. Bellwether bug: Hyatt Regency Seragaki Island lodging not showing "On itinerary" despite ItineraryItem linkage.
+- Universal Entity Status Rule build [C39]: Phase A COMPLETE Chat 40 commit 18f4165 (SavesScreen). Phase B COMPLETE Chat 40 commit 16f2ffc (Trip Saved tab). Remaining: Itinerary day view + Vault cards + Recommendations + Discover Spots + tour stop cards.
 - /tour/[id] as public viewer for non-owners [C38, refined C39]
-- Universal URL Rule resolver build [C39]: src/lib/url-resolver.ts shared helper — resolveCanonicalUrl(placeId?, website?, name, city) returns Places website → Google Maps URL → generic search URL, never null. Integrate across TourStop generation, ItineraryItem email-extraction (LODGING + ACTIVITY), ManualActivity AI-enrichment, IntelItem generation, Recommendations.
-- Universal URL Rule audit + backfill [C39]: SQL audit per surface, idempotent backfill scripts, dry-run + distribution check + live run + verification SQL. Six surfaces: TourStop, ItineraryItem LODGING, ItineraryItem ACTIVITY, ManualActivity, IntelItem, Recommendations.
+- Universal URL Rule resolver build [C39]: COMPLETE. src/lib/url-resolver.ts shipped Chat 39 commit a030523. Integrated across TourStop generation (Chat 39). Forward-path integration for ItineraryItem ACTIVITY/LODGING extraction and ManualActivity AI-enrichment queued.
+- Universal URL Rule audit + backfill [C39]: COMPLETE Chat 40 commit d4e828c. 89 rows backfilled (ManualActivity: 12, ItineraryItem ACTIVITY: 16, ItineraryItem LODGING: 61). 7 rows skipped (platform-name titles). 0 null URLs remaining in target sets.
 
 ### Family-utility and events (Be Helpful pillars)
 
