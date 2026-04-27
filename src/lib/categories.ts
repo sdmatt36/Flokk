@@ -122,3 +122,71 @@ export function categoryLabel(slug: string | null | undefined): string {
   const match = CATEGORIES.find((c) => c.slug === slug);
   return match?.label ?? slug;
 }
+
+/** Google Places API type → canonical CategorySlug. First specific match wins; generic fallback to "experiences". */
+const SPECIFIC_TYPE_MAP: Record<string, string> = {
+  // food_and_drink
+  restaurant:              "food_and_drink",
+  cafe:                    "food_and_drink",
+  bar:                     "food_and_drink",
+  bakery:                  "food_and_drink",
+  meal_takeaway:           "food_and_drink",
+  meal_delivery:           "food_and_drink",
+  food:                    "food_and_drink",
+  // lodging
+  lodging:                 "lodging",
+  hotel:                   "lodging",
+  // culture
+  museum:                  "culture",
+  art_gallery:             "culture",
+  library:                 "culture",
+  place_of_worship:        "culture",
+  hindu_temple:            "culture",
+  church:                  "culture",
+  mosque:                  "culture",
+  synagogue:               "culture",
+  cemetery:                "culture",
+  historical_landmark:     "culture",
+  // nature_and_outdoors
+  park:                    "nature_and_outdoors",
+  natural_feature:         "nature_and_outdoors",
+  campground:              "nature_and_outdoors",
+  beach:                   "nature_and_outdoors",
+  // kids_and_family
+  amusement_park:          "kids_and_family",
+  zoo:                     "kids_and_family",
+  aquarium:                "kids_and_family",
+  // shopping
+  shopping_mall:           "shopping",
+  store:                   "shopping",
+  department_store:        "shopping",
+  clothing_store:          "shopping",
+  book_store:              "shopping",
+  supermarket:             "shopping",
+  grocery_or_supermarket:  "shopping",
+  // nightlife
+  night_club:              "nightlife",
+  casino:                  "nightlife",
+  // wellness
+  spa:                     "wellness",
+  gym:                     "wellness",
+  beauty_salon:            "wellness",
+  hair_care:               "wellness",
+  // sports_and_entertainment
+  stadium:                 "sports_and_entertainment",
+  bowling_alley:           "sports_and_entertainment",
+  movie_theater:           "sports_and_entertainment",
+  arcade:                  "sports_and_entertainment",
+};
+
+const GENERIC_TYPES = new Set(["tourist_attraction", "point_of_interest", "establishment"]);
+
+export function mapPlaceTypesToCanonicalSlugs(placeTypes: string[] | null | undefined): string[] {
+  if (!placeTypes || placeTypes.length === 0) return [];
+  for (const t of placeTypes) {
+    const slug = SPECIFIC_TYPE_MAP[t];
+    if (slug) return [slug];
+  }
+  if (placeTypes.some(t => GENERIC_TYPES.has(t))) return ["experiences"];
+  return [];
+}

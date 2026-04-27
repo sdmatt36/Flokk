@@ -40,7 +40,7 @@ function hasWeakThemeRelevance(text: string | undefined | null): boolean {
   return vaguePhrases.some(p => trimmed.includes(p));
 }
 
-type ResolvedStop = RawStop & { imageUrl: string | null; websiteUrl: string | null; ticketRequired: string | null };
+type ResolvedStop = RawStop & { imageUrl: string | null; websiteUrl: string | null; ticketRequired: string | null; placeTypes: string[] };
 
 function deriveTicketSignal(
   types: string[],
@@ -167,10 +167,10 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     const editorialSummary = detailsData.result?.editorial_summary?.overview;
     const ticketRequired = deriveTicketSignal(placeTypes, priceLevel, editorialSummary);
     console.log(`[tour-resolve] OK "${stop.name}" -> ${lat},${lng}${imageUrl ? " [photo]" : ""} ticket=${ticketRequired}`);
-    return { ...stop, lat, lng, imageUrl, websiteUrl, ticketRequired };
+    return { ...stop, lat, lng, imageUrl, websiteUrl, ticketRequired, placeTypes };
   } catch (e) {
     console.error("[tour-resolve] error:", stop.name, e);
-    if (stop.lat && stop.lng && stop.lat !== 0 && stop.lng !== 0) return { ...stop, imageUrl: null, websiteUrl: null, ticketRequired: null };
+    if (stop.lat && stop.lng && stop.lat !== 0 && stop.lng !== 0) return { ...stop, imageUrl: null, websiteUrl: null, ticketRequired: null, placeTypes: [] };
     return null;
   }
 }
@@ -442,6 +442,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
                       imageUrl: resolved.imageUrl,
                       websiteUrl: resolved.websiteUrl,
                       ticketRequired: resolved.ticketRequired,
+                      placeTypes: resolved.placeTypes ?? [],
                     },
                   });
                 }
@@ -534,6 +535,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
               imageUrl: s.imageUrl,
               websiteUrl: s.websiteUrl,
               ticketRequired: s.ticketRequired ?? null,
+              placeTypes: s.placeTypes ?? [],
             },
           });
           s.orderIndex = retryIdx++;
@@ -612,6 +614,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
                     imageUrl: resolved.imageUrl,
                     websiteUrl: resolved.websiteUrl,
                     ticketRequired: resolved.ticketRequired,
+                    placeTypes: resolved.placeTypes ?? [],
                   },
                 });
                 completedStops.push({ ...resolved, id: stopId, orderIndex: idx });

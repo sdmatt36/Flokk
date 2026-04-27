@@ -1015,6 +1015,7 @@ model TourStop {
   imageUrl      String?
   websiteUrl    String?
   ticketRequired String? // 'free' | 'ticket-required' | 'advance-booking-recommended' | 'unknown'
+  placeTypes    String[] @default([])
   savedItemId   String?
   savedItem     SavedItem?     @relation(fields: [savedItemId], references: [id], onDelete: SetNull)
   deletedAt     DateTime?

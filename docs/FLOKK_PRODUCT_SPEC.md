@@ -287,6 +287,16 @@ All refinement inputs flow into the Claude generation prompt as soft preferences
 
 ⚠ NEEDS BUILD: form revamp to add this optional section. UX TBD (accordion vs step 2 modal).
 
+### Tour Categorization Pipeline (Forward Path Shipped Chat 39)
+
+Tour stops created via tour generation now persist Google Places `types` to `TourStop.placeTypes`. When a tour is saved to a trip via /api/tours/save, the save flow maps placeTypes through `mapPlaceTypesToCanonicalSlugs()` (src/lib/categories.ts) and writes the resulting canonical category slug to SavedItem.categoryTags. This closes the historical bypass where tour-saved items shipped with empty categoryTags and were excluded from Saved tab filters, behavioral profile signals, recommendations, and Spots community surfacing.
+
+Mapper emits canonical slugs (food_and_drink, culture, kids_and_family, etc.), not legacy values (food, outdoor). The 12-slug taxonomy in CATEGORIES is the source of truth.
+
+Backfill of 57 legacy tour-saved SavedItems with empty categoryTags pending separate Prompt 1B (Places re-fetch + mapper).
+
+NOT changed: src/lib/enrich-save.ts PLACE_TYPE_MAP. Its legacy emissions ("food" instead of "food_and_drink", etc.) require their own audit. Tracked in Backlog as "PLACE_TYPE_MAP legacy emissions audit."
+
 ---
 
 ## Tours — Public Surfacing & Community
@@ -358,6 +368,7 @@ Public tours surface on a Discover/Spots Tours area:
 - `GeneratedTour.originalTargetStops` (Int) — for under-emission tracking
 - `GeneratedTour.categoryTags` (String[]) — currently always empty (categorization pipeline open bug)
 - `TourStop.imageUrl` (String?) — stop photo
+- `TourStop.placeTypes` (String[], default []) — Google Places `types` array, captured at generate time, used by save flow to derive SavedItem.categoryTags [C39]
 - `TourStop.savedItemId` (String? FK → SavedItem) — nullable; set on save-to-trip
 - `Trip.cloneCount` (Int) — trip-level clone counter; exists, used by trip clone routes
 
@@ -749,7 +760,7 @@ Source tags: [C37] surfaced Chat 37; [C38] surfaced Chat 38; [C39] surfaced Chat
 ### Top of queue (P0/P1)
 
 - Phase 2A schema migration: FamilyBehavioralProfile + CohortBehavioralProfile [C38]
-- Tour categorization pipeline gap: tour-saved items have categoryTags empty array, bypass enrichSavedItem, become second-class on Saved tab filters, behavioral profile, recommendations, Spots [C37]
+- Tour categorization pipeline gap [C37]: forward path shipped Chat 39. Backfill of 57 legacy items pending Prompt 1B.
 - Visual tour cards on profile/trips library: replace dropdown-by-city pills with image cards [C37]
 - Tour share token + viewer + clone-to-account full build [C37, refined C39]
 - Anchor-aware tour generation: lodging/itinerary as start/end node, foundation of companion thesis [C37]
@@ -790,6 +801,7 @@ Source tags: [C37] surfaced Chat 37; [C38] surfaced Chat 38; [C39] surfaced Chat
 
 ### P3 fragility cleanup
 
+- PLACE_TYPE_MAP legacy emissions audit: enrich-save.ts emits "food", "outdoor", etc. instead of canonical slugs. Read-time normalization status unknown. Audit + fix + backfill all legacy-tagged SavedItems [C39]
 - Walking-retry should rollback DB writes from discarded attempts [C37]
 - audit-drift script N+1 hang on I2c [C37]
 - Inngest full removal: imported in 6+ files but disabled [C37]

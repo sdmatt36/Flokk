@@ -5,6 +5,7 @@ import { resolveProfileId } from "@/lib/profile-access";
 import { haversineMeters } from "@/lib/geo";
 import { PLATFORM_FLOKK_TOURS } from "@/lib/saved-item-types";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
+import { mapPlaceTypesToCanonicalSlugs } from "@/lib/categories";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -96,6 +97,7 @@ export async function POST(req: NextRequest) {
     lng: number | null;
     why: string | null;
     imageUrl: string | null;
+    placeTypes: string[];
   };
 
   let loopStops: LoopStop[];
@@ -118,6 +120,7 @@ export async function POST(req: NextRequest) {
       lng: s.lng,
       why: s.why,
       imageUrl: s.imageUrl,
+      placeTypes: s.placeTypes ?? [],
     }));
   } else {
     // Case B: create GeneratedTour + TourStop
@@ -159,7 +162,7 @@ export async function POST(req: NextRequest) {
           familyNote: stop.familyNote || null,
         },
       });
-      loopStops.push({ id: stopId, name: stop.name, address: stop.address || null, lat: stop.lat || null, lng: stop.lng || null, why: stop.why || null, imageUrl: null });
+      loopStops.push({ id: stopId, name: stop.name, address: stop.address || null, lat: stop.lat || null, lng: stop.lng || null, why: stop.why || null, imageUrl: null, placeTypes: [] });
     }
   }
 
@@ -226,7 +229,7 @@ export async function POST(req: NextRequest) {
           lng,
           notes: stop.why || null,
           placePhotoUrl: stop.imageUrl ?? null,
-          categoryTags: [],
+          categoryTags: mapPlaceTypesToCanonicalSlugs(stop.placeTypes ?? []),
           status: "SCHEDULED",
           extractionStatus: "ENRICHED",
           tourId,
