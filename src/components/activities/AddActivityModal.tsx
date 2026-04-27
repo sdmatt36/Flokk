@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { MODAL_OVERLAY_CLASSES, MODAL_PANEL_CLASSES } from "@/lib/modal-classes";
 import { CATEGORIES } from "@/lib/categories";
 
 type ActivityStatus = "interested" | "confirmed" | "booked";
@@ -204,23 +205,12 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
   return createPortal(
     <div
       onClick={onClose}
-      style={{
-        position: "fixed", inset: 0, zIndex: 500,
-        backgroundColor: "rgba(0,0,0,0.45)",
-        display: "flex", alignItems: "flex-end", justifyContent: "center",
-      }}
+      className={MODAL_OVERLAY_CLASSES}
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{
-          backgroundColor: "#fff",
-          borderRadius: "24px 24px 0 0",
-          width: "100%",
-          maxWidth: "540px",
-          padding: "24px 20px 40px",
-          maxHeight: "90vh",
-          overflowY: "auto",
-        }}
+        className={`${MODAL_PANEL_CLASSES} sm:w-[540px]`}
+        style={{ padding: "24px 20px 40px" }}
       >
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>

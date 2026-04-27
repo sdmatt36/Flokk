@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { MapPin, X } from "lucide-react";
+import { MODAL_OVERLAY_CLASSES } from "@/lib/modal-classes";
 import { parseDateForDisplay } from "@/lib/dates";
 
 function getDomainLabel(url: string): string {
@@ -245,27 +246,17 @@ export function DropLinkModal({
 
   return (
     <div
-      className="flex items-end md:items-center md:justify-center md:p-4"
+      className={MODAL_OVERLAY_CLASSES}
       style={{
-        position: "fixed",
-        inset: 0,
-        backgroundColor: "rgba(0,0,0,0.45)",
-        zIndex: 200,
-        display: "flex",
         opacity: visible ? 1 : 0,
         transition: "opacity 0.22s ease",
       }}
       onClick={(e) => { if (e.target === e.currentTarget) animateClose(); }}
     >
       <div
-        className="w-full md:max-w-[520px] rounded-t-[20px] md:rounded-[20px]"
+        className="w-full sm:w-[520px] sm:max-w-[90vw] rounded-t-2xl sm:rounded-2xl bg-white max-h-[85vh] flex flex-col overflow-hidden"
         style={{
-          backgroundColor: "#fff",
-          maxHeight: "calc(100vh - 60px)",
-          display: "flex",
-          flexDirection: "column",
           boxShadow: "0 4px 32px rgba(0,0,0,0.12)",
-          overflow: "hidden",
           transform: visible ? "translateY(0)" : "translateY(24px)",
           transition: "transform 0.22s ease, opacity 0.22s ease",
           opacity: visible ? 1 : 0,

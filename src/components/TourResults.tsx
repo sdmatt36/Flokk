@@ -426,8 +426,8 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
       )}
 
       {modalOpen && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-end sm:items-center justify-center" onClick={closeModal}>
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 mb-0 sm:mb-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center" onClick={closeModal}>
+          <div className="w-full sm:w-[480px] sm:max-w-[90vw] rounded-t-2xl sm:rounded-2xl bg-white max-h-[85vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
             {saveSuccess ? (
               <div className="text-center">
                 <p className="font-serif text-lg font-semibold text-[#1B3A5C] mb-2">Stops saved!</p>

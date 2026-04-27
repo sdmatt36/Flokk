@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { X, MapPin } from "lucide-react";
+import { MODAL_OVERLAY_CLASSES, MODAL_PANEL_CLASSES } from "@/lib/modal-classes";
 
 type DestinationSuggestion = {
   placeId: string;
@@ -153,27 +154,16 @@ function AddTripModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="flex items-end md:items-center md:justify-center md:p-6"
+      className={MODAL_OVERLAY_CLASSES}
       onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        backgroundColor: "rgba(0,0,0,0.4)",
-        zIndex: 100,
-        display: "flex",
-      }}
     >
       {/* Modal */}
       <div
-        className="w-full md:max-w-[480px] rounded-t-2xl md:rounded-2xl"
+        className={MODAL_PANEL_CLASSES}
         onClick={(e) => e.stopPropagation()}
         style={{
-          zIndex: 101,
-          backgroundColor: "#fff",
           boxShadow: "0 4px 24px rgba(0,0,0,0.10)",
           padding: "32px 28px 24px",
-          maxHeight: "calc(100vh - 60px)",
-          overflowY: "auto",
         }}
       >
         {/* Close */}

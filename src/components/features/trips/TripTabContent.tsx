@@ -94,6 +94,7 @@ import { AddFlightModal } from "@/components/flights/AddFlightModal";
 import { EditFlightModal } from "@/components/flights/EditFlightModal";
 import { AddActivityModal, type ExistingActivity } from "@/components/activities/AddActivityModal";
 import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
+import { MODAL_OVERLAY_CLASSES, MODAL_PANEL_CLASSES } from "@/lib/modal-classes";
 import { parseDateForDisplay } from "@/lib/dates";
 import { toTitleCase } from "@/lib/utils";
 import { getTripCoverImage, getItemImage } from "@/lib/destination-images";
@@ -630,11 +631,12 @@ function SavedDayPickerModal({ itemTitle, tripStartDate, tripEndDate, onConfirm,
   return createPortal(
     <div
       onClick={onClose}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      className={MODAL_OVERLAY_CLASSES}
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "480px", padding: "24px 20px 32px" }}
+        className={MODAL_PANEL_CLASSES}
+        style={{ padding: "24px 20px 32px" }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "#1a1a1a" }}>Which day?</p>
@@ -688,11 +690,12 @@ function LodgingDateModal({ itemTitle, onConfirm, onClose }: {
   return createPortal(
     <div
       onClick={onClose}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      className={MODAL_OVERLAY_CLASSES}
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "480px", padding: "24px 20px 32px" }}
+        className={MODAL_PANEL_CLASSES}
+        style={{ padding: "24px 20px 32px" }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
           <p style={{ fontSize: "16px", fontWeight: 800, color: "#1a1a1a" }}>When are you staying?</p>
@@ -773,11 +776,11 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
   return createPortal(
     <div
       onClick={handleClose}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      className={MODAL_OVERLAY_CLASSES}
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "560px", maxHeight: "85vh", overflowY: "auto", paddingBottom: "env(safe-area-inset-bottom, 16px)" }}
+        className={`${MODAL_PANEL_CLASSES} sm:w-[560px]`}
       >
         {/* Hero */}
         <div style={{ position: "relative" }}>
@@ -1585,8 +1588,8 @@ function TaskModal({ onClose }: { onClose: () => void }) {
     { dateStr: "Wed, May 7", dayNum: 4 },
   ];
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={e => e.stopPropagation()} style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "560px", maxHeight: "85vh", overflowY: "auto", padding: "24px 20px 32px", paddingBottom: "env(safe-area-inset-bottom, 32px)" }}>
+    <div onClick={onClose} className={MODAL_OVERLAY_CLASSES}>
+      <div onClick={e => e.stopPropagation()} className={`${MODAL_PANEL_CLASSES} sm:w-[560px]`} style={{ padding: "24px 20px 32px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
           <p style={{ fontSize: "17px", fontWeight: 800, color: "#1a1a1a" }}>What needs attention</p>
           <button onClick={onClose} style={{ background: "none", border: "none", fontSize: "20px", cursor: "pointer", color: "#999", padding: "4px" }}>×</button>
@@ -1733,11 +1736,12 @@ function ActivityDetailModal({ activity, onClose, onEdit, onDelete, onMarkBooked
   return createPortal(
     <div
       onClick={onClose}
-      style={{ position: "fixed", inset: 0, zIndex: 500, backgroundColor: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }}
+      className={MODAL_OVERLAY_CLASSES}
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ backgroundColor: "#fff", borderRadius: "20px", width: "100%", maxWidth: "480px", maxHeight: "85vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 8px 40px rgba(0,0,0,0.2)" }}
+        className="w-full sm:w-[480px] sm:max-w-[90vw] rounded-t-2xl sm:rounded-2xl bg-white max-h-[85vh] flex flex-col overflow-hidden"
+        style={{ boxShadow: "0 8px 40px rgba(0,0,0,0.2)" }}
       >
         {/* Header */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "20px 20px 0", gap: "12px" }}>
@@ -3644,11 +3648,12 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       {editingLodging && createPortal(
         <div
           onClick={() => setEditingLodging(null)}
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          className={MODAL_OVERLAY_CLASSES}
         >
           <div
             onClick={e => e.stopPropagation()}
-            style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "560px", maxHeight: "85vh", overflowY: "auto", padding: "24px 20px 40px", paddingBottom: "max(40px, env(safe-area-inset-bottom))" }}
+            className={`${MODAL_PANEL_CLASSES} sm:w-[560px]`}
+            style={{ padding: "24px 20px 40px" }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
               <p style={{ fontSize: "17px", fontWeight: 800, color: "#1a1a1a" }}>Edit Hotel / Lodging</p>
@@ -3730,11 +3735,12 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         const titleStyle: React.CSSProperties = { fontSize: "22px", fontWeight: 800, color: "#1B3A5C", marginBottom: "14px", fontFamily: "'Playfair Display', Georgia, serif", lineHeight: 1.2 };
         return (
           <div
-            style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 500, display: "flex", alignItems: isDesktop ? "center" : "flex-end", justifyContent: "center", padding: isDesktop ? "16px" : "0" }}
+            className={MODAL_OVERLAY_CLASSES}
             onClick={() => { setSelectedItineraryItem(null); setEditingItinFields(false); }}
           >
             <div
-              style={{ backgroundColor: "#fff", width: "100%", maxWidth: isDesktop ? "440px" : undefined, borderRadius: isDesktop ? "16px" : "20px 20px 0 0", padding: "24px", maxHeight: "85vh", overflowY: "auto" }}
+              className="w-full sm:w-[440px] sm:max-w-[90vw] rounded-t-2xl sm:rounded-2xl bg-white max-h-[85vh] overflow-y-auto"
+              style={{ padding: "24px" }}
               onClick={e => e.stopPropagation()}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
@@ -4066,8 +4072,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       )}
 
       {tourCancelTarget && (
-        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", zIndex: 50, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => !tourCancelling && setTourCancelTarget(null)}>
-          <div style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", padding: "28px 24px 40px", maxWidth: "480px", width: "100%", margin: "0 16px" }} onClick={e => e.stopPropagation()}>
+        <div className={MODAL_OVERLAY_CLASSES} onClick={() => !tourCancelling && setTourCancelTarget(null)}>
+          <div className={MODAL_PANEL_CLASSES} style={{ padding: "28px 24px 40px" }} onClick={e => e.stopPropagation()}>
             <p style={{ fontSize: "18px", fontWeight: 700, color: "#1B3A5C", fontFamily: "var(--font-playfair, serif)", margin: "0 0 12px" }}>
               Are you Flokkin&apos; sure?
             </p>
@@ -6240,11 +6246,11 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
 
       {selectedStop && (
         <div
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 60, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          className={MODAL_OVERLAY_CLASSES}
           onClick={() => setSelectedStop(null)}
         >
           <div
-            style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", maxWidth: "480px", width: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" }}
+            className="w-full sm:w-[480px] sm:max-w-[90vw] rounded-t-2xl sm:rounded-2xl bg-white max-h-[90vh] flex flex-col overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
             {/* Hero image — fixed height, flex-shrink-0, close button positioned absolute */}
@@ -6322,8 +6328,8 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
       )}
 
       {cancelTarget && (
-        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", zIndex: 50, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => !cancelling && setCancelTarget(null)}>
-          <div style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", padding: "28px 24px 40px", maxWidth: "480px", width: "100%", margin: "0 16px" }} onClick={e => e.stopPropagation()}>
+        <div className={MODAL_OVERLAY_CLASSES} onClick={() => !cancelling && setCancelTarget(null)}>
+          <div className={MODAL_PANEL_CLASSES} style={{ padding: "28px 24px 40px" }} onClick={e => e.stopPropagation()}>
             <p style={{ fontSize: "18px", fontWeight: 700, color: "#1B3A5C", fontFamily: "var(--font-playfair, serif)", margin: "0 0 12px" }}>
               Are you Flokkin&apos; sure?
             </p>
@@ -7572,14 +7578,14 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         const guestsLabel = sit.passengers.length > 0
           ? sit.passengers.length <= 2 ? sit.passengers.join(", ") : `${sit.passengers.length} guests`
           : null;
-        const isDesktop = window.innerWidth >= 768;
         return (
           <div
-            style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 500, display: "flex", alignItems: isDesktop ? "center" : "flex-end", justifyContent: "center", padding: isDesktop ? "16px" : "0" }}
+            className={MODAL_OVERLAY_CLASSES}
             onClick={() => setVaultActivityItem(null)}
           >
             <div
-              style={{ backgroundColor: "#fff", width: "100%", maxWidth: isDesktop ? "440px" : undefined, borderRadius: isDesktop ? "16px" : "20px 20px 0 0", padding: "24px", maxHeight: "85vh", overflowY: "auto" }}
+              className="w-full sm:w-[440px] sm:max-w-[90vw] rounded-t-2xl sm:rounded-2xl bg-white max-h-[85vh] overflow-y-auto"
+              style={{ padding: "24px" }}
               onClick={e => e.stopPropagation()}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
@@ -7732,8 +7738,8 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         const labelStyle = { fontSize: "11px", fontWeight: 700 as const, color: "#717171", textTransform: "uppercase" as const, letterSpacing: "0.07em", marginBottom: "5px", display: "block" };
         const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", backgroundColor: "#fff", outline: "none", boxSizing: "border-box" as const };
         return createPortal(
-          <div onClick={() => setEditingVaultDoc(null)} style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-            <div onClick={e => e.stopPropagation()} style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "560px", maxHeight: "85vh", overflowY: "auto", padding: "24px 20px 40px" }}>
+          <div onClick={() => setEditingVaultDoc(null)} className={MODAL_OVERLAY_CLASSES}>
+            <div onClick={e => e.stopPropagation()} className={`${MODAL_PANEL_CLASSES} sm:w-[560px]`} style={{ padding: "24px 20px 40px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
                 <p style={{ fontSize: "17px", fontWeight: 800, color: "#1a1a1a" }}>Edit Booking</p>
                 <button onClick={() => setEditingVaultDoc(null)} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#999", padding: "4px", lineHeight: 1 }}>×</button>
@@ -7846,11 +7852,12 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       {showTripSettings && createPortal(
         <div
           onClick={() => setShowTripSettings(false)}
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.45)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          className={MODAL_OVERLAY_CLASSES}
         >
           <div
             onClick={e => e.stopPropagation()}
-            style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "560px", padding: "24px 20px 40px" }}
+            className={`${MODAL_PANEL_CLASSES} sm:w-[560px]`}
+            style={{ padding: "24px 20px 40px" }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
               <p style={{ fontSize: "17px", fontWeight: 800, color: "#1a1a1a" }}>Trip Settings</p>

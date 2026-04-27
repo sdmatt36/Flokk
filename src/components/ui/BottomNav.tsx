@@ -25,7 +25,7 @@ export function BottomNav() {
       backgroundColor: "#fff",
       borderTop: "1px solid #EEEEEE",
       padding: "8px 12px",
-      zIndex: 80,
+      zIndex: 40,
     }}>
       <div style={{ maxWidth: "520px", margin: "0 auto", display: "flex", justifyContent: "space-around" }}>
         {NAV_ITEMS.map(({ label, icon: Icon, href }) => {

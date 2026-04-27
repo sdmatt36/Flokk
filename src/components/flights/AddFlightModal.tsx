@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { MODAL_OVERLAY_CLASSES, MODAL_PANEL_CLASSES } from "@/lib/modal-classes";
 import { AIRLINES } from "@/lib/airlines";
 import { getAirportByCode } from "@/lib/airports";
 import { AirportAutocomplete } from "@/components/shared/AirportAutocomplete";
@@ -134,11 +135,12 @@ export function AddFlightModal({ tripId, onClose, onSaved }: AddFlightModalProps
   return createPortal(
     <div
       onClick={onClose}
-      style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 400, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+      className={MODAL_OVERLAY_CLASSES}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        style={{ backgroundColor: "#fff", borderRadius: "20px 20px 0 0", width: "100%", maxWidth: "560px", maxHeight: "90vh", overflowY: "auto", padding: "24px 20px 40px", paddingBottom: "max(40px, env(safe-area-inset-bottom))" }}
+        className={`${MODAL_PANEL_CLASSES} sm:w-[560px]`}
+        style={{ padding: "24px 20px 40px" }}
       >
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>

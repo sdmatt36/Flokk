@@ -903,6 +903,7 @@ Source tags: [C37] surfaced Chat 37; [C38] surfaced Chat 38; [C39] surfaced Chat
 
 ### Bug fixes and small repairs
 
+- SaveDetailModal modal pattern migration: src/components/features/saves/SaveDetailModal.tsx uses transform-based slide-up pattern (position:fixed bottom:0 left:50% transform:translate(-50%,0) on panel + separate backdrop div). Not a className swap — requires merging backdrop+panel into single wrapper. Deferred from Chat 39 modal migration. [C39]
 - Cairo/Luxor blank itinerary diagnostic [C38]
 - Sri Lanka recommendation save bug [C38]
 - Notes edit + formatting preservation [C38]
@@ -1024,6 +1025,8 @@ Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product
 **Spec Reading Discipline established**: Five operating rules added at top of spec after maps-on-mobile drift demonstrated the failure mode where offhand chat input was treated as a settled architectural decision.
 
 **Modal Pattern Discipline established**: Diagnostic confirmed two broken surfaces (Stop Detail modal, Cancel Confirmation sheet on Trip Tours tab — both mobile-only bottom-sheet without `sm:` breakpoint adaptation, content masked by bottom nav on desktop). Five imported modal components remain to be audited. Canonical pattern defined: `items-end sm:items-center` outer wrapper, `rounded-t-2xl sm:rounded-2xl` panel, `pb-safe` scroll container. Migration build pending separate prompt.
+
+**Modal migration shipped**: `src/lib/modal-classes.ts` created (MODAL_OVERLAY_CLASSES, MODAL_PANEL_CLASSES, MODAL_STICKY_FOOTER_CLASSES). `pb-safe` utility added to globals.css. BottomNav z-index lowered 80→40 (root cause of masking). 19 modals migrated across 10 files: TripTabContent.tsx (SavedDayPickerModal, LodgingDateModal, SavedDetailModal-inline, TaskModal, ActivityDetailModal, editingLodging, selectedItineraryItem, tourCancelTarget, selectedStop, cancelTarget, vaultActivityItem, editingVaultDoc, showTripSettings), AddFlightModal, EditFlightModal (both modes), AddActivityModal, DropLinkModal, AddTripModal, discover/page.tsx "Share a trip" modal, TourResults Trip Save modal. Deferred: SaveDetailModal (saves/SaveDetailModal.tsx) — transform-based slide-up pattern, not a className swap, tracked in Backlog.
 
 ### Prior — Chat 37 (reconstructed from codebase + handoff references)
 

@@ -14,6 +14,7 @@ import type { AddToItinerarySpot } from "@/components/places/AddToItineraryModal
 import { PlaceActionRow } from "@/components/features/places/PlaceActionRow";
 import type { UserSpotRating } from "@/app/api/community/user-ratings/route";
 import { resolveSaveLink } from "@/lib/save-link";
+import { MODAL_OVERLAY_CLASSES } from "@/lib/modal-classes";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700", "900"] });
 
@@ -1785,11 +1786,12 @@ export default function DiscoverPage() {
       {activeTab === "trips" && showAddYours && (
         <div
           onClick={() => setShowAddYours(false)}
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          className={MODAL_OVERLAY_CLASSES}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", maxWidth: "520px", backgroundColor: "#fff", borderRadius: "20px 20px 0 0", padding: "24px", maxHeight: "80vh", display: "flex", flexDirection: "column" }}
+            className="w-full sm:w-[520px] sm:max-w-[90vw] rounded-t-2xl sm:rounded-2xl bg-white max-h-[80vh] flex flex-col overflow-hidden"
+            style={{ padding: "24px" }}
           >
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "16px" }}>
               <div>
