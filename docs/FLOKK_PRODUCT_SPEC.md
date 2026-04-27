@@ -149,7 +149,7 @@ Established Chat 39, April 27 2026, after a verification pass on the Trip Tours 
 
 ### The rule
 
-Every Flokk-generated entity that represents a place, venue, or experience MUST persist a non-null URL by the time it is written to the database. This applies to ALL of:
+Every Flokk-generated entity that represents a place, venue, or experience MUST resolve the best available URL using the priority chain before it is written to the database. Null is acceptable and preferable when neither P1 nor P2 applies — a null URL suppresses the "Visit website" affordance entirely, which is better than a button pointing at Google search. This applies to ALL of:
 - Tour stops (TourStop)
 - AI-extracted lodging from email parsing (ItineraryItem.type = LODGING)
 - AI-extracted activities from email parsing (ItineraryItem.type = ACTIVITY)
@@ -166,9 +166,8 @@ URLs are resolved by a single shared helper, `resolveCanonicalUrl()`, with this 
 
 1. Google Places `website` field (if Place Details API call returns a website for the venue)
 2. Google Places Maps URL fallback (`https://www.google.com/maps/place/?q=place_id:${placeId}`)
-3. Generic search URL fallback (`https://www.google.com/search?q=${encodeURIComponent(name + ' ' + city)}`)
 
-Never null. Never empty string. Never undefined.
+Returns `string | null`. Returns null when neither P1 nor P2 applies. Never empty string. Never undefined. P3 (generic search URL fallback) was built and reverted Chat 40 — a Google search URL renders a "Visit website" button that ships the user to Google instead of the actual venue, which is a worse experience than no button at all.
 
 ### Why this matters
 
@@ -176,7 +175,7 @@ Users discovering content in Flokk want to investigate. A restaurant recommendat
 
 ### Implementation requirements
 
-- A single shared helper `src/lib/url-resolver.ts` exports `resolveCanonicalUrl(input: { website?, placeId?, name, city, country }): string`. Never returns null.
+- A single shared helper `src/lib/url-resolver.ts` exports `resolveCanonicalUrl(input: { website?, placeId?, name, city, country }): string | null`. Returns null when neither P1 nor P2 applies; callers treat null as "no URL available" and suppress the affordance.
 - Every AI-generation/extraction code path calls this helper before persistence.
 - Schema fields hosting these URLs are NOT marked nullable in new code. Existing nullable fields stay nullable for backwards compatibility but new writes must populate them.
 - A database integrity check, run as part of CI or as a periodic cron, audits AI-generated entities for null URLs and reports violations.
@@ -193,17 +192,20 @@ Each surface listed below is either currently compliant, partially compliant, or
 - **Trip Intelligence IntelItem**: UNKNOWN. Audit needed.
 - **Recommendations**: UNKNOWN. Audit needed.
 
-### Backfill status (COMPLETE Chat 40, commit d4e828c)
+### Backfill status (REVERTED Chat 40, commit fdc0098)
 
-- ManualActivity: 12 rows backfilled (P1:0 P2:0 P3:12)
-- ItineraryItem ACTIVITY: 16 rows backfilled (P1:0 P2:0 P3:16)
-- ItineraryItem LODGING: 61 rows backfilled (P1:0 P2:0 P3:61)
-- Skipped (7 rows): titles were platform names ("Booking.com" × 6, "Airbnb" × 1) — resolver cannot derive a useful venue URL from a platform name
-- Script: scripts/backfills/2026-04-28-url-rule-backfill.ts
-- Total: 89 rows backfilled, 0 null URLs remaining in target sets
-- Universal URL Rule arc closed
+Chat 40 ran a backfill (commit d4e828c) that populated 89 rows with P3 search URLs. The backfill was reverted in the same session after verification showed that P3 URLs render a "Visit website" button pointing at Google search — a regression vs. null, which suppresses the button entirely. The 89 rows were restored to null via Supabase MCP SQL.
 
-Note: neither ManualActivity nor ItineraryItem stores `placeId` or `country`. All 89 rows hit Priority 3 (search URL). Priority 1 and 2 become relevant when `googlePlaceId` is added to ManualActivity (queued in Backlog) and forward-path ACTIVITY extraction begins storing placeId.
+Current state: 12 ManualActivity + 77 ItineraryItem rows have null URLs. This is correct and expected — neither ManualActivity nor ItineraryItem stores `placeId`, so P1 and P2 cannot be applied. The null-URL backfill will remain open until one of:
+- `googlePlaceId` is added to ManualActivity schema (enables P2 for ManualActivity rows)
+- Forward-path ACTIVITY/LODGING extraction begins storing placeId at write time (enables P2 for ItineraryItem rows)
+- An integration with Places API is added to enrich existing rows retroactively (enables P1/P2 for all targets)
+
+Script: `scripts/backfills/2026-04-28-url-rule-backfill.ts` — marked SUPERSEDED in file header. Do not re-run.
+
+### Affordance suppression rule
+
+When `resolveCanonicalUrl()` returns null for an entity, the "Visit website" / "Link" button MUST be suppressed entirely at the surface. Do not render a disabled or grayed button. Do not render a Google search fallback. Null means no button. This is enforced in `PlaceActionRow` and all detail modal link slots via `{place.websiteUrl && ...}` conditional rendering.
 
 ---
 
@@ -1244,7 +1246,10 @@ Source tags: [C37] surfaced Chat 37; [C38] surfaced Chat 38; [C39] surfaced Chat
 - Universal Entity Status Rule build [C39]: Phase A COMPLETE Chat 40 commit 18f4165 (SavesScreen). Phase B COMPLETE Chat 40 commit 16f2ffc (Trip Saved tab). Remaining: Itinerary day view + Vault cards + Recommendations + Discover Spots + tour stop cards.
 - /tour/[id] as public viewer for non-owners [C38, refined C39]
 - Universal URL Rule resolver build [C39]: COMPLETE. src/lib/url-resolver.ts shipped Chat 39 commit a030523. Integrated across TourStop generation (Chat 39). Forward-path integration for ItineraryItem ACTIVITY/LODGING extraction and ManualActivity AI-enrichment queued.
-- Universal URL Rule audit + backfill [C39]: COMPLETE Chat 40 commit d4e828c. 89 rows backfilled (ManualActivity: 12, ItineraryItem ACTIVITY: 16, ItineraryItem LODGING: 61). 7 rows skipped (platform-name titles). 0 null URLs remaining in target sets.
+- Universal URL Rule audit + backfill [C39]: REVERTED Chat 40 commit fdc0098. Chat 40 backfill (commit d4e828c) populated 89 rows with P3 search URLs; same session revert restored 89 rows to null after P3 proved to be a worse UX than null. Resolver tightened to P1/P2 only, returning string | null. Backfill arc remains open pending placeId availability on ManualActivity and ItineraryItem.
+- Universal URL Rule P1/P2 backfill [C40]: QUEUED. Blocked on ManualActivity.googlePlaceId schema addition (see ManualActivity.googlePlaceId backlog item). Once placeId is available, run a new backfill that calls Places Details API for each target row and populates P1/P2 URLs. Will close the null-URL arc properly.
+- Universal URL Rule null-URL integrity audit [C40]: QUEUED. After P1/P2 backfill runs, verify 0 null URLs remain in ManualActivity.website, ItineraryItem.venueUrl (ACTIVITY), ItineraryItem.venueUrl (LODGING) where placeId is non-null. Run as one-time SQL check or add to CI advisory cron.
+- Universal URL Rule forward-path placeId storage [C40]: QUEUED. ItineraryItem ACTIVITY/LODGING extraction in email-inbound route does not currently store placeId at write time. Add placeId storage so future rows get P2 fallback without needing retroactive enrichment.
 
 ### Family-utility and events (Be Helpful pillars)
 
@@ -1379,7 +1384,7 @@ Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product
 
 **Modal migration shipped**: `src/lib/modal-classes.ts` created (MODAL_OVERLAY_CLASSES, MODAL_PANEL_CLASSES, MODAL_STICKY_FOOTER_CLASSES). `pb-safe` utility added to globals.css. BottomNav z-index lowered 80→40 (root cause of masking). 19 modals migrated across 10 files: TripTabContent.tsx (SavedDayPickerModal, LodgingDateModal, SavedDetailModal-inline, TaskModal, ActivityDetailModal, editingLodging, selectedItineraryItem, tourCancelTarget, selectedStop, cancelTarget, vaultActivityItem, editingVaultDoc, showTripSettings), AddFlightModal, EditFlightModal (both modes), AddActivityModal, DropLinkModal, AddTripModal, discover/page.tsx "Share a trip" modal, TourResults Trip Save modal. Deferred: SaveDetailModal (saves/SaveDetailModal.tsx) — transform-based slide-up pattern, not a className swap, tracked in Backlog.
 
-**Universal URL Rule established as Operating Discipline**: Promoted from tour-specific URL guidance to product-wide rule covering all AI-generated/extracted entities. Resolver priority chain defined: (1) Google Places `website` field → (2) Google Maps URL `https://www.google.com/maps/place/?q=place_id:${placeId}` → (3) Generic search URL — never null. Six surfaces require compliance audit; lodging items confirmed non-compliant during modal migration verification. `src/lib/url-resolver.ts` build and per-surface audit + backfill queued P0/P1.
+**Universal URL Rule established as Operating Discipline**: Promoted from tour-specific URL guidance to product-wide rule covering all AI-generated/extracted entities. Resolver priority chain defined: (1) Google Places `website` field → (2) Google Maps URL `https://www.google.com/maps/place/?q=place_id:${placeId}`. Returns string | null — P3 generic search URL fallback was built and reverted Chat 40 (a search URL renders "Visit website" pointing at Google, worse UX than no button). Six surfaces require compliance audit; lodging items confirmed non-compliant during modal migration verification. `src/lib/url-resolver.ts` shipped Chat 39. Backfill arc open pending placeId availability on ManualActivity and ItineraryItem.
 
 **Tour Anchoring system specced**: Three anchor types unified — lodging (shipped Chat 38), save (pending), itinerary (pending). Save-anchored tours support all-anchor, mixed, and anchor+theme modes. Two UI surfaces: Tour Builder form section ("Include your saved spots") + Saves tab ambient prompt with locked CTA copy "Turn your trip saves into a Flokkin tour". API contract change: POST /api/tours/generate accepts anchorSavedItemIds. Build pending separate prompt.
 
