@@ -96,6 +96,53 @@ The first action in any chat that touches an existing feature is to read the spe
 
 ---
 
+## Modal Pattern Discipline (Operating Discipline)
+
+Established Chat 39, April 27 2026, after a stop detail modal on the Trip Tours tab was rendering cut off by the bottom nav on desktop. Diagnostic surfaced that the codebase has no canonical modal pattern — at least three patterns exist, applied inconsistently across surfaces, with the broken pattern (mobile-only bottom-sheet) being the most common.
+
+### Canonical pattern
+
+Every modal in the product follows this structure:
+
+Outer wrapper:
+```
+fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50
+```
+
+Content panel:
+```
+w-full sm:w-[480px] sm:max-w-[90vw] rounded-t-2xl sm:rounded-2xl bg-white max-h-[85vh] overflow-y-auto pb-safe
+```
+
+Behavior produced:
+- Mobile: slides up from bottom as a sheet, rounded top corners only, takes full width
+- Desktop (sm+): renders centered, rounded all corners, max-width 480px (or larger if content needs)
+- Both breakpoints: scrolls vertically if content exceeds 85vh
+- Both breakpoints: pb-safe (or pb-16 if iOS safe areas not configured) prevents content from being masked by fixed bottom nav on mobile
+- Sticky footer: when actions need to remain visible regardless of scroll, action row uses `sticky bottom-0 bg-white border-t` inside the scroll container
+
+### What is NOT canonical
+
+- **Bottom-sheet without `sm:` breakpoint adaptation.** The `alignItems: "flex-end"` pattern with no responsive flip is the failure mode. Mobile-native modals that sit pinned to bottom on desktop and get masked by the bottom nav.
+- **Centered overlay without `max-h`.** Modals that can grow beyond viewport with no scroll affordance.
+- **z-index above 50 used as a fix for stacking conflicts.** If a modal needs z-60 to escape a chrome element, the chrome element's z-index is wrong, not the modal's. z-50 is the canonical ceiling.
+- **Inline modal JSX scattered across feature components** when the same pattern is reused 9+ times across the app. Modals that recur should be promoted to a shared component.
+
+### Required affordances per modal
+
+- **Close X button:** top-right of content panel, 32px touch target, lucide X icon, navy or gray, always visible regardless of scroll
+- **Tap-outside-to-close:** clicking the bg-black/50 backdrop closes the modal (onClick on outer wrapper, e.stopPropagation on content panel)
+- **Escape-key-to-close:** key handler on the content panel
+- **Sticky action footer** when actions are required (View on Maps, Save, Cancel, Confirm)
+
+### Migration approach
+
+When modal pattern bugs are found, the fix is the canonical pattern above applied to the affected modal. NOT z-index escalation. NOT padding hacks at the consumer level. Modal infrastructure is fixed at the source, not patched downstream.
+
+Long-term: a shared `Modal` component at `src/components/ui/Modal.tsx` that takes children, `isOpen`, `onClose`, optional sticky footer slot, and optional `sm:max-w` override. New modals use the component. Existing modals migrate incrementally, prioritized by user-visible breakage. The shared component is NOT required for the immediate fix; the canonical pattern is.
+
+---
+
 ## Tours
 
 ### Tour Generation
@@ -975,6 +1022,8 @@ Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product
 **Tour Sharing Three-State Model specced**: Private (default) / Shared (link-based, tokenized) / Public (Spots-published). shareToken, isPublic, publishedToSpotsAt, attribution fields designed for GeneratedTour schema. TourStop.neighborhood (String?) captured at generation for future neighborhood-level Spots browse. Build pending.
 
 **Spec Reading Discipline established**: Five operating rules added at top of spec after maps-on-mobile drift demonstrated the failure mode where offhand chat input was treated as a settled architectural decision.
+
+**Modal Pattern Discipline established**: Diagnostic confirmed two broken surfaces (Stop Detail modal, Cancel Confirmation sheet on Trip Tours tab — both mobile-only bottom-sheet without `sm:` breakpoint adaptation, content masked by bottom nav on desktop). Five imported modal components remain to be audited. Canonical pattern defined: `items-end sm:items-center` outer wrapper, `rounded-t-2xl sm:rounded-2xl` panel, `pb-safe` scroll container. Migration build pending separate prompt.
 
 ### Prior — Chat 37 (reconstructed from codebase + handoff references)
 
