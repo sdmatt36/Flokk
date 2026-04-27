@@ -152,7 +152,7 @@ export async function POST(
     if (enriched.imageUrl && !activity.imageUrl) { placesUpdate.imageUrl = enriched.imageUrl; activityEnrichedImageUrl = enriched.imageUrl; }
     if (!activity.website) {
       const resolvedWebsite = enriched.website ?? resolveCanonicalUrl({ name: activity.title, city: activityCity });
-      placesUpdate.website = resolvedWebsite;
+      placesUpdate.website = resolvedWebsite ?? undefined;
       activityEnrichedWebsite = resolvedWebsite;
     }
     if (Object.keys(placesUpdate).length > 0) {

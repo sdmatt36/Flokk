@@ -1,3 +1,6 @@
+// SUPERSEDED Chat 40 — produced P3 search URLs which were reverted. Do not re-run.
+// See docs/FLOKK_PRODUCT_SPEC.md Operating Discipline #5 for current rule.
+
 /**
  * 2026-04-28-url-rule-backfill.ts
  *
