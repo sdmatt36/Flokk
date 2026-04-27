@@ -102,6 +102,8 @@ import { getTripCoverImage, getItemImage } from "@/lib/destination-images";
 import { BookingIntelCard } from "@/components/features/trips/BookingIntelCard";
 import { BudgetPanel } from "@/components/features/trips/BudgetPanel";
 import { ShareTripButton } from "@/components/features/trips/ShareTripButton";
+import { getEntityStatus } from "@/lib/entity-status";
+import { EntityStatusPill } from "@/components/ui/EntityStatusPill";
 import { sharePlace } from "@/lib/share";
 
 type Tab = "saved" | "itinerary" | "tours" | "recommended" | "packing" | "notes" | "vault" | "howwasit";
@@ -549,6 +551,12 @@ type SavedDisplayItem = {
   categoryTags?: string[];
   source?: string;
   destinationCity?: string | null;
+  hasBooking: boolean;
+  hasItineraryLink: boolean;
+  dayIndex: number | null;
+  userRating: number | null;
+  tripStatus: string | null;
+  tripEndDate: string | null;
 };
 
 
@@ -973,6 +981,17 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
     item.detail,
   ].filter(Boolean);
   const subtitle = subtitleParts.length > 1 ? subtitleParts.join(" · ") : subtitleParts[0] ?? "";
+  const statusResult = getEntityStatus({
+    dayIndex: item.dayIndex,
+    hasItineraryLink: item.hasItineraryLink,
+    hasBooking: item.hasBooking,
+    userRating: item.userRating,
+    tripStatus: item.tripStatus,
+    tripEndDate: item.tripEndDate,
+  });
+  const pillLabel = statusResult.status === "on_itinerary" && item.dayIndex != null
+    ? `Day ${item.dayIndex + 1}`
+    : statusResult.label;
   return (
     <div
       onClick={onLearnMore}
@@ -990,12 +1009,9 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
         </div>
       )}
       <div style={{ padding: "12px 14px" }}>
-        {/* Title + booked badge */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px", marginBottom: "2px" }}>
-          <p style={{ fontSize: "14px", fontWeight: 800, color: "#1B3A5C", lineHeight: 1.3, flex: 1, minWidth: 0 }}>{item.title}</p>
-          {item.statusBooked && (
-            <span style={{ fontSize: "10px", fontWeight: 600, borderRadius: "999px", padding: "2px 8px", backgroundColor: "rgba(74,124,89,0.1)", color: "#4a7c59", border: "1px solid rgba(74,124,89,0.2)", whiteSpace: "nowrap", flexShrink: 0 }}>Booked</span>
-          )}
+        {/* Title */}
+        <div style={{ marginBottom: "2px" }}>
+          <p style={{ fontSize: "14px", fontWeight: 800, color: "#1B3A5C", lineHeight: 1.3 }}>{item.title}</p>
         </div>
         {/* Subtitle: category + detail */}
         {subtitle && (
@@ -1003,11 +1019,10 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
         )}
         {/* Action row */}
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }} onClick={e => e.stopPropagation()}>
-          {assignedDay !== undefined ? (
-            <span style={{ fontSize: "11px", fontWeight: 600, padding: "4px 10px", borderRadius: "999px", backgroundColor: "rgba(74,124,89,0.1)", color: "#4a7c59", border: "1px solid rgba(74,124,89,0.2)", whiteSpace: "nowrap" }}>
-              ✓ Day {assignedDay + 1}
-            </span>
-          ) : (
+          {statusResult.status !== "saved" ? (
+            <EntityStatusPill status={statusResult.status} label={pillLabel} color={statusResult.color} />
+          ) : null}
+          {statusResult.showAffordance && (
             <button type="button" onClick={e => { e.stopPropagation(); onAddToItinerary(); }} style={{ fontSize: "11px", fontWeight: 600, padding: "4px 10px", borderRadius: "999px", border: "1.5px solid #C4664A", backgroundColor: "transparent", color: "#C4664A", cursor: "pointer", whiteSpace: "nowrap" }}>
               + Add to itinerary
             </button>
@@ -1045,6 +1060,17 @@ function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDel
   const [imgFailed, setImgFailed] = useState(false);
   const hasImg = !!item.img && !imgFailed;
   const categoryTag = item.categoryTags?.[0] ?? null;
+  const statusResult = getEntityStatus({
+    dayIndex: item.dayIndex,
+    hasItineraryLink: item.hasItineraryLink,
+    hasBooking: item.hasBooking,
+    userRating: item.userRating,
+    tripStatus: item.tripStatus,
+    tripEndDate: item.tripEndDate,
+  });
+  const pillLabel = statusResult.status === "on_itinerary" && item.dayIndex != null
+    ? `Day ${item.dayIndex + 1}`
+    : statusResult.label;
 
   return (
     <div
@@ -1090,9 +1116,10 @@ function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDel
           <p style={{ fontSize: "12px", color: "#717171", marginBottom: "8px" }}>{categoryTag}</p>
         )}
         <div onClick={(e) => e.stopPropagation()}>
-          {assignedDay !== undefined ? (
-            <span style={{ fontSize: "11px", fontWeight: 600, color: "#4a7c59" }}>✓ Day {assignedDay + 1}</span>
-          ) : (
+          {statusResult.status !== "saved" ? (
+            <EntityStatusPill status={statusResult.status} label={pillLabel} color={statusResult.color} />
+          ) : null}
+          {statusResult.showAffordance && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onAddToItinerary(); }}
@@ -1137,6 +1164,11 @@ type ApiSavedItem = {
   extractedCheckout: string | null;
   isBooked: boolean;
   dayIndex?: number | null;
+  hasBooking?: boolean;
+  hasItineraryLink?: boolean;
+  userRating?: number | null;
+  tripStatus?: string | null;
+  tripEndDate?: string | null;
 };
 
 const SAVED_SOURCE_LABEL: Record<string, string> = {
@@ -1193,6 +1225,12 @@ function apiToDisplayItem(item: ApiSavedItem): SavedDisplayItem {
     categoryTags: item.categoryTags,
     source: SAVED_SOURCE_LABEL[item.sourcePlatform ?? ""] || SAVED_SOURCE_LABEL[item.sourceMethod ?? ""] || undefined,
     destinationCity: item.destinationCity,
+    hasBooking: item.hasBooking ?? false,
+    hasItineraryLink: item.hasItineraryLink ?? (item.dayIndex != null),
+    dayIndex: item.dayIndex ?? null,
+    userRating: item.userRating ?? null,
+    tripStatus: item.tripStatus ?? null,
+    tripEndDate: item.tripEndDate ?? null,
   };
 }
 
