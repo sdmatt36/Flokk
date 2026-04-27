@@ -760,7 +760,7 @@ Source tags: [C37] surfaced Chat 37; [C38] surfaced Chat 38; [C39] surfaced Chat
 ### Top of queue (P0/P1)
 
 - Phase 2A schema migration: FamilyBehavioralProfile + CohortBehavioralProfile [C38]
-- Tour categorization pipeline gap [C37]: forward path shipped Chat 39. Backfill of 57 legacy items pending Prompt 1B.
+- Tour categorization pipeline gap [C37]: forward path shipped Chat 39 commit ba61d88. Backfill of 57 legacy items pending Prompt 1B.
 - Visual tour cards on profile/trips library: replace dropdown-by-city pills with image cards [C37]
 - Tour share token + viewer + clone-to-account full build [C37, refined C39]
 - Anchor-aware tour generation: lodging/itinerary as start/end node, foundation of companion thesis [C37]
