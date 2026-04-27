@@ -2095,11 +2095,25 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         lng: it.longitude ?? null,
         itineraryItem: it,
       })),
+    // Pre-sort: same-day LODGING check-in anchors to end of day; check-out anchors to start.
+    // Only applies when sortOrder===0 (user hasn't manually reordered the item).
     // Primary sort: sortOrder (preserves manual drag-and-drop order).
     // Secondary: semantic time key so untimed items appear in correct clock position.
     // Tertiary: lodging semantic weight so CHECK_IN (20) always precedes CHECK_OUT (80)
     // when both items have the same explicit time.
     ].sort((a, b) => {
+      const anchorWeight = (item: UnifiedDayItem): number => {
+        if (item.itemType !== "itinerary") return 50;
+        if (item.itineraryItem?.type !== "LODGING") return 50;
+        if (item.itineraryItem.dayIndex !== targetDayIndex) return 50;
+        if ((item.itineraryItem.sortOrder ?? 0) !== 0) return 50; // user reordered — let it ride
+        const title = item.itineraryItem.title.toLowerCase();
+        if (title.startsWith("check-in:")) return 1000; // force to end
+        if (title.startsWith("check-out:")) return -1000; // force to start
+        return 50;
+      };
+      const aw = anchorWeight(a) - anchorWeight(b);
+      if (aw !== 0) return aw;
       const so = (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
       if (so !== 0) return so;
       const sk = toSortKey(a) - toSortKey(b);
@@ -2863,7 +2877,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                   lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
                                 const activeLodging = localItineraryItems
                                   .filter(it => it.type === "LODGING" && /^check-in:/i.test(it.title) &&
-                                    it.dayIndex != null && it.dayIndex <= dayIndex &&
+                                    it.dayIndex != null && it.dayIndex < dayIndex &&
                                     isVTCq(it.latitude, it.longitude))
                                   .sort((a, b) => (b.dayIndex ?? 0) - (a.dayIndex ?? 0))[0] ?? null;
                                 if (!activeLodging) return null;
