@@ -5,6 +5,7 @@ import { classifyActivityType } from "@/lib/activity-intelligence";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { resolveCanonicalUrl } from "@/lib/url-resolver";
 import { normalizeCategorySlug } from "@/lib/categories";
+import { reverseGeocodeCityFromCoords } from "@/lib/google-places";
 
 // Returns the city the traveler is in on a given date by looking at the most recent
 // LODGING check-in on or before that day. Falls back to trip destinationCity.
@@ -156,6 +157,41 @@ export async function POST(
     }
     if (Object.keys(placesUpdate).length > 0) {
       await db.manualActivity.update({ where: { id: activity.id }, data: placesUpdate });
+    }
+  }
+
+  // City resolution for multi-city trip community spot attribution.
+  // Populates ManualActivity.city so writeThroughCommunitySpot gets the physical city
+  // instead of falling through to trip.destinationCity (which caused Busan→Seoul mis-tagging).
+  {
+    let resolvedCity: string | null = null;
+
+    // Path 1: reverse-geocode from lat/lng — most accurate for multi-city trips
+    if (lat !== null && lng !== null) {
+      try {
+        resolvedCity = await reverseGeocodeCityFromCoords({ lat, lng });
+      } catch { /* non-fatal */ }
+    }
+
+    // Path 2: LODGING check-in anchor for this date — handles multi-city without coords
+    // Avoids using getCityForDay because that falls back to trip.destinationCity (same bug)
+    if (!resolvedCity) {
+      const lodgingAnchor = await db.itineraryItem.findFirst({
+        where: {
+          tripId,
+          type: "LODGING",
+          toCity: { not: null },
+          scheduledDate: { lte: date },
+        },
+        orderBy: { scheduledDate: "desc" },
+        select: { toCity: true },
+      });
+      if (lodgingAnchor?.toCity) resolvedCity = lodgingAnchor.toCity;
+    }
+
+    // Path 3: leave city null — ratings write-through falls back to trip.destinationCity
+    if (resolvedCity) {
+      await db.manualActivity.update({ where: { id: activity.id }, data: { city: resolvedCity } });
     }
   }
 

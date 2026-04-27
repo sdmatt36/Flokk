@@ -1117,6 +1117,29 @@ Behavioral profile (Phase 2A): family historical save patterns boost matching ev
 - Family-weighted ratings filter what each viewer sees
 - Open question: detailed redesign spec not collected into this doc. Chat 37 handoff.docx was inaccessible in Chat 38 and Chat 39. Which session first specced the Spots browse layout and filtering model?
 
+#### City Attribution for ManualActivity → CommunitySpot Promotion (Designed Chat 39)
+
+When a ManualActivity is rated, `/api/trips/[id]/ratings` calls `writeThroughCommunitySpot`. The city written to the resulting CommunitySpot row determines which Discover Spots city filter the spot appears under. City is a stored value on the CommunitySpot row — never derived at render time.
+
+**City resolution priority (Phase 1 fix, commit TBD):**
+
+1. `ManualActivity.city` if already populated — short-circuits immediately
+2. Reverse-geocoded city from `ManualActivity.lat/lng` via Google Geocode API (Path 1 at creation)
+3. `ItineraryItem.toCity` from most recent LODGING check-in on/before the activity date (Path 2 at creation — handles multi-city without coords)
+4. Fallback: `trip.destinationCity` — last resort, the historical default that caused the Busan-tagged-Seoul bug
+
+City is resolved at activity **creation time** in `POST /api/trips/[id]/activities`, not at rating time. `reverseGeocodeCityFromCoords` helper added to `src/lib/google-places.ts`. The ratings write-through still uses `ma.city ?? trip.destinationCity` — `ma.city` is now reliably populated for activities with coordinates or a lodging anchor.
+
+Note: The `places/save/route.ts` path (adding a spot from the library) already captures the correct physical city from user input in `body.city` — no changes required there.
+
+#### Cross-impact warning
+
+The `(name, city)` dedup key in `writeThroughCommunitySpot` is fragile for multi-city trips. The `googlePlaceId` path (already Priority 1 in the function) is the better long-term solution — but `ManualActivity` does not currently store `googlePlaceId`. Adding `googlePlaceId` to `ManualActivity` is queued in Backlog as a structural improvement. Once shipped, the dedup key falls back to `(name, city)` only when `googlePlaceId` is null, eliminating most multi-city ambiguity.
+
+#### Backlog scope for Phase 2
+
+6 wrong-city Seoul CommunitySpots identified for Korea trip `cmmx6428k000004jlxgel7s86`: Lotte Giants Baseball Game, Gamcheon Culture Village, Haeundae Beach, Cloud Mipo, Busan X The Sky, Haeundae Traditional Market. All have `city="Seoul"`, `lat=null`, `lng=null`, created Apr 19 within a 90-second window from a single ManualActivity rating session. Phase 2 backfill: reassign SpotContribution rows to correct Busan CommunitySpots, redirect SavedItem.communitySpotId foreign keys, delete the Seoul stubs.
+
 ---
 
 ## Trips
@@ -1187,6 +1210,8 @@ Source tags: [C37] surfaced Chat 37; [C38] surfaced Chat 38; [C39] surfaced Chat
 - Day-view "From X" previous-endpoint header fix [C39]: COMPLETE. Chat 39 commit aceb98e.
 - Stop "View on Maps" link rewire [C39]: COMPLETE. Chat 39 commit ad44676.
 - Per-stop X delete + add-new-stop on Trip Tours expand-in-place [C39]: COMPLETE. Chat 39 commit ad44676.
+- Phase 2 city attribution backfill [C39]: 6 wrong-city Seoul CommunitySpots on Korea trip (Busan attractions tagged Seoul). Targeted SQL: reassign SpotContribution rows to correct Busan CommunitySpot, redirect SavedItem.communitySpotId, delete Seoul stubs. Diagnostic-complete, build pending.
+- ManualActivity.googlePlaceId structural improvement [C39]: store googlePlaceId on ManualActivity at creation time. Allows writeThroughCommunitySpot to dedup by placeId (priority 1) instead of (name, city) tuple, eliminating multi-city dedup ambiguity entirely.
 - Universal Entity Status Rule build [C39]: src/lib/entity-status.ts shared helper, src/components/ui/EntityStatusPill.tsx canonical pill component, migration across SavesScreen + trip Saved tab + Itinerary day view + Vault cards + Recommendations + Discover Spots + tour stop cards. Bellwether bug: Hyatt Regency Seragaki Island lodging not showing "On itinerary" despite ItineraryItem linkage.
 - /tour/[id] as public viewer for non-owners [C38, refined C39]
 - Universal URL Rule resolver build [C39]: src/lib/url-resolver.ts shared helper — resolveCanonicalUrl(placeId?, website?, name, city) returns Places website → Google Maps URL → generic search URL, never null. Integrate across TourStop generation, ItineraryItem email-extraction (LODGING + ACTIVITY), ManualActivity AI-enrichment, IntelItem generation, Recommendations.
@@ -1336,6 +1361,8 @@ Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product
 **Tour-day rendering issues + stop affordance gaps captured (Chat 39 verification)**: Scotland tour verification surfaced four distinct issues. (1) Day-view interleaves tour stops and same-day LODGING with absurd drive times — diagnostic pending, root cause likely day-view sort logic ignoring lodging anchor case. (2) "From X" header references fictional previous-day endpoint when no real one exists. (3) Stop detail modal "View on Maps" link wired to canonical websiteUrl (which is often a website per Universal URL Rule), label mismatched with destination. (4) Per-stop X delete and add-new-stop affordances missing from Trip Tours expand-in-place despite spec saying owner should not navigate away. All four added to Top of queue Backlog. Hotel-as-end-anchor case rolled into Tour Anchoring expansion.
 
 **Stop detail modal "View on Maps" rewire + per-stop X delete on Trip Tours expand-in-place — BUILT (commit ad44676)**: Two affordance fixes in ToursContent in src/components/features/trips/TripTabContent.tsx. (1) Stop detail modal sticky footer split: "View on Maps" now constructs `https://www.google.com/maps/?q=${lat},${lng}` directly from coordinates (not websiteUrl), rendered only when lat/lng are non-zero; "Visit website" uses websiteUrl as before; "No links available" fallback when both absent. Fixes Universal URL Rule label mismatch where websiteUrl is a real website, not a Maps URL. (2) Per-stop X delete lifted from TourResults into ToursContent expand-in-place: 8-second undo with shrink progress bar, commit-on-expire via `DELETE /api/tours/:id/stops/:stopId`, replace-with-new via `POST /api/tours/:id/regenerate { count }`, badge numbers track active (non-pending) stops only, walking-time gap only rendered between consecutive active stops. Three race fixes: handleCancel flushes pending timers before unlinking; toggleExpand blocks collapse while pendingRemovals exist for that tour; "Add replacement" button disabled while hasPendingForTour or isRegenerating. originalTargetStops captured on first expand per tour (not re-captured on subsequent expands) so gap count is stable.
+
+**ManualActivity city attribution forward path — BUILT (commit TBD)**: Root cause of Busan-attractions-tagged-Seoul bug: `ManualActivity.city` was null for activities on the Busan leg of a multi-city Korea trip (`trip.destinationCity = "Seoul"`). When the user rated those activities, `POST /api/trips/[id]/ratings` called `writeThroughCommunitySpot` with `city = ma.city ?? trip.destinationCity → "Seoul"`, and the `(name, city)` dedup key didn't match the existing Busan-city rows from URL-paste saves — 6 duplicate Seoul-city CommunitySpot rows created. Diagnostic surfaced three-path resolution: (1) reverse-geocode from `ManualActivity.lat/lng` via `reverseGeocodeCityFromCoords` helper added to `src/lib/google-places.ts`; (2) `ItineraryItem.toCity` from most recent LODGING check-in on/before activity date; (3) null (leave fallback to `trip.destinationCity` as before). City resolved at activity creation time in `POST /api/trips/[id]/activities`, not at rating time. 6 wrong-city CommunitySpot rows remain for Phase 2 targeted backfill. `places/save/route.ts` unchanged — already captures correct physical city from user-supplied `body.city`. Note: `ManualActivity` has no `savedItemId` field — "Path 1 inherit from linked SavedItem" from original spec was adapted accordingly.
 
 **Day-view tour + lodging interleaving + "From X" header fixes — BUILT (commit aceb98e)**: Surgical render-layer patch in src/components/features/trips/TripTabContent.tsx. (1) buildDayItems sort gains anchor-weight pre-sort key: same-day LODGING check-in (title starts with "check-in:", dayIndex matches current day, sortOrder=0) forces to end of day; same-day check-out forces to start of day. Rule is suppressed when sortOrder is non-zero (user has manually reordered via handleReorder), preserving user intent. (2) activeLodging filter changed from `dayIndex <= dayIndex` to `dayIndex < dayIndex` — strict less-than excludes same-day check-in from "From X" header source, preventing fictional "From [hotel]" labels on arrival day. Tour generation prompt and tour-save sortOrder logic untouched per regression risks #1 and #2 from diagnostic. Hotel-as-end-anchor case (deeper architectural awareness in tour generation) remains queued under Tour Anchoring build expansion. Verified Scotland Day 4: tour stops 1-7 contiguous, Mash Tun check-in last, no fictional From-X header.
 

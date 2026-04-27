@@ -308,3 +308,61 @@ export async function resolveCountry(
     return null;
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reverse-geocode city from lat/lng.
+// Used to populate ManualActivity.city at creation time so community
+// write-through gets the correct physical city instead of trip.destinationCity.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const GEOCODE_API = "https://maps.googleapis.com/maps/api/geocode/json";
+
+/**
+ * Resolve the city name for a lat/lng coordinate pair.
+ * Priority: locality → administrative_area_level_3 → administrative_area_level_2.
+ * Returns null on any failure — callers must treat null as "unresolvable".
+ */
+export async function reverseGeocodeCityFromCoords(
+  input: { lat: number; lng: number }
+): Promise<string | null> {
+  if (!API_KEY) return null;
+
+  try {
+    const url = new URL(GEOCODE_API);
+    url.searchParams.set("latlng", `${input.lat},${input.lng}`);
+    url.searchParams.set(
+      "result_type",
+      "locality|administrative_area_level_3|administrative_area_level_2"
+    );
+    url.searchParams.set("language", "en");
+    url.searchParams.set("key", API_KEY);
+
+    const res = await fetch(url.toString());
+    if (!res.ok) return null;
+    const data = await res.json() as {
+      status: string;
+      results?: Array<{
+        address_components: Array<{ long_name: string; types: string[] }>;
+      }>;
+    };
+    if (data.status !== "OK" || !data.results?.length) return null;
+
+    for (const result of data.results) {
+      const locality = result.address_components.find((c) =>
+        c.types.includes("locality")
+      );
+      if (locality?.long_name) return locality.long_name;
+    }
+    for (const result of data.results) {
+      const admin = result.address_components.find(
+        (c) =>
+          c.types.includes("administrative_area_level_3") ||
+          c.types.includes("administrative_area_level_2")
+      );
+      if (admin?.long_name) return admin.long_name;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
