@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
     url.searchParams.set("input", q);
-    url.searchParams.set("types", "locality|administrative_area_level_3");
+    url.searchParams.set("types", "locality|administrative_area_level_3|administrative_area_level_2|administrative_area_level_1");
     url.searchParams.set("language", "en");
     url.searchParams.set("key", GOOGLE_API_KEY);
 

@@ -308,7 +308,7 @@ No data backfill required. Status is derived at read time. The migration is pure
 
 CURRENT inputs:
 - Free-text prompt
-- City
+- City — destination input accepts `locality`, `administrative_area_level_3`, `administrative_area_level_2`, and `administrative_area_level_1` place types so that country-subdivisions like Scotland, Hokkaido, or Tuscany resolve correctly (fixed Chat 39). De-biasing logic ranks non-US results first when any international result is present.
 - Duration ("How long?")
 - Transport ("Getting around?")
 
@@ -1256,6 +1256,8 @@ Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product
 **Tour Anchoring system specced**: Three anchor types unified — lodging (shipped Chat 38), save (pending), itinerary (pending). Save-anchored tours support all-anchor, mixed, and anchor+theme modes. Two UI surfaces: Tour Builder form section ("Include your saved spots") + Saves tab ambient prompt with locked CTA copy "Turn your trip saves into a Flokkin tour". API contract change: POST /api/tours/generate accepts anchorSavedItemIds. Build pending separate prompt.
 
 **Universal Entity Status Rule established as Operating Discipline**: After Saves screen verification surfaced that a booked Hyatt Regency lodging was displaying "+ Itinerary" affordance instead of "On itinerary" while activities in the same trip displayed correctly, the inconsistency revealed that status derivation is ad-hoc across surfaces. New rule defines five-state enum (Saved → On itinerary → Booked → Completed → Rated), single shared helper at src/lib/entity-status.ts, canonical EntityStatusPill component, and surface-by-surface migration. Status is derived at read time from existing relational data; no schema changes required. Build pending separate prompt.
+
+**Destination autocomplete types expanded — BUILT**: Root cause: `types=locality|administrative_area_level_3` in src/app/api/destinations/lookup/route.ts hard-blocked `administrative_area_level_1` results, making Scotland, Hokkaido, Tuscany, and similar country-subdivision destinations completely unreturnable by the Google Places Autocomplete API regardless of de-biasing. One-line fix: added `|administrative_area_level_2|administrative_area_level_1` to the types parameter. De-biasing logic (lines 85-89) unchanged. Spec capture: Tour Generation Inputs "City" bullet updated. Shared route used by Tour Builder, Trip creation, and all other destination pickers — all fixed in one change.
 
 ### Prior — Chat 37 (reconstructed from codebase + handoff references)
 
