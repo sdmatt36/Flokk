@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import TourMapBlock from "@/components/tours/TourMapBlock";
 
 function decodeHtmlEntities(str: string | null | undefined): string {
   if (!str) return "";
@@ -82,6 +83,9 @@ import {
   Trash2,
   Pencil,
   X,
+  ExternalLink,
+  Clock,
+  Footprints,
 } from "lucide-react";
 import { TripMap } from "@/components/features/trips/TripMap";
 import { DropLinkModal } from "@/components/features/home/DropLinkModal";
@@ -5966,10 +5970,13 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
   type StopPreview = {
     id: string;
     name: string;
+    lat: number;
+    lng: number;
     duration: number;
     travelTime: number;
     imageUrl: string | null;
     why: string | null;
+    familyNote: string | null;
     websiteUrl: string | null;
     ticketRequired: string | null;
   };
@@ -6116,55 +6123,96 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
                     ) : stopsList.length === 0 ? (
                       <p style={{ fontSize: "12px", color: "#9CA3AF", margin: 0 }}>No stops found.</p>
                     ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                        {stopsList.map((stop, idx) => (
-                          <div
-                            key={stop.id}
-                            onClick={() => setSelectedStop({ stop, tourTitle: decodeHtmlEntities(tour.title), stopIndex: idx + 1, totalStops: stopsList.length })}
-                            style={{ display: "flex", gap: "10px", alignItems: "flex-start", cursor: "pointer" }}
-                          >
-                            <div style={{
-                              width: "40px", height: "40px", borderRadius: "8px", flexShrink: 0,
-                              overflow: "hidden", backgroundColor: "#F3F4F6",
-                              backgroundImage: stop.imageUrl ? `url(${stop.imageUrl})` : undefined,
-                              backgroundSize: "cover", backgroundPosition: "center",
-                              display: "flex", alignItems: "center", justifyContent: "center",
-                            }}>
-                              {!stop.imageUrl && <span style={{ fontSize: "12px", color: "#9CA3AF" }}>{idx + 1}</span>}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C", margin: 0, lineHeight: 1.3 }}>
-                                {decodeHtmlEntities(stop.name)}
-                              </p>
-                              <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px", marginTop: "3px" }}>
-                                <span style={{ fontSize: "11px", color: "#9CA3AF" }}>
-                                  {stop.duration} min{idx > 0 && stop.travelTime > 0 ? ` · ${stop.travelTime} min walk` : ""}
-                                </span>
-                                {stop.ticketRequired === "ticket-required" && (
-                                  <span style={{ fontSize: "10px", fontWeight: 600, color: "#92400E", backgroundColor: "#FEF3C7", borderRadius: "999px", padding: "1px 7px" }}>Ticket required</span>
-                                )}
-                                {stop.ticketRequired === "advance-booking-recommended" && (
-                                  <span style={{ fontSize: "10px", fontWeight: 600, color: "#92400E", backgroundColor: "#FEF3C7", borderRadius: "999px", padding: "1px 7px" }}>Book ahead</span>
-                                )}
-                                {stop.ticketRequired === "free" && (
-                                  <span style={{ fontSize: "10px", fontWeight: 600, color: "#065F46", backgroundColor: "#D1FAE5", borderRadius: "999px", padding: "1px 7px" }}>Free</span>
+                      <>
+                        <TourMapBlock stops={stopsList} />
+                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                          {stopsList.map((stop, idx) => (
+                            <div
+                              key={stop.id}
+                              onClick={() => setSelectedStop({ stop, tourTitle: decodeHtmlEntities(tour.title), stopIndex: idx + 1, totalStops: stopsList.length })}
+                              style={{ display: "flex", alignItems: "flex-start", cursor: "pointer", border: "1px solid #F3F4F6", borderRadius: "16px", overflow: "hidden", backgroundColor: "#fff" }}
+                            >
+                              {/* 96×96 image */}
+                              <div style={{
+                                width: "96px", height: "96px", flexShrink: 0,
+                                backgroundColor: "#F3F4F6", overflow: "hidden",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                              }}>
+                                {stop.imageUrl ? (
+                                  <img src={stop.imageUrl} alt={stop.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                ) : (
+                                  <MapPin size={20} style={{ color: "#D1D5DB" }} />
                                 )}
                               </div>
-                              {stop.why && (
-                                <p style={{ fontSize: "12px", color: "#6B7280", margin: "3px 0 0", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                                  {stop.why}
-                                </p>
-                              )}
+                              {/* Content */}
+                              <div style={{ flex: 1, minWidth: 0, padding: "10px 12px 10px 10px" }}>
+                                {/* Badge + title */}
+                                <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
+                                  <div style={{ width: "20px", height: "20px", borderRadius: "50%", backgroundColor: "#C4664A", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "10px", fontWeight: 700, flexShrink: 0, marginTop: "2px" }}>
+                                    {idx + 1}
+                                  </div>
+                                  <p style={{ fontSize: "14px", fontWeight: 600, color: "#1B3A5C", margin: 0, lineHeight: 1.3 }}>
+                                    {decodeHtmlEntities(stop.name)}
+                                  </p>
+                                </div>
+                                {/* Link button */}
+                                {stop.websiteUrl && (
+                                  <a
+                                    href={stop.websiteUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={e => e.stopPropagation()}
+                                    style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "12px", color: "#C4664A", textDecoration: "none", marginTop: "4px" }}
+                                  >
+                                    <ExternalLink size={12} />
+                                    Link
+                                  </a>
+                                )}
+                                {/* Duration + walk + ticket pills */}
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "4px" }}>
+                                  <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", backgroundColor: "#F3F4F6", borderRadius: "999px", padding: "2px 8px", fontSize: "11px", color: "#6B7280" }}>
+                                    <Clock size={10} />
+                                    {stop.duration} min
+                                  </span>
+                                  {tour.transport === "Walking" && idx > 0 && stop.travelTime > 0 && (
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", backgroundColor: "#F3F4F6", borderRadius: "999px", padding: "2px 8px", fontSize: "11px", color: "#6B7280" }}>
+                                      <Footprints size={10} />
+                                      {stop.travelTime} min walk
+                                    </span>
+                                  )}
+                                  {stop.ticketRequired === "ticket-required" && (
+                                    <span style={{ fontSize: "10px", fontWeight: 600, color: "#92400E", backgroundColor: "#FEF3C7", borderRadius: "999px", padding: "2px 8px" }}>Ticket required</span>
+                                  )}
+                                  {stop.ticketRequired === "advance-booking-recommended" && (
+                                    <span style={{ fontSize: "10px", fontWeight: 600, color: "#92400E", backgroundColor: "#FEF3C7", borderRadius: "999px", padding: "2px 8px" }}>Book ahead</span>
+                                  )}
+                                  {stop.ticketRequired === "free" && (
+                                    <span style={{ fontSize: "10px", fontWeight: 600, color: "#065F46", backgroundColor: "#D1FAE5", borderRadius: "999px", padding: "2px 8px" }}>Free</span>
+                                  )}
+                                </div>
+                                {/* Why */}
+                                {stop.why && (
+                                  <p style={{ fontSize: "12px", color: "#6B7280", margin: "4px 0 0", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                                    {stop.why}
+                                  </p>
+                                )}
+                                {/* familyNote */}
+                                {stop.familyNote && (
+                                  <p style={{ fontSize: "12px", color: "#C4664A", fontStyle: "italic", margin: "2px 0 0", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                                    {stop.familyNote}
+                                  </p>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                        <button
-                          onClick={() => toggleExpand(tour.id)}
-                          style={{ fontSize: "12px", color: "#9CA3AF", background: "none", border: "none", cursor: "pointer", padding: "4px 0", textAlign: "left", fontFamily: "inherit" }}
-                        >
-                          ↑ Hide stops
-                        </button>
-                      </div>
+                          ))}
+                          <button
+                            onClick={() => toggleExpand(tour.id)}
+                            style={{ fontSize: "12px", color: "#9CA3AF", background: "none", border: "none", cursor: "pointer", padding: "4px 0", textAlign: "left", fontFamily: "inherit" }}
+                          >
+                            ↑ Hide stops
+                          </button>
+                        </div>
+                      </>
                     )}
                   </div>
                 )}
@@ -6173,10 +6221,10 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
               {/* Action row */}
               <div style={{ padding: "12px 16px 14px", display: "flex", gap: "10px", alignItems: "center" }} onClick={e => e.stopPropagation()}>
                 <a
-                  href={`/tour?id=${tour.id}`}
-                  style={{ fontSize: "13px", fontWeight: 600, color: "#fff", backgroundColor: "#C4664A", borderRadius: "8px", padding: "6px 14px", textDecoration: "none", display: "inline-block" }}
+                  href={tripId ? `/tour?tripId=${tripId}` : "/tour"}
+                  style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
                 >
-                  View tour
+                  Start over
                 </a>
                 <button
                   onClick={() => setCancelTarget(tour)}

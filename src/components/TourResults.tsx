@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, ChevronDown, Clock, ExternalLink, Footprints, Loader2, MapPin, Plus, X } from "lucide-react";
+import TourMapBlock from "@/components/tours/TourMapBlock";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 type Stop = {
@@ -79,9 +80,6 @@ function RemovalPlaceholder({ stop, onUndo }: { stop: Stop; onUndo: () => void }
 }
 
 export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, walkViolations, originalTargetStops, onRemoveStop, onQuickUndo, onDeleteCommit, onPermanentRestore, onReplaceStops }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<{ remove: () => void } | null>(null);
-
   const [modalOpen, setModalOpen] = useState(false);
   const [trips, setTrips] = useState<TripOption[]>([]);
   const [tripsLoading, setTripsLoading] = useState(false);
@@ -114,82 +112,6 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (stops.length === 0 || !containerRef.current) return;
-
-    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-    if (!token || token.startsWith("pk.placeholder")) return;
-
-    let destroyed = false;
-
-    import("mapbox-gl").then((mb) => {
-      if (destroyed || !containerRef.current) return;
-      const mapboxgl = mb.default;
-      mapboxgl.accessToken = token;
-
-      const avgLat = stops.reduce((sum, s) => sum + s.lat, 0) / stops.length;
-      const avgLng = stops.reduce((sum, s) => sum + s.lng, 0) / stops.length;
-
-      const map = new mapboxgl.Map({
-        container: containerRef.current,
-        style: "mapbox://styles/mapbox/outdoors-v12",
-        center: [avgLng, avgLat],
-        zoom: 13,
-      });
-
-      mapRef.current = map;
-
-      stops.forEach((stop, index) => {
-        const el = document.createElement("div");
-        el.style.cssText =
-          `width:28px;height:28px;border-radius:50%;background:#C4664A;` +
-          "display:flex;align-items:center;justify-content:center;" +
-          "font-weight:700;font-size:12px;color:#fff;cursor:pointer;" +
-          "box-shadow:0 2px 8px rgba(0,0,0,0.2);font-family:-apple-system,BlinkMacSystemFont,sans-serif;";
-        el.textContent = String(index + 1);
-        el.addEventListener("click", () => console.log(stop.name));
-
-        new mapboxgl.Marker({ element: el, anchor: "center" })
-          .setLngLat([stop.lng, stop.lat])
-          .addTo(map);
-      });
-
-      const bounds = new mapboxgl.LngLatBounds();
-      stops.forEach((s) => bounds.extend([s.lng, s.lat]));
-      map.fitBounds(bounds, { padding: 40, maxZoom: 15, duration: 0 });
-
-      map.on("load", () => {
-        map.addSource("tour-route", {
-          type: "geojson",
-          data: {
-            type: "Feature",
-            geometry: {
-              type: "LineString",
-              coordinates: stops.map((s) => [s.lng, s.lat]),
-            },
-            properties: {},
-          },
-        });
-
-        map.addLayer({
-          id: "tour-route-line",
-          type: "line",
-          source: "tour-route",
-          layout: { "line-join": "round", "line-cap": "round" },
-          paint: { "line-color": "#1B3A5C", "line-width": 2, "line-opacity": 0.6 },
-        });
-      });
-    });
-
-    return () => {
-      destroyed = true;
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
-    };
-  }, [stops]);
 
   function normalizeCity(s: string | null | undefined): string {
     return (s ?? "").toLowerCase().split(",")[0].trim();
@@ -357,9 +279,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
         </div>
       )}
 
-      {stops.length > 0 && (
-        <div ref={containerRef} className="h-[280px] rounded-2xl overflow-hidden mb-6" />
-      )}
+      <TourMapBlock stops={stops} />
 
       {stops.map((stop, index) => (
         pendingRemovals.some(p => p.stop.id === stop.id) ? (
