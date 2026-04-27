@@ -199,6 +199,102 @@ Each non-compliant surface gets a backfill prompt. Same pattern as the tour cate
 
 ---
 
+## Universal Entity Status Rule (Operating Discipline)
+
+Established Chat 39, April 27 2026, after a Saves screen verification surfaced that a booked hotel (lodging linked to ItineraryItem) was displaying "+ Itinerary" affordance instead of "On itinerary" status, while an activity in the same trip displayed correctly. Root cause was ad-hoc status derivation per surface — some entities check ItineraryItem linkage, others don't, others use different signals. The rule applies product-wide.
+
+### The rule
+
+Every place-bearing entity surface in Flokk displays a consistent status indicator derived from a single shared helper. Statuses are enumerated, ordered by progression, and rendered with consistent visual treatment across all surfaces (Saves screen, trip Saved tab, Itinerary day view, Vault, Recommendations, Trip Intelligence, Discover, Spots).
+
+### Status enum (ordered by progression)
+
+1. **Saved** — entity exists in user's saves but not yet placed on itinerary. Default state for SavedItem on creation.
+2. **On itinerary** — entity is linked to an ItineraryItem on a specific day. Visible on Saves and trip Saved tab as a green-dot pill matching Cape Manzamo's current rendering.
+3. **Booked** — entity has a confirmation code from email parsing OR explicit user-confirmed booking. Lodging with bookingSource set, flights with FlightBooking row, activities with confirmation. Supersedes "On itinerary" visually but both states are true; UI shows the higher-progression label.
+4. **Completed** — trip end date has passed. Visual: completed marker, available for rating.
+5. **Rated** — user has submitted a rating. Visual: star pill with rating value.
+
+These are NOT mutually exclusive at the data layer. A booked hotel that's been rated is also On itinerary, also Saved. The UI displays the highest-progression label that applies, with optional secondary indicators (e.g. "Booked · Rated 5★").
+
+### Single source of truth
+
+A shared helper `src/lib/entity-status.ts` exports:
+- `getEntityStatus(entity: { savedItem?, itineraryItem?, booking?, rating?, tripEndDate? }): EntityStatus`
+- Returns the highest-progression status that applies
+- Used by EVERY surface that renders a status indicator
+
+Surfaces that must comply:
+- SavesScreen card grid (Saves screen and trip Saved tab)
+- Itinerary day view stop rows
+- Vault flight cards, lodging cards, activity cards
+- Recommendations cards
+- Trip Intelligence IntelItem cards (where applicable)
+- Discover Spots browser
+- Tour stop cards (when surfaced as standalone, not within tour)
+
+### Status derivation logic
+
+For SavedItem entities:
+- Saved: default
+- On itinerary: ItineraryItem.savedItemId === SavedItem.id (any matching ItineraryItem on any day of any trip the user owns)
+- Booked: SavedItem has linked Booking row OR ItineraryItem has linked FlightBooking/LodgingBooking with confirmationCode
+- Completed: parent Trip.status === COMPLETED OR Trip.endDate < today
+- Rated: Rating row exists for this SavedItem
+
+For ItineraryItem entities (not linked to a SavedItem):
+- On itinerary: default (it IS the itinerary item)
+- Booked: as above
+- Completed: as above
+- Rated: as above
+
+For ManualActivity entities:
+- Same logic as SavedItem with appropriate linkage paths
+
+For TourStop entities:
+- Status reflects parent GeneratedTour completion state PLUS optional savedItemId linkage to a SavedItem
+
+For IntelItem entities:
+- Generally not subject to status — IntelItems are dynamic surfacings, not user-owned content. Exempt from rule unless linked to user content.
+
+### Visual treatment
+
+- Saved: no pill (default state, no indicator needed)
+- On itinerary: small pill with green dot, text "On itinerary", color #16A34A
+- Booked: small pill with terracotta dot, text "Booked", color #C4664A
+- Completed: small pill with gray dot, text "Completed"
+- Rated: small star pill with rating value, text "★ {rating}"
+
+When multiple states apply, render the highest-progression as primary pill, lower states as inline secondary indicators only if space allows.
+
+### Why this matters
+
+Users need to know at a glance: "Is this on my plan? Have I booked it? Have I been there?" Without consistent status indicators, every surface forces the user to mentally re-derive what they already know. That's a research burden Flokk should be removing, not adding. Generic OTAs treat every entity as standalone. AI travel apps don't track this state. Flokk's family-first architecture means status compounds across saves → planning → booking → completion → rating; the UI must reflect that compounding consistently.
+
+### Implementation requirements
+
+- `src/lib/entity-status.ts` shared helper with EntityStatus enum + getEntityStatus() function
+- Single canonical pill component: `src/components/ui/EntityStatusPill.tsx` consuming EntityStatus and rendering correct color + label
+- Migration: every surface listed under "Surfaces that must comply" replaces ad-hoc status logic with the shared helper + pill component
+- Database integrity: no new schema fields required (status is derived at read time from existing relational data); a periodic cron may audit consistency
+
+### Surfaces that must comply (Chat 39 audit)
+
+Status as of Chat 39:
+- **SavesScreen card grid**: PARTIALLY COMPLIANT. Some entities (activities) show "On itinerary"; lodging entities do not. Inconsistent derivation logic. The Hyatt Regency Seragaki Island case from Chat 39 verification is the bellwether bug.
+- **Itinerary day view stop rows**: UNKNOWN. Audit needed.
+- **Vault flight/lodging/activity cards**: PARTIALLY COMPLIANT. Surface state but use different vocabulary ("Booked via X", management URL).
+- **Recommendations cards**: UNKNOWN. Audit needed.
+- **Trip Intelligence cards**: EXEMPT (dynamic surfacings).
+- **Discover Spots**: UNKNOWN. Audit needed.
+- **Tour stop cards**: UNKNOWN. Audit needed.
+
+### Backfill scope
+
+No data backfill required. Status is derived at read time. The migration is purely code: replace ad-hoc derivation with shared helper across all surfaces.
+
+---
+
 ## Tours
 
 ### Tour Generation
@@ -1017,6 +1113,7 @@ Source tags: [C37] surfaced Chat 37; [C38] surfaced Chat 38; [C39] surfaced Chat
 - Visual tour cards on profile/trips library: replace dropdown-by-city pills with image cards [C37]
 - Tour share token + viewer + clone-to-account full build [C37, refined C39]
 - Tour Anchoring build (save-anchored + itinerary-anchored generation) [C37, refined C39]: API accepts anchorSavedItemIds, AI prompt handles anchor+fill modes, Tour Builder form adds "Include your saved spots" section, Saves tab adds ambient "Turn your trip saves into a Flokkin tour" prompt. Foundation of companion thesis. Lodging-anchor already shipped Chat 38.
+- Universal Entity Status Rule build [C39]: src/lib/entity-status.ts shared helper, src/components/ui/EntityStatusPill.tsx canonical pill component, migration across SavesScreen + trip Saved tab + Itinerary day view + Vault cards + Recommendations + Discover Spots + tour stop cards. Bellwether bug: Hyatt Regency Seragaki Island lodging not showing "On itinerary" despite ItineraryItem linkage.
 - /tour/[id] as public viewer for non-owners [C38, refined C39]
 - Universal URL Rule resolver build [C39]: src/lib/url-resolver.ts shared helper — resolveCanonicalUrl(placeId?, website?, name, city) returns Places website → Google Maps URL → generic search URL, never null. Integrate across TourStop generation, ItineraryItem email-extraction (LODGING + ACTIVITY), ManualActivity AI-enrichment, IntelItem generation, Recommendations.
 - Universal URL Rule audit + backfill [C39]: SQL audit per surface, idempotent backfill scripts, dry-run + distribution check + live run + verification SQL. Six surfaces: TourStop, ItineraryItem LODGING, ItineraryItem ACTIVITY, ManualActivity, IntelItem, Recommendations.
@@ -1157,6 +1254,8 @@ Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product
 **Universal URL Rule established as Operating Discipline**: Promoted from tour-specific URL guidance to product-wide rule covering all AI-generated/extracted entities. Resolver priority chain defined: (1) Google Places `website` field → (2) Google Maps URL `https://www.google.com/maps/place/?q=place_id:${placeId}` → (3) Generic search URL — never null. Six surfaces require compliance audit; lodging items confirmed non-compliant during modal migration verification. `src/lib/url-resolver.ts` build and per-surface audit + backfill queued P0/P1.
 
 **Tour Anchoring system specced**: Three anchor types unified — lodging (shipped Chat 38), save (pending), itinerary (pending). Save-anchored tours support all-anchor, mixed, and anchor+theme modes. Two UI surfaces: Tour Builder form section ("Include your saved spots") + Saves tab ambient prompt with locked CTA copy "Turn your trip saves into a Flokkin tour". API contract change: POST /api/tours/generate accepts anchorSavedItemIds. Build pending separate prompt.
+
+**Universal Entity Status Rule established as Operating Discipline**: After Saves screen verification surfaced that a booked Hyatt Regency lodging was displaying "+ Itinerary" affordance instead of "On itinerary" while activities in the same trip displayed correctly, the inconsistency revealed that status derivation is ad-hoc across surfaces. New rule defines five-state enum (Saved → On itinerary → Booked → Completed → Rated), single shared helper at src/lib/entity-status.ts, canonical EntityStatusPill component, and surface-by-surface migration. Status is derived at read time from existing relational data; no schema changes required. Build pending separate prompt.
 
 ### Prior — Chat 37 (reconstructed from codebase + handoff references)
 
