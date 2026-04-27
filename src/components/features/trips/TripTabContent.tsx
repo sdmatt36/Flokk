@@ -102,8 +102,9 @@ import { getTripCoverImage, getItemImage } from "@/lib/destination-images";
 import { BookingIntelCard } from "@/components/features/trips/BookingIntelCard";
 import { BudgetPanel } from "@/components/features/trips/BudgetPanel";
 import { ShareTripButton } from "@/components/features/trips/ShareTripButton";
-import { getEntityStatus } from "@/lib/entity-status";
+import { getEntityStatus, type EntityStatusResult } from "@/lib/entity-status";
 import { EntityStatusPill } from "@/components/ui/EntityStatusPill";
+import { buildSaveStatusMap } from "@/lib/save-status-map";
 import { sharePlace } from "@/lib/share";
 
 type Tab = "saved" | "itinerary" | "tours" | "recommended" | "packing" | "notes" | "vault" | "howwasit";
@@ -5052,6 +5053,7 @@ function RecommendedContent({
   onRefreshItinerary?: () => void;
 }) {
   const isDesktop = useIsDesktop();
+  // TODO Phase C cleanup: remove savedSet (unused since fetch upgrade)
   const [savedSet, setSavedSet] = useState<Set<string>>(new Set());
   const [drawerRec, setDrawerRec] = useState<DrawerRec | null>(null);
   const [aiRecs, setAiRecs] = useState<AiRec[]>([]);
@@ -5062,6 +5064,7 @@ function RecommendedContent({
   const [fallbackLoaded, setFallbackLoaded] = useState(false);
   const [saveStates, setSaveStates] = useState<Record<string, "idle" | "loading" | "done" | "error">>({});
   const [itinStates, setItinStates] = useState<Record<string, "idle" | "loading" | "done" | "error">>({});
+  const [recStatusMap, setRecStatusMap] = useState<Map<string, EntityStatusResult>>(new Map());
 
   function generateDayPillsForRec(start: string | null, end: string | null): { dayIndex: number; label: string }[] {
     if (!start) return [];
@@ -5113,6 +5116,18 @@ function RecommendedContent({
       .then((items: FallbackItem[]) => setFallbackItems(Array.isArray(items) ? items : []))
       .catch(() => {});
   }, [hasDestination, destinationCity, fallbackLoaded]);
+
+  // Build status map from user's global saves for recommendation pill rendering
+  useEffect(() => {
+    fetch("/api/saves")
+      .then(r => r.json())
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((data: { saves?: any[] }) => {
+        if (!Array.isArray(data.saves)) return;
+        setRecStatusMap(buildSaveStatusMap(data.saves));
+      })
+      .catch(() => {});
+  }, []);
 
   // Loading state
   if (aiLoading) {
@@ -5183,6 +5198,9 @@ function RecommendedContent({
       <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(2, 1fr)" : "1fr", gap: "16px" }}>
         {aiRecs.map((rec, i) => {
           const budgetColor = BUDGET_COLORS[rec.budgetTier] ?? "#717171";
+          const recKey = `${rec.name.toLowerCase().trim()}|${(destinationCity ?? "").toLowerCase().trim()}`;
+          const recStatus = recStatusMap.get(recKey) ?? null;
+          const showRecAffordances = !recStatus || recStatus.showAffordance;
           return (
             <div
               key={`${rec.name}-${i}`}
@@ -5204,55 +5222,64 @@ function RecommendedContent({
 
               {/* Tip + actions + tags */}
               <div style={{ padding: "10px 16px 14px", flex: 1, display: "flex", flexDirection: "column", gap: "8px" }}>
+                {recStatus && recStatus.status !== "saved" && (
+                  <div>
+                    <EntityStatusPill status={recStatus.status} label={recStatus.label} color={recStatus.color} />
+                  </div>
+                )}
                 <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5 }}>{rec.tip}</p>
                 {/* Action buttons */}
                 <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                  <button
-                    type="button"
-                    disabled={saveStates[rec.name] === "loading" || saveStates[rec.name] === "done"}
-                    onClick={async () => {
-                      setSaveStates(prev => ({ ...prev, [rec.name]: "loading" }));
-                      try {
-                        const res = await fetch("/api/saves", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ sourceMethod: "URL_PASTE", title: rec.name, category: rec.category, city: destinationCity ?? undefined, tripId, source: "AI_RECOMMENDATION" }),
-                        });
-                        if (!res.ok) throw new Error();
-                        setSaveStates(prev => ({ ...prev, [rec.name]: "done" }));
-                      } catch {
-                        setSaveStates(prev => ({ ...prev, [rec.name]: "error" }));
-                        setTimeout(() => setSaveStates(prev => ({ ...prev, [rec.name]: "idle" })), 2000);
-                      }
-                    }}
-                    style={{ fontSize: "11px", fontWeight: 700, padding: "5px 12px", borderRadius: "999px", backgroundColor: saveStates[rec.name] === "done" ? "rgba(74,124,89,0.1)" : "transparent", color: saveStates[rec.name] === "done" ? "#4a7c59" : saveStates[rec.name] === "error" ? "#C44A4A" : "#C4664A", border: `1.5px solid ${saveStates[rec.name] === "done" ? "#4a7c59" : saveStates[rec.name] === "error" ? "#C44A4A" : "#C4664A"}`, cursor: saveStates[rec.name] === "loading" || saveStates[rec.name] === "done" ? "default" : "pointer", fontFamily: "inherit" }}
-                  >
-                    {saveStates[rec.name] === "done" ? "Saved" : saveStates[rec.name] === "error" ? "Failed" : saveStates[rec.name] === "loading" ? "Saving..." : "+ Save"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!tripStartDate || itinStates[rec.name] === "loading" || itinStates[rec.name] === "done"}
-                    onClick={async () => {
-                      if (!tripId || !tripStartDate) return;
-                      setItinStates(prev => ({ ...prev, [rec.name]: "loading" }));
-                      try {
-                        const res = await fetch(`/api/trips/${tripId}/activities`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ title: rec.name, notes: rec.whyThisFamily, date: tripStartDate.slice(0, 10) }),
-                        });
-                        if (!res.ok) throw new Error();
-                        setItinStates(prev => ({ ...prev, [rec.name]: "done" }));
-                        onRefreshItinerary?.();
-                      } catch {
-                        setItinStates(prev => ({ ...prev, [rec.name]: "error" }));
-                        setTimeout(() => setItinStates(prev => ({ ...prev, [rec.name]: "idle" })), 2000);
-                      }
-                    }}
-                    style={{ fontSize: "11px", fontWeight: 700, padding: "5px 12px", borderRadius: "999px", backgroundColor: itinStates[rec.name] === "done" ? "rgba(74,124,89,0.1)" : "transparent", color: itinStates[rec.name] === "done" ? "#4a7c59" : itinStates[rec.name] === "error" ? "#C44A4A" : "#C4664A", border: `1.5px solid ${itinStates[rec.name] === "done" ? "#4a7c59" : itinStates[rec.name] === "error" ? "#C44A4A" : "#C4664A"}`, cursor: (!tripStartDate || itinStates[rec.name] === "loading" || itinStates[rec.name] === "done") ? "default" : "pointer", fontFamily: "inherit" }}
-                  >
-                    {itinStates[rec.name] === "done" ? "Added" : itinStates[rec.name] === "error" ? "Failed" : itinStates[rec.name] === "loading" ? "Adding..." : "+ Itinerary"}
-                  </button>
+                  {showRecAffordances && (
+                    <button
+                      type="button"
+                      disabled={saveStates[rec.name] === "loading" || saveStates[rec.name] === "done"}
+                      onClick={async () => {
+                        setSaveStates(prev => ({ ...prev, [rec.name]: "loading" }));
+                        try {
+                          const res = await fetch("/api/saves", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ sourceMethod: "URL_PASTE", title: rec.name, category: rec.category, city: destinationCity ?? undefined, tripId, source: "AI_RECOMMENDATION" }),
+                          });
+                          if (!res.ok) throw new Error();
+                          setSaveStates(prev => ({ ...prev, [rec.name]: "done" }));
+                        } catch {
+                          setSaveStates(prev => ({ ...prev, [rec.name]: "error" }));
+                          setTimeout(() => setSaveStates(prev => ({ ...prev, [rec.name]: "idle" })), 2000);
+                        }
+                      }}
+                      style={{ fontSize: "11px", fontWeight: 700, padding: "5px 12px", borderRadius: "999px", backgroundColor: saveStates[rec.name] === "done" ? "rgba(74,124,89,0.1)" : "transparent", color: saveStates[rec.name] === "done" ? "#4a7c59" : saveStates[rec.name] === "error" ? "#C44A4A" : "#C4664A", border: `1.5px solid ${saveStates[rec.name] === "done" ? "#4a7c59" : saveStates[rec.name] === "error" ? "#C44A4A" : "#C4664A"}`, cursor: saveStates[rec.name] === "loading" || saveStates[rec.name] === "done" ? "default" : "pointer", fontFamily: "inherit" }}
+                    >
+                      {saveStates[rec.name] === "done" ? "Saved" : saveStates[rec.name] === "error" ? "Failed" : saveStates[rec.name] === "loading" ? "Saving..." : "+ Save"}
+                    </button>
+                  )}
+                  {showRecAffordances && (
+                    <button
+                      type="button"
+                      disabled={!tripStartDate || itinStates[rec.name] === "loading" || itinStates[rec.name] === "done"}
+                      onClick={async () => {
+                        if (!tripId || !tripStartDate) return;
+                        setItinStates(prev => ({ ...prev, [rec.name]: "loading" }));
+                        try {
+                          const res = await fetch(`/api/trips/${tripId}/activities`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ title: rec.name, notes: rec.whyThisFamily, date: tripStartDate.slice(0, 10) }),
+                          });
+                          if (!res.ok) throw new Error();
+                          setItinStates(prev => ({ ...prev, [rec.name]: "done" }));
+                          onRefreshItinerary?.();
+                        } catch {
+                          setItinStates(prev => ({ ...prev, [rec.name]: "error" }));
+                          setTimeout(() => setItinStates(prev => ({ ...prev, [rec.name]: "idle" })), 2000);
+                        }
+                      }}
+                      style={{ fontSize: "11px", fontWeight: 700, padding: "5px 12px", borderRadius: "999px", backgroundColor: itinStates[rec.name] === "done" ? "rgba(74,124,89,0.1)" : "transparent", color: itinStates[rec.name] === "done" ? "#4a7c59" : itinStates[rec.name] === "error" ? "#C44A4A" : "#C4664A", border: `1.5px solid ${itinStates[rec.name] === "done" ? "#4a7c59" : itinStates[rec.name] === "error" ? "#C44A4A" : "#C4664A"}`, cursor: (!tripStartDate || itinStates[rec.name] === "loading" || itinStates[rec.name] === "done") ? "default" : "pointer", fontFamily: "inherit" }}
+                    >
+                      {itinStates[rec.name] === "done" ? "Added" : itinStates[rec.name] === "error" ? "Failed" : itinStates[rec.name] === "loading" ? "Adding..." : "+ Itinerary"}
+                    </button>
+                  )}
                   {rec.websiteUrl && (
                     <a href={rec.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "11px", fontWeight: 700, padding: "5px 12px", borderRadius: "999px", color: "#C4664A", border: "1.5px solid #C4664A", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
                       Link →

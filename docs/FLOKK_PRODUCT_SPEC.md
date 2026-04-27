@@ -316,6 +316,20 @@ Status is derived at API read-time using TripDocument joins, not from SavedItem 
 
 When status >= On itinerary, the lower-progression affordance ("+ Itinerary" button or equivalent) MUST be suppressed at the surface. Pill is the only visual indicator. To move or remove an item from itinerary, user navigates to the day view. This pattern already exists on the Trip Saved tab where "✓ Day X" replaces "+ Add to itinerary."
 
+### Duplicate match tiebreaker (locked Chat 40)
+
+When a surface uses string-key matching to look up status (rawTitle|city or equivalent) and the user has multiple SavedItem rows matching the same key, the highest-progression status wins, not the most recent. Run getEntityStatus() on each match and pick the result whose status appears latest in the ENTITY_STATUSES array (rated > completed > booked > on_itinerary > saved). This surfaces the user's richest relationship with the place rather than recency, which can hide a completed or rated state behind a fresh save.
+
+Applies to: Recommendations cards (RecommendedContent), Discover Spots cards. Does not apply to Phase A/B surfaces (SavesScreen, Trip Saved tab) which use direct SavedItem rows, not lookup keys.
+
+### Phase C — Recommendations + Discover Spots (COMPLETE Chat 40)
+
+Phase C scope: client-side status map fetched from /api/saves (no tripId filter) at mount. Map keyed by rawTitle.toLowerCase().trim()|destinationCity.toLowerCase().trim(). Render EntityStatusPill on each card using the highest-progression status if duplicate keys exist. Suppress "+ Save" affordance when status >= saved. Suppress "+ Itinerary" affordance when status >= on_itinerary.
+
+Utility: src/lib/save-status-map.ts exports buildSaveStatusMap() + SaveStatusFields. Tests: src/lib/__tests__/save-status-map.test.ts (8 tests). Duplicate-match tiebreaker using ENTITY_STATUSES index comparison baked into buildSaveStatusMap.
+
+Phase D (Itinerary day view, Vault cards, Tour stop cards) deferred — these surfaces have no current status display; that is net-new feature work, not migration.
+
 ### Phase A — SavesScreen (COMPLETE Chat 40, commit 18f4165)
 
 Scope: `src/lib/entity-status.ts`, `src/components/ui/EntityStatusPill.tsx`, `/api/saves` GET response shape, SavesScreen migration.
@@ -1243,7 +1257,8 @@ Source tags: [C37] surfaced Chat 37; [C38] surfaced Chat 38; [C39] surfaced Chat
 - Per-stop X delete + add-new-stop on Trip Tours expand-in-place [C39]: COMPLETE. Chat 39 commit ad44676.
 - Phase 2 city attribution backfill [C39]: COMPLETE. Chat 39 commit 7ec8f9b.
 - ManualActivity.googlePlaceId structural improvement [C39]: store googlePlaceId on ManualActivity at creation time. Allows writeThroughCommunitySpot to dedup by placeId (priority 1) instead of (name, city) tuple, eliminating multi-city dedup ambiguity entirely.
-- Universal Entity Status Rule build [C39]: Phase A COMPLETE Chat 40 commit 18f4165 (SavesScreen). Phase B COMPLETE Chat 40 commit 16f2ffc (Trip Saved tab). Remaining: Itinerary day view + Vault cards + Recommendations + Discover Spots + tour stop cards.
+- Universal Entity Status Rule build [C39]: Phase A COMPLETE Chat 40 commit 18f4165 (SavesScreen). Phase B COMPLETE Chat 40 commit 16f2ffc (Trip Saved tab). Phase C COMPLETE Chat 40 (Recommendations + Discover Spots, client-side status map, duplicate-match tiebreaker). Remaining: Itinerary day view + Vault cards + tour stop cards (Phase D, net-new feature work).
+- Recommendation/Discover identity matching false-negative cleanup [C40]: QUEUED. Name+city string match inherited from existing isSaved logic — false negatives when AI generates a name that doesn't exactly match SavedItem.rawTitle. Resolved when googlePlaceId is added to ManualActivity, ItineraryItem, and DiscoverActivity aggregation.
 - /tour/[id] as public viewer for non-owners [C38, refined C39]
 - Universal URL Rule resolver build [C39]: COMPLETE. src/lib/url-resolver.ts shipped Chat 39 commit a030523. Integrated across TourStop generation (Chat 39). Forward-path integration for ItineraryItem ACTIVITY/LODGING extraction and ManualActivity AI-enrichment queued.
 - Universal URL Rule audit + backfill [C39]: REVERTED Chat 40 commit fdc0098. Chat 40 backfill (commit d4e828c) populated 89 rows with P3 search URLs; same session revert restored 89 rows to null after P3 proved to be a worse UX than null. Resolver tightened to P1/P2 only, returning string | null. Backfill arc remains open pending placeId availability on ManualActivity and ItineraryItem.

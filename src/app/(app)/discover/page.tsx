@@ -15,6 +15,9 @@ import { PlaceActionRow } from "@/components/features/places/PlaceActionRow";
 import type { UserSpotRating } from "@/app/api/community/user-ratings/route";
 import { resolveSaveLink } from "@/lib/save-link";
 import { MODAL_OVERLAY_CLASSES } from "@/lib/modal-classes";
+import { EntityStatusPill } from "@/components/ui/EntityStatusPill";
+import { buildSaveStatusMap } from "@/lib/save-status-map";
+import type { EntityStatusResult } from "@/lib/entity-status";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700", "900"] });
 
@@ -1060,7 +1063,7 @@ export default function DiscoverPage() {
   const [picksFilter, setPicksFilter]         = useState("All");
   const [picksSearch, setPicksSearch]         = useState("");
   const [showAllPicks, setShowAllPicks]       = useState(false);
-  const [userSavedKeys, setUserSavedKeys] = useState<Set<string>>(new Set());
+  const [userSaveStatusMap, setUserSaveStatusMap] = useState<Map<string, EntityStatusResult>>(new Map());
   const [selectedActivity, setSelectedActivity] = useState<DiscoverActivity | null>(null);
   const [userSpotRatings, setUserSpotRatings] = useState<Map<string, number>>(new Map());
   const [shareToast, setShareToast] = useState<string | null>(null);
@@ -1068,15 +1071,12 @@ export default function DiscoverPage() {
   useEffect(() => {
     fetch("/api/saves")
       .then(r => r.json())
-      .then(d => {
-        const keys = new Set<string>(
-          (d.saves ?? []).map((s: { rawTitle: string | null; destinationCity: string | null }) =>
-            `${(s.rawTitle ?? "").toLowerCase().trim()}|${(s.destinationCity ?? "").toLowerCase().trim()}`
-          )
-        );
-        setUserSavedKeys(keys);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((d: { saves?: any[] }) => {
+        if (!Array.isArray(d.saves)) return;
+        setUserSaveStatusMap(buildSaveStatusMap(d.saves));
       })
-      .catch((err) => { console.error('[discover] Failed to fetch user saves for isSaved check:', err); });
+      .catch((err) => { console.error('[discover] Failed to fetch user saves for status map:', err); });
   }, []);
 
   useEffect(() => {
@@ -1607,9 +1607,9 @@ export default function DiscoverPage() {
             <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
               {displayedPicks.map((act) => {
-                const isSaved = userSavedKeys.has(
-                  `${act.title.toLowerCase().trim()}|${(act.city ?? "").toLowerCase().trim()}`
-                );
+                const actKey = `${act.title.toLowerCase().trim()}|${(act.city ?? "").toLowerCase().trim()}`;
+                const actStatus = userSaveStatusMap.get(actKey) ?? null;
+                const isActSaved = (!!actStatus && actStatus.status !== "saved") || savedActivities.has(act.id);
                 return (
                 <div key={act.id} onClick={() => setSelectedActivity(act)} style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", cursor: "pointer" }}>
                   <div style={{ height: "160px", backgroundColor: "#1B3A5C1A", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
@@ -1629,6 +1629,11 @@ export default function DiscoverPage() {
                   <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", flex: 1 }}>
                     <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "3px" }}>{act.city ?? ""}</p>
                     <p style={{ fontSize: "14px", fontWeight: 600, color: "#1B3A5C", marginBottom: "4px", lineHeight: 1.3 }}>{act.title}</p>
+                    {actStatus && actStatus.status !== "saved" && (
+                      <div style={{ marginBottom: "6px" }}>
+                        <EntityStatusPill status={actStatus.status} label={actStatus.label} color={actStatus.color} />
+                      </div>
+                    )}
                     {act.ratingNotes && (
                       <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "6px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{act.ratingNotes}</p>
                     )}
@@ -1664,8 +1669,9 @@ export default function DiscoverPage() {
                           sourceTripId: act.tripId,
                           sourceShareToken: act.shareToken,
                         }}
-                        isSaved={isSaved || savedActivities.has(act.id)}
-                        userRating={userSpotRatings.get(`${act.title.toLowerCase().trim()}|${(act.city ?? "").toLowerCase().trim()}`) ?? null}
+                        isSaved={isActSaved}
+                        showAddToItinerary={!actStatus || actStatus.showAffordance}
+                        userRating={userSpotRatings.get(actKey) ?? null}
                         onFlokkIt={() => handlePickSave(act)}
                         onShareToast={(msg) => { setShareToast(msg); setTimeout(() => setShareToast(null), 3000); }}
                         variant="card-compact"
@@ -1933,9 +1939,14 @@ export default function DiscoverPage() {
                   sourceShareToken: selectedActivity.shareToken,
                 }}
                 isSaved={
-                  userSavedKeys.has(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`) ||
+                  !!userSaveStatusMap.get(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`) &&
+                  (userSaveStatusMap.get(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`)!.status !== "saved") ||
                   savedActivities.has(selectedActivity.id)
                 }
+                showAddToItinerary={(() => {
+                  const s = userSaveStatusMap.get(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`);
+                  return !s || s.showAffordance;
+                })()}
                 userRating={userSpotRatings.get(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`) ?? null}
                 onFlokkIt={() => { handlePickSave(selectedActivity); setSelectedActivity(null); }}
                 onShareToast={(msg) => { setShareToast(msg); setTimeout(() => setShareToast(null), 3000); }}
