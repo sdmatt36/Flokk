@@ -143,6 +143,62 @@ Long-term: a shared `Modal` component at `src/components/ui/Modal.tsx` that take
 
 ---
 
+## Universal URL Rule (Operating Discipline)
+
+Established Chat 39, April 27 2026, after a verification pass on the Trip Tours tab self-containment build surfaced that AI-generated lodging items and tour stops were shipping with null URLs across multiple surfaces, despite the Chat 38 tour-specific spec already requiring URL mandatory. The gap was that "URL mandatory" was scoped to tour stops only; the rule applies product-wide and was not articulated as such.
+
+### The rule
+
+Every Flokk-generated entity that represents a place, venue, or experience MUST persist a non-null URL by the time it is written to the database. This applies to ALL of:
+- Tour stops (TourStop)
+- AI-extracted lodging from email parsing (ItineraryItem.type = LODGING)
+- AI-extracted activities from email parsing (ItineraryItem.type = ACTIVITY)
+- AI-recommended activities surfaced via Trip Intelligence or Recommendations
+- AI-enriched SavedItems written via enrichSavedItem (sourceUrl OR placeUrl populated)
+- ManualActivity rows generated via AI (website field populated)
+- Any future AI-generated entity surface
+
+The rule does NOT apply to user-pasted content where the user explicitly provided the URL or explicitly opted out (free-text notes, manual entries without URL field).
+
+### Resolver priority chain
+
+URLs are resolved by a single shared helper, `resolveCanonicalUrl()`, with this priority:
+
+1. Google Places `website` field (if Place Details API call returns a website for the venue)
+2. Google Places Maps URL fallback (`https://www.google.com/maps/place/?q=place_id:${placeId}`)
+3. Generic search URL fallback (`https://www.google.com/search?q=${encodeURIComponent(name + ' ' + city)}`)
+
+Never null. Never empty string. Never undefined.
+
+### Why this matters
+
+Users discovering content in Flokk want to investigate. A restaurant recommendation without a URL is an unverifiable suggestion, not an actionable plan. A hotel without a "manage booking" or property URL forces the user to leave Flokk, search elsewhere, and lose context. URL is the bridge between Flokk's recommendation and the user's ability to act on it. Generic OTAs and AI travel apps have failed at this pervasively. Flokk does not.
+
+### Implementation requirements
+
+- A single shared helper `src/lib/url-resolver.ts` exports `resolveCanonicalUrl(input: { website?, placeId?, name, city, country }): string`. Never returns null.
+- Every AI-generation/extraction code path calls this helper before persistence.
+- Schema fields hosting these URLs are NOT marked nullable in new code. Existing nullable fields stay nullable for backwards compatibility but new writes must populate them.
+- A database integrity check, run as part of CI or as a periodic cron, audits AI-generated entities for null URLs and reports violations.
+
+### Surfaces that must comply (Chat 39 audit)
+
+Each surface listed below is either currently compliant, partially compliant, or non-compliant. Status as of Chat 39:
+
+- **TourStop.websiteUrl**: PARTIALLY COMPLIANT. websiteUrl populated from Google Places `website` field at generate time (Chat 37 commit referenced in spec); Maps URL fallback specced Chat 38 but enforcement at write time needs verification.
+- **ItineraryItem (LODGING)**: NON-COMPLIANT. Lodging items extracted from email parsing have managementUrl (booking platform manage page) but no property/venue URL. Direct hotel emails (28 items per Chat 38 backfill) have bookingSource = "unknown" and no URL of any kind.
+- **ItineraryItem (ACTIVITY)**: UNKNOWN. Audit needed.
+- **ManualActivity.website**: UNKNOWN. Audit needed.
+- **SavedItem.sourceUrl / placeUrl**: PARTIALLY COMPLIANT for AI-enriched items; URL-paste items are user-provided.
+- **Trip Intelligence IntelItem**: UNKNOWN. Audit needed.
+- **Recommendations**: UNKNOWN. Audit needed.
+
+### Backfill scope
+
+Each non-compliant surface gets a backfill prompt. Same pattern as the tour categorization backfill (Chat 39 commits ba61d88 + 0ff77ae): audit SQL, idempotent script, dry-run, distribution check, live run, verification SQL.
+
+---
+
 ## Tours
 
 ### Tour Generation
@@ -895,6 +951,8 @@ Source tags: [C37] surfaced Chat 37; [C38] surfaced Chat 38; [C39] surfaced Chat
 - Tour share token + viewer + clone-to-account full build [C37, refined C39]
 - Anchor-aware tour generation: lodging/itinerary as start/end node, foundation of companion thesis [C37]
 - /tour/[id] as public viewer for non-owners [C38, refined C39]
+- Universal URL Rule resolver build [C39]: src/lib/url-resolver.ts shared helper — resolveCanonicalUrl(placeId?, website?, name, city) returns Places website → Google Maps URL → generic search URL, never null. Integrate across TourStop generation, ItineraryItem email-extraction (LODGING + ACTIVITY), ManualActivity AI-enrichment, IntelItem generation, Recommendations.
+- Universal URL Rule audit + backfill [C39]: SQL audit per surface, idempotent backfill scripts, dry-run + distribution check + live run + verification SQL. Six surfaces: TourStop, ItineraryItem LODGING, ItineraryItem ACTIVITY, ManualActivity, IntelItem, Recommendations.
 
 ### Family-utility and events (Be Helpful pillars)
 
@@ -933,6 +991,7 @@ Source tags: [C37] surfaced Chat 37; [C38] surfaced Chat 38; [C39] surfaced Chat
 ### P3 fragility cleanup
 
 - PLACE_TYPE_MAP legacy emissions audit: enrich-save.ts emits "food", "outdoor", etc. instead of canonical slugs. Read-time normalization status unknown. Audit + fix + backfill all legacy-tagged SavedItems [C39]
+- Modal migration audit: confirm whether remaining unverified surfaces are actively wired or dead code. SaveDetailModal (saves/SaveDetailModal.tsx) structural refactor still pending. [C39]
 - Walking-retry should rollback DB writes from discarded attempts [C37]
 - audit-drift script N+1 hang on I2c [C37]
 - Inngest full removal: imported in 6+ files but disabled [C37]
@@ -1027,6 +1086,8 @@ Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product
 **Modal Pattern Discipline established**: Diagnostic confirmed two broken surfaces (Stop Detail modal, Cancel Confirmation sheet on Trip Tours tab — both mobile-only bottom-sheet without `sm:` breakpoint adaptation, content masked by bottom nav on desktop). Five imported modal components remain to be audited. Canonical pattern defined: `items-end sm:items-center` outer wrapper, `rounded-t-2xl sm:rounded-2xl` panel, `pb-safe` scroll container. Migration build pending separate prompt.
 
 **Modal migration shipped**: `src/lib/modal-classes.ts` created (MODAL_OVERLAY_CLASSES, MODAL_PANEL_CLASSES, MODAL_STICKY_FOOTER_CLASSES). `pb-safe` utility added to globals.css. BottomNav z-index lowered 80→40 (root cause of masking). 19 modals migrated across 10 files: TripTabContent.tsx (SavedDayPickerModal, LodgingDateModal, SavedDetailModal-inline, TaskModal, ActivityDetailModal, editingLodging, selectedItineraryItem, tourCancelTarget, selectedStop, cancelTarget, vaultActivityItem, editingVaultDoc, showTripSettings), AddFlightModal, EditFlightModal (both modes), AddActivityModal, DropLinkModal, AddTripModal, discover/page.tsx "Share a trip" modal, TourResults Trip Save modal. Deferred: SaveDetailModal (saves/SaveDetailModal.tsx) — transform-based slide-up pattern, not a className swap, tracked in Backlog.
+
+**Universal URL Rule established as Operating Discipline**: Promoted from tour-specific URL guidance to product-wide rule covering all AI-generated/extracted entities. Resolver priority chain defined: (1) Google Places `website` field → (2) Google Maps URL `https://www.google.com/maps/place/?q=place_id:${placeId}` → (3) Generic search URL — never null. Six surfaces require compliance audit; lodging items confirmed non-compliant during modal migration verification. `src/lib/url-resolver.ts` build and per-surface audit + backfill queued P0/P1.
 
 ### Prior — Chat 37 (reconstructed from codebase + handoff references)
 
