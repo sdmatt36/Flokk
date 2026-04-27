@@ -400,6 +400,76 @@ The Claude generation prompt is modified to accept an "anchors" section listing 
 
 Saves represent the user's highest-value research effort. Tours generated without awareness of saves treat that effort as invisible. Save-anchored tours make Flokk's AI compound the user's research instead of competing with it. Generic OTAs cannot do this — they have no save layer. AI travel apps cannot do this — they have no family-first save layer. This is the family-first moat as a feature.
 
+#### Hotel-as-end-anchor case (open question, surfaced Chat 39)
+
+Existing lodging anchor logic (shipped Chat 38) treats lodging as the start of the day — first stop clusters near the hotel. This works for "we're already at the hotel and going out for the day" trips.
+
+A second case exists: check-in day. The user is en route to the lodging; lodging is the END of the day's flow, not the start. Tour stops should funnel TOWARD the hotel, not FROM it. Verified Chat 39 with a Scotland tour where Edinburgh-to-Aberlour stops were generated correctly but the day view interleaved the Mash Tun check-in between stops 2 and 3 with 4-hour drive times in both directions.
+
+Tour generation prompt needs to know:
+- Is this a check-in day (lodging exists on this day with check-in time, no prior lodging on previous day)?
+- Or a check-out day (lodging exists with check-out time, departure pending)?
+- Or a regular trip day (lodging stable, both directions to and from)?
+
+Each case has a different anchor pattern. Schema/data already supports it (ItineraryItem.type=LODGING with checkIn/checkOut times exist); generation prompt and day-view sort logic do not consume the signal.
+
+Status: Open question. Build queued under Tour Anchoring expansion.
+
+#### Day-view rendering: tour stop + lodging interleaving (bug, surfaced Chat 39)
+
+When a tour and a lodging ItineraryItem share a day, the day view interleaves them by sort order — currently producing absurd drive-time labels (e.g. "Drive 4hr 25min" between consecutive tour stops because lodging is sandwiched in the middle by index, not by time-of-day intent).
+
+Root cause hypothesis (needs diagnostic): day view sorts ItineraryItems by orderIndex or scheduledTime without awareness that:
+- LODGING with check-in time should display at end of day
+- LODGING with check-out time should display at start of day
+- Tour stops should flow continuously between them
+
+Fix scope (when built):
+- Day-view sort logic that respects LODGING check-in/check-out as anchors
+- Drive-time labels recompute correctly when lodging is treated as endpoint, not waypoint
+- "From [previous endpoint]" header logic (see related issue below)
+
+Status: Bug. Diagnostic pending. Backlog P0/P1.
+
+#### Day-view "From [previous endpoint]" header — fictional source (bug, surfaced Chat 39)
+
+The day view renders "From [hotel]" at the top of each day's stop list. When no previous-day lodging exists (e.g. arrival day with no prior accommodation), the header still references SOME hotel — the next-day check-in or some other ItineraryItem — producing fictional "from" labels.
+
+Fix scope (when built):
+- Use previous-day's actual ending lodging or itinerary item as "from" source
+- If no previous-day endpoint exists: default to destination city centroid OR omit the "From" header entirely
+- Never reference a future-day check-in as a previous-day starting point
+
+Status: Bug. Backlog P0/P1.
+
+#### Stop-level "View on Maps" — wired to wrong URL (bug, surfaced Chat 39)
+
+Stop detail modal renders "View on Maps" link as the only outbound action. Per Universal URL Rule (Chat 39 commit a030523), every TourStop now has a non-null websiteUrl resolved through the priority chain (Places website → Maps URL → search URL). The "View on Maps" button is wired to websiteUrl, which is most often the venue's website (priority 1), not a Maps URL.
+
+The button label and behavior are mismatched. Two paths:
+
+A) Two affordances: "View on Maps" goes to a Maps URL (constructed from lat/lng or placeId). "Visit website" goes to websiteUrl. Two distinct buttons, two distinct purposes.
+
+B) One affordance, renamed to match what it does. E.g. "Visit venue" or "Open" or just "Visit website" when websiteUrl is a website, "View on Maps" only when websiteUrl is the Maps fallback.
+
+Path A is cleaner. Tours have lat/lng and placeId already (commit a030523). Maps URL can be constructed at render time without storing it.
+
+Status: Bug. Backlog P1.
+
+#### Per-stop X delete + add-new-stop on Trip Tours expand-in-place (feature gap, surfaced Chat 39)
+
+The /tour?id= viewer surfaces per-stop X delete with 8-second undo timer + regenerate-replacement-stop affordance. The Trip Tours tab expand-in-place renders the same stop content but lacks both affordances — the user has to navigate to /tour?id= to remove stops.
+
+Per Trip Tours Tab — Self-Contained Owner Viewer spec (commit 4af98e8), expand-in-place IS the canonical owner viewer. Owners should not need to navigate away.
+
+Build scope (when ready):
+- Lift X delete with 8s undo timer pattern from TourResults into ToursContent
+- Lift "+ Add new stop" affordance after a removal
+- Reuse cheapest-insertion-slot regenerate logic from existing /api/tours/[id]/regenerate-stop endpoint (or wherever the existing flow lives)
+- Maintain pendingRemovals state pattern from TourResults
+
+Status: Feature gap. Backlog P0/P1.
+
 ### Tour Editing
 - User can remove any stop via X icon (8s undo window via inline placeholder)
 - Removed stops are soft-deleted, recoverable via "Show removed stops" section
@@ -1112,7 +1182,11 @@ Source tags: [C37] surfaced Chat 37; [C38] surfaced Chat 38; [C39] surfaced Chat
 - Tour categorization pipeline gap [C37]: COMPLETE. Forward path Chat 39 commit ba61d88. Backfill of 13 legacy items Chat 39 commit 0ff77ae. 0 manual-review items.
 - Visual tour cards on profile/trips library: replace dropdown-by-city pills with image cards [C37]
 - Tour share token + viewer + clone-to-account full build [C37, refined C39]
-- Tour Anchoring build (save-anchored + itinerary-anchored generation) [C37, refined C39]: API accepts anchorSavedItemIds, AI prompt handles anchor+fill modes, Tour Builder form adds "Include your saved spots" section, Saves tab adds ambient "Turn your trip saves into a Flokkin tour" prompt. Foundation of companion thesis. Lodging-anchor already shipped Chat 38.
+- Tour Anchoring build (save-anchored + itinerary-anchored generation + check-in/out day awareness) [C37, refined C39]: API accepts anchorSavedItemIds, AI prompt handles anchor+fill modes AND check-in-day (lodging as end anchor) vs check-out-day (lodging as start anchor) vs regular-day cases. Tour Builder form adds "Include your saved spots" section, Saves tab adds ambient "Turn your trip saves into a Flokkin tour" prompt. Foundation of companion thesis. Lodging-anchor (start-of-day case only) already shipped Chat 38.
+- Day-view tour + lodging interleaving fix [C39]: tour stops and same-day LODGING ItineraryItem render in confused order with fictional drive times. Root cause hypothesis: sort logic doesn't differentiate lodging anchor case from in-progression stop. Diagnostic-first.
+- Day-view "From X" previous-endpoint header fix [C39]: header references future check-in or fictional starting point when no real previous-day endpoint exists. Should use real previous-day endpoint, fall back to destination centroid, or omit header.
+- Stop "View on Maps" link rewire [C39]: button label says "Maps" but link goes to canonical websiteUrl (often a website). Two paths: (A) separate Maps and Website affordances, (B) rename button conditionally. Path A preferred.
+- Per-stop X delete + add-new-stop on Trip Tours expand-in-place [C39]: lift TourResults pattern (8s undo, regenerate replacement, cheapest insertion slot) into ToursContent. Owner should not navigate away to manage tour stops.
 - Universal Entity Status Rule build [C39]: src/lib/entity-status.ts shared helper, src/components/ui/EntityStatusPill.tsx canonical pill component, migration across SavesScreen + trip Saved tab + Itinerary day view + Vault cards + Recommendations + Discover Spots + tour stop cards. Bellwether bug: Hyatt Regency Seragaki Island lodging not showing "On itinerary" despite ItineraryItem linkage.
 - /tour/[id] as public viewer for non-owners [C38, refined C39]
 - Universal URL Rule resolver build [C39]: src/lib/url-resolver.ts shared helper — resolveCanonicalUrl(placeId?, website?, name, city) returns Places website → Google Maps URL → generic search URL, never null. Integrate across TourStop generation, ItineraryItem email-extraction (LODGING + ACTIVITY), ManualActivity AI-enrichment, IntelItem generation, Recommendations.
@@ -1258,6 +1332,8 @@ Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product
 **Universal Entity Status Rule established as Operating Discipline**: After Saves screen verification surfaced that a booked Hyatt Regency lodging was displaying "+ Itinerary" affordance instead of "On itinerary" while activities in the same trip displayed correctly, the inconsistency revealed that status derivation is ad-hoc across surfaces. New rule defines five-state enum (Saved → On itinerary → Booked → Completed → Rated), single shared helper at src/lib/entity-status.ts, canonical EntityStatusPill component, and surface-by-surface migration. Status is derived at read time from existing relational data; no schema changes required. Build pending separate prompt.
 
 **Destination autocomplete types expanded — BUILT**: Root cause: `types=locality|administrative_area_level_3` in src/app/api/destinations/lookup/route.ts hard-blocked `administrative_area_level_1` results, making Scotland, Hokkaido, Tuscany, and similar country-subdivision destinations completely unreturnable by the Google Places Autocomplete API regardless of de-biasing. One-line fix: added `|administrative_area_level_2|administrative_area_level_1` to the types parameter. De-biasing logic (lines 85-89) unchanged. Spec capture: Tour Generation Inputs "City" bullet updated. Shared route used by Tour Builder, Trip creation, and all other destination pickers — all fixed in one change.
+
+**Tour-day rendering issues + stop affordance gaps captured (Chat 39 verification)**: Scotland tour verification surfaced four distinct issues. (1) Day-view interleaves tour stops and same-day LODGING with absurd drive times — diagnostic pending, root cause likely day-view sort logic ignoring lodging anchor case. (2) "From X" header references fictional previous-day endpoint when no real one exists. (3) Stop detail modal "View on Maps" link wired to canonical websiteUrl (which is often a website per Universal URL Rule), label mismatched with destination. (4) Per-stop X delete and add-new-stop affordances missing from Trip Tours expand-in-place despite spec saying owner should not navigate away. All four added to Top of queue Backlog. Hotel-as-end-anchor case rolled into Tour Anchoring expansion.
 
 ### Prior — Chat 37 (reconstructed from codebase + handoff references)
 
