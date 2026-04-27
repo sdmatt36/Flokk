@@ -242,7 +242,9 @@ Adding a 280px map above the stop list makes an expanded tour card significantly
 
 The maps-on-mobile-only argument was wrong. Maps on desktop show tour shape, density, walkability, and neighborhood spread. All of these are PLANNING context. A 7-stop full-day tour needs a map for the owner to spot bunching, gaps, and route quality before committing — the cluster diameter check enforces a maximum, not a quality. Spatial review IS a planning activity. Maps stay on the owner viewer. Mobile may add additional in-trip-context overlays (current location, next-stop direction) when the mobile build lands; that is additive, not a different home for the map.
 
-#### Implementation scope
+#### Implementation status: SHIPPED Chat 39 commit 82c004d
+
+The bullet list below represents what was built.
 
 - Lift TourResults.tsx lines 118–192 (the map block) into a standalone TourMapBlock component
 - Map block accepts a stops prop typed as `Array<{ name: string; lat: number | null; lng: number | null }>`
@@ -968,7 +970,7 @@ Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product
 
 **Tour Categorization Pipeline (complete)**: Forward path shipped (commit ba61d88) — TourStop.placeTypes captured at generate time, mapPlaceTypesToCanonicalSlugs() maps to canonical categoryTags at save time. Backfill of 13 legacy tour-saved items shipped (commit 0ff77ae). 0 manual-review items. vitest 4.1.5 installed; 13 unit tests added for mapper. PLACE_TYPE_MAP legacy emissions audit deferred to P3 backlog.
 
-**Trip Tours Tab Self-Containment — reversal corrected**: Commit 79d22f8 incorrectly added "Inline Map Deferred to Mobile" subsection, reversing the Chat 38 decision to include a map in expand-in-place. Caught and corrected in Chat 39. The Chat 38 decision stands: map belongs on the owner viewer. See "Trip Tours Tab — Self-Contained Owner Viewer" section for the full rendered behavior spec including map, familyNote, per-stop link, image sizing, and mobile depth tradeoff. Build pending separate prompt.
+**Trip Tours Tab Self-Containment — reversal corrected + BUILT**: Commit 79d22f8 incorrectly added "Inline Map Deferred to Mobile" subsection, reversing the Chat 38 decision. Caught and corrected in Chat 39. Built commit 82c004d: TourMapBlock extracted to src/components/tours/TourMapBlock.tsx (shared by TourResults and ToursContent), map + familyNote + per-stop Link button inline in expand-in-place, stop images upgraded 40×40 → 96×96, "View tour" affordance removed from TripTabContent.tsx (TourActionMenu untouched, /tour?id=X URL preserved). StopPreview type extended with lat/lng/familyNote. ExternalLink/Clock/Footprints added to TripTabContent lucide imports. "Start over" link added to action footer pointing to /tour?tripId=.
 
 **Tour Sharing Three-State Model specced**: Private (default) / Shared (link-based, tokenized) / Public (Spots-published). shareToken, isPublic, publishedToSpotsAt, attribution fields designed for GeneratedTour schema. TourStop.neighborhood (String?) captured at generation for future neighborhood-level Spots browse. Build pending.
 
