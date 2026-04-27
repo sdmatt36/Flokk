@@ -21,6 +21,7 @@ export interface PlaceActionRowProps {
   onEdit?: () => void;
   onShareToast?: (message: string) => void;
   variant?: "card-compact" | "card-expanded";
+  showAddToItinerary?: boolean;
 }
 
 const TERRA = "#C4664A";
@@ -38,6 +39,7 @@ export function PlaceActionRow({
   onEdit,
   onShareToast,
   variant = "card-expanded",
+  showAddToItinerary = true,
 }: PlaceActionRowProps) {
   const { open: openAddToItinerary } = useAddToItinerary();
   const [flokking, setFlokking] = useState(false);
@@ -150,14 +152,16 @@ export function PlaceActionRow({
 
           {/* Row 2: Secondary actions, equal-flex */}
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              onClick={handleAddToItinerary}
-              aria-label={`Add ${place.name} to itinerary`}
-              style={{ ...btnBase, flex: 1, padding: "6px 4px", fontSize: 11, gap: 3 }}
-            >
-              <CalendarPlus size={12} /> + Itinerary
-            </button>
+            {showAddToItinerary && (
+              <button
+                type="button"
+                onClick={handleAddToItinerary}
+                aria-label={`Add ${place.name} to itinerary`}
+                style={{ ...btnBase, flex: 1, padding: "6px 4px", fontSize: 11, gap: 3 }}
+              >
+                <CalendarPlus size={12} /> + Itinerary
+              </button>
+            )}
 
             {place.websiteUrl ? (
               <a
@@ -235,14 +239,16 @@ export function PlaceActionRow({
             </button>
           ) : null}
 
-          <button
-            type="button"
-            style={btnBase}
-            onClick={handleAddToItinerary}
-            aria-label={`Add ${place.name} to itinerary`}
-          >
-            <CalendarPlus size={14} /> + Itinerary
-          </button>
+          {showAddToItinerary && (
+            <button
+              type="button"
+              style={btnBase}
+              onClick={handleAddToItinerary}
+              aria-label={`Add ${place.name} to itinerary`}
+            >
+              <CalendarPlus size={14} /> + Itinerary
+            </button>
+          )}
 
           {place.websiteUrl && (
             <a

@@ -18,6 +18,8 @@ import { haversineKm, WITHIN_REACH_KM } from "@/lib/geo";
 import { Pill } from "@/components/ui/Pill";
 import { PlaceActionRow } from "@/components/features/places/PlaceActionRow";
 import { resolveSaveLink } from "@/lib/save-link";
+import { getEntityStatus } from "@/lib/entity-status";
+import { EntityStatusPill } from "@/components/ui/EntityStatusPill";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +36,7 @@ type Save = {
   img: string | null;
   needsPlaceConfirmation: boolean;
   userRating?: number | null;
+  isBooked?: boolean;
   destinationCity: string | null;
   destinationCountry: string | null;
   communitySpotId: string | null;
@@ -42,6 +45,10 @@ type Save = {
   sourceUrl: string | null;
   websiteUrl: string | null;
   suggestionTier: "primary" | "secondary" | null;
+  hasBooking: boolean;
+  hasItineraryLink: boolean;
+  tripStatus: string | null;
+  tripEndDate: string | null;
 };
 
 type PlaceResult = {
@@ -69,11 +76,17 @@ type ApiItem = {
   trip: { id: string; title: string } | null;
   needsPlaceConfirmation: boolean;
   userRating?: number | null;
+  isBooked?: boolean;
   communitySpotId: string | null;
   lat: number | null;
   lng: number | null;
   sourceUrl: string | null;
   websiteUrl: string | null;
+  // Status enrichment — computed by /api/saves GET from TripDocument join
+  hasBooking?: boolean;
+  hasItineraryLink?: boolean;
+  tripStatus?: string | null;
+  tripEndDate?: string | null;
 };
 
 const SOURCE_LABEL_MAP: Record<string, string> = {
@@ -109,6 +122,7 @@ function mapApiItem(item: ApiItem): Save {
     img: getItemImage(item.rawTitle, item.placePhotoUrl, item.mediaThumbnailUrl, item.categoryTags[0] ?? null, item.destinationCity, item.destinationCountry),
     needsPlaceConfirmation: item.needsPlaceConfirmation ?? false,
     userRating: item.userRating ?? undefined,
+    isBooked: item.isBooked ?? false,
     destinationCity: item.destinationCity ?? null,
     destinationCountry: item.destinationCountry ?? null,
     communitySpotId: item.communitySpotId ?? null,
@@ -117,6 +131,10 @@ function mapApiItem(item: ApiItem): Save {
     sourceUrl: item.sourceUrl ?? null,
     websiteUrl: item.websiteUrl ?? null,
     suggestionTier: null,
+    hasBooking: item.hasBooking ?? false,
+    hasItineraryLink: item.hasItineraryLink ?? false,
+    tripStatus: item.tripStatus ?? null,
+    tripEndDate: item.tripEndDate ?? null,
   };
 }
 
@@ -466,6 +484,15 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
     spotId: save.communitySpotId ?? null,
   };
 
+  const statusResult = getEntityStatus({
+    dayIndex: save.dayIndex,
+    hasItineraryLink: save.hasItineraryLink,
+    hasBooking: save.hasBooking,
+    userRating: save.userRating ?? null,
+    tripStatus: save.tripStatus,
+    tripEndDate: save.tripEndDate,
+  });
+
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
@@ -610,13 +637,16 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
           </div>
         )}
 
-        {/* Itinerary badge */}
-        {save.dayIndex != null && (
-          <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "6px" }}>
-            <div style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#4a7c59", flexShrink: 0 }} />
-            <span style={{ fontSize: "11px", color: "#4a7c59", fontWeight: 600 }}>On itinerary</span>
+        {/* Entity status pill — replaces ad-hoc "On itinerary" badge */}
+        {statusResult.status !== "saved" ? (
+          <div style={{ marginBottom: "6px" }}>
+            <EntityStatusPill
+              status={statusResult.status}
+              label={statusResult.label}
+              color={statusResult.color}
+            />
           </div>
-        )}
+        ) : null}
 
         {/* Tags */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "8px" }}>
@@ -699,6 +729,7 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
             place={placeForActionRow}
             isSaved={true}
             userRating={save.userRating ?? null}
+            showAddToItinerary={statusResult.showAffordance}
             onAddToTrip={
               !save.tripId && !isPastTrip && !suggestedForOptions?.length
                 ? () => setOpenDropdown(isDropdownOpen ? null : save.id)

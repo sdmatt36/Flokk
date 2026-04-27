@@ -429,17 +429,27 @@ export async function GET(request: Request) {
       },
       orderBy: { savedAt: "desc" },
       include: {
-        trip: { select: { id: true, title: true } },
+        trip: { select: { id: true, title: true, status: true, endDate: true } },
         communitySpot: { select: { photoUrl: true } },
+        tripDocuments: { select: { type: true } },
       },
     });
 
     console.log("[GET /api/saves] tripId param:", tripId ?? "none");
-    const sanitized = saves.map(s => ({
-      ...s,
-      mediaThumbnailUrl: sanitizeThumbnailUrl(s.mediaThumbnailUrl),
-      placePhotoUrl: s.placePhotoUrl || s.communitySpot?.photoUrl || null,
-    }));
+    const sanitized = saves.map(s => {
+      const { tripDocuments, communitySpot, ...rest } = s;
+      const hasBooking = tripDocuments.some(d => d.type === "booking");
+      const hasItineraryLink = s.dayIndex != null || tripDocuments.length > 0;
+      return {
+        ...rest,
+        mediaThumbnailUrl: sanitizeThumbnailUrl(s.mediaThumbnailUrl),
+        placePhotoUrl: s.placePhotoUrl || communitySpot?.photoUrl || null,
+        hasBooking,
+        hasItineraryLink,
+        tripStatus: s.trip?.status ?? null,
+        tripEndDate: s.trip?.endDate ? s.trip.endDate.toISOString() : null,
+      };
+    });
     console.log("[GET /api/saves] returning", sanitized.length, "saves for familyProfile", getProfileId);
 
     return NextResponse.json(
