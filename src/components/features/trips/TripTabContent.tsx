@@ -86,6 +86,7 @@ import {
   ExternalLink,
   Clock,
   Footprints,
+  Loader2,
 } from "lucide-react";
 import { TripMap } from "@/components/features/trips/TripMap";
 import { DropLinkModal } from "@/components/features/home/DropLinkModal";
@@ -6006,6 +6007,20 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
   const [cancelling, setCancelling] = useState(false);
   const [expandedStops, setExpandedStops] = useState<Record<string, StopPreview[] | "loading">>({});
   const [selectedStop, setSelectedStop] = useState<{ stop: StopPreview; tourTitle: string; stopIndex: number; totalStops: number } | null>(null);
+  const [pendingRemovals, setPendingRemovals] = useState<Record<string, { stop: StopPreview; tourId: string; timer: ReturnType<typeof setTimeout>; startedAt: number }>>({});
+  const [originalTargetStops, setOriginalTargetStops] = useState<Record<string, number>>({});
+  const [isRegenerating, setIsRegenerating] = useState<string | null>(null);
+
+  // Flush all pending DELETEs on unmount (best-effort, keepalive)
+  useEffect(() => {
+    return () => {
+      Object.values(pendingRemovals).forEach(p => {
+        clearTimeout(p.timer);
+        fetch(`/api/tours/${p.tourId}/stops/${p.stop.id}`, { method: "DELETE", keepalive: true }).catch(() => {});
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchTours = () => {
     if (!tripId) { setLoading(false); return; }
@@ -6020,6 +6035,18 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
   useEffect(() => { fetchTours(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleCancel(tour: TourMeta) {
+    // Flush pending removals for this tour synchronously before unlinking
+    Object.values(pendingRemovals).forEach(p => {
+      if (p.tourId === tour.id) {
+        clearTimeout(p.timer);
+        fetch(`/api/tours/${tour.id}/stops/${p.stop.id}`, { method: "DELETE", keepalive: true }).catch(() => {});
+      }
+    });
+    setPendingRemovals(prev => {
+      const next: typeof prev = {};
+      Object.entries(prev).forEach(([id, p]) => { if (p.tourId !== tour.id) next[id] = p; });
+      return next;
+    });
     setCancelling(true);
     try {
       await fetch(`/api/tours/${tour.id}/unlink-from-trip`, { method: "DELETE" });
@@ -6032,6 +6059,9 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
 
   async function toggleExpand(tourId: string) {
     if (expandedStops[tourId]) {
+      // Block collapse while any pending removal for this tour is in flight
+      const hasPending = Object.values(pendingRemovals).some(p => p.tourId === tourId);
+      if (hasPending) return;
       setExpandedStops(prev => { const next = { ...prev }; delete next[tourId]; return next; });
       return;
     }
@@ -6041,6 +6071,8 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
       if (!res.ok) { setExpandedStops(prev => { const next = { ...prev }; delete next[tourId]; return next; }); return; }
       const data = await res.json() as { stops: StopPreview[] };
       setExpandedStops(prev => ({ ...prev, [tourId]: data.stops ?? [] }));
+      // Capture original target on first expand only
+      setOriginalTargetStops(prev => prev[tourId] != null ? prev : { ...prev, [tourId]: (data.stops ?? []).length });
     } catch {
       setExpandedStops(prev => { const next = { ...prev }; delete next[tourId]; return next; });
     }
@@ -6050,6 +6082,50 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
     if (days.length === 0) return "";
     if (days.length === 1) return `Day ${days[0] + 1}`;
     return `Days ${days.map(d => d + 1).join(", ")}`;
+  }
+
+  function handleLocalRemove(tId: string, stop: StopPreview) {
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/tours/${tId}/stops/${stop.id}`, { method: "DELETE", keepalive: true });
+        if (res.ok) {
+          setExpandedStops(prev => {
+            const current = prev[tId];
+            if (current === "loading" || !current) return prev;
+            return { ...prev, [tId]: (current as StopPreview[]).filter(s => s.id !== stop.id) };
+          });
+          setTours(prev => prev.map(t => t.id === tId ? { ...t, stopCount: t.stopCount - 1 } : t));
+        }
+      } catch (err) { console.error("[ToursContent] stop delete failed:", err); }
+      setPendingRemovals(prev => { const next = { ...prev }; delete next[stop.id]; return next; });
+    }, 8000);
+    setPendingRemovals(prev => ({ ...prev, [stop.id]: { stop, tourId: tId, timer, startedAt: Date.now() } }));
+  }
+
+  function handleUndoRemoval(stopId: string) {
+    setPendingRemovals(prev => {
+      const target = prev[stopId];
+      if (target) clearTimeout(target.timer);
+      const next = { ...prev };
+      delete next[stopId];
+      return next;
+    });
+  }
+
+  async function handleAddReplacement(tId: string, count: number) {
+    setIsRegenerating(tId);
+    try {
+      const res = await fetch(`/api/tours/${tId}/regenerate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count }),
+      });
+      if (!res.ok) throw new Error("Regenerate failed");
+      const data = await res.json() as { allActive: StopPreview[] };
+      setExpandedStops(prev => ({ ...prev, [tId]: data.allActive }));
+      setTours(prev => prev.map(t => t.id === tId ? { ...t, stopCount: data.allActive.length } : t));
+    } catch (err) { console.error("[ToursContent] regenerate failed:", err); }
+    finally { setIsRegenerating(null); }
   }
 
   if (loading) {
@@ -6084,6 +6160,10 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
           const isExpanded = !!stopsState;
           const stopsLoading = stopsState === "loading";
           const stopsList = Array.isArray(stopsState) ? stopsState : [];
+          const hasPendingForTour = Object.values(pendingRemovals).some(p => p.tourId === tour.id);
+          const activeStopCount = stopsList.filter(s => !pendingRemovals[s.id]).length;
+          const origTarget = originalTargetStops[tour.id];
+          const gap = origTarget != null ? origTarget - activeStopCount : 0;
           const location = [tour.destinationCity, tour.destinationCountry].filter(Boolean).join(", ");
           return (
             <div key={tour.id} style={{
@@ -6146,85 +6226,138 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
                       <>
                         <TourMapBlock stops={stopsList} />
                         <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                          {stopsList.map((stop, idx) => (
-                            <div
-                              key={stop.id}
-                              onClick={() => setSelectedStop({ stop, tourTitle: decodeHtmlEntities(tour.title), stopIndex: idx + 1, totalStops: stopsList.length })}
-                              style={{ display: "flex", alignItems: "flex-start", cursor: "pointer", border: "1px solid #F3F4F6", borderRadius: "16px", overflow: "hidden", backgroundColor: "#fff" }}
-                            >
-                              {/* 96×96 image */}
-                              <div style={{
-                                width: "96px", height: "96px", flexShrink: 0,
-                                backgroundColor: "#F3F4F6", overflow: "hidden",
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                              }}>
-                                {stop.imageUrl ? (
-                                  <img src={stop.imageUrl} alt={stop.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                ) : (
-                                  <MapPin size={20} style={{ color: "#D1D5DB" }} />
-                                )}
-                              </div>
-                              {/* Content */}
-                              <div style={{ flex: 1, minWidth: 0, padding: "10px 12px 10px 10px" }}>
-                                {/* Badge + title */}
-                                <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
-                                  <div style={{ width: "20px", height: "20px", borderRadius: "50%", backgroundColor: "#C4664A", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "10px", fontWeight: 700, flexShrink: 0, marginTop: "2px" }}>
-                                    {idx + 1}
-                                  </div>
-                                  <p style={{ fontSize: "14px", fontWeight: 600, color: "#1B3A5C", margin: 0, lineHeight: 1.3 }}>
-                                    {decodeHtmlEntities(stop.name)}
-                                  </p>
-                                </div>
-                                {/* Link button */}
-                                {stop.websiteUrl && (
-                                  <a
-                                    href={stop.websiteUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    onClick={e => e.stopPropagation()}
-                                    style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "12px", color: "#C4664A", textDecoration: "none", marginTop: "4px" }}
-                                  >
-                                    <ExternalLink size={12} />
-                                    Link
-                                  </a>
-                                )}
-                                {/* Duration + walk + ticket pills */}
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "4px" }}>
-                                  <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", backgroundColor: "#F3F4F6", borderRadius: "999px", padding: "2px 8px", fontSize: "11px", color: "#6B7280" }}>
-                                    <Clock size={10} />
-                                    {stop.duration} min
-                                  </span>
-                                  {tour.transport === "Walking" && idx > 0 && stop.travelTime > 0 && (
-                                    <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", backgroundColor: "#F3F4F6", borderRadius: "999px", padding: "2px 8px", fontSize: "11px", color: "#6B7280" }}>
-                                      <Footprints size={10} />
-                                      {stop.travelTime} min walk
+                          {stopsList.map((stop) => {
+                            const isPending = !!pendingRemovals[stop.id];
+                            const activeStops = stopsList.filter(s => !pendingRemovals[s.id]);
+                            const activeIdx = activeStops.indexOf(stop);
+                            if (isPending) {
+                              return (
+                                <div key={stop.id} className="relative overflow-hidden rounded-xl" style={{ border: "1px solid rgba(27,58,92,0.2)", backgroundColor: "rgba(27,58,92,0.05)", padding: "12px 16px" }}>
+                                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+                                    <span style={{ fontSize: "14px", color: "#1B3A5C" }}>
+                                      Removed <strong>{decodeHtmlEntities(stop.name)}</strong>
                                     </span>
-                                  )}
-                                  {stop.ticketRequired === "ticket-required" && (
-                                    <span style={{ fontSize: "10px", fontWeight: 600, color: "#92400E", backgroundColor: "#FEF3C7", borderRadius: "999px", padding: "2px 8px" }}>Ticket required</span>
-                                  )}
-                                  {stop.ticketRequired === "advance-booking-recommended" && (
-                                    <span style={{ fontSize: "10px", fontWeight: 600, color: "#92400E", backgroundColor: "#FEF3C7", borderRadius: "999px", padding: "2px 8px" }}>Book ahead</span>
-                                  )}
-                                  {stop.ticketRequired === "free" && (
-                                    <span style={{ fontSize: "10px", fontWeight: 600, color: "#065F46", backgroundColor: "#D1FAE5", borderRadius: "999px", padding: "2px 8px" }}>Free</span>
-                                  )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUndoRemoval(stop.id)}
+                                      style={{ flexShrink: 0, border: "1px solid #C4664A", backgroundColor: "#fff", borderRadius: "6px", padding: "4px 12px", fontSize: "12px", fontWeight: 700, color: "#C4664A", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.05em" }}
+                                    >
+                                      Undo
+                                    </button>
+                                  </div>
+                                  <div className="absolute bottom-0 left-0 h-0.5 w-full bg-[#C4664A] origin-left animate-[shrink_8s_linear_forwards]" />
                                 </div>
-                                {/* Why */}
-                                {stop.why && (
-                                  <p style={{ fontSize: "12px", color: "#6B7280", margin: "4px 0 0", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                                    {stop.why}
-                                  </p>
-                                )}
-                                {/* familyNote */}
-                                {stop.familyNote && (
-                                  <p style={{ fontSize: "12px", color: "#C4664A", fontStyle: "italic", margin: "2px 0 0", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                                    {stop.familyNote}
-                                  </p>
-                                )}
+                              );
+                            }
+                            return (
+                              <div key={stop.id} style={{ position: "relative" }}>
+                                <button
+                                  type="button"
+                                  onClick={e => { e.stopPropagation(); handleLocalRemove(tour.id, stop); }}
+                                  style={{ position: "absolute", top: "8px", right: "8px", zIndex: 10, width: "24px", height: "24px", borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.9)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 3px rgba(0,0,0,0.15)" }}
+                                  aria-label={`Remove ${stop.name}`}
+                                >
+                                  <X size={14} style={{ color: "#6B7280" }} />
+                                </button>
+                                <div
+                                  onClick={() => setSelectedStop({ stop, tourTitle: decodeHtmlEntities(tour.title), stopIndex: activeIdx + 1, totalStops: activeStops.length })}
+                                  style={{ display: "flex", alignItems: "flex-start", cursor: "pointer", border: "1px solid #F3F4F6", borderRadius: "16px", overflow: "hidden", backgroundColor: "#fff" }}
+                                >
+                                  {/* 96×96 image */}
+                                  <div style={{
+                                    width: "96px", height: "96px", flexShrink: 0,
+                                    backgroundColor: "#F3F4F6", overflow: "hidden",
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                  }}>
+                                    {stop.imageUrl ? (
+                                      <img src={stop.imageUrl} alt={stop.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                    ) : (
+                                      <MapPin size={20} style={{ color: "#D1D5DB" }} />
+                                    )}
+                                  </div>
+                                  {/* Content */}
+                                  <div style={{ flex: 1, minWidth: 0, padding: "10px 12px 10px 10px" }}>
+                                    {/* Badge + title */}
+                                    <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
+                                      <div style={{ width: "20px", height: "20px", borderRadius: "50%", backgroundColor: "#C4664A", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "10px", fontWeight: 700, flexShrink: 0, marginTop: "2px" }}>
+                                        {activeIdx + 1}
+                                      </div>
+                                      <p style={{ fontSize: "14px", fontWeight: 600, color: "#1B3A5C", margin: 0, lineHeight: 1.3 }}>
+                                        {decodeHtmlEntities(stop.name)}
+                                      </p>
+                                    </div>
+                                    {/* Link button */}
+                                    {stop.websiteUrl && (
+                                      <a
+                                        href={stop.websiteUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={e => e.stopPropagation()}
+                                        style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "12px", color: "#C4664A", textDecoration: "none", marginTop: "4px" }}
+                                      >
+                                        <ExternalLink size={12} />
+                                        Link
+                                      </a>
+                                    )}
+                                    {/* Duration + walk + ticket pills */}
+                                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "4px" }}>
+                                      <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", backgroundColor: "#F3F4F6", borderRadius: "999px", padding: "2px 8px", fontSize: "11px", color: "#6B7280" }}>
+                                        <Clock size={10} />
+                                        {stop.duration} min
+                                      </span>
+                                      {tour.transport === "Walking" && activeIdx > 0 && stop.travelTime > 0 && (
+                                        <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", backgroundColor: "#F3F4F6", borderRadius: "999px", padding: "2px 8px", fontSize: "11px", color: "#6B7280" }}>
+                                          <Footprints size={10} />
+                                          {stop.travelTime} min walk
+                                        </span>
+                                      )}
+                                      {stop.ticketRequired === "ticket-required" && (
+                                        <span style={{ fontSize: "10px", fontWeight: 600, color: "#92400E", backgroundColor: "#FEF3C7", borderRadius: "999px", padding: "2px 8px" }}>Ticket required</span>
+                                      )}
+                                      {stop.ticketRequired === "advance-booking-recommended" && (
+                                        <span style={{ fontSize: "10px", fontWeight: 600, color: "#92400E", backgroundColor: "#FEF3C7", borderRadius: "999px", padding: "2px 8px" }}>Book ahead</span>
+                                      )}
+                                      {stop.ticketRequired === "free" && (
+                                        <span style={{ fontSize: "10px", fontWeight: 600, color: "#065F46", backgroundColor: "#D1FAE5", borderRadius: "999px", padding: "2px 8px" }}>Free</span>
+                                      )}
+                                    </div>
+                                    {/* Why */}
+                                    {stop.why && (
+                                      <p style={{ fontSize: "12px", color: "#6B7280", margin: "4px 0 0", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                                        {stop.why}
+                                      </p>
+                                    )}
+                                    {/* familyNote */}
+                                    {stop.familyNote && (
+                                      <p style={{ fontSize: "12px", color: "#C4664A", fontStyle: "italic", margin: "2px 0 0", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                                        {stop.familyNote}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
+                          {gap > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleAddReplacement(tour.id, gap)}
+                              disabled={hasPendingForTour || isRegenerating === tour.id}
+                              style={{ display: "flex", width: "100%", alignItems: "center", justifyContent: "center", gap: "8px", borderRadius: "12px", border: "2px dashed rgba(27,58,92,0.3)", backgroundColor: "#fff", padding: "20px 16px", fontSize: "14px", fontWeight: 600, color: "#1B3A5C", cursor: (hasPendingForTour || isRegenerating === tour.id) ? "not-allowed" : "pointer", opacity: (hasPendingForTour || isRegenerating === tour.id) ? 0.5 : 1 }}
+                            >
+                              {isRegenerating === tour.id ? (
+                                <>
+                                  <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
+                                  Generating...
+                                </>
+                              ) : (
+                                <>
+                                  <Plus size={16} />
+                                  {gap === 1 ? "Add a replacement stop" : `Generate ${gap} more stops`}
+                                </>
+                              )}
+                            </button>
+                          )}
                           <button
                             onClick={() => toggleExpand(tour.id)}
                             style={{ fontSize: "12px", color: "#9CA3AF", background: "none", border: "none", cursor: "pointer", padding: "4px 0", textAlign: "left", fontFamily: "inherit" }}
@@ -6323,19 +6456,30 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
             </div>
 
             {/* Sticky footer — always visible */}
-            <div style={{ flexShrink: 0, borderTop: "1px solid #F3F4F6", padding: "14px 24px 32px", backgroundColor: "#fff" }}>
+            <div style={{ flexShrink: 0, borderTop: "1px solid #F3F4F6", padding: "14px 24px 32px", backgroundColor: "#fff", display: "flex", gap: "20px", flexWrap: "wrap" }}>
+              {selectedStop.stop.lat !== 0 && selectedStop.stop.lng !== 0 ? (
+                <a
+                  href={`https://www.google.com/maps/?q=${selectedStop.stop.lat},${selectedStop.stop.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: "14px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
+                >
+                  View on Maps →
+                </a>
+              ) : null}
               {selectedStop.stop.websiteUrl ? (
                 <a
                   href={selectedStop.stop.websiteUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ display: "inline-block", fontSize: "14px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
+                  style={{ fontSize: "14px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
                 >
-                  View on Maps →
+                  Visit website →
                 </a>
-              ) : (
-                <span style={{ fontSize: "14px", color: "#9CA3AF" }}>No website available</span>
-              )}
+              ) : null}
+              {selectedStop.stop.lat === 0 && selectedStop.stop.lng === 0 && !selectedStop.stop.websiteUrl ? (
+                <span style={{ fontSize: "14px", color: "#9CA3AF" }}>No links available</span>
+              ) : null}
             </div>
           </div>
         </div>
