@@ -161,10 +161,54 @@ The full `/tour/[id]` page becomes the PUBLIC VIEWER for shared/cloned tours sur
 
 Status: Designed. Build queued for Chat 39 opening prompt.
 
-### Tour Sharing (Three States)
-1. Private (default): only author's family can see
-2. Shared via token: explicit share action generates token, sets isPublic=true
-3. Anonymous community contribution: when parent trip transitions to COMPLETED, tour data feeds the Spots system anonymously (no author attribution)
+#### Inline Map Deferred to Mobile (Chat 39, April 27 2026)
+
+The Chat 38 decision included moving the map from /tour/[id] inline into the Trip Tours tab expand-in-place block. Chat 39 reversed this.
+
+Reasoning: Desktop is the planning surface. Owners assess, edit, decide. Maps are execution-surface tooling. "Where am I, where's the next stop, how do I get there." Inline map adds vertical height and visual weight on desktop for value that doesn't materialize until users are walking around the destination. The cluster diameter check shipped Chat 38 already enforces spatial coherence server-side, so users don't need to eyeball a map to validate a tour.
+
+Decision:
+- /tour/[id] keeps its map (existing behavior preserved)
+- Trip Tours tab expand-in-place stays focused on stops list, why descriptions, ticket pills, durations, links. No inline map.
+- Inline tour map becomes a mobile app feature where in-trip context makes the map essential
+- "View tour" button on the Trip Tours tab card becomes the affordance that opens /tour/[id] for owners who want the map view
+
+### Tour Sharing — Three-State Model
+
+Decision: Chat 39, April 27 2026.
+
+Tours have three orthogonal states. They are NOT a single state machine. Any combination is valid: a tour can be Shared and Public, just one, or neither.
+
+#### State 1: Private (default)
+
+Only the owning family can view. No tokens generated. Not surfaced anywhere outside the owner's account. Every tour starts here.
+
+#### State 2: Shared (link-based)
+
+Owner explicitly generates a share link via Share button on the tour. A unique tokenized URL is created. Anyone with the link can view the tour via the public viewer page; no auth required. Owner can revoke at any time, which clears the token. Tour does NOT surface in Spots while Shared. Family attribution defaults to anonymous; owner can opt in to family byline.
+
+#### State 3: Public (Spots-published)
+
+Owner explicitly opts in via Publish to Spots action. An anonymized version of the tour flows into the Spots community browse, organized by location. Cohort-weighted ratings drive surfacing. Owner can unpublish at any time, which removes the Spots record. Family attribution stays anonymous by default at the Spots layer regardless of owner's Shared-link attribution preference.
+
+#### Schema fields on GeneratedTour
+
+- isPublic: Boolean, default false. Toggled by Publish to Spots action.
+- shareToken: String? unique. Generated on first share-link action. Null when never shared or after revoke.
+- publishedToSpotsAt: DateTime? Set when isPublic flips true.
+- attribution: String? default "anonymous". Values: "anonymous" or "family-byline".
+
+#### Forward-looking data capture
+
+TourStop.neighborhood (String?) populated at generation time from Google Places address_components.sublocality_level_1. Null-safe everywhere. No UI consumer in v1; data accumulates for future neighborhood-level Spots browse.
+
+#### Spots organization (v1)
+
+Country, then City. Neighborhood-level browse deferred until data coverage exceeds 70% globally. Field captured now, surface later.
+
+#### Shared viewer is high-leverage organic acquisition
+
+When a Flokk owner sends a share link to a friend via WhatsApp, iMessage, or email, the recipient lands on the public viewer with zero prior Flokk exposure. The shared viewer is the single highest-leverage organic acquisition surface in the product. Design intent: magazine-quality presentation of the city and tour, Flokk identity quietly present, clear "Save to my trip" or "Sign up to save" CTA depending on auth state. NOT a render-the-data-cleanly job. Proper design pass required before frontend code lands.
 
 ### Tour URLs
 - Each tour has a stable URL with ?id= query param
@@ -693,6 +737,64 @@ Behavioral profile (Phase 2A): family historical save patterns boost matching ev
 - Cohort-rating storage for family-utility spots — separate model vs reusing existing rating tables
 - Legacy data systematic repair — booking DRP8E8 on trip cmmycshfj000004jpyadzdp8y still has missing leg per audit script; needs review next session
 - Tour viewer redesign — Trip Tours tab should host map inline; `/tour/[id]` becomes public viewer for shared/cloned tours (queued for Chat 39)
+
+---
+
+## Backlog
+
+Source-of-truth for product items not yet built. Reconciled Chat 39 from Chat 37 + Chat 38 handoffs after multiple items dropped between sessions despite the Conversation Capture Rule. Items removed only when shipped (with commit hash logged in Decisions Log) or explicitly killed (with reason logged).
+
+Source tags: [C37] surfaced Chat 37; [C38] surfaced Chat 38; [C39] surfaced Chat 39.
+
+### Top of queue (P0/P1)
+
+- Phase 2A schema migration: FamilyBehavioralProfile + CohortBehavioralProfile [C38]
+- Tour categorization pipeline gap: tour-saved items have categoryTags empty array, bypass enrichSavedItem, become second-class on Saved tab filters, behavioral profile, recommendations, Spots [C37]
+- Visual tour cards on profile/trips library: replace dropdown-by-city pills with image cards [C37]
+- Tour share token + viewer + clone-to-account full build [C37, refined C39]
+- Anchor-aware tour generation: lodging/itinerary as start/end node, foundation of companion thesis [C37]
+- /tour/[id] as public viewer for non-owners [C38, refined C39]
+
+### Family-utility and events (Be Helpful pillars)
+
+- Family-utility cards build, Phase A foundational [C38]
+- Events extraction build, Phase A foundational [C38]
+
+### Bug fixes and small repairs
+
+- Cairo/Luxor blank itinerary diagnostic [C38]
+- Sri Lanka recommendation save bug [C38]
+- Notes edit + formatting preservation [C38]
+- Documents edit capability [C38]
+- Booking DRP8E8 missing leg SQL repair [C38]
+- Tours with null ticketRequired: backfill when ticketRequired becomes hard filter [C38]
+- 28 lodging items with bookingSource unknown: decide on "Direct hotel" UI label [C38]
+
+### Architecture and trip types
+
+- Trip type architecture: city / multi-city / touring [C37]
+- Multi-city + touring trip support, paired with anchor-aware generation [C37]
+- Audit other write paths for the enrichment-bypass pattern that affected tour saves [C37]
+
+### Bigger features for dedicated sessions
+
+- Spots page rebuild [C37, C38]
+- Tour Builder Refine section: neighborhood pills, vibe toggle, rhythm toggle, textarea [C38]
+- Discover/Spots Tours surface [C38]
+- Tour generation form revamp: family override, pace, time of day, budget, constraints [C37]
+- Archetype-aware tour generation: neighborhood crawl, regional, scenic, anchor-and-fillers, transit hop, country tour [C37]
+- Multi-modal route suggestions: transit hops mid-walk, walk segments mid-drive [C37]
+- Cruises in Vault with stops in itinerary [C38]
+- Flokk-Claude conversational chat: in-trip companion [C37, C38]
+- Home Page Recommended Trips intelligence, Phase 2A consumer [C38]
+
+### P3 fragility cleanup
+
+- Walking-retry should rollback DB writes from discarded attempts [C37]
+- audit-drift script N+1 hang on I2c [C37]
+- Inngest full removal: imported in 6+ files but disabled [C37]
+- Trip.budgetSpent deprecated, field still exists [C37]
+- /continents/[continent] and /c/[city] live dead links return 404 [C37]
 
 ---
 
