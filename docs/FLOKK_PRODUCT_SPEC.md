@@ -237,6 +237,73 @@ Connecting items:
 - Archetype-aware tour generation (neighborhood / regional / scenic route / anchor-and-fillers / transit hop)
 - Multi-city trip support (per-day lodging matching)
 
+### Tour Anchoring (Designed Chat 39, Build Pending)
+
+Tours can be generated against three types of anchors. The anchor system is unified architecturally; UX surfaces differ by anchor type.
+
+#### Anchor types
+
+**Lodging anchor.** When tripId is passed to /api/tours/generate, the system looks up the trip's most recent LODGING ItineraryItem and uses its lat/lng as the anchor. First and last stops cluster near the lodging within transport-mode-specific distance thresholds. SHIPPED Chat 38 (commit df299a6).
+
+**Save anchor.** User-selected SavedItem rows are passed to tour generation as required stops. The AI honors them as anchors and generates fill-in stops around them, respecting the cluster diameter check and walk-distance constraints. NEW — design Chat 39, build pending.
+
+**Itinerary anchor.** Existing ItineraryItem rows on a specific day can be passed as anchors. Same mechanic as save anchor. NEW — design Chat 39, build pending.
+
+#### Save-anchored tour generation: three modes
+
+- **All-anchor mode.** User selects N saves, no AI fill-in. Flokk validates clustering, optimizes order, runs walk-distance check. If clustering fails, surfaces "these saves are too spread out for a [walking] tour" and offers transport mode swap.
+- **Mixed mode.** User selects M saves AND has a prompt. AI generates (target stops - M) additional stops that fit the prompt theme, with anchors pre-placed.
+- **Anchor + theme mode.** User selects M saves AND types a thematic prompt. Same as mixed but the AI prompt is heavily prompt-weighted.
+
+The UI does NOT expose these modes explicitly. User toggles saves on/off, types a prompt or leaves it empty, and the system determines mode from input shape.
+
+#### Generation API contract changes
+
+POST /api/tours/generate accepts new optional field:
+- anchorSavedItemIds: string[] — array of SavedItem ids to anchor the tour to. Each must belong to the requesting user, must have lat/lng, must match the destination city of the request.
+
+Server-side validation:
+- Verify ownership of each savedItemId
+- Verify lat/lng presence; reject if any anchor is missing coordinates
+- Verify city match between anchors and request destination; reject mismatches
+- If anchor count > target stop count, reject as over-anchored
+- If anchor cluster diameter exceeds threshold for chosen transport, surface specific error
+
+#### UI surfaces (build pending)
+
+**Surface 1: Tour Builder form (/tour/page.tsx).** New section in the form, conditional on user having 3+ saves in the destination city. Section header: "Include your saved spots". Lists the user's saves in this city as toggleable cards (image, name, neighborhood). User taps to include. Selected saves are passed as anchorSavedItemIds.
+
+Default state: all toggled OFF. User opts in explicitly. Reasoning: most users typing a prompt have a thematic tour in mind, not an anchor tour. Forcing them to deselect every save would create friction.
+
+**Surface 2: Saves tab ambient prompt.** A card appears in the Saves tab when the user has 3+ saves in a single city.
+
+Locked CTA copy: "Turn your trip saves into a Flokkin tour"
+
+Tap routes to /tour?city=[city]&fromSaves=true. Tour builder pre-selects all saves in that city as anchors and prompts user to add a theme prompt or generate as-is.
+
+**Surface 3: Trip Intelligence integration (future).** When a trip has saves in its destination city, Trip Intelligence surfaces "Turn your saves into a tour" as an actionType=build IntelItem. Lower priority than Surfaces 1 and 2.
+
+#### AI generation prompt changes
+
+The Claude generation prompt is modified to accept an "anchors" section listing required stops with name, address, lat/lng, and any user notes. The prompt instructs:
+- Anchors MUST be included as stops
+- Anchor order may be re-optimized for route efficiency unless explicit ordering is provided
+- Fill-in stops must complement anchors thematically AND respect cluster diameter
+- Walk-distance retry runs against the COMBINED set of anchors + fill-ins
+- Under-emission retry only fires for fill-in stops, never tries to regenerate anchors
+
+#### Edge cases to handle
+
+- User selects a save that's been moved to itinerary (status: SCHEDULED): treat as available; the tour generation creates a parallel TourStop, doesn't move the SavedItem
+- User selects a save that's already in another tour: same; parallel TourStop creation
+- All anchors fall in one neighborhood: tour is valid, just shorter geographic spread
+- One anchor is a known low-quality stop (e.g. closed permanently per Places): warn user before generating, do not fail silently
+- Anchors don't match transport mode (e.g. user picked driving anchors but selected walking transport): surface clustering warning before generation
+
+#### Why this matters strategically
+
+Saves represent the user's highest-value research effort. Tours generated without awareness of saves treat that effort as invisible. Save-anchored tours make Flokk's AI compound the user's research instead of competing with it. Generic OTAs cannot do this — they have no save layer. AI travel apps cannot do this — they have no family-first save layer. This is the family-first moat as a feature.
+
 ### Tour Editing
 - User can remove any stop via X icon (8s undo window via inline placeholder)
 - Removed stops are soft-deleted, recoverable via "Show removed stops" section
@@ -949,7 +1016,7 @@ Source tags: [C37] surfaced Chat 37; [C38] surfaced Chat 38; [C39] surfaced Chat
 - Tour categorization pipeline gap [C37]: COMPLETE. Forward path Chat 39 commit ba61d88. Backfill of 13 legacy items Chat 39 commit 0ff77ae. 0 manual-review items.
 - Visual tour cards on profile/trips library: replace dropdown-by-city pills with image cards [C37]
 - Tour share token + viewer + clone-to-account full build [C37, refined C39]
-- Anchor-aware tour generation: lodging/itinerary as start/end node, foundation of companion thesis [C37]
+- Tour Anchoring build (save-anchored + itinerary-anchored generation) [C37, refined C39]: API accepts anchorSavedItemIds, AI prompt handles anchor+fill modes, Tour Builder form adds "Include your saved spots" section, Saves tab adds ambient "Turn your trip saves into a Flokkin tour" prompt. Foundation of companion thesis. Lodging-anchor already shipped Chat 38.
 - /tour/[id] as public viewer for non-owners [C38, refined C39]
 - Universal URL Rule resolver build [C39]: src/lib/url-resolver.ts shared helper — resolveCanonicalUrl(placeId?, website?, name, city) returns Places website → Google Maps URL → generic search URL, never null. Integrate across TourStop generation, ItineraryItem email-extraction (LODGING + ACTIVITY), ManualActivity AI-enrichment, IntelItem generation, Recommendations.
 - Universal URL Rule audit + backfill [C39]: SQL audit per surface, idempotent backfill scripts, dry-run + distribution check + live run + verification SQL. Six surfaces: TourStop, ItineraryItem LODGING, ItineraryItem ACTIVITY, ManualActivity, IntelItem, Recommendations.
@@ -1088,6 +1155,8 @@ Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product
 **Modal migration shipped**: `src/lib/modal-classes.ts` created (MODAL_OVERLAY_CLASSES, MODAL_PANEL_CLASSES, MODAL_STICKY_FOOTER_CLASSES). `pb-safe` utility added to globals.css. BottomNav z-index lowered 80→40 (root cause of masking). 19 modals migrated across 10 files: TripTabContent.tsx (SavedDayPickerModal, LodgingDateModal, SavedDetailModal-inline, TaskModal, ActivityDetailModal, editingLodging, selectedItineraryItem, tourCancelTarget, selectedStop, cancelTarget, vaultActivityItem, editingVaultDoc, showTripSettings), AddFlightModal, EditFlightModal (both modes), AddActivityModal, DropLinkModal, AddTripModal, discover/page.tsx "Share a trip" modal, TourResults Trip Save modal. Deferred: SaveDetailModal (saves/SaveDetailModal.tsx) — transform-based slide-up pattern, not a className swap, tracked in Backlog.
 
 **Universal URL Rule established as Operating Discipline**: Promoted from tour-specific URL guidance to product-wide rule covering all AI-generated/extracted entities. Resolver priority chain defined: (1) Google Places `website` field → (2) Google Maps URL `https://www.google.com/maps/place/?q=place_id:${placeId}` → (3) Generic search URL — never null. Six surfaces require compliance audit; lodging items confirmed non-compliant during modal migration verification. `src/lib/url-resolver.ts` build and per-surface audit + backfill queued P0/P1.
+
+**Tour Anchoring system specced**: Three anchor types unified — lodging (shipped Chat 38), save (pending), itinerary (pending). Save-anchored tours support all-anchor, mixed, and anchor+theme modes. Two UI surfaces: Tour Builder form section ("Include your saved spots") + Saves tab ambient prompt with locked CTA copy "Turn your trip saves into a Flokkin tour". API contract change: POST /api/tours/generate accepts anchorSavedItemIds. Build pending separate prompt.
 
 ### Prior — Chat 37 (reconstructed from codebase + handoff references)
 
