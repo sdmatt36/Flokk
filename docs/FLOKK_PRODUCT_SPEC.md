@@ -293,6 +293,23 @@ Status as of Chat 39:
 
 No data backfill required. Status is derived at read time. The migration is purely code: replace ad-hoc derivation with shared helper across all surfaces.
 
+### Status derivation (locked Chat 40)
+
+Status is derived at API read-time using TripDocument joins, not from SavedItem boolean fields directly. The `/api/saves` GET response includes two derived booleans:
+
+- `hasBooking` — true if EXISTS TripDocument WHERE savedItemId = SavedItem.id AND confirmationCode IS NOT NULL
+- `hasItineraryLink` — true if SavedItem.dayIndex IS NOT NULL OR EXISTS TripDocument WHERE savedItemId = SavedItem.id
+
+`SavedItem.isBooked` is deprecated for read paths. It is still written by legacy code for backwards compatibility but read code paths must rely on `hasBooking`. This decision was made because email extraction (`createBookingSavedItem`) never sets `isBooked = true` despite creating valid TripDocument bookings — the join is the only reliable source of truth. Diagnosed Chat 40.
+
+### Affordance suppression rule
+
+When status >= On itinerary, the lower-progression affordance ("+ Itinerary" button or equivalent) MUST be suppressed at the surface. Pill is the only visual indicator. To move or remove an item from itinerary, user navigates to the day view. This pattern already exists on the Trip Saved tab where "✓ Day X" replaces "+ Add to itinerary."
+
+### Phase A — SavesScreen only (Chat 40)
+
+Phase A scope: `src/lib/entity-status.ts`, `src/components/ui/EntityStatusPill.tsx`, `/api/saves` GET response shape, SavesScreen migration. Phase B (Trip Saved tab) and beyond deferred.
+
 ---
 
 ## Tours
