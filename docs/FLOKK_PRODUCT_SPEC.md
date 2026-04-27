@@ -67,6 +67,35 @@ When reviewing prompts mid-session, both Matt and Claude should check for these 
 
 ---
 
+## Spec Reading Discipline (Operating Discipline)
+
+Established Chat 39, April 27 2026, after a chat-wide drift cycle where the Chat 38 Trip Tours Tab self-containment decision (map inline in expand-in-place) was silently reversed by a later Chat 39 prompt that treated offhand reasoning as a settled decision.
+
+### Rule: Spec leads, code follows
+
+Every prompt that proposes a build, fix, or design change MUST open with a SPEC CHECK block that:
+1. Quotes the relevant spec section verbatim by heading
+2. States explicitly whether the prompt aligns with spec, extends spec, or diverges from spec
+3. If divergent: the prompt updates the spec FIRST in the same prompt, then writes the build. Spec edit is a precondition, not a follow-up.
+
+### Rule: Stubs are not specs
+
+"Status: Designed" without behavior detail is not a spec, it is a placeholder. Stubs must be expanded into real specs (rendered behavior, exact fields, exact components) within the same chat the decision is made. Future chats reading "Status: Designed" cannot know what was decided.
+
+### Rule: Reversals must be logged, never silent
+
+If a chat proposes reversing an earlier-chat decision, the reversal goes into the Decisions Log with the original commit hash, the reason for reversal, and the corrected decision. No silent overwrites.
+
+### Rule: User offhand input is not a settled decision
+
+A user comment in chat ("X feels like Y") is input, not a settled product decision. Settled decisions are explicit, written into spec, and acknowledged as architectural commitments. Treating offhand input as an architectural decision is the failure mode that caused the maps-on-mobile drift in Chat 39.
+
+### Rule: Every chat opens with a spec read of the section being touched
+
+The first action in any chat that touches an existing feature is to read the spec section for that feature in full. Not summary, not "I remember the spec said." Read the section. Quote the relevant heading in the first SPEC CHECK block of the chat.
+
+---
+
 ## Tours
 
 ### Tour Generation
@@ -98,7 +127,7 @@ TARGET inputs (full set):
 
 UX pattern: two-step flow — essentials first (prompt + city + duration + transport), optional refinement second. Trip-context picker at top auto-fills city, lodging, family signals when used.
 
-⚠ NEEDS BUILD: form revamp; AI generation route accepts the expanded input set; per-tour override semantics on top of family profile defaults.
+Open question before build: per-tour override semantics require FamilyBehavioralProfile (Phase 2A) to exist first — overrides are only definable relative to inferred defaults. Form revamp is blocked on Phase 2A. Which of the TARGET inputs above belong in the current simple builder vs the Refine step?
 
 Connecting items:
 - Anchor-aware tour generation (lodging / itinerary as start/end)
@@ -147,31 +176,85 @@ Users with pre-fix tours must manually "Save stops to a trip" from the standalon
 - ⚠ STILL NEEDED: standalone `/tour` library should become a grid of full hero cards (not city pills), matching the Trip Tours tab card design. This is the "tour library" spec.
 - Click image/title on trip tour card → expands inline to show stop list (name, duration, walk time). "View tour →" button navigates to full tour page.
 
-### Trip Tours Tab Self-Containment (Decision: Chat 38, April 26 2026)
+### Trip Tours Tab — Self-Contained Owner Viewer
 
-The Trip's Tours tab IS the tour viewer for the trip's owner. The user does NOT navigate away from their trip to view their own tour. When the user taps a tour card on the Trip Tours tab, the expand-in-place experience surfaces:
+Decision: Chat 38, April 26 2026. Reaffirmed Chat 39 after a wrong-direction reversal was caught and corrected. Build pending separate prompt.
 
-- Map with numbered stops (1–5 pins)
-- Stop list with image, name, ticket pill, why description, duration, walk time, Link
-- Per-stop tap opens stop detail modal (already shipped)
+The Trip Tours tab IS the tour viewer for the trip's owner. Owners NEVER navigate away from their trip to view their own tour. The expand-in-place block on the Trip Tours tab renders the full tour experience inline.
 
-The "View tour" button on the Trip Tours tab card is REMOVED — it's redundant when expansion shows everything. Owner stays in trip context.
+#### Card collapsed state
 
-The full `/tour/[id]` page becomes the PUBLIC VIEWER for shared/cloned tours surfaced via Discover/Spots. Anonymous strangers tapping a public tour see this page; owners never need to.
+Each saved tour appears as a card matching the SavedItemCard / RecentSavesCards pattern:
+- Hero image: 180px height, 12px borderRadius
+- Tour title: Playfair Display 16px
+- Location line: city / country
+- Pills row: stop count + transport (e.g. "5 STOPS · WALKING"), day label (e.g. "Day 6")
+- Action row: tap card to expand in place. No "View tour" button.
 
-Status: Designed. Build queued for Chat 39 opening prompt.
+#### Card expanded state (in-place, no navigation)
 
-#### Inline Map Deferred to Mobile (Chat 39, April 27 2026)
+When tapped, the card expands inline within the Tours tab. Owner stays in trip context. The expanded block renders, in this exact vertical order:
 
-The Chat 38 decision included moving the map from /tour/[id] inline into the Trip Tours tab expand-in-place block. Chat 39 reversed this.
+1. Map block at top (NEW — currently missing from expand-in-place, present on /tour?id=X)
+   - Mapbox map, 280px height, 16px borderRadius, overflow hidden
+   - Numbered terracotta circle markers (#C4664A, 28px)
+   - Navy route line (#1B3A5C, opacity 0.6) connecting stops in order
+   - fitBounds with padding 40, maxZoom 15
+   - Markers numbered to match stop order in the list below
 
-Reasoning: Desktop is the planning surface. Owners assess, edit, decide. Maps are execution-surface tooling. "Where am I, where's the next stop, how do I get there." Inline map adds vertical height and visual weight on desktop for value that doesn't materialize until users are walking around the destination. The cluster diameter check shipped Chat 38 already enforces spatial coherence server-side, so users don't need to eyeball a map to validate a tour.
+2. Stops list below the map
+   - Each stop is a horizontal flex card: image left (96×96px, NOT 40×40), content right
+   - Always-visible terracotta order number badge (overlay or adjacent to image)
+   - Stop title: 14px semibold, navy
+   - Per-stop Link button (NEW — currently in modal only, must surface inline): ExternalLink icon + "Link" label, terracotta, opens venue website OR Google Maps URL fallback
+   - Duration pill: clock icon + minutes (e.g. "60 min")
+   - Walk time pill on stops 2+: footprints icon + minutes (e.g. "10 min walk"). Hidden on non-walking tours.
+   - Why description: 12px gray, 2-line clamp
+   - familyNote (NEW — currently absent from expand-in-place): 12px terracotta #C4664A, italic, 2-line clamp, rendered below why when present
+   - Ticket pill (Free / Tickets / Book ahead) when ticketRequired present
+   - Per-stop X icon for removal (existing behavior, retained)
+   - Tap stop opens stop detail modal (existing modal, retained)
 
-Decision:
-- /tour/[id] keeps its map (existing behavior preserved)
-- Trip Tours tab expand-in-place stays focused on stops list, why descriptions, ticket pills, durations, links. No inline map.
-- Inline tour map becomes a mobile app feature where in-trip context makes the map essential
-- "View tour" button on the Trip Tours tab card becomes the affordance that opens /tour/[id] for owners who want the map view
+3. Action footer
+   - "Start over" link: terracotta, regenerate flow
+   - "Cancel tour" link: gray, opens existing cancel confirmation modal
+
+#### What is REMOVED from this surface
+
+The "View tour" button on the collapsed card — specifically the `<a href="/tour?id=${tour.id}">` at TripTabContent.tsx ~line 6175. Once expansion shows everything, the button is redundant.
+
+TourActionMenu.tsx is NOT modified by this change. It is used by other surfaces (SavesScreen card grid, /tour pill library) and removing its "View on /tour" option would break those surfaces. Scope is the Trip Tours tab card only.
+
+#### What /tour?id=X (and /tour/[shareToken] when shared) becomes
+
+The standalone /tour route's role is for non-owner viewing:
+- Recipients of share links land on the public viewer (separate sharing build, future prompt)
+- Anonymous Spots browsers land on the same surface for Public tours
+- Owners reaching their own /tour?id=X via direct URL or bookmark still see the same content as expand-in-place; no separate "owner mode" rendering required
+
+Direct URL access to /tour?id=X is preserved. The change only removes the in-trip-context affordance pointing to it.
+
+#### Mobile layout consideration
+
+Adding a 280px map above the stop list makes an expanded tour card significantly taller. A 7-stop full-day tour can push past two screens on mobile. This is the explicit tradeoff: vertical depth in exchange for owner staying in trip context. Tours tab is not virtual-scrolled; only one tour expands at a time, so the depth is per-expansion not aggregate. If perceived performance becomes an issue, the map is a candidate for collapse-by-default with "Show map" toggle on mobile only. No collapse toggle in v1 — observe usage first.
+
+#### Why maps belong on the owner viewer
+
+The maps-on-mobile-only argument was wrong. Maps on desktop show tour shape, density, walkability, and neighborhood spread. All of these are PLANNING context. A 7-stop full-day tour needs a map for the owner to spot bunching, gaps, and route quality before committing — the cluster diameter check enforces a maximum, not a quality. Spatial review IS a planning activity. Maps stay on the owner viewer. Mobile may add additional in-trip-context overlays (current location, next-stop direction) when the mobile build lands; that is additive, not a different home for the map.
+
+#### Implementation scope
+
+- Lift TourResults.tsx lines 118–192 (the map block) into a standalone TourMapBlock component
+- Map block accepts a stops prop typed as `Array<{ name: string; lat: number | null; lng: number | null }>`
+- Use next/dynamic with ssr: false at the call site, or "use client" on the component
+- Drop TourMapBlock into ToursContent expand-in-place above the stop list
+- Port familyNote rendering from TourResults.tsx stop card to ToursContent expand-in-place stop row
+- Port per-stop Link button from TourResults.tsx to ToursContent expand-in-place stop row
+- Increase ToursContent stop image from 40×40 to 96×96 to match TourResults pattern
+- Remove the "View tour" `<a>` tag from TripTabContent.tsx
+- Verify direct URL access to /tour?id=X still works (no code change required, just a verification step)
+- Verify TourActionMenu.tsx is untouched
+- Verify SavesScreen card grid is untouched
 
 ### Tour Sharing — Three-State Model
 
@@ -265,13 +348,11 @@ Previous version incremented `rejectedCount` for weak themeRelevance but still w
 
 When the iOS app ships, every itinerary item triggers a push notification at its scheduled end-time (or 30 min after) prompting in-the-moment rating. Web users see in-app prompts at the same trigger. Replaces the post-trip-only rating model. In-the-moment ratings capture the actual experience while fresh. Critical for the rating loop's quality.
 
-### Tour-Save Categorization Pipeline (Open Issue)
+### Tour-Save Categorization Pipeline (Shipped Chat 39)
 
-Tour-saved items currently get `categoryTags: []`. The save flow sets `extractionStatus: "ENRICHED"` at create time, bypassing `enrichSavedItem()`. Consequence: tour-saved items don't appear in Saves tab category filters, don't feed behavioral profile, don't feed recommendation engine, don't reach Spots community feedback loop.
+Tour-saved items historically got `categoryTags: []`. The save flow set `extractionStatus: "ENRICHED"` at create time, bypassing `enrichSavedItem()`. Root cause: tour-saved items were excluded from Saves tab category filters, behavioral profile signals, recommendations, and Spots.
 
-Fix path: store TourStop.placeType from Place Details API call, map to SavedItem.categoryTags at save-to-trip time.
-
-Status: Designed, will be addressed alongside Phase 2A (FamilyBehavioralProfile) since both touch the same SavedItem write path.
+Fix shipped Chat 39 (commits ba61d88, 0ff77ae). See "Tour Categorization Pipeline (Forward Path Shipped Chat 39)" section below for details. The Phase 2A coupling assumption was incorrect — the pipeline was independent of FamilyBehavioralProfile and shipped on its own.
 
 ### Tour Builder Form Refinement (Phase E spec — from Chat 37)
 
@@ -285,7 +366,7 @@ Optional refinement controls:
 
 All refinement inputs flow into the Claude generation prompt as soft preferences in the system message. They don't change the schema.
 
-⚠ NEEDS BUILD: form revamp to add this optional section. UX TBD (accordion vs step 2 modal).
+Open question before build: UX container is not settled — accordion (default closed, within the tour builder form) or step 2 modal after essentials? Content is fully specced above; container decision is the blocker.
 
 ### Tour Categorization Pipeline (Forward Path Shipped Chat 39)
 
@@ -293,7 +374,7 @@ Tour stops created via tour generation now persist Google Places `types` to `Tou
 
 Mapper emits canonical slugs (food_and_drink, culture, kids_and_family, etc.), not legacy values (food, outdoor). The 12-slug taxonomy in CATEGORIES is the source of truth.
 
-Backfill of 57 legacy tour-saved SavedItems with empty categoryTags pending separate Prompt 1B (Places re-fetch + mapper).
+Backfill complete (Chat 39 commit 0ff77ae). 13 legacy tour-saved items updated. The 57 figure included non-tour ENRICHED items without tourId — actual tour-saved target was 13. 0 manual-review items.
 
 NOT changed: src/lib/enrich-save.ts PLACE_TYPE_MAP. Its legacy emissions ("food" instead of "food_and_drink", etc.) require their own audit. Tracked in Backlog as "PLACE_TYPE_MAP legacy emissions audit."
 
@@ -326,7 +407,7 @@ The compounding loop:
 - Aggregate ratings + cohort-weighted ratings (kids ages, season, transport mode) drive surfacing for future families
 - High-quality tours bubble up; low-quality fade
 
-⚠ NEEDS BUILD: clone-to-account API route (`POST /api/tours/[id]/clone`), Discover viewer page, "Save to my trip" CTA from public view.
+Open question before build: clone flow requires Tour Sharing public viewer to ship first — non-owners must be able to see the tour before they can clone it. Which trip-picker pattern does "Save to my trip" use from the public viewer? Does cloning require an account (anonymous user → forced sign-up or save-without-account)?
 
 Note: Trip-level cloning already exists (`/api/trips/clone/route.ts`, `/api/trips/[id]/clone/route.ts`, `Trip.cloneCount` field). Tour-level cloning is a separate, not-yet-built path.
 
@@ -334,7 +415,7 @@ Note: Trip-level cloning already exists (`/api/trips/clone/route.ts`, `/api/trip
 
 Tour creators receive notifications when their tour is cloned. "Your London family ramen tour was saved by 3 families this month." This is part of the broader gamification system (Explorer, Navigator, Pioneer tiers). Specifics of points/tier impact: TBD per Chat 37+ discussions on gamification — defer detailed mechanics to gamification phase.
 
-⚠ NEEDS BUILD: notification system, creator attribution tracking.
+Open question (deferred to gamification phase by design): when does the gamification phase begin? What is the minimum viable notification — push (requires iOS) vs in-app only?
 
 ### Rating loop feedback (Decision: Chat 37 confirmed Chat 38)
 
@@ -342,7 +423,7 @@ Ratings flow back into tour surfacing. When a tour is rated 5-stars by a family 
 
 This is Phase F per Chat 37. Schema and infrastructure to be designed in dedicated phase. Conceptual agreement: yes, cohort-weighted ratings drive surfacing.
 
-⚠ NEEDS BUILD: cohort rating aggregation, surfacing score field on GeneratedTour, Discover sort logic.
+Open question before build (Phase F): where does rating input appear in the UI — inline on the stop card after visit, or a trip-completion prompt? What aggregation time window (rolling 90 days, all-time)? Schema for cohort-weighted score on GeneratedTour not yet designed.
 
 ---
 
@@ -355,7 +436,7 @@ Public tours surface on a Discover/Spots Tours area:
 - Card click → full tour viewer page (the existing tour detail page becomes the public viewer for anonymous access)
 - Save flow: trip picker (existing pattern) → clone-to-account → user is taken to their trip with tour added on selected day
 
-⚠ NEEDS BUILD: public tour viewer page, Discover filtering UI, Spots integration.
+Open question before build (Phase E+): depends on Tour Sharing public viewer shipping first and sufficient tour volume in production. Minimum viable Discover surface — city-browse only, or filtering UI (kids ages, transport, duration) from day 1?
 
 ---
 
@@ -391,7 +472,7 @@ Public tours surface on a Discover/Spots Tours area:
 
 When `Trip.status` transitions to `COMPLETED`, any GeneratedTours linked to that trip (via SavedItem.tourId + SavedItem.tripId) should have `contributedToSpots = true` and `contributedAt = now()` set. This is the automated community feed trigger. No user action required beyond completing the trip.
 
-⚠ NEEDS BUILD: all items in this section.
+Open question before build: is automated publishing (trip status COMPLETED → contributedToSpots = true) the right default, or should it remain explicit opt-in only? Automated path could expose unwanted tours without user intent. Decision needed before any code in this section.
 
 ---
 
@@ -444,7 +525,7 @@ Each stop in the expanded tour card view (40×40 thumbnail + name + duration) is
 
 Implementation: tour stops in expand-in-place fetch from /api/tours/[id] (already does), but the tap interaction needs a click handler that opens a modal pre-populated with TourStop fields. If user has saved the tour to a trip (so SavedItem exists), the modal can be the SavedItem modal directly. If tour isn't saved yet, the modal is a read-only TourStop modal with "Save to trip →" CTA.
 
-Status: Designed, not yet built. Phase: queued for next session.
+Status: Partially shipped. Per-stop tap modal is live in expand-in-place (selectedStop bottom sheet with hero, full why, link footer — Chat 38). Per-stop link button inline in the stop row and familyNote rendering are part of the Trip Tours Tab self-containment build (pending separate prompt).
 
 ---
 
@@ -696,7 +777,7 @@ Behavioral profile (Phase 2A): family historical save patterns boost matching ev
 - Featured cities landing page exists at /discover/spots
 - Anonymous tours from completed trips feed into Spots data
 - Family-weighted ratings filter what each viewer sees
-- Detailed redesign spec exists in earlier session handoffs (TBD: collect into this doc)
+- Open question: detailed redesign spec not collected into this doc. Chat 37 handoff.docx was inaccessible in Chat 38 and Chat 39. Which session first specced the Spots browse layout and filtering model?
 
 ---
 
@@ -710,7 +791,7 @@ Behavioral profile (Phase 2A): family historical save patterns boost matching ev
 
 ### Trip Creation
 - ⚠ CURRENT STATE: trip creation flow does not validate or enforce city-level `destinationCity`. Some trips have country/region names in `destinationCity` (e.g., "Scotland" instead of "Edinburgh", "Ireland" instead of "Dublin"). This breaks tour city-match suggestions.
-- NEEDS BUILD: trip creation form should geocode the user input or constrain to city-level when storing `destinationCity`. Country and region trips need a different model (multi-city or "regional" trip type).
+- Open question before build: city-level-only constraint, or add a regional/multi-city trip model? The "Scotland" vs "Edinburgh" problem affects 3 known existing trips — does repair require a separate audit script before the form constraint ships?
 
 ---
 
@@ -747,7 +828,7 @@ Behavioral profile (Phase 2A): family historical save patterns boost matching ev
 - Scraping resilience — Ticketmaster, StubHub aggressively block bots; ScrapingBee proxy or alternative needed for protected sources
 - Cohort-rating storage for family-utility spots — separate model vs reusing existing rating tables
 - Legacy data systematic repair — booking DRP8E8 on trip cmmycshfj000004jpyadzdp8y still has missing leg per audit script; needs review next session
-- Tour viewer redesign — Trip Tours tab should host map inline; `/tour/[id]` becomes public viewer for shared/cloned tours (queued for Chat 39)
+- Tour viewer redesign — specced and build-ready. See "Trip Tours Tab — Self-Contained Owner Viewer" section. Build pending separate prompt.
 
 ---
 
@@ -882,6 +963,16 @@ Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product
 **Okinawa Day 1 dayIndex repair**: follow-up UPDATE set `dayIndex = 0` on the inserted ItineraryItem; dayIndex completeness requirement now codified in Schema Change Completeness Rule
 
 **Trip Tours tab self-containment**: Trip Tours tab redesigned to be self-contained — map + stops inline in expand-in-place, "View tour" button removed. Full `/tour/[id]` page repurposed as public viewer for shared/cloned tours surfaced via Discover/Spots.
+
+### April 27, 2026 — Chat 39
+
+**Tour Categorization Pipeline (complete)**: Forward path shipped (commit ba61d88) — TourStop.placeTypes captured at generate time, mapPlaceTypesToCanonicalSlugs() maps to canonical categoryTags at save time. Backfill of 13 legacy tour-saved items shipped (commit 0ff77ae). 0 manual-review items. vitest 4.1.5 installed; 13 unit tests added for mapper. PLACE_TYPE_MAP legacy emissions audit deferred to P3 backlog.
+
+**Trip Tours Tab Self-Containment — reversal corrected**: Commit 79d22f8 incorrectly added "Inline Map Deferred to Mobile" subsection, reversing the Chat 38 decision to include a map in expand-in-place. Caught and corrected in Chat 39. The Chat 38 decision stands: map belongs on the owner viewer. See "Trip Tours Tab — Self-Contained Owner Viewer" section for the full rendered behavior spec including map, familyNote, per-stop link, image sizing, and mobile depth tradeoff. Build pending separate prompt.
+
+**Tour Sharing Three-State Model specced**: Private (default) / Shared (link-based, tokenized) / Public (Spots-published). shareToken, isPublic, publishedToSpotsAt, attribution fields designed for GeneratedTour schema. TourStop.neighborhood (String?) captured at generation for future neighborhood-level Spots browse. Build pending.
+
+**Spec Reading Discipline established**: Five operating rules added at top of spec after maps-on-mobile drift demonstrated the failure mode where offhand chat input was treated as a settled architectural decision.
 
 ### Prior — Chat 37 (reconstructed from codebase + handoff references)
 
