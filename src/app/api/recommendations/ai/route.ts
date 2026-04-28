@@ -159,7 +159,7 @@ export async function GET(req: NextRequest) {
   const spotPicks: CommunitySpotPick[] = rawSpots
     .filter(s => {
       if (!trip.accommodationLat || !trip.accommodationLng) return true;
-      if (!s.lat || !s.lng) return true;
+      if (!s.lat || !s.lng) return false;  // fail closed when proximity is enforceable
       return haversineKm(
         { lat: trip.accommodationLat, lng: trip.accommodationLng },
         { lat: s.lat, lng: s.lng }

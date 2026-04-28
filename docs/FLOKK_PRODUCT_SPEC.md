@@ -1020,6 +1020,23 @@ A shared Family Utility Service aggregates the queries. Both tour generator and 
 - New table or schema field for cached cohort-rated family-utility spots
 - Possibly: `FamilyUtilitySpot` model (placeId, name, lat, lng, category, cohortRatings, lastVerified)
 
+### Flokker eligibility threshold (locked Chat 40)
+
+CommunitySpot rows surface as Flokker picks in Recommendations when `averageRating >= 4.0` (raised from initial >= 3.0). Reasoning: the "Flokker pick" badge carries quality implication, not mere presence. SQL audit Chat 40 showed 132 spots at >= 4.0 globally with 89% coordinate coverage — sufficient inventory. The 16 spots in the 3.0–3.9 band are excluded; their inclusion would dilute the badge meaning without meaningful inventory gain.
+
+### Proximity filter behavior (locked Chat 40)
+
+When trip has lodging coordinates (`Trip.accommodationLat/Lng` populated):
+- Spots within 30km of lodging by haversine distance pass the filter.
+- Spots with null coordinates **fail the filter (fail closed)**.
+- Reasoning: as inventory grows globally, fail-open allows wrong-city false positives (Bangkok spot surfacing on a Tokyo trip). Fail-closed prevents this category permanently.
+
+When trip has no lodging coordinates:
+- All eligible spots pass; no proximity filter applied.
+- Spots with null coordinates are still included.
+
+The 15 spots currently lacking coordinates remain visible on unanchored trips. Backfill of those coordinates via Places lookup is queued as a small future task; not blocking today.
+
 ---
 
 ## Time-Bound Events Intelligence
