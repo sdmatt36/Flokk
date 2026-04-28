@@ -87,6 +87,7 @@ import {
   Clock,
   Footprints,
   Loader2,
+  Calendar,
 } from "lucide-react";
 import { TripMap } from "@/components/features/trips/TripMap";
 import { DropLinkModal } from "@/components/features/home/DropLinkModal";
@@ -107,7 +108,7 @@ import { EntityStatusPill } from "@/components/ui/EntityStatusPill";
 import { buildSaveStatusMap } from "@/lib/save-status-map";
 import { sharePlace } from "@/lib/share";
 
-type Tab = "saved" | "itinerary" | "tours" | "recommended" | "packing" | "notes" | "vault" | "howwasit";
+type Tab = "saved" | "itinerary" | "tours" | "recommended" | "events" | "packing" | "notes" | "vault" | "howwasit";
 
 type Flight = {
   id: string;
@@ -5007,6 +5008,25 @@ type FetchedRec = {
   avgRating?: number;
 };
 
+type EventCard = {
+  id: string;
+  tripId: string;
+  segmentCity: string;
+  category: string;
+  title: string;
+  venue: string | null;
+  venueLat: number | null;
+  venueLng: number | null;
+  startDateTime: string;
+  endDateTime: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  ticketUrl: string | null;
+  sourceProvider: string;
+  whyThisFamily: string | null;
+  relevanceScore: number;
+};
+
 function calcAgeFromIso(birthDateIso: string): number {
   const today = new Date();
   const birth = new Date(birthDateIso);
@@ -5360,6 +5380,269 @@ function RecommendedContent({
         >
           Contribute →
         </Link>
+      </div>
+    </div>
+  );
+}
+
+function formatEventDateTime(isoString: string): string {
+  try {
+    const d = new Date(isoString);
+    const month = d.toLocaleString("en-US", { month: "short" });
+    const day = d.getDate();
+    const time = d.toLocaleString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+    return `${month} ${day} · ${time}`;
+  } catch {
+    return isoString.split("T")[0];
+  }
+}
+
+function formatCategoryLabel(category: string): string {
+  const labels: Record<string, string> = {
+    sports_events: "Sports",
+    live_music: "Live Music",
+    comedy_shows: "Comedy",
+    seasonal_events: "Seasonal",
+    family_kids: "Family & Kids",
+  };
+  return labels[category] ?? category.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function EventsContent({
+  tripId,
+  destinationCity,
+  destinationCountry,
+}: {
+  tripId?: string;
+  destinationCity?: string | null;
+  destinationCountry?: string | null;
+}) {
+  const [events, setEvents] = useState<EventCard[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [enrichmentFailed, setEnrichmentFailed] = useState(false);
+  const [loadingPhase, setLoadingPhase] = useState<"initial" | "checking" | "almost">("initial");
+
+  useEffect(() => {
+    if (!loading) return;
+    setLoadingPhase("initial");
+    const t1 = setTimeout(() => setLoadingPhase("checking"), 4000);
+    const t2 = setTimeout(() => setLoadingPhase("almost"), 10000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [loading]);
+
+  useEffect(() => {
+    if (!tripId) { setEvents([]); setLoading(false); return; }
+    fetch(`/api/events?tripId=${encodeURIComponent(tripId)}`)
+      .then((r) => r.json())
+      .then((data: { events?: EventCard[]; enrichmentFailed?: boolean }) => {
+        setEvents(data.events ?? []);
+        setEnrichmentFailed(!!data.enrichmentFailed);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("[events] fetch failed", err);
+        setEvents([]);
+        setLoading(false);
+      });
+  }, [tripId]);
+
+  const header = (
+    <div style={{ marginBottom: "24px" }}>
+      <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "28px", color: "#1B3A5C", margin: 0, lineHeight: 1.2 }}>
+        See what&apos;s happening around town while you&apos;re there.
+      </h2>
+      <p style={{ fontSize: "14px", color: "#717171", margin: "6px 0 0 0" }}>
+        Events matching your family&apos;s interests, during your trip dates.
+      </p>
+    </div>
+  );
+
+  if (loading) {
+    const loadingMessage = {
+      initial: "Checking what's happening during your trip...",
+      checking: "Searching for events that match your family...",
+      almost: "Almost there — putting it together...",
+    }[loadingPhase];
+    return (
+      <div>
+        {header}
+        <div style={{ padding: "60px 24px", textAlign: "center" }}>
+          <p style={{ fontSize: "13px", color: "#717171" }}>{loadingMessage}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!events || events.length === 0) {
+    return (
+      <div>
+        {header}
+        <div style={{ padding: "60px 24px", textAlign: "center", maxWidth: "480px", margin: "0 auto" }}>
+          <Calendar size={32} style={{ color: "#C4664A", marginBottom: "16px" }} />
+          <p style={{ fontSize: "15px", fontWeight: 600, color: "#1B3A5C", marginBottom: "8px" }}>
+            No events found yet
+          </p>
+          <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.5 }}>
+            We&apos;re still expanding event coverage for {destinationCity ?? "this destination"}. Check back soon — or update your family&apos;s entertainment interests in your profile to see different categories.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Group events by segmentCity
+  const groupedBySegment: Record<string, EventCard[]> = {};
+  for (const event of events) {
+    const city = event.segmentCity || "Other";
+    if (!groupedBySegment[city]) groupedBySegment[city] = [];
+    groupedBySegment[city].push(event);
+  }
+  const segmentCities = Object.keys(groupedBySegment);
+  const showSegmentHeaders = segmentCities.length > 1;
+
+  return (
+    <div>
+      {header}
+      {enrichmentFailed && (
+        <div style={{ padding: "12px 16px", backgroundColor: "rgba(196,102,74,0.1)", borderRadius: "8px", marginBottom: "16px" }}>
+          <p style={{ fontSize: "12px", color: "#1B3A5C", margin: 0 }}>
+            Some event details may be incomplete.
+          </p>
+        </div>
+      )}
+      {segmentCities.map((city) => (
+        <section key={city} style={{ marginBottom: "32px" }}>
+          {showSegmentHeaders && (
+            <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", color: "#1B3A5C", marginBottom: "12px", marginTop: 0 }}>
+              {city}
+            </h3>
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "16px" }}>
+            {groupedBySegment[city].map((event) => (
+              <EventCardItem
+                key={event.id}
+                event={event}
+                destinationCity={destinationCity}
+                destinationCountry={destinationCountry}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function EventCardItem({
+  event,
+  destinationCity,
+  destinationCountry,
+}: {
+  event: EventCard;
+  destinationCity?: string | null;
+  destinationCountry?: string | null;
+}) {
+  const coverImage = event.imageUrl ?? getTripCoverImage(destinationCity, destinationCountry);
+
+  const saveButtonStyle: React.CSSProperties = {
+    padding: "6px 14px",
+    fontSize: "12px",
+    fontWeight: 600,
+    color: "#717171",
+    backgroundColor: "white",
+    border: "1.5px solid #E0E0E0",
+    borderRadius: "6px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  };
+  const ticketsButtonStyle: React.CSSProperties = {
+    padding: "6px 14px",
+    fontSize: "12px",
+    fontWeight: 600,
+    color: "white",
+    backgroundColor: "#C4664A",
+    border: "none",
+    borderRadius: "6px",
+    cursor: "pointer",
+    textDecoration: "none",
+    whiteSpace: "nowrap",
+  };
+
+  return (
+    <div style={{ background: "white", borderRadius: "12px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
+      <div
+        style={{
+          position: "relative",
+          aspectRatio: "16/9",
+          backgroundColor: "#1B3A5C",
+          backgroundImage: `url(${coverImage})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: "12px",
+            right: "12px",
+            backgroundColor: "rgba(27,58,92,0.9)",
+            color: "white",
+            padding: "6px 12px",
+            borderRadius: "6px",
+            fontSize: "12px",
+            fontWeight: 600,
+          }}
+        >
+          {formatEventDateTime(event.startDateTime)}
+        </div>
+      </div>
+      <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "8px" }}>
+        <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#1B3A5C", margin: 0 }}>
+          {event.title}
+        </h4>
+        {event.venue && (
+          <p style={{ fontSize: "12px", color: "#717171", margin: 0 }}>
+            {event.venue}
+          </p>
+        )}
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "3px 10px",
+            borderRadius: "999px",
+            backgroundColor: "rgba(196,102,74,0.15)",
+            color: "#C4664A",
+            fontSize: "11px",
+            fontWeight: 500,
+            alignSelf: "flex-start",
+          }}
+        >
+          {formatCategoryLabel(event.category)}
+        </span>
+        {event.whyThisFamily && (
+          <p style={{ fontSize: "12px", color: "#C4664A", fontStyle: "italic", lineHeight: 1.5, margin: "4px 0 0 0" }}>
+            {event.whyThisFamily}
+          </p>
+        )}
+        <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
+          <button
+            onClick={() => alert("Save event coming in Phase B")}
+            style={saveButtonStyle}
+          >
+            + Save
+          </button>
+          {event.ticketUrl && (
+            <a
+              href={event.ticketUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={ticketsButtonStyle}
+            >
+              View tickets →
+            </a>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -6974,7 +7257,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           marginBottom: "20px",
         }}
       >
-        {(["Saved", "Itinerary", "Tours", "Recommended", "Packing", "Notes", "Vault"] as const).map((label) => {
+        {(["Saved", "Itinerary", "Tours", "Recommended", "Events", "Packing", "Notes", "Vault"] as const).map((label) => {
           const key = label.toLowerCase() as Tab;
           const active = tab === key;
           return (
@@ -7824,6 +8107,14 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           onViewOnMap={(lat, lng) => { setTab("itinerary"); setFlyTarget({ lat, lng }); }}
           onSaved={() => {}}
           onRefreshItinerary={() => setItineraryVersion(v => v + 1)}
+        />
+      )}
+
+      {tab === "events" && (
+        <EventsContent
+          tripId={tripId}
+          destinationCity={destinationCity}
+          destinationCountry={destinationCountry}
         />
       )}
 
