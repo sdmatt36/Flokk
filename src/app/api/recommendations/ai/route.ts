@@ -14,6 +14,8 @@ import type { CommunitySpotPick } from "@/lib/rank-rated-picks";
 import { buildContextHash } from "@/lib/recommendation-context";
 import type { TripContext } from "@/lib/recommendation-context";
 import { extractRichTripContext, allocateRecCounts } from "@/lib/trip-context-rich";
+import { computeProximity, formatProximityLabel } from "@/lib/proximity-format";
+import type { ActivityForProximity } from "@/lib/proximity-format";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -364,8 +366,54 @@ Generate exactly ${aiNeeded} recommendations distributed across segments per the
     });
   }
 
-  // Per-rec segment-aware proximity is applied in Commit 3
-  const recommendations: FetchedRec[] = [...eventRecs, ...flokkerRecs, ...aiRawRecs];
+  const recommendations: FetchedRec[] = [...eventRecs, ...flokkerRecs, ...aiRawRecs].map(rec => {
+    const segment = rec.segmentCity
+      ? richContext.segments.find(s => s.city.toLowerCase() === rec.segmentCity!.toLowerCase())
+      : null;
+
+    if (!segment || segment.lodgingLat == null || segment.lodgingLng == null) {
+      return { ...rec, proximityLabel: null };
+    }
+
+    // Activities scoped to this segment, with placeholder-coord filter
+    const sameSegmentActivities: ActivityForProximity[] = richContext.plannedActivities
+      .filter(a =>
+        a.segmentCity?.toLowerCase() === segment.city.toLowerCase() &&
+        a.lat != null && a.lng != null
+      )
+      .filter(a => {
+        // Exclude activities within 1km of segment lodging whose title lacks a segment-city token
+        // — catches tour-style activities geocoded to city-center pickup points
+        const distFromLodging = haversineKm(
+          { lat: a.lat!, lng: a.lng! },
+          { lat: segment.lodgingLat!, lng: segment.lodgingLng! }
+        );
+        if (distFromLodging < 1) {
+          const titleLower = (a.title ?? "").toLowerCase();
+          const segToken = segment.city.toLowerCase();
+          if (!titleLower.includes(segToken)) return false;
+        }
+        return true;
+      })
+      .map(a => ({
+        title: a.title,
+        lat: a.lat!,
+        lng: a.lng!,
+        dayIndex: a.dayIndex ?? null,
+      }));
+
+    return {
+      ...rec,
+      proximityLabel: formatProximityLabel(computeProximity(
+        rec.lat,
+        rec.lng,
+        segment.lodgingLat,
+        segment.lodgingLng,
+        segment.lodgingName,
+        sameSegmentActivities,
+      )),
+    };
+  });
 
   const shouldCache = aiGenerationSucceeded || aiNeeded === 0;
 
