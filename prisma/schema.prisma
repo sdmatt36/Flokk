@@ -388,10 +388,17 @@ model SavedItem {
   tripDocuments            TripDocument[] @relation("TripDocumentToSavedItem")
   tourId                   String?
   deletedAt                DateTime?
+  eventDateTime            DateTime?
+  eventVenue               String?
+  eventCategory            String?
+  eventTicketUrl           String?
+  eventSourceProvider      String?
+  eventSourceEventId       String?
 
   @@index([communitySpotId])
   @@index([tourId])
   @@index([deletedAt])
+  @@index([eventSourceProvider, eventSourceEventId])
 }
 
 enum SavedItemStatus {
