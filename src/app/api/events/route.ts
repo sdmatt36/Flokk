@@ -7,6 +7,7 @@ import { extractRichTripContext } from "@/lib/trip-context-rich";
 import type { RichTripContext } from "@/lib/trip-context-rich";
 import { fetchSportsDBEvents } from "@/lib/events/thesportsdb";
 import type { RawEvent, EventCategory } from "@/lib/events/types";
+import { generateTicketUrl } from "@/lib/events/ticket-urls";
 import { haversineKm } from "@/lib/geo";
 import crypto from "crypto";
 
@@ -277,7 +278,12 @@ export async function GET(req: NextRequest) {
           endDateTime: event.endDateTime,
           description: event.description,
           imageUrl: event.imageUrl,
-          ticketUrl: event.ticketUrl,
+          ticketUrl: event.ticketUrl ?? generateTicketUrl({
+            title: event.title,
+            venue: event.venue,
+            startDateTime: event.startDateTime,
+            category: event.category,
+          }),
           affiliateProvider: null,
           sourceProvider: event.sourceProvider,
           sourceEventId: event.sourceEventId,
