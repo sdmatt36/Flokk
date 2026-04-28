@@ -5000,6 +5000,9 @@ type FetchedRec = {
   imageUrl: string | null;
   placeId: string | null;
   photoUrl: string | null;
+  lat: number | null;
+  lng: number | null;
+  proximityLabel: string | null;
   avgRating?: number;
 };
 
@@ -5258,6 +5261,12 @@ function RecommendedContent({
                 {recStatus && recStatus.status !== "saved" && (
                   <div>
                     <EntityStatusPill status={recStatus.status} label={recStatus.label} color={recStatus.color} />
+                  </div>
+                )}
+                {rec.proximityLabel && (
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "4px", backgroundColor: "rgba(27,58,92,0.08)", borderRadius: "999px", padding: "3px 10px", alignSelf: "flex-start" }}>
+                    <MapPin size={11} style={{ color: "#1B3A5C", flexShrink: 0 }} />
+                    <span style={{ fontSize: "11px", fontWeight: 500, color: "#1B3A5C" }}>{rec.proximityLabel}</span>
                   </div>
                 )}
                 <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5 }}>{rec.tip}</p>

@@ -13,6 +13,8 @@ import { rankRatedPicks } from "@/lib/rank-rated-picks";
 import type { CommunitySpotPick } from "@/lib/rank-rated-picks";
 import { buildContextHash, buildHaikuContextPrompt } from "@/lib/recommendation-context";
 import type { TripContext } from "@/lib/recommendation-context";
+import { computeProximity, formatProximityLabel } from "@/lib/proximity-format";
+import type { ActivityForProximity } from "@/lib/proximity-format";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -36,6 +38,9 @@ export type FetchedRec = {
   imageUrl: string | null;
   placeId: string | null;
   photoUrl: string | null;
+  lat: number | null;
+  lng: number | null;
+  proximityLabel: string | null;
   avgRating?: number;
 };
 
@@ -59,7 +64,7 @@ export async function GET(req: NextRequest) {
   const trip = await db.trip.findUnique({
     where: { id: tripId },
     include: {
-      itineraryItems: { select: { id: true, type: true, title: true, latitude: true, longitude: true } },
+      itineraryItems: { select: { id: true, type: true, title: true, latitude: true, longitude: true, dayIndex: true } },
       savedItems: {
         where: { tripId, deletedAt: null },
         select: { id: true, rawTitle: true },
@@ -194,6 +199,9 @@ export async function GET(req: NextRequest) {
     imageUrl: s.photoUrl,
     placeId: s.googlePlaceId,
     photoUrl: s.photoUrl,
+    lat: s.lat,
+    lng: s.lng,
+    proximityLabel: null, // computed in final pass
     avgRating: s.avgRating,
   }));
 
@@ -224,6 +232,16 @@ export async function GET(req: NextRequest) {
 
   const lodgingItem = trip.itineraryItems.find(i => i.type === "LODGING");
   const lodgingAddress = lodgingItem?.title ?? null;
+  const lodgingName = lodgingItem?.title?.replace(/^check[\s-]?(?:in|out):\s*/i, "").trim() ?? null;
+
+  const activitiesForProximity: ActivityForProximity[] = trip.itineraryItems
+    .filter(i => i.type === "ACTIVITY" && i.latitude != null && i.longitude != null)
+    .map(i => ({
+      title: i.title,
+      lat: i.latitude!,
+      lng: i.longitude!,
+      dayIndex: i.dayIndex ?? null,
+    }));
 
   const plannedActivities = trip.itineraryItems
     .filter(i => i.type === "ACTIVITY")
@@ -315,7 +333,7 @@ Prioritize proximity to lodging. Weight toward family-rhythm (wiggle breaks, sna
 
     // Batch enrichWithPlaces calls with concurrency limit of 4
     const CONCURRENCY = 4;
-    const enrichmentResults: Array<{ imageUrl: string | null; placeId: string | null }> = [];
+    const enrichmentResults: Array<{ imageUrl: string | null; placeId: string | null; lat: number | null; lng: number | null }> = [];
 
     for (let i = 0; i < recMeta.length; i += CONCURRENCY) {
       const batch = recMeta.slice(i, i + CONCURRENCY);
@@ -323,9 +341,9 @@ Prioritize proximity to lodging. Weight toward family-rhythm (wiggle breaks, sna
         batch.map(async (m) => {
           try {
             const e = await enrichWithPlaces(m.raw.name as string, trip.destinationCity ?? "");
-            return { imageUrl: e.imageUrl, placeId: e.placeId };
+            return { imageUrl: e.imageUrl, placeId: e.placeId, lat: e.lat, lng: e.lng };
           } catch {
-            return { imageUrl: null, placeId: null };
+            return { imageUrl: null, placeId: null, lat: null, lng: null };
           }
         })
       );
@@ -348,6 +366,9 @@ Prioritize proximity to lodging. Weight toward family-rhythm (wiggle breaks, sna
         websiteUrl: m.websiteUrl,
         imageUrl: enriched.imageUrl,
         placeId: enriched.placeId,
+        lat: enriched.lat,
+        lng: enriched.lng,
+        proximityLabel: null, // computed in final pass
         photoUrl: null,
       });
     }
@@ -361,7 +382,17 @@ Prioritize proximity to lodging. Weight toward family-rhythm (wiggle breaks, sna
     });
   }
 
-  const recommendations: FetchedRec[] = [...eventRecs, ...flokkerRecs, ...aiRawRecs];
+  const recommendations: FetchedRec[] = [...eventRecs, ...flokkerRecs, ...aiRawRecs].map(rec => ({
+    ...rec,
+    proximityLabel: formatProximityLabel(computeProximity(
+      rec.lat,
+      rec.lng,
+      trip.accommodationLat ?? null,
+      trip.accommodationLng ?? null,
+      lodgingName,
+      activitiesForProximity,
+    )),
+  }));
 
   const shouldCache = aiGenerationSucceeded || aiNeeded === 0;
 
