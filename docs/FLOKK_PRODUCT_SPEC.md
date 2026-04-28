@@ -393,6 +393,8 @@ A feature is done when:
 
 Perceived-broken is real-broken from a product perspective.
 
+**Mocked-contract-mismatch pattern (TheSportsDB adapter, Chat 40, commit 60b1c73).** Unit tests for the TheSportsDB adapter passed against mocked responses. The mocks returned what the test author assumed `searchteams.php?t={city}` would return — teams in that city. The live API returns teams whose registered names equal the query string. `searchteams.php?t=Chicago` returns 0 results because no team is literally named "Chicago"; the Cubs require `t=Chicago Cubs`. The adapter was never verified against live data before declaring the integration working. Events tab shipped to production; every user saw empty state for every trip. Mitigation: any third-party API integration ships only after live-API verification against realistic queries, not just mock-based test pass.
+
 ---
 
 ## Tours
@@ -1341,7 +1343,7 @@ Source tags: [C37] surfaced Chat 37; [C38] surfaced Chat 38; [C39] surfaced Chat
 ### Family-utility and events (Be Helpful pillars)
 
 - Family-utility cards build, Phase A foundational [C38]
-- Events extraction build, Phase A foundational [C38]: COMPLETE. Phase A (TheSportsDB sports-only) shipped Chat 40 commits fe92753–386cf4f.
+- Events extraction build, Phase A foundational [C38]: Architecture COMPLETE Chat 40 (UI, save flow, ticket URLs, schema). Data layer non-functional — TheSportsDB free tier unworkable against live data (mocked-contract-mismatch). Tab hidden via SHOW_EVENTS_TAB=false (commit 60b1c73). Phase B web-search-then-Haiku is the actual working implementation.
 - Phase B: web-search-then-Haiku for global event coverage (live_music, comedy_shows, seasonal_events, family_kids) [C40]
 - Phase B: `eventsday.php` league-path for Asian cities where team names don't include city name (KBO, NPB, K-League) [C40]
 - SeatGeek Open API affiliate wiring: sports + music ticket links with commission [C40]
@@ -1507,6 +1509,8 @@ Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product
 **Events tab UI**: "Events" tab inserted between Recommended and Packing. `EventsContent` fetches on tab open. Progressive loading phases (4s → "Searching...", 10s → "Almost there..."). Events grouped by `segmentCity`; segment headers suppressed for single-segment trips. Empty state: Calendar icon + honest "expanding coverage" copy naming the destination city. `EventSavedCard` renders in Saved tab for event-saves: same visual treatment (16/9 image, date badge overlay, venue, category pill, "View tickets →" when ticketUrl present). `+ Save` button transitions through Saving... → ✓ Saved, triggers `flokk:refresh` for Saved tab sync.
 
 **Bellwether behavior**: Greene Seoul-Busan + Okinawa → empty state (Asian city coverage gap, Phase A known). US/EU sports cities with active seasons → real events with SeatGeek ticket links on every card.
+
+**Phase A status correction (April 28 evening):** Workstream 1B Phase A architecture is complete (UI, save flow, ticket URL generation, schema). Data layer is non-functional. `searchteams.php?t={city}` searches by team name, not city — returns 0 results for every major US city (`t=Chicago` → 0, `t=New York` → 0, `t=Los Angeles` → 0, `t=San Diego` → 2 defunct teams from the 1980s, Padres not among them). `eventsnext.php` returns only 1–2 near-term upcoming events per team with no date-range support, structurally insufficient for trips more than a few days out. Tests passed against mocked responses that didn't match the live API contract — a mocked-contract-mismatch foundation gap (see Operating Discipline #7). Events tab hidden in UI via `SHOW_EVENTS_TAB = false` flag in TripTabContent.tsx (commit 60b1c73) until Phase B web-search-then-Haiku adapter ships and is verified against live data. Phase B is now the actual working Phase A.
 
 **ItineraryItem cascade-delete structural bug (open backlog)**: `ItineraryItem.tripId` FK uses `ON DELETE SET NULL`, not `CASCADE`. Trip deletion leaves orphan items with `tripId = null`, surfaced as "Unassigned bookings" on home screen. Diagnosed via two orphan Chicago test items. Fix: `ALTER TABLE "ItineraryItem" DROP CONSTRAINT ... ADD CONSTRAINT ... ON DELETE CASCADE` + Prisma schema update + orphan sweep. Not blocking, added to backlog.
 
