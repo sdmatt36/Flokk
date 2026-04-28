@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
     url.searchParams.set("input", q);
-    url.searchParams.set("types", "locality|administrative_area_level_3|administrative_area_level_2|administrative_area_level_1");
+    url.searchParams.set("types", "(cities)");
     url.searchParams.set("language", "en");
     url.searchParams.set("key", GOOGLE_API_KEY);
 
@@ -54,23 +54,23 @@ export async function GET(req: NextRequest) {
     // Fetch address_components per result to get administrative_area_level_1 (e.g. "Scotland")
     const mapped: DestinationSuggestion[] = await Promise.all(
       unique.slice(0, 6).map(async (p) => {
-        const terms = p.terms ?? [];
-        const cityName = terms[0]?.value ?? p.structured_formatting.main_text;
-        const countryName = terms[terms.length - 1]?.value ?? "";
+        const cityName = p.structured_formatting.main_text;
 
         let region = "";
+        let countryName = "";
         try {
           const detailRes = await fetch(
             `https://maps.googleapis.com/maps/api/place/details/json?place_id=${p.place_id}&fields=address_components&key=${GOOGLE_API_KEY}`
           );
           const detailData = await detailRes.json() as {
-            result?: { address_components?: Array<{ long_name: string; types: string[] }> };
+            result?: { address_components?: Array<{ long_name: string; short_name: string; types: string[] }> };
           };
-          const adminArea = detailData.result?.address_components?.find(
-            (c) => c.types.includes("administrative_area_level_1")
-          );
+          const components = detailData.result?.address_components ?? [];
+          const adminArea = components.find((c) => c.types.includes("administrative_area_level_1"));
+          const countryComponent = components.find((c) => c.types.includes("country"));
           if (adminArea) region = adminArea.long_name;
-        } catch { /* region stays empty on error */ }
+          if (countryComponent) countryName = countryComponent.long_name;
+        } catch { /* region/country stays empty on error */ }
 
         return {
           placeId: p.place_id,
