@@ -5002,6 +5002,7 @@ type FetchedRec = {
   photoUrl: string | null;
   lat: number | null;
   lng: number | null;
+  segmentCity: string | null;
   proximityLabel: string | null;
   avgRating?: number;
 };

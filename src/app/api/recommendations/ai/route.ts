@@ -11,10 +11,9 @@ import { buildFlokkerReason } from "@/lib/flokker-reason";
 import type { FamilyContext } from "@/lib/flokker-reason";
 import { rankRatedPicks } from "@/lib/rank-rated-picks";
 import type { CommunitySpotPick } from "@/lib/rank-rated-picks";
-import { buildContextHash, buildHaikuContextPrompt } from "@/lib/recommendation-context";
+import { buildContextHash } from "@/lib/recommendation-context";
 import type { TripContext } from "@/lib/recommendation-context";
-import { computeProximity, formatProximityLabel } from "@/lib/proximity-format";
-import type { ActivityForProximity } from "@/lib/proximity-format";
+import { extractRichTripContext, allocateRecCounts } from "@/lib/trip-context-rich";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -40,16 +39,10 @@ export type FetchedRec = {
   photoUrl: string | null;
   lat: number | null;
   lng: number | null;
+  segmentCity: string | null;
   proximityLabel: string | null;
   avgRating?: number;
 };
-
-function calcAge(birthDate: Date, referenceDate: Date): number {
-  let age = referenceDate.getFullYear() - birthDate.getFullYear();
-  const m = referenceDate.getMonth() - birthDate.getMonth();
-  if (m < 0 || (m === 0 && referenceDate.getDate() < birthDate.getDate())) age--;
-  return age;
-}
 
 export async function GET(req: NextRequest) {
   const { userId } = await auth();
@@ -102,37 +95,14 @@ export async function GET(req: NextRequest) {
 
   console.log(`[recommendations] cache miss tripId=${tripId} — generating`);
 
-  const profile = await db.familyProfile.findUnique({
-    where: { id: profileId },
-    include: {
-      members: {
-        select: {
-          name: true,
-          role: true,
-          birthDate: true,
-          dietaryRequirements: true,
-          foodAllergies: true,
-          mobilityNotes: true,
-        },
-      },
-      interests: { select: { interestKey: true } },
-    },
-  });
-  if (!profile) return NextResponse.json({ error: "No family profile" }, { status: 400 });
-
-  const tripStart = trip.startDate ? new Date(trip.startDate) : new Date();
-  const tripEnd   = trip.endDate   ? new Date(trip.endDate)   : tripStart;
-  const durationDays = Math.max(1, Math.round((tripEnd.getTime() - tripStart.getTime()) / 86400000) + 1);
-
-  const childAges = profile.members
-    .filter(m => m.role === "CHILD" && m.birthDate)
-    .map(m => calcAge(m.birthDate!, tripStart));
+  const richContext = await extractRichTripContext(tripId, db);
 
   const familyCtx: FamilyContext = {
-    childAges,
-    pace: profile.pace ?? null,
-    interests: profile.interests.map(i => i.interestKey),
+    childAges: richContext.family.childAges,
+    pace: richContext.family.pace,
+    interests: richContext.family.interests,
   };
+  const durationDays = richContext.durationDays;
 
   // ── Source 1: Local Events (Phase A placeholder) ──────────────────────────
   const eventRecs: FetchedRec[] = [];
@@ -184,161 +154,118 @@ export async function GET(req: NextRequest) {
 
   const rankedSpots = rankRatedPicks(spotPicks, familyCtx).slice(0, FLOKKER_SLOT);
 
-  const flokkerRecs: FetchedRec[] = rankedSpots.map(s => ({
-    source: "flokker",
-    name: s.name,
-    category: normalizeCategorySlug(
-      rawSpots.find(r => r.id === s.id)?.category ?? null
-    ) ?? "other",
-    whyThisFamily: buildFlokkerReason(s, familyCtx),
-    ageAppropriate: true,
-    budgetTier: "Mid",
-    tip: "",
-    tags: [],
-    websiteUrl: rawSpots.find(r => r.id === s.id)?.websiteUrl ?? null,
-    imageUrl: s.photoUrl,
-    placeId: s.googlePlaceId,
-    photoUrl: s.photoUrl,
-    lat: s.lat,
-    lng: s.lng,
-    proximityLabel: null, // computed in final pass
-    avgRating: s.avgRating,
-  }));
-
-  // ── Source 3: AI-generated (trip-aware Haiku) ─────────────────────────────
-  const placeRatings = await db.placeRating.findMany({
-    where: { familyProfileId: profileId },
-    orderBy: { rating: "desc" },
-    take: 5,
-    select: { placeName: true, destinationCity: true, rating: true },
-  });
-
-  const recentSaves = await db.savedItem.findMany({
-    where: { familyProfileId: profileId },
-    select: { categoryTags: true },
-    orderBy: { savedAt: "desc" },
-    take: 100,
-  });
-  const catCount: Record<string, number> = {};
-  for (const item of recentSaves) {
-    for (const tag of item.categoryTags) {
-      if (tag) catCount[tag] = (catCount[tag] ?? 0) + 1;
-    }
-  }
-  const topCategories = Object.entries(catCount)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([cat]) => cat);
-
-  const allLodging = trip.itineraryItems.filter(i => i.type === "LODGING");
-  const checkIns  = allLodging.filter(i => /check[\s-]?in/i.test(i.title ?? ""));
-  const checkOuts = allLodging.filter(i => /check[\s-]?out/i.test(i.title ?? ""));
-
-  const lodgingStays = checkIns.map(ci => {
-    const ciName = (ci.title ?? "").replace(/^check[\s-]?in:\s*/i, "").trim();
-    const co = checkOuts.find(o =>
-      (o.title ?? "").replace(/^check[\s-]?out:\s*/i, "").trim() === ciName
-    );
-    const span = (co?.dayIndex ?? ci.dayIndex ?? 0) - (ci.dayIndex ?? 0);
-    return { item: ci, name: ciName, span };
-  });
-
-  const destCityTokens = (trip.destinationCity ?? "")
-    .toLowerCase()
-    .split(/[\s,]+/)
-    .filter(t => t.length >= 4);
-
-  const destinationMatches = destCityTokens.length > 0
-    ? lodgingStays.filter(s =>
-        destCityTokens.some(token => s.name.toLowerCase().includes(token))
-      )
-    : [];
-
-  const candidatePool = destinationMatches.length > 0 ? destinationMatches : lodgingStays;
-  const lodgingItem = candidatePool
-    .sort((a, b) => b.span - a.span)[0]?.item ?? null;
-
-  const lodgingAddress = lodgingItem?.title ?? null;
-  const lodgingName = lodgingItem?.title?.replace(/^check[\s-]?(?:in|out):\s*/i, "").trim() ?? null;
-
-  const activitiesForProximity: ActivityForProximity[] = trip.itineraryItems
-    .filter(i => {
-      if (i.type !== "ACTIVITY") return false;
-      if (i.latitude == null || i.longitude == null) return false;
-      // Filter activities whose coords look like city-center placeholder geocodes.
-      // Heuristic: within 1km of trip city-center anchor AND title has no destination token.
-      // False negatives (city-center activities excluded) are preferred over false positives
-      // (e.g. every Seoul rec matching a DMZ tour geocoded to Gwanghwamun).
-      if (trip.accommodationLat != null && trip.accommodationLng != null) {
-        const distFromCityCenter = haversineKm(
-          { lat: i.latitude, lng: i.longitude },
-          { lat: trip.accommodationLat, lng: trip.accommodationLng }
-        );
-        if (distFromCityCenter < 1) {
-          const titleLower = (i.title ?? "").toLowerCase();
-          const destTokens = (trip.destinationCity ?? "")
-            .toLowerCase()
-            .split(/[\s,]+/)
-            .filter(t => t.length >= 4);
-          const titleHasDestToken = destTokens.some(token => titleLower.includes(token));
-          if (!titleHasDestToken) return false;
-        }
+  const flokkerRecs: FetchedRec[] = rankedSpots.map(s => {
+    // Assign to nearest segment lodging — flokker query already filters to trip city
+    let flokkerSegmentCity: string | null = richContext.destinationCity || null;
+    if (s.lat && s.lng && richContext.segments.length > 0) {
+      let minDist = Infinity;
+      for (const seg of richContext.segments) {
+        if (seg.lodgingLat == null || seg.lodgingLng == null) continue;
+        const d = haversineKm({ lat: s.lat, lng: s.lng }, { lat: seg.lodgingLat, lng: seg.lodgingLng });
+        if (d < minDist) { minDist = d; flokkerSegmentCity = seg.city; }
       }
-      return true;
-    })
-    .map(i => ({
-      title: i.title,
-      lat: i.latitude!,
-      lng: i.longitude!,
-      dayIndex: i.dayIndex ?? null,
-    }));
-
-  const plannedActivities = trip.itineraryItems
-    .filter(i => i.type === "ACTIVITY")
-    .map(i => i.title);
-  const savedForTrip = trip.savedItems
-    .map(s => s.rawTitle)
-    .filter((t): t is string => !!t);
-
-  const familyContextStr = [
-    `Adults: ${profile.members.filter(m => m.role === "ADULT").map(m => m.name ?? "Adult").join(", ")}`,
-    childAges.length > 0 ? `Children ages: ${childAges.join(", ")}` : null,
-    profile.travelStyle ? `Travel style: ${profile.travelStyle}` : null,
-    profile.pace ? `Pace: ${profile.pace}` : null,
-    profile.interests.length > 0 ? `Interests: ${profile.interests.map(i => i.interestKey).join(", ")}` : null,
-    topCategories.length > 0 ? `Top save categories: ${topCategories.join(", ")}` : null,
-    placeRatings.length > 0
-      ? `Loved places: ${placeRatings.map(r => `${r.placeName} (${r.rating}★)`).join(", ")}`
-      : null,
-  ].filter(Boolean).join("\n");
-
-  const haikuPrompt = buildHaikuContextPrompt(tripCtx, {
-    familyContext: familyContextStr,
-    plannedActivities,
-    savedForTrip,
-    lodgingAddress,
+    }
+    return {
+      source: "flokker",
+      name: s.name,
+      category: normalizeCategorySlug(
+        rawSpots.find(r => r.id === s.id)?.category ?? null
+      ) ?? "other",
+      whyThisFamily: buildFlokkerReason(s, familyCtx),
+      ageAppropriate: true,
+      budgetTier: "Mid",
+      tip: "",
+      tags: [],
+      websiteUrl: rawSpots.find(r => r.id === s.id)?.websiteUrl ?? null,
+      imageUrl: s.photoUrl,
+      placeId: s.googlePlaceId,
+      photoUrl: s.photoUrl,
+      lat: s.lat,
+      lng: s.lng,
+      segmentCity: flokkerSegmentCity,
+      proximityLabel: null,
+      avgRating: s.avgRating,
+    };
   });
 
+  // ── Source 3: AI-generated (multi-segment trip-aware Haiku) ─────────────────
   const alreadyNamed = [
     ...flokkerRecs.map(r => r.name),
-    ...plannedActivities,
-    ...savedForTrip,
+    ...richContext.plannedActivities.map(a => a.title),
+    ...richContext.savedForTrip.map(s => s.title),
   ];
 
   const aiNeeded = AI_TOTAL - eventRecs.length - flokkerRecs.length;
 
-  const systemPrompt = `You are a family travel recommendation engine. You receive structured data about a real family and their trip. Return ONLY valid JSON — no markdown, no preamble. Return an array of exactly ${aiNeeded} recommendations. Do NOT suggest these places (already saved or planned by the family): ${alreadyNamed.join(", ")}. Do NOT suggest variants or related events at these same locations either. CRITICAL: Each recommendation must be a unique physical place. Never generate multiple recommendations for the same venue with different framings (e.g., "Castle Ruins & Spring Flowers" and "Castle Sunflower Festival" both reference the same castle — pick ONE). One physical location = one card. If a place has multiple seasonal or event angles, pick the most relevant given the trip dates. Each recommendation must be:
-{
-  "name": string,
-  "category": string (exactly one of: food_and_drink, culture, nature_and_outdoors, adventure, experiences, sports_and_entertainment, shopping, kids_and_family, lodging, nightlife, wellness, other),
-  "whyThisFamily": string (one sentence, specific to this family),
-  "ageAppropriate": boolean,
-  "budgetTier": string (one of: Free, Budget, Mid, Premium, Luxury),
-  "tip": string (one practical sentence),
-  "tags": string[],
-  "websiteUrl": string (optional — real URL if confident, otherwise omit)
-}
-Prioritize proximity to lodging. Weight toward family-rhythm (wiggle breaks, snack stops) for families with young children. Trip duration: ${durationDays} days.`;
+  // Re-allocate per-segment rec counts for the actual AI target
+  const segsForPrompt = allocateRecCounts(richContext.segments, aiNeeded);
+
+  const systemPrompt = `You are a family travel recommendation engine. You receive structured trip context with segments, planned activities, family profile, and historical preferences. Return ONLY valid JSON — no markdown, no preamble.
+
+CRITICAL REQUIREMENTS:
+1. Each recommendation must include segmentCity matching exactly one of the trip's segment cities
+2. Do NOT duplicate already-planned or already-saved items: ${alreadyNamed.join(", ")}
+3. Each recommendation must be a unique physical place — never multiple recommendations for the same venue with different framings
+4. Past loved places and broader saves are TASTE SIGNALS, not items to match. Reason about the family's preferences from these patterns and apply those preferences to THIS trip. Do NOT recommend literal equivalents. Recommend things in THIS trip's destination cities that fit the INFERRED preference patterns.
+
+Generate exactly ${aiNeeded} recommendations distributed across segments per the allocation in the user message.`;
+
+  const haikuPrompt = [
+    `This family is on a ${durationDays}-day trip with ${segsForPrompt.length} segment${segsForPrompt.length !== 1 ? "s" : ""} based on their actual bookings:`,
+    "",
+    ...segsForPrompt.map((s, i) =>
+      `Segment ${i + 1}: Days ${s.dayStart}–${s.dayEnd} (${s.nights} nights) staying at ${s.lodgingName} in ${s.city}. Generate ${s.recAllocation} recommendations for this segment, near ${s.lodgingName}.`
+    ),
+    "",
+    richContext.transitItems.length > 0
+      ? `Transit on this trip:\n${richContext.transitItems.map(t => `- Day ${t.dayIndex ?? "?"}: ${t.title} (${t.fromCity ?? "?"} → ${t.toCity ?? "?"})`).join("\n")}`
+      : null,
+    "",
+    "Already planned activities (do not duplicate or suggest variants):",
+    richContext.plannedActivities.length > 0
+      ? richContext.plannedActivities.map(a => `- Day ${a.dayIndex ?? "?"} (${a.segmentCity ?? "unassigned"}): ${a.title}`).join("\n")
+      : "(none)",
+    "",
+    "Already saved for this trip (do not duplicate):",
+    richContext.savedForTrip.length > 0
+      ? richContext.savedForTrip.map(s => `- ${s.title}${s.city ? ` (${s.city})` : ""}`).join("\n")
+      : "(none)",
+    "",
+    "Family profile:",
+    `- Adults with kids ages: ${richContext.family.childAges.join(", ") || "(none)"}`,
+    `- Travel style: ${richContext.family.travelStyle || "unspecified"}, Pace: ${richContext.family.pace || "unspecified"}`,
+    `- Interests: ${richContext.family.interests.join(", ") || "(none specified)"}`,
+    `- Home country: ${richContext.family.homeCountry || "unspecified"}`,
+    richContext.family.dietaryRequirements.length > 0 ? `- Dietary: ${richContext.family.dietaryRequirements.join(", ")}` : null,
+    richContext.family.mobilityNotes.length > 0 ? `- Mobility: ${richContext.family.mobilityNotes.join(", ")}` : null,
+    "",
+    "Family taste signals — INFER patterns, do NOT match literally:",
+    "",
+    `Past trips, top ${richContext.lovedPlaces.length} of ${richContext.totalLovedPlaces} highly-rated experiences:`,
+    richContext.lovedPlaces.map(p => `${p.name}${p.city ? ` (${p.city})` : ""}`).join(", "),
+    "",
+    `Recent saves (broader interest signal, ${richContext.broaderSaves.totalCount} saves total):`,
+    richContext.broaderSaves.sampleTitles.join(", "),
+    "",
+    `Top save categories: ${richContext.broaderSaves.topCategories.join(", ")}`,
+    "",
+    "These reveal what kinds of experiences resonate with this family. Reason about the patterns (e.g. 'walkable urban exploration', 'food markets and local cuisine', 'family-scale entertainment', 'outdoor activity in nature', 'immersive cultural experiences') and apply those patterns to recommendations for THIS trip's segment cities. Do NOT recommend literal equivalents.",
+    "",
+    `Generate exactly ${aiNeeded} recommendations distributed per segment allocations above. Each rec MUST specify segmentCity from this set: ${richContext.segments.map(s => s.city).join(", ")}.`,
+    "",
+    "Return JSON array. Each rec:",
+    "{",
+    '  "name": string,',
+    '  "category": string (exactly one of: food_and_drink, culture, nature_and_outdoors, adventure, experiences, sports_and_entertainment, shopping, kids_and_family, lodging, nightlife, wellness, other),',
+    `  "segmentCity": string (REQUIRED — must match a segment city exactly: ${richContext.segments.map(s => `"${s.city}"`).join(" or ")}),`,
+    '  "whyThisFamily": string (specific reasoning for this family\'s inferred patterns or trip context),',
+    '  "ageAppropriate": boolean,',
+    '  "budgetTier": string (one of: Free, Budget, Mid, Premium, Luxury),',
+    '  "tip": string (one practical sentence),',
+    '  "tags": string[],',
+    '  "websiteUrl": string (optional — real URL if confident)',
+    "}",
+  ].filter((s): s is string => s !== null).join("\n");
 
   let aiGenerationSucceeded = false;
   const aiRawRecs: FetchedRec[] = [];
@@ -371,15 +298,19 @@ Prioritize proximity to lodging. Weight toward family-rhythm (wiggle breaks, sna
     const arr = Array.isArray(parsed) ? parsed : [];
 
     // Parse and prepare rec metadata (cheap, sequential)
-    const recMeta = (arr as Array<Record<string, unknown>>).map(r => ({
-      raw: r,
-      category: normalizeCategorySlug(r.category as string | null) ?? "other",
-      websiteUrl: (r.websiteUrl as string | null) ?? resolveCanonicalUrl({
-        name: r.name as string,
-        city: trip.destinationCity ?? "",
-        country: trip.destinationCountry ?? undefined,
-      }),
-    }));
+    const recMeta = (arr as Array<Record<string, unknown>>).map(r => {
+      const recCity = typeof r.segmentCity === "string" ? r.segmentCity : (trip.destinationCity ?? "");
+      return {
+        raw: r,
+        category: normalizeCategorySlug(r.category as string | null) ?? "other",
+        recCity,
+        websiteUrl: (r.websiteUrl as string | null) ?? resolveCanonicalUrl({
+          name: r.name as string,
+          city: recCity,
+          country: trip.destinationCountry ?? undefined,
+        }),
+      };
+    });
 
     // Batch enrichWithPlaces calls with concurrency limit of 4
     const CONCURRENCY = 4;
@@ -390,7 +321,7 @@ Prioritize proximity to lodging. Weight toward family-rhythm (wiggle breaks, sna
       const batchResults = await Promise.all(
         batch.map(async (m) => {
           try {
-            const e = await enrichWithPlaces(m.raw.name as string, trip.destinationCity ?? "");
+            const e = await enrichWithPlaces(m.raw.name as string, m.recCity);
             return { imageUrl: e.imageUrl, placeId: e.placeId, lat: e.lat, lng: e.lng };
           } catch {
             return { imageUrl: null, placeId: null, lat: null, lng: null };
@@ -418,7 +349,8 @@ Prioritize proximity to lodging. Weight toward family-rhythm (wiggle breaks, sna
         placeId: enriched.placeId,
         lat: enriched.lat,
         lng: enriched.lng,
-        proximityLabel: null, // computed in final pass
+        segmentCity: typeof m.raw.segmentCity === "string" ? m.raw.segmentCity : null,
+        proximityLabel: null,
         photoUrl: null,
       });
     }
@@ -432,17 +364,8 @@ Prioritize proximity to lodging. Weight toward family-rhythm (wiggle breaks, sna
     });
   }
 
-  const recommendations: FetchedRec[] = [...eventRecs, ...flokkerRecs, ...aiRawRecs].map(rec => ({
-    ...rec,
-    proximityLabel: formatProximityLabel(computeProximity(
-      rec.lat,
-      rec.lng,
-      lodgingItem?.latitude ?? trip.accommodationLat ?? null,
-      lodgingItem?.longitude ?? trip.accommodationLng ?? null,
-      lodgingName,
-      activitiesForProximity,
-    )),
-  }));
+  // Per-rec segment-aware proximity is applied in Commit 3
+  const recommendations: FetchedRec[] = [...eventRecs, ...flokkerRecs, ...aiRawRecs];
 
   const shouldCache = aiGenerationSucceeded || aiNeeded === 0;
 
