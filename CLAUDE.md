@@ -202,6 +202,75 @@ A fix that cannot be verified by grep output is not a fix.
 It is a guess. Guesses are not acceptable.
 
 
+## Foundation-First Discipline
+
+When building any feature, evaluate whether the foundational layers (trip creation, place identification, data schema, shared components, autocomplete inputs, third-party API integrations) actually capture the data needed for downstream features.
+
+If a downstream feature receives broken data because the foundation is broken, fix the foundation first. Do not work around foundation issues — that compounds the bug rather than resolving it.
+
+A feature ships only when the foundation it depends on is verified working under realistic conditions.
+
+## Trade-off Transparency
+
+For any non-trivial decision (library choice, API parameter, schema relationship, default behavior), surface the trade-off explicitly:
+- What was chosen
+- What alternatives were considered
+- What is accepted as the cost of the choice
+- What is the failure mode if the assumption is wrong
+
+Defaults are decisions. Implicit defaults that are not acknowledged become latent bugs.
+
+## Cardinality Awareness
+
+Before using `.find()`, `[0]`, or any "pick first" operator on a collection, verify:
+- Is the collection guaranteed to have exactly one item?
+- If multiple items can exist, is ordering deterministic?
+- Is there a contextual filter that narrows to the right item?
+
+If none apply, either fix the cardinality assumption or document the multi-item handling explicitly. Surface this when generating code that uses these operators.
+
+## Schema Relationship Explicitness
+
+Foreign key relationships ship with explicit onDelete behavior:
+- `onDelete: Cascade` — child records deleted with parent
+- `onDelete: SetNull` — child records orphaned, become unassigned
+- `onDelete: Restrict` — parent deletion blocked while children exist
+
+Choose deliberately. The default may not match user expectations. Surface the choice in the response.
+
+## External API Integration Discipline
+
+Third-party API calls (Google Places, geocoding, payment, auth) ship with documented configuration:
+- All required parameters explicitly set (types, components, fields, languages, etc.)
+- Response field selection rationale (description vs structured_formatting, terms vs address_components, etc.)
+- Failure mode handling (graceful degradation, error surface, rate limit awareness)
+- Cost/quota implications
+
+Do not accept library defaults without checking what they imply.
+
+## Shared Component and Shared API Verification
+
+Components or endpoints used across multiple callsites are tested against ALL consuming surfaces. A regression in one is a regression in all. Before changing shared infrastructure, identify all callsites and verify the change works across all of them.
+
+When fixing a shared component, the fix is not complete until verified on every consuming surface. "API fixed" without "UI updated" leaves the user-visible bug intact.
+
+## User-Perception Lens
+
+A feature is not done when tests pass. It is done when:
+1. Tests pass (necessary condition)
+2. TypeScript compiles cleanly (necessary)
+3. Realistic user behavior produces sensible results (necessary)
+4. Failure modes degrade gracefully (empty states are honest, errors recoverable)
+5. The feature would not be perceived as broken by a typical user
+
+Perceived-broken is real-broken from a product perspective. If a user sees five identical dropdown entries, they perceive the platform as broken regardless of whether the underlying API now returns differentiated data — until the rendering also displays the differentiation.
+
+## Push Back When Foundation Is Shaky
+
+If a request would build on top of a foundation that has not been verified, push back before building. If a request would ship a feature that fails the user-perception test, push back before building. If a request is ambiguous in a way that would let multiple wrong outcomes pass tests, push back before building.
+
+Matt values diligence over speed when the trade-off matters. He has asked Claude Code to flag implicit defaults, surface trade-offs proactively, and pause for foundation verification before adding more layers. This is a feature, not a bug, of how the partnership works.
+
 ## Every Fix Must Be Universal
 
 Before writing any fix, answer these three questions:
