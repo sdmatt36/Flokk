@@ -1,6 +1,6 @@
 # Flokk Chat 40 Handoff
 **Session: April 28, 2026**
-**Total commits: ~33 across four feature arcs + one foundational fix arc**
+**Total commits: ~36 across four feature arcs + one foundational fix arc + evening rollback**
 
 ---
 
@@ -9,12 +9,12 @@
 Heavy session. Four major arcs completed and one foundational bug saga resolved end-to-end:
 
 - **Workstream 1A.5**: Trip-Aware Multi-Segment Recommendations — rebuild from single-anchor to per-segment Haiku with rich context extraction. Verified working on Greene Seoul-Busan and Okinawa trips.
-- **Workstream 1B Phase A**: Local Events tab — end-to-end build complete. TheSportsDB adapter, multi-provider architecture, Haiku enrichment, ticket URL generation, Save Event flow, EventSavedCard rendering.
+- **Workstream 1B Phase A**: Local Events tab — code complete, then rolled back. TheSportsDB adapter built end-to-end (adapter, UI, save flow, EventSavedCard) but live API diagnostic revealed fundamental mismatch: `searchteams.php?t={city}` is team-name search, not city-location search — returns 0 results for every major US market. Tab hidden via `SHOW_EVENTS_TAB = false` flag; code preserved. Phase B requires new adapter design.
 - **Status Rule completion** (Phase A, B, C): SavesScreen, Trip Saved tab, Recommendations, Discover Spots all migrated to shared `entity-status.ts` helper.
 - **URL Rule revert and tightening**: P3 Google search fallback built and reverted (search URL behind "Visit website" is worse UX than no button). Rule tightened: resolver returns string | null only.
 - **Foundational autocomplete fix** (commits 5b13ba1, 5aafb21): Three compounding bugs (API types parameter, country name abbreviation, rendering dropped region field) resolved across 8 consuming surfaces.
 
-Three foundation findings surfaced and documented. Operating Discipline #7 added to spec. CLAUDE.md updated with agent operating principles.
+Four foundation findings surfaced and documented. Operating Discipline #7 (Foundation-First Verification) + Live API Verification principle added. CLAUDE.md updated with 9 agent operating principles. Mocked-contract-mismatch pattern named and canonicalized.
 
 ---
 
@@ -69,6 +69,14 @@ Three foundation findings surfaced and documented. Operating Discipline #7 added
 | 99718bc | spec: foundation-first operating discipline — codifies Chat 40 findings |
 | bef2ceb | docs: CLAUDE.md operating principles — foundation-first, trade-off transparency, cardinality awareness, user-perception lens |
 
+### Evening Rollback — Events Tab + Foundation Finding #4
+
+| Hash | Summary |
+|------|---------|
+| 60b1c73 | fix: hide Events tab — SHOW_EVENTS_TAB = false, TheSportsDB live API returns 0 for all US cities |
+| f7c6af5 | spec: Events Phase A status correction + mocked-contract-mismatch as canonical example |
+| a2f86b5 | docs: CLAUDE.md live API verification principle — TheSportsDB incident as named example |
+
 ---
 
 ## Workstream 1A.5: Trip-Aware Multi-Segment Recommendations
@@ -99,7 +107,7 @@ Multi-provider, single interface. `RawEvent` abstraction lets providers be swapp
 
 **Phase A active provider**: TheSportsDB (free tier). Searches teams by city name (`searchteams.php?t={city}`), then fetches upcoming events per team (`eventsnext.php?id={teamId}`). Filters by `SPORTS_FILTER` set (Soccer, Baseball, Basketball, Ice Hockey, Cricket, Rugby). Parallel team lookups with post-hoc dedup by `idEvent`.
 
-**Phase A coverage gap**: TheSportsDB free tier doesn't cover sponsor-named teams (Korean Lotte Giants → "Busan Giants" search fails; Japanese SoftBank Hawks → "Fukuoka Hawks" search fails). US and European sports cities work correctly. Phase B web-search-then-Haiku roadmap captured for global non-sports coverage.
+**Phase A coverage gap (original assessment — incorrect)**: Pre-rollback assumption was that US/EU cities worked and only Asian sponsor-named teams failed. This was based on mocked tests, not live API behavior.
 
 ### What shipped
 
@@ -113,7 +121,33 @@ Multi-provider, single interface. `RawEvent` abstraction lets providers be swapp
 
 ### Tests
 
-5 TheSportsDB adapter tests (all passing). 5 ticket-url tests (all passing). 103 total suite passing.
+5 TheSportsDB adapter tests (all passing against mocks). 5 ticket-url tests (all passing). 103 total suite passing.
+
+**Tests passed, feature broken.** All adapter tests mocked `searchteams.php` to return a team when queried by city name. The live API does not behave this way. This is the mocked-contract-mismatch pattern — tests verify assumptions about the API, not actual API behavior. See Foundation Finding #4.
+
+---
+
+## Workstream 1B Phase A: Status Correction (April 28 evening)
+
+### What was discovered
+
+San Diego August trip returned empty Events tab in production. Live diagnostic against TheSportsDB free tier revealed two fundamental mismatches vs. mocked assumptions:
+
+1. **`searchteams.php?t={city}` is a team-name search, not a city search.** `t=Chicago` → 0 results. `t=San Diego` → 2 defunct teams (San Diego Chargers, San Diego Padres — both relocated/renamed). `t=New York` → 0. `t=Los Angeles` → 0. The endpoint name `searchteams` means search for teams by name, not teams in a city.
+
+2. **`eventsnext.php` returns only 1-2 near-term events.** No date-range parameter supported on free tier. A trip three weeks out would find nothing even if team discovery worked.
+
+Every Events tab in production was showing empty state for every user and every trip since Phase A shipped.
+
+### What was rolled back
+
+`SHOW_EVENTS_TAB = false` constant added to `TripTabContent.tsx` at line 157 (commit 60b1c73). Tab hidden from all users. Code intact — adapter, UI, save flow, EventSavedCard all remain in the file. Re-enable in one line when Phase B ships a verified adapter.
+
+### Honest accounting
+
+Phase A shipped with tests passing but the core integration assumption was wrong. The adapter was designed around a city-search mental model that the TheSportsDB free tier does not support. The tests confirmed that the code correctly called the endpoint — they could not confirm that the endpoint returned useful results, because the test data was fabricated.
+
+This is now canonical example #4 in Operating Discipline #7 (mocked-contract-mismatch).
 
 ---
 
@@ -148,13 +182,21 @@ Diagnosed via two Chicago test items (`test_chicago_item_checkin`, `test_chicago
 
 ## Operating Discipline #7 Added
 
-**Foundation-First Verification** — codified in `docs/FLOKK_PRODUCT_SPEC.md`. Covers five foundational seams (external APIs, schema relationships, shared components, cardinality, user input ambiguity), the discipline applied to new feature work, three canonical examples from Chat 40 (locked), and the user-perception lens.
+**Foundation-First Verification** — codified in `docs/FLOKK_PRODUCT_SPEC.md`. Covers five foundational seams (external APIs, schema relationships, shared components, cardinality, user input ambiguity), the discipline applied to new feature work, four canonical examples from Chat 40 (locked), and the user-perception lens.
+
+Four canonical examples locked in spec:
+1. Autocomplete types-parameter duplicates
+2. Cardinality `.find()` wrong lodging anchor
+3. ItineraryItem cascade-delete orphans
+4. **Mocked-contract-mismatch** (TheSportsDB) — new, added evening rollback
 
 ---
 
 ## CLAUDE.md Updated
 
-Agent operating principles added to repo CLAUDE.md:
+Nine agent operating principles added to repo CLAUDE.md across two commits:
+
+**Commit bef2ceb** (8 principles):
 - Foundation-first discipline
 - Trade-off transparency
 - Cardinality awareness
@@ -164,6 +206,9 @@ Agent operating principles added to repo CLAUDE.md:
 - User-perception lens
 - Push back when foundation is shaky
 
+**Commit a2f86b5** (1 principle added):
+- Live API verification — mocked tests verify assumptions, not the API. Third-party integrations require a live-API verification gate before shipping. TheSportsDB incident named as the canonical example.
+
 ---
 
 ## Process Lessons
@@ -172,24 +217,55 @@ Agent operating principles added to repo CLAUDE.md:
 
 **Verification discipline**: The autocomplete saga required two commits because the first fix (API) was shipped without verifying the user-visible output (rendering). Foundation fix is not complete until the user-perception test passes, not just the code test.
 
+**Mocked-contract-mismatch**: Tests that mock third-party API behavior verify code structure, not integration correctness. The TheSportsDB adapter had 10 passing tests and a broken production feature. Live API verification is now a required gate before any third-party integration ships.
+
 ---
 
-## Chat 41 Queue (Priority Order)
+## Chat 41 Strategic Queue (April 29)
 
-1. **ItineraryItem cascade-delete migration**: `ALTER TABLE "ItineraryItem" DROP CONSTRAINT ... ADD CONSTRAINT ... ON DELETE CASCADE` + Prisma schema update + sweep existing orphans. Structural fix; not blocking but affects every user.
+### Morning block — Foundation fixes (structural, no design decisions)
 
-2. **Cardinality `.find()` audit**: Codebase-wide sweep for `.find()` and `[0]` over per-entity collections. Document or fix each. Output is backlog enrichment, may include targeted fixes.
+**1. ItineraryItem cascade-delete migration**
+`ItineraryItem.tripId` FK is `ON DELETE SET NULL`. Trip deletion leaves orphan rows surfacing as "Unassigned bookings" for every user who has deleted a trip. Fix: `ALTER TABLE "ItineraryItem" DROP CONSTRAINT [fk_name] ADD CONSTRAINT ... ON DELETE CASCADE` + Prisma schema update + sweep existing orphans.
+- Structural fix, affects all users, no design decision required
+- Two Chicago orphan items already cleaned via direct SQL this session
 
-3. **Foundation audit pass** (optional, hour-long): Broader sweep through schema, data flows, and shared components for other latent foundation issues. Goal is surfacing implicit defaults that should be explicit decisions.
+**2. Cardinality `.find()` audit**
+Codebase-wide sweep for `.find()` and `[0]` over per-entity collections. The lodging anchor bug was fixed in 1A.5 but the pattern likely exists elsewhere. Output: backlog entries per callsite with severity. May include targeted fixes where root cause is clear.
 
-4. **Save Event verification**: Real bellwether of 1B Phase A — needs a real US/EU sports trip with active season events to validate end-to-end (save → EventSavedCard → "View tickets" link).
+### Mid-day block — Spots arc kickoff
 
-5. **Phase B events (deferred until foundation pass complete)**: Web-search-then-Haiku for live_music/comedy_shows/seasonal_events/family_kids. Asian city sports coverage via `eventsday.php` league path for KBO/NPB/K-League.
+**3. Spots arc — Phase 1 spec and skeleton**
+The Discover Spots tab exists but is placeholder. This is the next major feature arc after foundation pass. Phase 1 scope: define the Spots data model (what is a Spot vs a Recommendation vs a Save?), design the community contribution flow (who creates Spots, how are they curated?), and sketch the UI pattern. Chat 41 goal: written spec, not code. No implementation until the data model is agreed.
 
-**Defer until foundation pass complete:**
+Key questions to answer in spec:
+- Is a Spot user-generated or editorially curated?
+- Does a Spot have an owner (the user who created it) or is it community-owned?
+- How does a Spot relate to a SavedItem? (Same entity? Different?)
+- What is the Phase 1 MVP surface — Discover tab only, or also trip context?
+
+### Afternoon block — Events Phase B (research only, no code)
+
+**4. Events Phase B — adapter research**
+TheSportsDB free tier is not usable. Before writing any code, answer:
+- What does a city-aware sports event API look like at free/low-cost tier? (Ticketmaster Discovery API, SeatGeek Open API, PredictHQ)
+- Is web-search-then-Haiku a viable fallback for event discovery? What would the prompt look like?
+- What is the minimum viable adapter that could pass a live-API verification gate for a US city in active sports season?
+
+Output: recommendation memo, no code. Phase B implementation is a separate session.
+
+### Full backlog (not Chat 41)
+
 - Recommendation detail modal (Workstream 2)
 - Trip Intelligence email integration
-- SeatGeek Open API affiliate wiring
+- SeatGeek Open API affiliate wiring (after Phase B adapter decision)
+- Mobile app scaffold (iOS share sheet — unlocks Instagram)
+- Loops email sequences live
+- Booking Portal
+- Post-import verification flow (needsVerification flag)
+- GetYourGuide title extraction
+- Hydration error #418
+- Default time for untimed saves
 
 ---
 
@@ -197,7 +273,7 @@ Agent operating principles added to repo CLAUDE.md:
 
 - Greene Seoul-Busan Recommendations: segment-aware, correct city scoping
 - Greene Okinawa Recommendations: segment-aware, correct city scoping
-- Greene Seoul-Busan Events tab: empty state correctly framed (Korean sponsor-named teams Phase A gap acknowledged)
+- Greene Seoul-Busan Events tab: empty state rendered correctly (tab now hidden for all users — Phase A rolled back)
 - Autocomplete on trip creation: London disambiguation (London, England vs London, Ohio vs London, Ontario)
 - Autocomplete on Discover: Portland disambiguation (Oregon / Maine / Texas etc.)
 
@@ -211,7 +287,7 @@ Agent operating principles added to repo CLAUDE.md:
 4. Modal Pattern Discipline
 5. Universal URL Rule
 6. Universal Entity Status Rule
-7. **Foundation-First Verification** (new, Chat 40)
+7. **Foundation-First Verification** (new, Chat 40) — includes Live API Verification as sub-principle (added evening rollback)
 
 ---
 
