@@ -230,12 +230,62 @@ export async function GET(req: NextRequest) {
     .slice(0, 3)
     .map(([cat]) => cat);
 
-  const lodgingItem = trip.itineraryItems.find(i => i.type === "LODGING");
+  const allLodging = trip.itineraryItems.filter(i => i.type === "LODGING");
+  const checkIns  = allLodging.filter(i => /check[\s-]?in/i.test(i.title ?? ""));
+  const checkOuts = allLodging.filter(i => /check[\s-]?out/i.test(i.title ?? ""));
+
+  const lodgingStays = checkIns.map(ci => {
+    const ciName = (ci.title ?? "").replace(/^check[\s-]?in:\s*/i, "").trim();
+    const co = checkOuts.find(o =>
+      (o.title ?? "").replace(/^check[\s-]?out:\s*/i, "").trim() === ciName
+    );
+    const span = (co?.dayIndex ?? ci.dayIndex ?? 0) - (ci.dayIndex ?? 0);
+    return { item: ci, name: ciName, span };
+  });
+
+  const destCityTokens = (trip.destinationCity ?? "")
+    .toLowerCase()
+    .split(/[\s,]+/)
+    .filter(t => t.length >= 4);
+
+  const destinationMatches = destCityTokens.length > 0
+    ? lodgingStays.filter(s =>
+        destCityTokens.some(token => s.name.toLowerCase().includes(token))
+      )
+    : [];
+
+  const candidatePool = destinationMatches.length > 0 ? destinationMatches : lodgingStays;
+  const lodgingItem = candidatePool
+    .sort((a, b) => b.span - a.span)[0]?.item ?? null;
+
   const lodgingAddress = lodgingItem?.title ?? null;
   const lodgingName = lodgingItem?.title?.replace(/^check[\s-]?(?:in|out):\s*/i, "").trim() ?? null;
 
   const activitiesForProximity: ActivityForProximity[] = trip.itineraryItems
-    .filter(i => i.type === "ACTIVITY" && i.latitude != null && i.longitude != null)
+    .filter(i => {
+      if (i.type !== "ACTIVITY") return false;
+      if (i.latitude == null || i.longitude == null) return false;
+      // Filter activities whose coords look like city-center placeholder geocodes.
+      // Heuristic: within 1km of trip city-center anchor AND title has no destination token.
+      // False negatives (city-center activities excluded) are preferred over false positives
+      // (e.g. every Seoul rec matching a DMZ tour geocoded to Gwanghwamun).
+      if (trip.accommodationLat != null && trip.accommodationLng != null) {
+        const distFromCityCenter = haversineKm(
+          { lat: i.latitude, lng: i.longitude },
+          { lat: trip.accommodationLat, lng: trip.accommodationLng }
+        );
+        if (distFromCityCenter < 1) {
+          const titleLower = (i.title ?? "").toLowerCase();
+          const destTokens = (trip.destinationCity ?? "")
+            .toLowerCase()
+            .split(/[\s,]+/)
+            .filter(t => t.length >= 4);
+          const titleHasDestToken = destTokens.some(token => titleLower.includes(token));
+          if (!titleHasDestToken) return false;
+        }
+      }
+      return true;
+    })
     .map(i => ({
       title: i.title,
       lat: i.latitude!,
@@ -387,8 +437,8 @@ Prioritize proximity to lodging. Weight toward family-rhythm (wiggle breaks, sna
     proximityLabel: formatProximityLabel(computeProximity(
       rec.lat,
       rec.lng,
-      trip.accommodationLat ?? null,
-      trip.accommodationLng ?? null,
+      lodgingItem?.latitude ?? trip.accommodationLat ?? null,
+      lodgingItem?.longitude ?? trip.accommodationLng ?? null,
       lodgingName,
       activitiesForProximity,
     )),
