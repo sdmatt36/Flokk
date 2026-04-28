@@ -269,6 +269,36 @@ model Trip {
   countries                 String[]          @default([])
   placeRatings              PlaceRating[]
   intelDismissals           TripIntelDismissal[]
+  eventsContextHash         String?
+  eventsGeneratedAt         DateTime?
+  events                    Event[]
+}
+
+model Event {
+  id                String    @id @default(cuid())
+  tripId            String
+  trip              Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  segmentCity       String
+  category          String
+  title             String
+  venue             String?
+  venueLat          Float?
+  venueLng          Float?
+  startDateTime     DateTime
+  endDateTime       DateTime?
+  description       String?
+  imageUrl          String?
+  ticketUrl         String?
+  affiliateProvider String?
+  sourceProvider    String
+  sourceEventId     String
+  whyThisFamily     String?
+  relevanceScore    Float
+  expiresAt         DateTime
+  createdAt         DateTime  @default(now())
+
+  @@index([tripId])
+  @@unique([tripId, sourceProvider, sourceEventId])
 }
 
 model TripIntelDismissal {
