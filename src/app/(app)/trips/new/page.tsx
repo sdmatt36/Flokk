@@ -194,7 +194,7 @@ function NewTripForm() {
                         onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9F9F9"; }}
                         onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
                       >
-                        <span style={{ fontWeight: 600 }}>{s.cityName}</span>
+                        <span style={{ fontWeight: 600 }}>{s.cityName}{s.region && s.region !== s.countryName ? `, ${s.region}` : ""}</span>
                         {s.countryName && <span style={{ color: "#717171", marginLeft: 6 }}>{s.countryName}</span>}
                       </button>
                     </li>

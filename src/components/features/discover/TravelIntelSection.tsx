@@ -188,7 +188,7 @@ function PhotoArea({
 
 export function TravelIntelSection({ submitOpen, onSubmitClose }: { submitOpen?: boolean; onSubmitClose?: () => void } = {}) {
   const [city,             setCity]            = useState("");
-  const [suggestions,     setSuggestions]     = useState<{cityName: string; countryName: string}[]>([]);
+  const [suggestions,     setSuggestions]     = useState<{cityName: string; countryName: string; region?: string}[]>([]);
   const [showSuggestions, setShowSuggestions]  = useState(false);
   const cityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [appliedCity,     setAppliedCity]     = useState("");
@@ -205,7 +205,7 @@ export function TravelIntelSection({ submitOpen, onSubmitClose }: { submitOpen?:
   const [submitUrl,        setSubmitUrl]       = useState("");
   const [submitType,       setSubmitType]      = useState("Article");
   const [submitDest,       setSubmitDest]      = useState("");
-  const [submitDestSuggs,  setSubmitDestSuggs] = useState<{cityName: string; countryName: string}[]>([]);
+  const [submitDestSuggs,  setSubmitDestSuggs] = useState<{cityName: string; countryName: string; region?: string}[]>([]);
   const submitDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [submitAgeGroups,  setSubmitAgeGroups] = useState<string[]>(["All ages"]);
   const [submitNote,       setSubmitNote]      = useState("");
@@ -355,7 +355,7 @@ export function TravelIntelSection({ submitOpen, onSubmitClose }: { submitOpen?:
               >
                 <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
                 <span>
-                  <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{s.cityName}</span>
+                  <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{s.cityName}{s.region && s.region !== s.countryName ? `, ${s.region}` : ""}</span>
                   {s.countryName && s.countryName !== s.cityName && (
                     <span style={{ fontSize: "12px", color: "#888", marginLeft: "6px" }}>· {s.countryName}</span>
                   )}
@@ -467,7 +467,7 @@ export function TravelIntelSection({ submitOpen, onSubmitClose }: { submitOpen?:
                           >
                             <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
                             <span>
-                              <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{s.cityName}</span>
+                              <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{s.cityName}{s.region && s.region !== s.countryName ? `, ${s.region}` : ""}</span>
                               {s.countryName && s.countryName !== s.cityName && (
                                 <span style={{ fontSize: "12px", color: "#888", marginLeft: "6px" }}>· {s.countryName}</span>
                               )}

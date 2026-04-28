@@ -2142,7 +2142,7 @@ Your saved places, all in one spot
                       onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#F9F5F3"; }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#fff"; }}
                     >
-                      <span style={{ fontWeight: 600 }}>{s.cityName}</span>
+                      <span style={{ fontWeight: 600 }}>{s.cityName}{s.region && s.region !== s.countryName ? `, ${s.region}` : ""}</span>
                       {s.countryName && <span style={{ color: "#717171", marginLeft: 6 }}>{s.countryName}</span>}
                     </div>
                   ))}
@@ -2285,7 +2285,7 @@ Your saved places, all in one spot
                       onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#F9F5F3"; }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = "#fff"; }}
                     >
-                      <span style={{ fontWeight: 600 }}>{s.cityName}</span>
+                      <span style={{ fontWeight: 600 }}>{s.cityName}{s.region && s.region !== s.countryName ? `, ${s.region}` : ""}</span>
                       {s.countryName && <span style={{ color: "#717171", marginLeft: 6 }}>{s.countryName}</span>}
                     </div>
                   ))}

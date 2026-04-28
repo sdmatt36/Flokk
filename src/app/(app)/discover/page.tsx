@@ -300,7 +300,7 @@ function PlacesTab() {
   const [placesLoading, setPlacesLoading] = useState(false);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
 
-  const [citySuggestions, setCitySuggestions] = useState<{cityName: string; countryName: string; placeId?: string}[]>([]);
+  const [citySuggestions, setCitySuggestions] = useState<{cityName: string; countryName: string; region?: string; placeId?: string}[]>([]);
   const [showCitySuggestions, setShowCitySuggestions] = useState(false);
   const cityDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cityRef = useRef<HTMLDivElement>(null);
@@ -328,7 +328,7 @@ function PlacesTab() {
   const [showApSuggestions, setShowApSuggestions] = useState(false);
   const [apWebsite, setApWebsite] = useState("");
   const [apImageUrl, setApImageUrl] = useState<string | null>(null);
-  const [apCitySuggestions, setApCitySuggestions] = useState<{cityName: string; countryName: string; placeId?: string}[]>([]);
+  const [apCitySuggestions, setApCitySuggestions] = useState<{cityName: string; countryName: string; region?: string; placeId?: string}[]>([]);
   const [apShowCitySuggestions, setApShowCitySuggestions] = useState(false);
   const apCityDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const apCityDebounce2 = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -483,7 +483,7 @@ function PlacesTab() {
                 className="w-full px-4 py-3 text-sm text-[#1B3A5C] hover:bg-gray-50 text-left flex items-center gap-2"
                 style={{ background: "none", border: "none", fontFamily: "inherit", cursor: "pointer" }}
               >
-                <span className="font-semibold">{s.cityName}</span>
+                <span className="font-semibold">{s.cityName}{s.region && s.region !== s.countryName ? `, ${s.region}` : ""}</span>
                 {s.countryName && s.countryName !== s.cityName && (
                   <span className="text-gray-400 text-xs">· {s.countryName}</span>
                 )}
@@ -750,7 +750,7 @@ function PlacesTab() {
                       className="w-full px-4 py-3 text-sm text-[#1B3A5C] hover:bg-gray-50 text-left flex items-center gap-2"
                       style={{ background: "none", border: "none", fontFamily: "inherit", cursor: "pointer" }}
                     >
-                      <span className="font-semibold">{s.cityName}</span>
+                      <span className="font-semibold">{s.cityName}{s.region && s.region !== s.countryName ? `, ${s.region}` : ""}</span>
                       {s.countryName && s.countryName !== s.cityName && (
                         <span className="text-gray-400 text-xs">· {s.countryName}</span>
                       )}
@@ -1034,7 +1034,7 @@ export default function DiscoverPage() {
 
   // Global search
   const [searchQuery,    setSearchQuery]    = useState("");
-  const [suggestions,    setSuggestions]    = useState<{cityName: string; countryName: string; placeId?: string}[]>([]);
+  const [suggestions,    setSuggestions]    = useState<{cityName: string; countryName: string; region?: string; placeId?: string}[]>([]);
   const cityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showSuggestions,setShowSuggestions] = useState(false);
   const [searchResults,  setSearchResults]  = useState<SearchTrip[] | null>(null);
@@ -1378,7 +1378,7 @@ export default function DiscoverPage() {
                 >
                   <MapPin size={13} style={{ color: "#C4664A", flexShrink: 0 }} />
                   <span>
-                    <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{s.cityName}</span>
+                    <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{s.cityName}{s.region && s.region !== s.countryName ? `, ${s.region}` : ""}</span>
                     {s.countryName && s.countryName !== s.cityName && (
                       <span style={{ fontSize: "12px", color: "#888", marginLeft: "6px" }}>· {s.countryName}</span>
                     )}
