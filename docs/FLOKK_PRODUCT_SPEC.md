@@ -1286,7 +1286,14 @@ Source tags: [C37] surfaced Chat 37; [C38] surfaced Chat 38; [C39] surfaced Chat
 ### Family-utility and events (Be Helpful pillars)
 
 - Family-utility cards build, Phase A foundational [C38]
-- Events extraction build, Phase A foundational [C38]
+- Events extraction build, Phase A foundational [C38]: COMPLETE. Phase A (TheSportsDB sports-only) shipped Chat 40 commits fe92753–386cf4f.
+- Phase B: web-search-then-Haiku for global event coverage (live_music, comedy_shows, seasonal_events, family_kids) [C40]
+- Phase B: `eventsday.php` league-path for Asian cities where team names don't include city name (KBO, NPB, K-League) [C40]
+- SeatGeek Open API affiliate wiring: sports + music ticket links with commission [C40]
+- StubHub affiliate wiring: sports ticket fallback via Impact [C40]
+- Save Event → itinerary-day assignment: when saving event with eventDateTime, offer to add to corresponding itinerary day [C40]
+- Saved event remove flow: "✓ Saved" button click confirms removal [C40]
+- ItineraryItem cascade-delete migration: ALTER FK to ON DELETE CASCADE + sweep existing orphans [C40]
 
 ### Bug fixes and small repairs
 
@@ -1427,6 +1434,32 @@ Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product
 - Trips with no LODGING check-in items (all-hotel-less or day-trip format): `segments = []`, recAllocation falls back to single-segment 12 target, segmentCity = null on all recs, no proximityLabel rendered. Acceptable state — add fallback city derivation if pattern emerges.
 - "Okinawa" as derived city from comma-parse refers to the island/prefecture, not a municipality. Haiku uses this as the rec segmentCity label. Acceptable.
 - `recAllocation` drives Haiku's target per segment but Haiku may drift ±1–2. Not enforced server-side.
+
+**Workstream 1B Phase A — Events Tab (complete — commits fe92753, d61f786, 07e57de, de05003, 386cf4f)**
+
+**Architecture**: Multi-provider event pipeline with TheSportsDB as the only active Phase A provider. Providers are queried per trip segment (city + date window). Events stored in `Event` model with 24h TTL cache keyed to `eventsContextHash` (segments + categories + kidFriendly flag). Conditional cache write: only when Haiku enrichment succeeded or nothing to enrich.
+
+**TheSportsDB adapter (`src/lib/events/thesportsdb.ts`)**: `searchteams.php?t={city}` → teams filtered by `strSport` (Soccer, Baseball, Basketball, Ice Hockey, Cricket, Rugby) → `eventsnext.php` per team in parallel. Known Phase A gap: Korean/Japanese teams named after sponsors (Lotte Giants, not Busan Giants) won't be found via city-name search. US/EU cities where teams carry city names work correctly. Phase B will add `eventsday.php` league-based path for Asian cities. All 5 unit tests in `src/lib/events/__tests__/thesportsdb.test.ts`.
+
+**Kid-friendly filter**: Implicit when any child < 14 at trip start date OR explicit `kid_friendly` interest. Adult markers (18+, 21+, burlesque, etc.) excluded. Late-night (≥ 21:00) excluded except sports events.
+
+**Haiku enrichment**: Top 8 events by relevance score enriched with `whyThisFamily` (25-word max, taste-pattern reasoning). Batched 4 concurrent. Enrichment failure: cache not written, endpoint returns `enrichmentFailed: true`.
+
+**Ticket URL generation (`src/lib/events/ticket-urls.ts`)**: Server-side at cache-write time. Sports → `https://seatgeek.com/search?search={slug}` (slug: title lowercased, non-alphanumeric → hyphens). Other categories → Google search URL with title + "tickets" + date. Stored on `Event.ticketUrl`. `affiliateProvider` field stays null Phase A — wrapping function is a one-line swap when SeatGeek/StubHub affiliate accounts are wired.
+
+**Save Event (`POST /api/events/save`)**: Auth + profile check. Fetches Event by ID, confirms trip ownership. Dedup by `eventSourceProvider + eventSourceEventId` per profile (no double-save). Creates `SavedItem` with event fields: `eventDateTime`, `eventVenue`, `eventCategory`, `eventTicketUrl`, `eventSourceProvider`, `eventSourceEventId`. Status: `TRIP_ASSIGNED`. Schema migration: `20260428020000_add_event_fields_to_saved_item`.
+
+**Events tab UI**: "Events" tab inserted between Recommended and Packing. `EventsContent` fetches on tab open. Progressive loading phases (4s → "Searching...", 10s → "Almost there..."). Events grouped by `segmentCity`; segment headers suppressed for single-segment trips. Empty state: Calendar icon + honest "expanding coverage" copy naming the destination city. `EventSavedCard` renders in Saved tab for event-saves: same visual treatment (16/9 image, date badge overlay, venue, category pill, "View tickets →" when ticketUrl present). `+ Save` button transitions through Saving... → ✓ Saved, triggers `flokk:refresh` for Saved tab sync.
+
+**Bellwether behavior**: Greene Seoul-Busan + Okinawa → empty state (Asian city coverage gap, Phase A known). US/EU sports cities with active seasons → real events with SeatGeek ticket links on every card.
+
+**ItineraryItem cascade-delete structural bug (open backlog)**: `ItineraryItem.tripId` FK uses `ON DELETE SET NULL`, not `CASCADE`. Trip deletion leaves orphan items with `tripId = null`, surfaced as "Unassigned bookings" on home screen. Diagnosed via two orphan Chicago test items. Fix: `ALTER TABLE "ItineraryItem" DROP CONSTRAINT ... ADD CONSTRAINT ... ON DELETE CASCADE` + Prisma schema update + orphan sweep. Not blocking, added to backlog.
+
+**Affiliate roadmap (deferred)**:
+- SeatGeek Open API: free affiliate, 5% commission, sports + music
+- StubHub via Impact: paid program, requires approval
+- Ticketmaster Affiliate Network: paid, requires approval
+- Wrapping function: `(rawTicketUrl, category) → affiliateTaggedUrl`, `affiliateProvider` field already in schema
 
 ### April 27, 2026 — Chat 39
 
