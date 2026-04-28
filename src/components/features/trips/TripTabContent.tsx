@@ -5068,6 +5068,15 @@ function RecommendedContent({
   const [saveStates, setSaveStates] = useState<Record<string, "idle" | "loading" | "done" | "error">>({});
   const [itinStates, setItinStates] = useState<Record<string, "idle" | "loading" | "done" | "error">>({});
   const [recStatusMap, setRecStatusMap] = useState<Map<string, EntityStatusResult>>(new Map());
+  const [loadingPhase, setLoadingPhase] = useState<"initial" | "venues" | "almost">("initial");
+
+  useEffect(() => {
+    if (!aiLoading) return;
+    setLoadingPhase("initial");
+    const t1 = setTimeout(() => setLoadingPhase("venues"), 5000);
+    const t2 = setTimeout(() => setLoadingPhase("almost"), 12000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [aiLoading]);
 
   function generateDayPillsForRec(start: string | null, end: string | null): { dayIndex: number; label: string }[] {
     if (!start) return [];
@@ -5134,14 +5143,15 @@ function RecommendedContent({
 
   // Loading state
   if (aiLoading) {
+    const loadingMessage = {
+      initial: "Generating personalized recommendations for your trip...",
+      venues: "Finding venue photos and details...",
+      almost: "Almost there — putting it all together...",
+    }[loadingPhase];
     return (
       <div style={{ padding: "60px 24px", textAlign: "center" }}>
         <p style={{ fontSize: "15px", fontWeight: 600, color: "#1B3A5C", marginBottom: "6px" }}>Building recommendations for your family</p>
-        <p style={{ fontSize: "13px", color: "#717171" }}>
-          {members && members.length > 0
-            ? `Personalising for ${buildFamilyContextString(members)}...`
-            : "Personalising for your family..."}
-        </p>
+        <p style={{ fontSize: "13px", color: "#717171" }}>{loadingMessage}</p>
       </div>
     );
   }
@@ -5204,7 +5214,7 @@ function RecommendedContent({
           const recKey = `${rec.name.toLowerCase().trim()}|${(destinationCity ?? "").toLowerCase().trim()}`;
           const recStatus = recStatusMap.get(recKey) ?? null;
           const showRecAffordances = !recStatus || recStatus.showAffordance;
-          const cardImageUrl = rec.photoUrl ?? rec.imageUrl ?? null;
+          const cardImageUrl = rec.photoUrl ?? rec.imageUrl ?? getTripCoverImage(destinationCity, destinationCountry);
           return (
             <div
               key={`${rec.name}-${i}`}

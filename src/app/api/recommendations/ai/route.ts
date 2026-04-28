@@ -259,7 +259,7 @@ export async function GET(req: NextRequest) {
 
   const aiNeeded = AI_TOTAL - eventRecs.length - flokkerRecs.length;
 
-  const systemPrompt = `You are a family travel recommendation engine. You receive structured data about a real family and their trip. Return ONLY valid JSON — no markdown, no preamble. Return an array of exactly ${aiNeeded} recommendations. Do NOT suggest: ${alreadyNamed.join(", ")}. Each recommendation must be:
+  const systemPrompt = `You are a family travel recommendation engine. You receive structured data about a real family and their trip. Return ONLY valid JSON — no markdown, no preamble. Return an array of exactly ${aiNeeded} recommendations. Do NOT suggest these places (already saved or planned by the family): ${alreadyNamed.join(", ")}. Do NOT suggest variants or related events at these same locations either. CRITICAL: Each recommendation must be a unique physical place. Never generate multiple recommendations for the same venue with different framings (e.g., "Castle Ruins & Spring Flowers" and "Castle Sunflower Festival" both reference the same castle — pick ONE). One physical location = one card. If a place has multiple seasonal or event angles, pick the most relevant given the trip dates. Each recommendation must be:
 {
   "name": string,
   "category": string (exactly one of: food_and_drink, culture, nature_and_outdoors, adventure, experiences, sports_and_entertainment, shopping, kids_and_family, lodging, nightlife, wellness, other),
@@ -302,34 +302,52 @@ Prioritize proximity to lodging. Weight toward family-rhythm (wiggle breaks, sna
 
     const arr = Array.isArray(parsed) ? parsed : [];
 
-    for (const r of arr as Array<Record<string, unknown>>) {
-      const category = normalizeCategorySlug(r.category as string | null) ?? "other";
-      const websiteUrl = (r.websiteUrl as string | null) ?? resolveCanonicalUrl({
+    // Parse and prepare rec metadata (cheap, sequential)
+    const recMeta = (arr as Array<Record<string, unknown>>).map(r => ({
+      raw: r,
+      category: normalizeCategorySlug(r.category as string | null) ?? "other",
+      websiteUrl: (r.websiteUrl as string | null) ?? resolveCanonicalUrl({
         name: r.name as string,
         city: trip.destinationCity ?? "",
         country: trip.destinationCountry ?? undefined,
-      });
-      let imageUrl: string | null = null;
-      let placeId: string | null = null;
-      try {
-        const enriched = await enrichWithPlaces(r.name as string, trip.destinationCity ?? "");
-        imageUrl = enriched.imageUrl;
-        placeId = enriched.placeId;
-      } catch {
-        // enrichment failure is non-fatal
-      }
+      }),
+    }));
+
+    // Batch enrichWithPlaces calls with concurrency limit of 4
+    const CONCURRENCY = 4;
+    const enrichmentResults: Array<{ imageUrl: string | null; placeId: string | null }> = [];
+
+    for (let i = 0; i < recMeta.length; i += CONCURRENCY) {
+      const batch = recMeta.slice(i, i + CONCURRENCY);
+      const batchResults = await Promise.all(
+        batch.map(async (m) => {
+          try {
+            const e = await enrichWithPlaces(m.raw.name as string, trip.destinationCity ?? "");
+            return { imageUrl: e.imageUrl, placeId: e.placeId };
+          } catch {
+            return { imageUrl: null, placeId: null };
+          }
+        })
+      );
+      enrichmentResults.push(...batchResults);
+    }
+
+    // Build final aiRawRecs from metadata + enrichment results
+    for (let i = 0; i < recMeta.length; i++) {
+      const m = recMeta[i];
+      const enriched = enrichmentResults[i];
       aiRawRecs.push({
         source: "ai",
-        name: r.name as string,
-        category,
-        whyThisFamily: (r.whyThisFamily as string) ?? "",
-        ageAppropriate: (r.ageAppropriate as boolean) ?? true,
-        budgetTier: (r.budgetTier as string) ?? "Mid",
-        tip: (r.tip as string) ?? "",
-        tags: Array.isArray(r.tags) ? (r.tags as string[]) : [],
-        websiteUrl,
-        imageUrl,
-        placeId,
+        name: m.raw.name as string,
+        category: m.category,
+        whyThisFamily: (m.raw.whyThisFamily as string) ?? "",
+        ageAppropriate: (m.raw.ageAppropriate as boolean) ?? true,
+        budgetTier: (m.raw.budgetTier as string) ?? "Mid",
+        tip: (m.raw.tip as string) ?? "",
+        tags: Array.isArray(m.raw.tags) ? (m.raw.tags as string[]) : [],
+        websiteUrl: m.websiteUrl,
+        imageUrl: enriched.imageUrl,
+        placeId: enriched.placeId,
         photoUrl: null,
       });
     }
