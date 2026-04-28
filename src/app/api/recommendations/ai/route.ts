@@ -272,18 +272,34 @@ export async function GET(req: NextRequest) {
 }
 Prioritize proximity to lodging. Weight toward family-rhythm (wiggle breaks, snack stops) for families with young children. Trip duration: ${durationDays} days.`;
 
+  let aiGenerationSucceeded = false;
   const aiRawRecs: FetchedRec[] = [];
   try {
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 2000,
+      max_tokens: 4096,
       system: systemPrompt,
       messages: [{ role: "user", content: haikuPrompt }],
     });
 
     const raw = response.content[0].type === "text" ? response.content[0].text : "";
     const cleaned = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
-    const parsed = JSON.parse(cleaned);
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.error("[recommendations/ai] JSON parse failed", {
+        tripId,
+        rawLength: raw.length,
+        cleanedLength: cleaned.length,
+        rawPreview: raw.slice(0, 500),
+        stopReason: response.stop_reason,
+        error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+      });
+      throw parseErr;
+    }
+
     const arr = Array.isArray(parsed) ? parsed : [];
 
     for (const r of arr as Array<Record<string, unknown>>) {
@@ -317,25 +333,43 @@ Prioritize proximity to lodging. Weight toward family-rhythm (wiggle breaks, sna
         photoUrl: null,
       });
     }
+
+    aiGenerationSucceeded = true;
   } catch (err) {
-    console.error("[recommendations/ai] generation failed:", err);
+    console.error("[recommendations/ai] generation failed", {
+      tripId,
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack?.split("\n").slice(0, 5) : undefined,
+    });
   }
 
   const recommendations: FetchedRec[] = [...eventRecs, ...flokkerRecs, ...aiRawRecs];
 
-  console.log(
-    `[recommendations] tripId=${tripId} sources=event:${eventRecs.length} flokker:${flokkerRecs.length} ai:${aiRawRecs.length} total:${recommendations.length}`
-  );
+  const shouldCache = aiGenerationSucceeded || aiNeeded === 0;
 
-  // Write cache
-  await db.trip.update({
-    where: { id: tripId },
-    data: {
-      cachedRecommendations: recommendations as object[],
-      cachedRecommendationsGeneratedAt: new Date(),
-      cachedRecommendationsContextHash: contextHash,
-    },
+  console.log("[recommendations]", {
+    tripId,
+    sources: { event: eventRecs.length, flokker: flokkerRecs.length, ai: aiRawRecs.length },
+    total: recommendations.length,
+    aiGenerationSucceeded,
+    aiNeeded,
+    willCache: shouldCache,
   });
 
-  return NextResponse.json({ recommendations, cached: false });
+  if (shouldCache) {
+    await db.trip.update({
+      where: { id: tripId },
+      data: {
+        cachedRecommendations: recommendations as object[],
+        cachedRecommendationsGeneratedAt: new Date(),
+        cachedRecommendationsContextHash: contextHash,
+      },
+    });
+  }
+
+  return NextResponse.json({
+    recommendations,
+    cached: false,
+    aiGenerationFailed: !aiGenerationSucceeded && aiNeeded > 0,
+  });
 }
