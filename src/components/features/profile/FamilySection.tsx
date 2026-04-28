@@ -106,16 +106,16 @@ const INTEREST_CATEGORIES = [
   {
     label: "Entertainment",
     tiles: [
-      { key: "live_music", label: "Live music" },
-      { key: "sports_events", label: "Sports events" },
-      { key: "nightlife", label: "Nightlife" },
       { key: "cinemas", label: "Cinemas" },
       { key: "comedy_shows", label: "Comedy shows" },
       { key: "escape_rooms", label: "Escape rooms" },
-      { key: "gaming_arcades", label: "Gaming & arcades" },
-      { key: "seasonal_events", label: "Seasonal events" },
       { key: "family_kids", label: "Family & Kids" },
+      { key: "gaming_arcades", label: "Gaming & arcades" },
       { key: "kid_friendly", label: "Kid Friendly" },
+      { key: "live_music", label: "Live music" },
+      { key: "nightlife", label: "Nightlife" },
+      { key: "seasonal_events", label: "Seasonal events" },
+      { key: "sports_events", label: "Sports events" },
     ],
   },
   {
