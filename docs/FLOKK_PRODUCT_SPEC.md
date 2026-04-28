@@ -340,6 +340,61 @@ Scope: TripTabContent.tsx SavedHorizCard + SavedGridCard. ApiSavedItem and Saved
 
 ---
 
+## Foundation-First Verification (Operating Discipline #7)
+
+Established Chat 40, April 28 2026, after three compounding foundation bugs were diagnosed in a single session: autocomplete endpoint returning duplicate entries across 8 consuming surfaces, cardinality `.find()` picking the wrong lodging anchor on multi-city trips, and a cascade-delete FK defaulting to SET NULL and creating orphan ItineraryItems. All three bugs "passed tests" at write time but created user-perception-of-broken in real use.
+
+### The discipline
+
+Code that works under simple conditions and fails under realistic ones is not "working." Bugs at the foundation level (data ingestion, place identification, schema relationships, shared components, third-party API integrations) cascade silently into every feature built on top. Users do not perceive these as edge cases — they perceive Flokk as broken.
+
+**The foundational seams that demand explicit verification:**
+
+1. **External API integrations.** Every third-party API call (Google Places autocomplete, geocoding, Place Details, payment, auth, mapping) ships with explicit configuration documentation: types parameter, response field selection, default behavior on missing data, what happens at scale, what happens with malformed input. Defaults are decisions; if a default is accepted, it must be acknowledged as deliberate.
+
+2. **Schema relationships.** Foreign key onDelete behavior is an explicit decision, not a default. SET NULL vs CASCADE has user-facing consequences (orphaned data surfacing, vs silent data loss). Each relationship documents which behavior is intended and why.
+
+3. **Shared components and shared APIs.** Endpoints and components used across multiple surfaces (autocomplete inputs, card renderers, status pills, lookup APIs) carry their own contracts. A bug in one is a bug in all callsites. Changes to shared infrastructure require regression testing against all consuming surfaces.
+
+4. **Cardinality assumptions.** Code patterns like `.find()` over per-entity collections assume cardinality of 1 or pick non-deterministically. Multi-item realities (multi-lodging trips, multi-segment recommendations) break these silently. Any `.find()` or `[0]` over a per-entity collection requires either deterministic ordering or explicit handling of the multi-item case.
+
+5. **User input ambiguity.** When user input is ambiguous (multiple cities with the same name, similar venues with the same title), the system must disambiguate visibly — secondary text in dropdowns, place_id capture for unambiguous reference, structured data not collapsed strings.
+
+### The discipline applied to new feature work
+
+Before building on top of a foundational seam, verify it works correctly under realistic conditions. Examples:
+
+- Before building Events tab on top of trip.destinationCity, verify trip creation captures specific cities (not country names alone)
+- Before building proximity badges on top of ItineraryItem coordinates, verify coordinate validation isn't returning placeholder geocodes
+- Before building Recommendations on top of LODGING items, verify the lodging anchor selection handles multi-city trips deterministically
+
+If verification reveals foundation gaps, fix the foundation before continuing the feature build. The cost of building on broken foundation compounds; the cost of pausing to fix foundation is bounded.
+
+### Canonical examples (Chat 40, locked)
+
+**Autocomplete duplicates pattern (commits 5b13ba1, 5aafb21).** The `/api/destinations/lookup` endpoint had two compounding bugs that surfaced as 5+ identical "Portland · USA" entries in every place-input dropdown across 8 consuming surfaces (trip creation, Discover search, Travel Intel, lodging entry, etc.). Bug 1: `types` parameter set to `locality|administrative_area_level_3|administrative_area_level_2|administrative_area_level_1` requested the same place at four admin levels, producing duplicates by construction. Bug 2: `countryName` extracted from `terms[last].value` returned abbreviated forms ("USA" not "United States"), masking a latent bug in international sort logic that compared against the full string. Bug 3 (rendering): even after the API fix, the dropdown rendering template displayed only `cityName · countryName`, dropping the correctly-populated `region` field — five distinct Portlands (OR, ME, TX, etc.) still appeared identical. Required two commits to fully resolve. Verification gap: API fix shipped without verifying the user-visible result. Lesson: the foundational verification test isn't "tests pass" — it's "what does a user actually see?"
+
+**Cardinality `.find()` pattern (commit f47f212).** `trip.itineraryItems.find(i => i.type === "LODGING")` returns whichever lodging Prisma orders first. Multi-lodging trips silently picked the wrong anchor; downstream Recommendations referenced the wrong city. Fixed via destinationCity-token-match + longest-stay tiebreak. Pattern likely exists at other callsites; codebase audit queued.
+
+**Implicit cascade pattern (diagnosed Chat 40, fix queued).** `ItineraryItem.tripId` FK defaulted to ON DELETE SET NULL rather than explicit CASCADE. Trip deletion silently creates orphan ItineraryItems with `tripId = null`, surfacing as home-screen "Unassigned bookings." Affects every production user who has ever deleted a trip. Migration to ALTER FK to CASCADE + sweep existing orphans is in backlog.
+
+These three examples represent the class. New code should not exhibit these patterns. Existing code exhibiting these patterns is technical debt to be addressed.
+
+### The user-perception lens
+
+When evaluating whether a feature is "complete," ask: "Would a typical user reasonably perceive this as broken?" If yes, the feature is not complete regardless of which tests pass. Empty states, misrouted data, ambiguous selections, and silent data loss all create perception of broken-ness regardless of whether the code paths are technically correct.
+
+A feature is done when:
+1. Tests pass (necessary)
+2. TypeScript compiles cleanly (necessary)
+3. Realistic user behavior produces sensible results (necessary)
+4. Failure modes degrade gracefully (empty states are honest, errors recoverable, ambiguity disambiguated)
+5. The feature would not be perceived as broken by a typical user
+
+Perceived-broken is real-broken from a product perspective.
+
+---
+
 ## Tours
 
 ### Tour Generation
