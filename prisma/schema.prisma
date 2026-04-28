@@ -251,6 +251,9 @@ model Trip {
   packingItems          PackingItem[]
   bookingIntelCache     Json?
   bookingIntelUpdatedAt DateTime?
+  cachedRecommendations            Json?
+  cachedRecommendationsGeneratedAt DateTime?
+  cachedRecommendationsContextHash String?
   budgetTotal           Float?
   budgetSpent           Float?   // DEPRECATED: tracked total now computed from ItineraryItem.totalCost — do not write
   budgetCurrency        String?           @default("USD")

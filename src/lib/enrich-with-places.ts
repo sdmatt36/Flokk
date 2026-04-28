@@ -48,12 +48,12 @@ function cityMatches(
 export async function enrichWithPlaces(
   name: string,
   city: string
-): Promise<{ imageUrl: string | null; website: string | null; city: string | null }> {
-  if (!GOOGLE_MAPS_API_KEY || !name.trim()) return { imageUrl: null, website: null, city: null };
+): Promise<{ imageUrl: string | null; website: string | null; city: string | null; placeId: string | null }> {
+  if (!GOOGLE_MAPS_API_KEY || !name.trim()) return { imageUrl: null, website: null, city: null, placeId: null };
 
   try {
     const candidates = extractSearchableTitle(name);
-    if (candidates.length === 0) return { imageUrl: null, website: null, city: null };
+    if (candidates.length === 0) return { imageUrl: null, website: null, city: null, placeId: null };
 
     for (const candidate of candidates) {
       const query = [candidate.trim(), city.trim()].filter(Boolean).join(" ");
@@ -63,7 +63,7 @@ export async function enrichWithPlaces(
         `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&language=en&key=${GOOGLE_MAPS_API_KEY}`
       );
       const searchData = await searchRes.json() as { results?: { place_id: string }[] };
-      const placeId = searchData.results?.[0]?.place_id;
+      const placeId = searchData.results?.[0]?.place_id ?? null;
       if (!placeId) continue;
 
       // Step 2: Place details → name + website + photo_reference + address_components
@@ -134,13 +134,13 @@ export async function enrichWithPlaces(
         }
       }
 
-      return { imageUrl, website, city: extractedCity };
+      return { imageUrl, website, city: extractedCity, placeId };
     }
 
     // All candidates exhausted without a valid Places match
     console.log(`[enrich-no-match] "${name}" exhausted ${candidates.length} candidates`);
-    return { imageUrl: null, website: null, city: null };
+    return { imageUrl: null, website: null, city: null, placeId: null };
   } catch {
-    return { imageUrl: null, website: null, city: null };
+    return { imageUrl: null, website: null, city: null, placeId: null };
   }
 }
