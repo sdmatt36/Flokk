@@ -4987,7 +4987,8 @@ type FallbackItem = {
   lng: number | null;
 };
 
-type AiRec = {
+type FetchedRec = {
+  source: "event" | "flokker" | "ai";
   name: string;
   category: string;
   whyThisFamily: string;
@@ -4995,7 +4996,11 @@ type AiRec = {
   budgetTier: string;
   tip: string;
   tags: string[];
-  websiteUrl?: string;
+  websiteUrl: string | null;
+  imageUrl: string | null;
+  placeId: string | null;
+  photoUrl: string | null;
+  avgRating?: number;
 };
 
 function calcAgeFromIso(birthDateIso: string): number {
@@ -5053,10 +5058,8 @@ function RecommendedContent({
   onRefreshItinerary?: () => void;
 }) {
   const isDesktop = useIsDesktop();
-  // TODO Phase C cleanup: remove savedSet (unused since fetch upgrade)
-  const [savedSet, setSavedSet] = useState<Set<string>>(new Set());
   const [drawerRec, setDrawerRec] = useState<DrawerRec | null>(null);
-  const [aiRecs, setAiRecs] = useState<AiRec[]>([]);
+  const [aiRecs, setAiRecs] = useState<FetchedRec[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiLoaded, setAiLoaded] = useState(false);
   // fallback items kept for potential future re-use
@@ -5100,7 +5103,7 @@ function RecommendedContent({
     setAiLoading(true);
     fetch(`/api/recommendations/ai?tripId=${encodeURIComponent(tripId)}`)
       .then(r => r.json())
-      .then((data: { recommendations: AiRec[] }) => {
+      .then((data: { recommendations: FetchedRec[] }) => {
         setAiRecs(Array.isArray(data.recommendations) ? data.recommendations : []);
       })
       .catch(() => {})
@@ -5201,11 +5204,31 @@ function RecommendedContent({
           const recKey = `${rec.name.toLowerCase().trim()}|${(destinationCity ?? "").toLowerCase().trim()}`;
           const recStatus = recStatusMap.get(recKey) ?? null;
           const showRecAffordances = !recStatus || recStatus.showAffordance;
+          const cardImageUrl = rec.photoUrl ?? rec.imageUrl ?? null;
           return (
             <div
               key={`${rec.name}-${i}`}
               style={{ backgroundColor: "#fff", borderRadius: "16px", boxShadow: "0 1px 4px rgba(0,0,0,0.06)", border: "1px solid #F0F0F0", overflow: "hidden", display: "flex", flexDirection: "column" }}
             >
+              {/* Image header */}
+              <div
+                style={{
+                  height: "160px",
+                  backgroundImage: cardImageUrl ? `url(${cardImageUrl})` : undefined,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  backgroundColor: cardImageUrl ? undefined : "#1B3A5C",
+                  position: "relative",
+                  flexShrink: 0,
+                }}
+              >
+                {rec.source === "flokker" && rec.avgRating !== undefined && (
+                  <span style={{ position: "absolute", top: "10px", right: "10px", backgroundColor: "rgba(27,58,92,0.85)", color: "#fff", fontSize: "11px", fontWeight: 700, borderRadius: "999px", padding: "3px 10px" }}>
+                    {rec.avgRating.toFixed(1)} ★ Flokker pick
+                  </span>
+                )}
+              </div>
+
               {/* Header row */}
               <div style={{ padding: "14px 16px 10px", borderBottom: "1px solid #F5F5F5" }}>
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px", marginBottom: "6px" }}>
