@@ -271,6 +271,19 @@ If a request would build on top of a foundation that has not been verified, push
 
 Matt values diligence over speed when the trade-off matters. He has asked Claude Code to flag implicit defaults, surface trade-offs proactively, and pause for foundation verification before adding more layers. This is a feature, not a bug, of how the partnership works.
 
+## Live API Verification
+
+Unit tests with mocks verify your assumptions about an API. They do not verify the API. For any third-party integration:
+
+1. Before writing the adapter, hit the live API once with realistic queries. Document the actual response shape and behavior.
+2. Build the adapter against the documented live behavior, not assumed behavior.
+3. Run verification against the live API before declaring the integration "working" — mocked tests passing is necessary but not sufficient.
+4. If the adapter has known coverage gaps (free tier limitations, regional gaps, time-window limits), document them explicitly in code comments AND in the spec at integration time, not after a user reports the gap.
+
+This happened with TheSportsDB in Chat 40: the live `searchteams.php?t=Chicago` returns 0 results because it searches by team name not city, but tests mocked it returning Chicago Cubs. The adapter shipped, Events tab went live, every user saw empty state. The fix was hiding the tab until a verified adapter ships.
+
+This principle compounds with foundation-first: the adapter is a foundation for Events. Verifying the foundation requires verifying against reality, not against your assumed model of reality.
+
 ## Every Fix Must Be Universal
 
 Before writing any fix, answer these three questions:
