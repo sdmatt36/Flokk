@@ -60,6 +60,8 @@ export const INTERESTS: Interest[] = [
   { key: "sports_events", label: "Sports Events", category: "ENTERTAINMENT", emoji: "🏟️" },
   { key: "nightlife", label: "Nightlife", category: "ENTERTAINMENT", emoji: "🌙" },
   { key: "movies", label: "Cinemas", category: "ENTERTAINMENT", emoji: "🎬" },
+  { key: "family_kids", label: "Family & Kids", category: "ENTERTAINMENT", emoji: "👨‍👩‍👧" },
+  { key: "kid_friendly", label: "Kid Friendly", category: "ENTERTAINMENT", emoji: "🧒" },
   // SHOPPING
   { key: "boutiques", label: "Boutiques", category: "SHOPPING", emoji: "🛍️" },
   { key: "vintage", label: "Vintage & Thrift", category: "SHOPPING", emoji: "👗" },

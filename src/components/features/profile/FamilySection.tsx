@@ -114,6 +114,8 @@ const INTEREST_CATEGORIES = [
       { key: "escape_rooms", label: "Escape rooms" },
       { key: "gaming_arcades", label: "Gaming & arcades" },
       { key: "seasonal_events", label: "Seasonal events" },
+      { key: "family_kids", label: "Family & Kids" },
+      { key: "kid_friendly", label: "Kid Friendly" },
     ],
   },
   {
