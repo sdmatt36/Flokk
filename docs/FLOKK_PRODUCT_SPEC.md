@@ -1402,6 +1402,32 @@ Conversation capture rule (set Chat 38, April 26 2026): Every meaningful product
 
 **Trip Tours tab self-containment**: Trip Tours tab redesigned to be self-contained — map + stops inline in expand-in-place, "View tour" button removed. Full `/tour/[id]` page repurposed as public viewer for shared/cloned tours surfaced via Discover/Spots.
 
+### April 28, 2026 — Chat 40
+
+**Trip-Aware Multi-Segment Recommendations (complete — commits f47f212, 2351010, 2d98920)**: Full rebuild of the AI Recommendations engine to reason across the entire trip rather than a single destination anchor.
+
+**Segment derivation (`src/lib/trip-context-rich.ts`)**: `deriveSegments()` pairs LODGING check-in/check-out items by stripped name, sorts by dayStart, and emits `TripSegment[]` with city, lodging name, lat/lng, dayStart, dayEnd, nights. City resolution priority: (1) `toCity` on check-in row; (2) same-day inbound FLIGHT or TRAIN `toCity`; (3) comma-parse of lodging name (last component after final comma); (4) last word of lodging name. Duplicate check-in rows (real import artifact) deduplicated by stripped name before pairing. `[dayStart, dayEnd)` half-open ranges; transition days assign to arriving segment. Bellwether behavior locked: Seoul–Busan → ["Seoul" d0–d5, "Busan" d5–d8]; Okinawa → ["Naha" d0–d1 (via HND→OKA flight toCity), "Okinawa" d1–d4 (comma-parse from "Hyatt Regency Seragaki Island, Okinawa")].
+
+**Rec count allocation (Hamilton largest-remainder)**: `allocateRecCounts(segments, 12)` distributes target rec count proportionally to nights, resolving remainder to segments with largest fractional part. 5+3 nights → [8, 4]; equal fallback when all segments have 0 nights. Sum always equals targetTotal.
+
+**Haiku prompt — multi-segment framing**: System prompt passes all trip segments with recAllocation each, full itinerary, transit, saves, family profile, loved places (as TASTE SIGNALS not menu items — Haiku infers patterns and applies to THIS trip's cities), and dietary/mobility constraints. Each rec returned with `segmentCity` field. Null segmentCity → `proximityLabel: null` (no fallback to trip.destinationCity).
+
+**Per-rec proximity anchoring**: Each rec's proximity label is computed against its segment's lodging (not the trip anchor). Same-segment activities filtered before passing to `computeProximity`; activities within 1km of the segment lodging AND lacking a dest-city token in their title are excluded (catches placeholder coords like DMZ tour geocoded to Seoul pickup point). Recs with unknown or unresolvable segmentCity get `proximityLabel: null`.
+
+**EnrichWithPlaces city scoping**: `recCity = rec.segmentCity || trip.destinationCity` — Busan recs enriched via Busan Places query, not Seoul.
+
+**Lodging anchor bellwether fix (commit 9049f5a, this session)**: Replaced non-deterministic `find(LODGING)` with destinationCity-token-matched longest-stay selection. Prevents Baymond Hotel (Busan) returning as Seoul anchor.
+
+**Context hash caching**: SHA-256(destinationCity + sorted itineraryItemIds + sorted savedItemIds), 16-char hex. Conditional write: only when `aiGenerationSucceeded || aiNeeded === 0`. Prevents stale recs being written when Haiku fails mid-run.
+
+**Unit test suite**: 19 tests in `src/lib/__tests__/trip-context-rich.test.ts` covering `deriveSegments`, `allocateRecCounts`, and `assignActivityToSegment`. All pass.
+
+**Known limitations / backlog**:
+- Single-city trips with one lodging: 12 recs all in `recAllocation` = 12, segmentCity = that city. No regressions from multi-segment path.
+- Trips with no LODGING check-in items (all-hotel-less or day-trip format): `segments = []`, recAllocation falls back to single-segment 12 target, segmentCity = null on all recs, no proximityLabel rendered. Acceptable state — add fallback city derivation if pattern emerges.
+- "Okinawa" as derived city from comma-parse refers to the island/prefecture, not a municipality. Haiku uses this as the rec segmentCity label. Acceptable.
+- `recAllocation` drives Haiku's target per segment but Haiku may drift ±1–2. Not enforced server-side.
+
 ### April 27, 2026 — Chat 39
 
 **Tour Categorization Pipeline (complete)**: Forward path shipped (commit ba61d88) — TourStop.placeTypes captured at generate time, mapPlaceTypesToCanonicalSlugs() maps to canonical categoryTags at save time. Backfill of 13 legacy tour-saved items shipped (commit 0ff77ae). 0 manual-review items. vitest 4.1.5 installed; 13 unit tests added for mapper. PLACE_TYPE_MAP legacy emissions audit deferred to P3 backlog.
