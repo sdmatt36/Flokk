@@ -559,6 +559,10 @@ type SavedDisplayItem = {
   userRating: number | null;
   tripStatus: string | null;
   tripEndDate: string | null;
+  eventDateTime?: string | null;
+  eventVenue?: string | null;
+  eventCategory?: string | null;
+  eventTicketUrl?: string | null;
 };
 
 
@@ -1049,6 +1053,90 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
   );
 }
 
+function EventSavedCard({ item }: { item: SavedDisplayItem }) {
+  return (
+    <div style={{ background: "white", borderRadius: "12px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", marginBottom: "10px" }}>
+      <div
+        style={{
+          position: "relative",
+          aspectRatio: "16/9",
+          backgroundColor: "#1B3A5C",
+          backgroundImage: item.img ? `url(${item.img})` : undefined,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
+        {item.eventDateTime && (
+          <div
+            style={{
+              position: "absolute",
+              top: "12px",
+              right: "12px",
+              backgroundColor: "rgba(27,58,92,0.9)",
+              color: "white",
+              padding: "6px 12px",
+              borderRadius: "6px",
+              fontSize: "12px",
+              fontWeight: 600,
+            }}
+          >
+            {formatEventDateTime(item.eventDateTime)}
+          </div>
+        )}
+      </div>
+      <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "8px" }}>
+        <h4 style={{ fontSize: "15px", fontWeight: 600, color: "#1B3A5C", margin: 0 }}>
+          {item.title}
+        </h4>
+        {item.eventVenue && (
+          <p style={{ fontSize: "12px", color: "#717171", margin: 0 }}>
+            {item.eventVenue}
+          </p>
+        )}
+        {item.eventCategory && (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "3px 10px",
+              borderRadius: "999px",
+              backgroundColor: "rgba(196,102,74,0.15)",
+              color: "#C4664A",
+              fontSize: "11px",
+              fontWeight: 500,
+              alignSelf: "flex-start",
+            }}
+          >
+            {formatCategoryLabel(item.eventCategory)}
+          </span>
+        )}
+        {item.eventTicketUrl && (
+          <a
+            href={item.eventTicketUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "inline-block",
+              marginTop: "4px",
+              padding: "6px 14px",
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "white",
+              backgroundColor: "#C4664A",
+              border: "none",
+              borderRadius: "6px",
+              textDecoration: "none",
+              alignSelf: "flex-start",
+            }}
+          >
+            View tickets →
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const SAVED_FILTER_PILLS = ["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Kids Camps", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other", "Unorganized"];
 
 function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDelete, onShare }: {
@@ -1171,6 +1259,10 @@ type ApiSavedItem = {
   userRating?: number | null;
   tripStatus?: string | null;
   tripEndDate?: string | null;
+  eventDateTime?: string | null;
+  eventVenue?: string | null;
+  eventCategory?: string | null;
+  eventTicketUrl?: string | null;
 };
 
 const SAVED_SOURCE_LABEL: Record<string, string> = {
@@ -1183,6 +1275,7 @@ const SAVED_SOURCE_LABEL: Record<string, string> = {
 };
 
 function inferSavedCategory(item: ApiSavedItem): string {
+  if (item.categoryTags.includes("event")) return "EVENTS";
   const haystack = [...item.categoryTags, item.rawTitle ?? "", item.sourceUrl ?? ""].join(" ").toLowerCase();
   if (/lodg|hotel|resort|hostel|airbnb\.com|booking\.com|vrbo|accommodation/.test(haystack)) return "LODGING";
   if (/flight|airline|airfare|transport|koreanair|asiana|united\.com|delta\.com|aa\.com|jal\.|ana\.|singaporeair|cathaypacific|qatarairways|emirates\.com|etihad|lufthansa|airfrance|britishairways|ba\.com|southwest|ryanair|easyjet|google\.com\/travel\/flights/.test(haystack)) return "AIRFARE";
@@ -1233,6 +1326,10 @@ function apiToDisplayItem(item: ApiSavedItem): SavedDisplayItem {
     userRating: item.userRating ?? null,
     tripStatus: item.tripStatus ?? null,
     tripEndDate: item.tripEndDate ?? null,
+    eventDateTime: item.eventDateTime ?? null,
+    eventVenue: item.eventVenue ?? null,
+    eventCategory: item.eventCategory ?? null,
+    eventTicketUrl: item.eventTicketUrl ?? null,
   };
 }
 
@@ -1344,17 +1441,21 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
           <span style={{ fontSize: "11px", color: "#bbb", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>{section.items.length}</span>
         </div>
         {section.items.map(item => (
-          <SavedHorizCard
-            key={item.title + item.detail}
-            item={item}
-            isDesktop={isDesktop}
-            onAddToItinerary={() => handleAddToItinerary(item)}
-            onBook={() => handleBook(item)}
-            onLearnMore={() => handleLearnMore(item)}
-            assignedDay={assignedDays[item.title]}
-            onDelete={() => handleDeleteSave(item)}
-            onShare={() => handleShare(item)}
-          />
+          item.eventDateTime ? (
+            <EventSavedCard key={item.id} item={item} />
+          ) : (
+            <SavedHorizCard
+              key={item.title + item.detail}
+              item={item}
+              isDesktop={isDesktop}
+              onAddToItinerary={() => handleAddToItinerary(item)}
+              onBook={() => handleBook(item)}
+              onLearnMore={() => handleLearnMore(item)}
+              assignedDay={assignedDays[item.title]}
+              onDelete={() => handleDeleteSave(item)}
+              onShare={() => handleShare(item)}
+            />
+          )
         ))}
       </div>
     );
@@ -5522,6 +5623,7 @@ function EventsContent({
               <EventCardItem
                 key={event.id}
                 event={event}
+                tripId={tripId}
                 destinationCity={destinationCity}
                 destinationCountry={destinationCountry}
               />
@@ -5535,25 +5637,50 @@ function EventsContent({
 
 function EventCardItem({
   event,
+  tripId,
   destinationCity,
   destinationCountry,
 }: {
   event: EventCard;
+  tripId?: string;
   destinationCity?: string | null;
   destinationCountry?: string | null;
 }) {
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const coverImage = event.imageUrl ?? getTripCoverImage(destinationCity, destinationCountry);
+
+  const handleSaveEvent = async () => {
+    if (saving || saved || !tripId) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/events/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tripId, eventId: event.id }),
+      });
+      if (res.ok) {
+        setSaved(true);
+        window.dispatchEvent(new Event("flokk:refresh"));
+      }
+    } catch (err) {
+      console.error("[event save] failed", err);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const saveButtonStyle: React.CSSProperties = {
     padding: "6px 14px",
     fontSize: "12px",
     fontWeight: 600,
-    color: "#717171",
-    backgroundColor: "white",
-    border: "1.5px solid #E0E0E0",
+    color: saved ? "white" : "#717171",
+    backgroundColor: saved ? "#C4664A" : "white",
+    border: saved ? "none" : "1.5px solid #E0E0E0",
     borderRadius: "6px",
-    cursor: "pointer",
+    cursor: saving || saved ? "default" : "pointer",
     whiteSpace: "nowrap",
+    opacity: saving ? 0.6 : 1,
   };
   const ticketsButtonStyle: React.CSSProperties = {
     padding: "6px 14px",
@@ -5627,10 +5754,11 @@ function EventCardItem({
         )}
         <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
           <button
-            onClick={() => alert("Save event coming in Phase B")}
+            onClick={handleSaveEvent}
+            disabled={saving || saved}
             style={saveButtonStyle}
           >
-            + Save
+            {saving ? "Saving..." : saved ? "✓ Saved" : "+ Save"}
           </button>
           {event.ticketUrl && (
             <a
