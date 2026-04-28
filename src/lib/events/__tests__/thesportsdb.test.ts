@@ -13,44 +13,22 @@ const BUSAN_PARAMS: EventQueryParams = {
   categories: ["sports_events"],
 };
 
-// Returns an empty leagues response for all sports except the one provided.
-function makeLeagueResponse(forSport: string, sport: string): object {
-  if (sport !== forSport) return { countrys: [] };
-  return {
-    countrys: [{ idLeague: "4408", strLeague: "Korean Baseball Organization League" }],
-  };
-}
-
-// Wires up mockFetch for a full "Lotte Giants events in Busan" run.
-// Soccer/Basketball/IceHockey/Cricket/Rugby leagues → empty.
-// Baseball leagues → KBO.
-// KBO teams → Lotte Giants (strCity: Busan).
-// Lotte Giants next events → one in range, one outside.
+// Wires up mockFetch for a "Lotte Giants events in Busan" run.
+// searchteams?t=Busan → Lotte Giants (Baseball).
+// eventsnext for Lotte Giants → one event in range, one outside.
 function setupLotteGiantsMock(inRangeDate: string, outOfRangeDate: string) {
-  const sports = ["Soccer", "Baseball", "Basketball", "Ice Hockey", "Cricket", "Rugby"];
   mockFetch.mockImplementation((url: string) => {
-    // League lookups
-    for (const sport of sports) {
-      if (url.includes("search_all_leagues.php") && url.includes(encodeURIComponent(sport))) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(makeLeagueResponse("Baseball", sport)),
-        });
-      }
-    }
-    // Team lookup for KBO
-    if (url.includes("lookup_all_teams.php?id=4408")) {
+    if (url.includes("searchteams.php") && url.includes("Busan")) {
       return Promise.resolve({
         ok: true,
         json: () =>
           Promise.resolve({
             teams: [
-              { idTeam: "133739", strTeam: "Lotte Giants", strCity: "Busan", strStadiumLocation: "Busan" },
+              { idTeam: "133739", strTeam: "Lotte Giants", strSport: "Baseball" },
             ],
           }),
       });
     }
-    // Events for Lotte Giants
     if (url.includes("eventsnext.php?id=133739")) {
       return Promise.resolve({
         ok: true,
@@ -101,7 +79,7 @@ describe("fetchSportsDBEvents", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
-  it("KBO team in Busan returns Lotte Giants event in date range", async () => {
+  it("city team search returns Lotte Giants event in date range", async () => {
     setupLotteGiantsMock("2026-04-04", "2026-04-10");
     const result = await fetchSportsDBEvents(BUSAN_PARAMS);
 
@@ -122,34 +100,34 @@ describe("fetchSportsDBEvents", () => {
     expect(titles).not.toContain("Lotte Giants vs Kia Tigers");
   });
 
-  it("failed league lookup does not cascade to other sports", async () => {
-    const sports = ["Soccer", "Baseball", "Basketball", "Ice Hockey", "Cricket", "Rugby"];
+  it("failed event lookup for one team does not cascade to other teams", async () => {
+    const chicagoParams: EventQueryParams = {
+      city: "Chicago",
+      country: "United States",
+      startDate: new Date("2026-04-03T00:00:00"),
+      endDate: new Date("2026-04-06T23:59:59"),
+      categories: ["sports_events"],
+    };
+
     mockFetch.mockImplementation((url: string) => {
-      // Soccer league lookup hard-fails
-      if (url.includes("search_all_leagues.php") && url.includes("Soccer")) {
-        return Promise.reject(new Error("Network error"));
-      }
-      // Baseball league lookup succeeds with KBO
-      for (const sport of sports) {
-        if (url.includes("search_all_leagues.php") && url.includes(encodeURIComponent(sport))) {
-          return Promise.resolve({
-            ok: true,
-            json: () => Promise.resolve(makeLeagueResponse("Baseball", sport)),
-          });
-        }
-      }
-      if (url.includes("lookup_all_teams.php?id=4408")) {
+      if (url.includes("searchteams.php") && url.includes("Chicago")) {
         return Promise.resolve({
           ok: true,
           json: () =>
             Promise.resolve({
               teams: [
-                { idTeam: "133739", strTeam: "Lotte Giants", strCity: "Busan", strStadiumLocation: "Busan" },
+                { idTeam: "135269", strTeam: "Chicago Cubs", strSport: "Baseball" },
+                { idTeam: "135253", strTeam: "Chicago White Sox", strSport: "Baseball" },
               ],
             }),
         });
       }
-      if (url.includes("eventsnext.php?id=133739")) {
+      // Cubs lookup hard-fails
+      if (url.includes("eventsnext.php?id=135269")) {
+        return Promise.reject(new Error("Network error"));
+      }
+      // White Sox succeeds
+      if (url.includes("eventsnext.php?id=135253")) {
         return Promise.resolve({
           ok: true,
           json: () =>
@@ -157,8 +135,8 @@ describe("fetchSportsDBEvents", () => {
               events: [
                 {
                   idEvent: "evt1",
-                  strEvent: "Lotte Giants vs NC Dinos",
-                  strVenue: "Sajik Baseball Stadium",
+                  strEvent: "White Sox vs Tigers",
+                  strVenue: "Guaranteed Rate Field",
                   dateEvent: "2026-04-04",
                   strTime: "18:00:00",
                   strThumb: null,
@@ -170,8 +148,8 @@ describe("fetchSportsDBEvents", () => {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
     });
 
-    const result = await fetchSportsDBEvents(BUSAN_PARAMS);
+    const result = await fetchSportsDBEvents(chicagoParams);
     expect(result).toHaveLength(1);
-    expect(result[0].title).toBe("Lotte Giants vs NC Dinos");
+    expect(result[0].title).toBe("White Sox vs Tigers");
   });
 });
