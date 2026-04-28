@@ -154,6 +154,13 @@ type Activity = {
   type?: string | null;
 };
 
+// Disabled until Phase B web-search-Haiku adapter ships. TheSportsDB free tier
+// searchteams.php?t={city} searches by team name not city — returns 0 results for
+// every major US market (Chicago, NYC, LA, San Diego all empty against live API).
+// eventsnext.php also only returns ~1 near-term game, insufficient for trips >1 week out.
+// Re-enable when Phase B is verified against live data. See Chat 40 handoff.
+const SHOW_EVENTS_TAB = false;
+
 // ── Shared sub-components ────────────────────────────────────────────────────
 
 function SourceIcon({ type }: { type: string }) {
@@ -7385,7 +7392,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           marginBottom: "20px",
         }}
       >
-        {(["Saved", "Itinerary", "Tours", "Recommended", "Events", "Packing", "Notes", "Vault"] as const).map((label) => {
+        {(["Saved", "Itinerary", "Tours", "Recommended", ...(SHOW_EVENTS_TAB ? ["Events"] : []), "Packing", "Notes", "Vault"] as const).map((label) => {
           const key = label.toLowerCase() as Tab;
           const active = tab === key;
           return (
@@ -8238,7 +8245,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         />
       )}
 
-      {tab === "events" && (
+      {tab === "events" && SHOW_EVENTS_TAB && (
         <EventsContent
           tripId={tripId}
           destinationCity={destinationCity}
