@@ -106,7 +106,7 @@ import { ShareTripButton } from "@/components/features/trips/ShareTripButton";
 import { getEntityStatus, type EntityStatusResult } from "@/lib/entity-status";
 import { EntityStatusPill } from "@/components/ui/EntityStatusPill";
 import { buildSaveStatusMap } from "@/lib/save-status-map";
-import { sharePlace } from "@/lib/share";
+import { shareEntity } from "@/lib/share";
 import { NoteEditor, type TiptapDoc, emptyDoc } from "@/components/features/notes/NoteEditor";
 
 type Tab = "saved" | "itinerary" | "tours" | "recommended" | "events" | "packing" | "notes" | "vault" | "howwasit";
@@ -1437,7 +1437,7 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
       .catch(e => console.error("[delete save]", e));
   }
   async function handleShare(item: SavedDisplayItem) {
-    const result = await sharePlace({ name: item.title, city: item.destinationCity ?? null, sourceTripId: tripIdProp, sourceShareToken: shareToken });
+    const result = await shareEntity({ entityType: "saved_item", entityId: item.id });
     if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); }
   }
 
@@ -3233,7 +3233,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                     <button
                                                       onClick={async e => {
                                                         e.stopPropagation();
-                                                        const result = await sharePlace({ name: a.title, city: destinationCity ?? null, sourceTripId: tripId, sourceShareToken: shareToken });
+                                                        const result = await shareEntity({ entityType: "saved_item", entityId: a.savedItemId! });
                                                         if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); }
                                                       }}
                                                       style={{ background: "none", border: "none", cursor: "pointer", color: "#C4664A", padding: "2px", lineHeight: 1, fontSize: "11px", fontFamily: "inherit" }}
@@ -3372,7 +3372,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                   <button
                                                     onClick={async e => {
                                                       e.stopPropagation();
-                                                      const result = await sharePlace({ name: a.title, city: destinationCity ?? null, sourceTripId: tripId, sourceShareToken: shareToken });
+                                                      const result = await shareEntity({ entityType: "manual_activity", entityId: a.id });
                                                       if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); }
                                                     }}
                                                     style={{ background: "none", border: "none", cursor: "pointer", color: "#C4664A", padding: "2px", lineHeight: 1, fontSize: "11px", fontFamily: "inherit" }}
@@ -3430,8 +3430,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                             <Pencil size={14} />
                                           </button>
                                         );
-                                        const shareBtn = (title: string) => (
-                                          <button onClick={async e => { e.stopPropagation(); const result = await sharePlace({ name: title, city: destinationCity ?? null, sourceTripId: tripId, sourceShareToken: shareToken }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } }} style={{ background: "none", border: "none", cursor: "pointer", color: "#C4664A", padding: "2px", flexShrink: 0, fontSize: "11px", fontFamily: "inherit" }} title="Share">
+                                        const shareBtn = (entityId: string) => (
+                                          <button onClick={async e => { e.stopPropagation(); const result = await shareEntity({ entityType: "itinerary_item", entityId }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } }} style={{ background: "none", border: "none", cursor: "pointer", color: "#C4664A", padding: "2px", flexShrink: 0, fontSize: "11px", fontFamily: "inherit" }} title="Share">
                                             Share
                                           </button>
                                         );
@@ -3480,7 +3480,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                   </div>
                                                 </div>
                                                 <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
-                                                  {shareBtn(it.title ?? "")}
+                                                  {shareBtn(it.id)}
                                                   {matchFlight && pencilBtn(() => setEditingFlight(matchFlight))}
                                                 </div>
                                               </div>
@@ -3513,7 +3513,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                   </div>
                                                 </div>
                                                 <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
-                                                  {shareBtn(hotelName)}
+                                                  {shareBtn(it.id)}
                                                   {pencilBtn(() => setSelectedItineraryItem(it))}
                                                 </div>
                                               </div>
@@ -3546,7 +3546,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                   </div>
                                                 </div>
                                                 <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
-                                                  {shareBtn(trainRoute)}
+                                                  {shareBtn(it.id)}
                                                   {pencilBtn(() => setSelectedItineraryItem(it))}
                                                 </div>
                                               </div>
@@ -3572,7 +3572,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                 </div>
                                               </div>
                                               <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
-                                                {shareBtn(it.title ?? "")}
+                                                {shareBtn(it.id)}
                                                 {pencilBtn(() => { if (it.type === "ACTIVITY") setEditActivityTitle(it.title ?? ""); setSelectedItineraryItem(it); })}
                                               </div>
                                             </div>
@@ -6633,6 +6633,8 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
   const [pendingRemovals, setPendingRemovals] = useState<Record<string, { stop: StopPreview; tourId: string; timer: ReturnType<typeof setTimeout>; startedAt: number }>>({});
   const [originalTargetStops, setOriginalTargetStops] = useState<Record<string, number>>({});
   const [isRegenerating, setIsRegenerating] = useState<string | null>(null);
+  const [shareToast, setShareToast] = useState(false);
+  const shareToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Flush all pending DELETEs on unmount (best-effort, keepalive)
   useEffect(() => {
@@ -6996,6 +6998,12 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
 
               {/* Action row */}
               <div style={{ padding: "12px 16px 14px", display: "flex", gap: "10px", alignItems: "center" }} onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={async e => { e.stopPropagation(); const result = await shareEntity({ entityType: "generated_tour", entityId: tour.id }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } }}
+                  style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+                >
+                  Share
+                </button>
                 <a
                   href={tripId ? `/tour?tripId=${tripId}` : "/tour"}
                   style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
@@ -7135,6 +7143,12 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
               Keep it
             </button>
           </div>
+        </div>
+      )}
+
+      {shareToast && (
+        <div style={{ position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)", background: "#1B3A5C", color: "white", borderRadius: 8, padding: "8px 16px", fontSize: "13px", fontWeight: 600, zIndex: 9999, pointerEvents: "none" }}>
+          Link copied to clipboard
         </div>
       )}
     </div>

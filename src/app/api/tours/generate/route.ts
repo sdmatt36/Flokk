@@ -6,6 +6,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { haversineMeters } from "@/lib/geo";
 import { optimizeRouteOrder } from "@/lib/tour-route-optimization";
 import { resolveCanonicalUrl } from "@/lib/url-resolver";
+import { aggregateTripContext, flatChildAges, describePace, topInterests } from "@/lib/trip-context-multi";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -216,45 +217,67 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Family profile required to generate tours" }, { status: 400 });
     }
 
-    const profile = await db.familyProfile.findUnique({
-      where: { id: profileId },
-      include: {
-        members: { select: { name: true, role: true, dietaryRequirements: true, birthDate: true } },
-        interests: { select: { interestKey: true } },
-      },
-    });
-
+    // When a tripId is provided, aggregate context across all collaborator families.
+    // When generating a standalone tour (no tripId), fall back to single-profile context.
     let familyContext = "";
     let youngestChildAge: number | null = null;
     let childAgesContext = "ages not specified";
 
-    if (profile) {
-      const childAges: number[] = [];
-      const memberList = profile.members
-        .map(m => {
-          const age = ageFromBirthDate(m.birthDate);
-          if (m.role === "CHILD") {
-            if (age !== null) childAges.push(age);
-            return `${m.name ?? "Child"} (age ${age ?? "unknown"})`;
-          }
-          return `${m.name ?? "Adult"} (adult)`;
-        })
-        .join(", ");
-
-      if (childAges.length > 0) {
-        youngestChildAge = Math.min(...childAges);
-        childAgesContext = `children aged ${childAges.join(", ")}`;
+    if (tripId) {
+      const aggCtx = await aggregateTripContext(tripId);
+      const allChildAges = flatChildAges(aggCtx);
+      if (allChildAges.length > 0) {
+        youngestChildAge = Math.min(...allChildAges);
+        childAgesContext = `children aged ${allChildAges.join(", ")}`;
       }
-
-      const interestList = profile.interests.map(i => i.interestKey).join(", ");
-      const allDietary = [...new Set(profile.members.flatMap(m => m.dietaryRequirements as string[]))];
       const parts: string[] = [];
-      if (memberList) parts.push(`Family: ${memberList}`);
-      if (profile.travelStyle) parts.push(`Travel style: ${profile.travelStyle}`);
-      if (profile.pace) parts.push(`Pace: ${profile.pace}`);
-      if (interestList) parts.push(`Interests: ${interestList}`);
-      if (allDietary.length > 0) parts.push(`Dietary notes: ${allDietary.join(", ")}`);
+      if (aggCtx.isMultiFamily) {
+        parts.push(`Multiple families: ${aggCtx.contributingFamilies.map(f => f.familyName ?? "Family").join(", ")}`);
+      }
+      if (aggCtx.styleCues.length > 0) parts.push(`Travel style: ${aggCtx.styleCues.join(", ")}`);
+      const pace = describePace(aggCtx);
+      if (pace) parts.push(`Pace: ${pace}`);
+      const interests = topInterests(aggCtx, 8);
+      if (interests.length > 0) parts.push(`Interests: ${interests.join(", ")}`);
+      if (aggCtx.dietaryRestrictions.length > 0) parts.push(`Dietary (must accommodate ALL families): ${aggCtx.dietaryRestrictions.join(", ")}`);
       familyContext = parts.join(". ");
+    } else {
+      const profile = await db.familyProfile.findUnique({
+        where: { id: profileId },
+        include: {
+          members: { select: { name: true, role: true, dietaryRequirements: true, birthDate: true } },
+          interests: { select: { interestKey: true } },
+        },
+      });
+
+      if (profile) {
+        const childAges: number[] = [];
+        const memberList = profile.members
+          .map(m => {
+            const age = ageFromBirthDate(m.birthDate);
+            if (m.role === "CHILD") {
+              if (age !== null) childAges.push(age);
+              return `${m.name ?? "Child"} (age ${age ?? "unknown"})`;
+            }
+            return `${m.name ?? "Adult"} (adult)`;
+          })
+          .join(", ");
+
+        if (childAges.length > 0) {
+          youngestChildAge = Math.min(...childAges);
+          childAgesContext = `children aged ${childAges.join(", ")}`;
+        }
+
+        const interestList = profile.interests.map(i => i.interestKey).join(", ");
+        const allDietary = [...new Set(profile.members.flatMap(m => m.dietaryRequirements as string[]))];
+        const parts: string[] = [];
+        if (memberList) parts.push(`Family: ${memberList}`);
+        if (profile.travelStyle) parts.push(`Travel style: ${profile.travelStyle}`);
+        if (profile.pace) parts.push(`Pace: ${profile.pace}`);
+        if (interestList) parts.push(`Interests: ${interestList}`);
+        if (allDietary.length > 0) parts.push(`Dietary notes: ${allDietary.join(", ")}`);
+        familyContext = parts.join(". ");
+      }
     }
 
     const maxWalk = maxWalkMinutes(youngestChildAge);

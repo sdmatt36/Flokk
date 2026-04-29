@@ -70,6 +70,23 @@ export default function OnboardingPage() {
           : errorData.error ?? `HTTP ${res.status}`;
         throw new Error(msg);
       }
+      // Recover share intent set before sign-up
+      const INTENT_KEY = "flokk_share_intent";
+      const INTENT_TTL_MS = 10 * 60 * 1000;
+      try {
+        const raw = localStorage.getItem(INTENT_KEY);
+        if (raw) {
+          const intent = JSON.parse(raw) as { token?: string; ts?: number };
+          if (intent.token && intent.ts && Date.now() - intent.ts < INTENT_TTL_MS) {
+            localStorage.removeItem(INTENT_KEY);
+            router.push(`/s/${intent.token}`);
+            return;
+          }
+          localStorage.removeItem(INTENT_KEY);
+        }
+      } catch {
+        // localStorage unavailable — fall through to /home
+      }
       router.push("/home");
     } catch (err) {
       console.error("Onboarding submit error:", err);

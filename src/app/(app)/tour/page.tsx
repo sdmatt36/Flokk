@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { RotateCcw } from "lucide-react";
 import TourResults from "@/components/TourResults";
 import { TourActionMenu } from "@/components/tours/TourActionMenu";
+import { shareEntity } from "@/lib/share";
 
 type DestinationSuggestion = {
   placeId: string;
@@ -337,13 +338,27 @@ export default function TourPage() {
     return (
       <div className="min-h-screen bg-white">
         <div className="max-w-2xl mx-auto pt-8 px-4 pb-16">
-          <button
-            onClick={handleReset}
-            className="flex items-center gap-1 text-sm text-[#1B3A5C] underline cursor-pointer mb-6"
-          >
-            <RotateCcw size={14} />
-            Start over
-          </button>
+          <div className="flex items-center gap-4 mb-6">
+            <button
+              onClick={handleReset}
+              className="flex items-center gap-1 text-sm text-[#1B3A5C] underline cursor-pointer"
+            >
+              <RotateCcw size={14} />
+              Start over
+            </button>
+            {results.tourId && (
+              <button
+                onClick={async () => {
+                  const r = await shareEntity({ entityType: "generated_tour", entityId: results.tourId! });
+                  if (r.ok) alert("Link copied to clipboard");
+                }}
+                className="text-sm text-[#C4664A] font-semibold cursor-pointer bg-none border-none p-0"
+                style={{ background: "none", border: "none" }}
+              >
+                Share tour
+              </button>
+            )}
+          </div>
           <TourResults
             stops={stops}
             removedStops={removedStops}

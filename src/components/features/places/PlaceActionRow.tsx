@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { ExternalLink, Share2, Pencil, Plus, BookmarkCheck, CalendarPlus, Star } from "lucide-react";
 import { useAddToItinerary } from "./AddToItineraryProvider";
-import { sharePlace, type ShareablePlace } from "@/lib/share";
+import { shareEntity } from "@/lib/share";
+import type { ShareEntityType } from "@/lib/share-token";
 import type { AddToItineraryPlace } from "@/lib/add-to-itinerary";
 
-export interface PlaceActionRowPlace extends AddToItineraryPlace, ShareablePlace {
-  id?: string;
+export interface PlaceActionRowPlace extends AddToItineraryPlace {
+  shareEntityType?: ShareEntityType;
+  shareEntityId?: string;
 }
 
 export interface PlaceActionRowProps {
@@ -61,9 +63,13 @@ export function PlaceActionRow({
 
   const handleShare = async () => {
     if (sharing) return;
+    if (!place.shareEntityType || !place.shareEntityId) {
+      onShareToast?.("Share not available for this item");
+      return;
+    }
     setSharing(true);
     try {
-      const result = await sharePlace(place);
+      const result = await shareEntity({ entityType: place.shareEntityType, entityId: place.shareEntityId });
       if (result.ok) {
         onShareToast?.("Link copied to clipboard");
       } else {
@@ -187,15 +193,17 @@ export function PlaceActionRow({
               </button>
             ) : null}
 
-            <button
-              type="button"
-              onClick={handleShare}
-              disabled={sharing}
-              aria-label={`Share ${place.name}`}
-              style={{ ...btnBase, flex: 1, padding: "6px 4px", fontSize: 11, gap: 3 }}
-            >
-              <Share2 size={12} /> Share
-            </button>
+            {place.shareEntityId && (
+              <button
+                type="button"
+                onClick={handleShare}
+                disabled={sharing}
+                aria-label={`Share ${place.name}`}
+                style={{ ...btnBase, flex: 1, padding: "6px 4px", fontSize: 11, gap: 3 }}
+              >
+                <Share2 size={12} /> Share
+              </button>
+            )}
 
             {canEdit && onEdit ? (
               <button
@@ -274,15 +282,17 @@ export function PlaceActionRow({
             </button>
           )}
 
-          <button
-            type="button"
-            style={btnBase}
-            onClick={handleShare}
-            disabled={sharing}
-            aria-label={`Share ${place.name}`}
-          >
-            <Share2 size={14} /> Share
-          </button>
+          {place.shareEntityId && (
+            <button
+              type="button"
+              style={btnBase}
+              onClick={handleShare}
+              disabled={sharing}
+              aria-label={`Share ${place.name}`}
+            >
+              <Share2 size={14} /> Share
+            </button>
+          )}
 
           {canEdit && onEdit && (
             <button

@@ -58,6 +58,7 @@ type Props = {
   onDeleteCommit: (stop: Stop) => void;
   onPermanentRestore: (stop: Stop) => void;
   onReplaceStops: (stops: Stop[]) => void;
+  readOnly?: boolean;
 };
 
 function RemovalPlaceholder({ stop, onUndo }: { stop: Stop; onUndo: () => void }) {
@@ -80,7 +81,7 @@ function RemovalPlaceholder({ stop, onUndo }: { stop: Stop; onUndo: () => void }
   );
 }
 
-export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, walkViolations, originalTargetStops, onRemoveStop, onQuickUndo, onDeleteCommit, onPermanentRestore, onReplaceStops }: Props) {
+export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, walkViolations, originalTargetStops, onRemoveStop, onQuickUndo, onDeleteCommit, onPermanentRestore, onReplaceStops, readOnly = false }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [trips, setTrips] = useState<TripOption[]>([]);
   const [tripsLoading, setTripsLoading] = useState(false);
@@ -293,17 +294,19 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
           />
         ) : (
           <div key={stop.id} className="relative border border-gray-100 rounded-2xl mb-3 shadow-sm bg-white overflow-hidden">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleLocalRemove(stop);
-              }}
-              className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 shadow-sm hover:bg-white z-10"
-              aria-label={`Remove ${stop.name}`}
-            >
-              <X size={14} className="text-[#1B3A5C]" />
-            </button>
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleLocalRemove(stop);
+                }}
+                className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 shadow-sm hover:bg-white z-10"
+                aria-label={`Remove ${stop.name}`}
+              >
+                <X size={14} className="text-[#1B3A5C]" />
+              </button>
+            )}
 
             <div className="flex">
               {/* Image */}
@@ -369,7 +372,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
         )
       ))}
 
-      {gap > 0 && (
+      {gap > 0 && !readOnly && (
         <button
           type="button"
           onClick={handleRegenerate}
@@ -419,7 +422,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
         </div>
       )}
 
-      {stops.length > 0 && (
+      {stops.length > 0 && !readOnly && (
         <button
           onClick={openModal}
           className="w-full border border-[#1B3A5C] text-[#1B3A5C] rounded-xl py-3 px-6 text-sm font-medium mt-4"

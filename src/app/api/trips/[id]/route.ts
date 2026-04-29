@@ -103,7 +103,7 @@ export async function DELETE(
     return NextResponse.json({ error: "No family profile" }, { status: 400 });
   }
 
-  if (!(await canManageCollaborators(profileId, id))) {
+  if (!(await canManageCollaborators(profileId, id, 'DELETE_TRIP'))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

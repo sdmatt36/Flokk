@@ -15,6 +15,7 @@ import type { CommunitySpotPick } from "@/lib/rank-rated-picks";
 import { buildContextHash } from "@/lib/recommendation-context";
 import type { TripContext } from "@/lib/recommendation-context";
 import { extractRichTripContext, allocateRecCounts } from "@/lib/trip-context-rich";
+import { aggregateTripContext, flatChildAges, describePace, topInterests } from "@/lib/trip-context-multi";
 import { computeProximity, formatProximityLabel } from "@/lib/proximity-format";
 import type { ActivityForProximity } from "@/lib/proximity-format";
 
@@ -98,12 +99,16 @@ export async function GET(req: NextRequest) {
 
   console.log(`[recommendations] cache miss tripId=${tripId} — generating`);
 
-  const richContext = await extractRichTripContext(tripId, db);
+  const [richContext, aggCtx] = await Promise.all([
+    extractRichTripContext(tripId, db),
+    aggregateTripContext(tripId),
+  ]);
 
+  const aggChildAges = flatChildAges(aggCtx);
   const familyCtx: FamilyContext = {
-    childAges: richContext.family.childAges,
-    pace: richContext.family.pace,
-    interests: richContext.family.interests,
+    childAges: aggChildAges,
+    pace: describePace(aggCtx),
+    interests: topInterests(aggCtx, 10),
   };
   const durationDays = richContext.durationDays;
 
@@ -234,13 +239,16 @@ Generate exactly ${aiNeeded} recommendations distributed across segments per the
       ? richContext.savedForTrip.map(s => `- ${s.title}${s.city ? ` (${s.city})` : ""}`).join("\n")
       : "(none)",
     "",
-    "Family profile:",
-    `- Adults with kids ages: ${richContext.family.childAges.join(", ") || "(none)"}`,
-    `- Travel style: ${richContext.family.travelStyle || "unspecified"}, Pace: ${richContext.family.pace || "unspecified"}`,
-    `- Interests: ${richContext.family.interests.join(", ") || "(none specified)"}`,
+    aggCtx.isMultiFamily ? `Traveling families (${aggCtx.collaboratorCount} families):` : "Family profile:",
+    aggCtx.isMultiFamily
+      ? aggCtx.contributingFamilies.map(f => `- ${f.familyName ?? "Family"} (${f.memberCount} members)`).join("\n")
+      : null,
+    `- Kids ages across ${aggCtx.isMultiFamily ? "all families" : "family"}: ${aggChildAges.join(", ") || "(none)"}`,
+    `- Travel style: ${aggCtx.styleCues.join(", ") || "unspecified"}, Pace: ${describePace(aggCtx) || "unspecified"}`,
+    `- Interests: ${topInterests(aggCtx, 10).join(", ") || "(none specified)"}`,
     `- Home country: ${richContext.family.homeCountry || "unspecified"}`,
-    richContext.family.dietaryRequirements.length > 0 ? `- Dietary: ${richContext.family.dietaryRequirements.join(", ")}` : null,
-    richContext.family.mobilityNotes.length > 0 ? `- Mobility: ${richContext.family.mobilityNotes.join(", ")}` : null,
+    aggCtx.dietaryRestrictions.length > 0 ? `- Dietary (must accommodate ALL families): ${aggCtx.dietaryRestrictions.join(", ")}` : null,
+    aggCtx.accessibilityNeeds.length > 0 ? `- Accessibility (must accommodate ALL families): ${aggCtx.accessibilityNeeds.join(", ")}` : null,
     "",
     "Family taste signals — INFER patterns, do NOT match literally:",
     "",
@@ -261,7 +269,7 @@ Generate exactly ${aiNeeded} recommendations distributed across segments per the
     '  "name": string,',
     '  "category": string (exactly one of: food_and_drink, culture, nature_and_outdoors, adventure, experiences, sports_and_entertainment, shopping, kids_and_family, lodging, nightlife, wellness, other),',
     `  "segmentCity": string (REQUIRED — must match a segment city exactly: ${richContext.segments.map(s => `"${s.city}"`).join(" or ")}),`,
-    '  "whyThisFamily": string (specific reasoning for this family\'s inferred patterns or trip context),',
+    `  "whyThisFamily": string (specific reasoning for ${aggCtx.isMultiFamily ? "these families'" : "this family's"} inferred patterns or trip context),`,
     '  "ageAppropriate": boolean,',
     '  "budgetTier": string (one of: Free, Budget, Mid, Premium, Luxury),',
     '  "tip": string (one practical sentence),',

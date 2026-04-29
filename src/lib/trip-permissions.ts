@@ -31,9 +31,29 @@ export async function canEditTripContent(familyProfileId: string, tripId: string
   return access?.role === 'OWNER' || access?.role === 'EDITOR'
 }
 
-export async function canManageCollaborators(familyProfileId: string, tripId: string): Promise<boolean> {
+export type CollaboratorManagementAction =
+  | 'INVITE_EDITOR'
+  | 'INVITE_VIEWER'
+  | 'REMOVE'
+  | 'CHANGE_ROLE'
+  | 'DELETE_TRIP';
+
+export async function canManageCollaborators(
+  familyProfileId: string,
+  tripId: string,
+  action: CollaboratorManagementAction
+): Promise<boolean> {
   const access = await getTripAccess(familyProfileId, tripId)
-  return access?.role === 'OWNER'
+  if (!access) return false
+  switch (action) {
+    case 'INVITE_EDITOR':
+    case 'INVITE_VIEWER':
+      return access.role === 'OWNER' || access.role === 'EDITOR'
+    case 'REMOVE':
+    case 'CHANGE_ROLE':
+    case 'DELETE_TRIP':
+      return access.role === 'OWNER'
+  }
 }
 
 export async function getAccessibleTripIds(familyProfileId: string): Promise<string[]> {

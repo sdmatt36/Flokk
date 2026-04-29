@@ -1665,8 +1665,6 @@ export default function DiscoverPage() {
                           })?.url ?? null,
                           photoUrl: act.imageUrl,
                           category: act.type,
-                          sourceTripId: act.tripId,
-                          sourceShareToken: act.shareToken,
                         }}
                         isSaved={isActSaved}
                         showAddToItinerary={!actStatus || actStatus.showAffordance}
@@ -1934,8 +1932,6 @@ export default function DiscoverPage() {
                   websiteUrl: selectedActivity.websiteUrl,
                   photoUrl: selectedActivity.imageUrl,
                   category: selectedActivity.type,
-                  sourceTripId: selectedActivity.tripId,
-                  sourceShareToken: selectedActivity.shareToken,
                 }}
                 isSaved={
                   !!userSaveStatusMap.get(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`) &&

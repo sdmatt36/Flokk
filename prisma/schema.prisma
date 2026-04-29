@@ -409,6 +409,7 @@ model SavedItem {
   eventTicketUrl           String?
   eventSourceProvider      String?
   eventSourceEventId       String?
+  shareToken               String?   @unique
 
   @@index([communitySpotId])
   @@index([tourId])
@@ -765,6 +766,7 @@ model ManualActivity {
   tourId           String?
   deletedAt        DateTime?
   createdAt        DateTime @default(now())
+  shareToken       String?  @unique
 
   @@index([tourId])
   @@index([deletedAt])
@@ -923,6 +925,7 @@ model ItineraryItem {
   managementUrl     String?  // link to manage reservation on platform
   venueUrl          String?  // resolved venue/property URL per Universal URL Rule
   createdAt         DateTime @default(now())
+  shareToken        String?  @unique
 }
 
 model PackingItem {
@@ -1050,6 +1053,7 @@ model GeneratedTour {
   deletedBy             String?
   createdAt             DateTime      @default(now())
   updatedAt             DateTime      @updatedAt
+  shareToken            String?       @unique
   stops                 TourStop[]
 
   @@index([familyProfileId])

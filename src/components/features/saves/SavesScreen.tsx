@@ -480,8 +480,8 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
       })?.url ?? null,
     lat: save.lat ?? null,
     lng: save.lng ?? null,
-    sourceTripId: save.tripId ?? suggestedForOptions?.[0]?.id ?? null,
-    spotId: save.communitySpotId ?? null,
+    shareEntityType: "saved_item" as const,
+    shareEntityId: save.id,
   };
 
   const statusResult = getEntityStatus({
