@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, MapPin, BookmarkCheck, Bookmark, ExternalLink, ChevronRight, Sparkles } from "lucide-react";
+import { ChevronDown, MapPin, BookmarkCheck, Bookmark, ExternalLink, ChevronRight } from "lucide-react";
 import { CommunityTripMap, type MarkerDef } from "@/components/features/trips/CommunityTripMap";
 import Link from "next/link";
 import { getDestinationCoords } from "@/lib/destination-coords";
@@ -93,7 +93,6 @@ export function ShareItineraryView({
   shareToken: string;
   heroImageUrl?: string | null;
 }) {
-  const [tab, setTab] = useState<"itinerary" | "recommended">("itinerary");
   const [openDay, setOpenDay] = useState(-1);
   const [savedSet, setSavedSet] = useState<Set<string>>(new Set());
   const [savingSet, setSavingSet] = useState<Set<string>>(new Set());
@@ -236,25 +235,8 @@ export function ShareItineraryView({
         </div>
       )}
 
-      {/* ── Tab bar ── */}
-      <div style={{ display: "flex", borderBottom: "1px solid rgba(0,0,0,0.08)", padding: "0 20px" }}>
-        {(["itinerary", "recommended"] as const).map((t) => {
-          const active = tab === t;
-          return (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              style={{ flex: 1, paddingTop: "4px", paddingBottom: "12px", fontSize: "15px", fontWeight: 600, color: active ? "#1a1a1a" : "#717171", backgroundColor: "transparent", border: "none", borderBottom: active ? "2.5px solid #C4664A" : "2.5px solid transparent", marginBottom: "-1px", cursor: "pointer" }}
-            >
-              {t === "itinerary" ? "Itinerary" : "Recommended"}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── Itinerary tab ── */}
-      {tab === "itinerary" && (
-        <div style={{ padding: "0 24px", overflowX: "hidden" }}>
+      {/* ── Itinerary ── */}
+      <div style={{ padding: "0 24px", overflowX: "hidden" }}>
           {/* Two-column layout: accordion left, map right */}
           <div className="flex flex-col md:flex-row" style={{ gap: "24px", alignItems: "flex-start", paddingTop: "20px" }}>
 
@@ -403,6 +385,11 @@ export function ShareItineraryView({
                               </div>
                             );
                           })}
+                          {day.items.length === 0 && (
+                            <p style={{ fontSize: "13px", color: "#bbb", fontStyle: "italic" }}>
+                              Travel day — no planned activities.
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -424,20 +411,6 @@ export function ShareItineraryView({
 
           </div>
         </div>
-      )}
-
-      {/* ── Recommended tab ── */}
-      {tab === "recommended" && (
-        <div style={{ padding: "20px" }}>
-          <div style={{ textAlign: "center", padding: "48px 20px" }}>
-            <Sparkles size={32} style={{ color: "#C4664A", margin: "0 auto 12px" }} />
-            <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a", marginBottom: "6px" }}>Recommendations coming soon</p>
-            <p style={{ fontSize: "13px", color: "#717171" }}>
-              We&apos;re curating top picks for {destinationCity ?? "this destination"}.
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* More trips families like yours loved */}
       {relatedTrips.length > 0 && (

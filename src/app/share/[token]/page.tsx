@@ -201,7 +201,12 @@ export default async function SharePage({
     dayItemsByDay[di].sort((a, b) => a.sortKey - b.sortKey);
   }
 
-  const allDayIndices = Object.keys(dayItemsByDay).map(Number).sort((a, b) => a - b);
+  // Discipline 4.11: every trip day renders on the share view, even days with no surviving
+  // items after the check-out filter. Previously, days with only LODGING check-out entries
+  // were silently dropped — recipients saw Day 1, 3, 5 but no Day 2, 4, 6+.
+  const allDayIndices = days != null
+    ? Array.from({ length: days }, (_, i) => i + 1)
+    : Object.keys(dayItemsByDay).map(Number).sort((a, b) => a - b);
 
   // Ratings keyed by itineraryItemId for inline display on ACTIVITY cards
   const ratingsByItemId = new Map(
