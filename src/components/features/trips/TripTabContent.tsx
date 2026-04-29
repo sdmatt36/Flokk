@@ -7706,7 +7706,10 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "20px" }}>
             <div>
               <p style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>Trip notes</p>
-              <p style={{ fontSize: "13px", color: "#717171" }}>Reminders, things to check, ideas — everything in one place.</p>
+              <p style={{ fontSize: "13px", color: "#717171", marginBottom: "4px" }}>Reminders, things to check, ideas — everything in one place.</p>
+              <p style={{ fontSize: "12px", color: "#888", lineHeight: 1.5 }}>
+                Trip notes save here. Day-specific notes go in Itinerary — they show up here too with a Day badge.
+              </p>
             </div>
             <button
               onClick={handleAddNote}
@@ -7732,7 +7735,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           {/* Day filter chips — shown whenever any notes exist */}
           {(() => {
             const dayIndexValues = [...new Set(tripNotes.map(n => n.dayIndex).filter((d): d is number => d !== null))].sort((a, b) => a - b);
-            if (tripNotes.length === 0) return null;
+            if (dayIndexValues.length === 0) return null;
             const chipStyle = (active: boolean): React.CSSProperties => ({
               padding: "4px 12px",
               borderRadius: "20px",
