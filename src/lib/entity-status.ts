@@ -25,24 +25,19 @@ export function getEntityStatus(input: EntityStatusInput): EntityStatusResult {
     return { status: 'rated', label: `Rated ${userRating}★`, color: '#FBBF24', showAffordance: false }
   }
 
-  // 2. Completed
-  const isCompleted =
-    tripStatus === 'COMPLETED' ||
-    (tripEndDate != null && new Date(tripEndDate) < new Date())
-  if (isCompleted) {
-    return { status: 'completed', label: 'Completed', color: '#9CA3AF', showAffordance: false }
-  }
-
-  // 3. Booked
+  // 2. Booked
   if (hasBooking) {
     return { status: 'booked', label: 'Booked', color: '#C4664A', showAffordance: false }
   }
 
-  // 4. On itinerary — dayIndex covers user-assigned saves; hasItineraryLink covers email-extracted bookings
+  // 3. On itinerary — dayIndex covers user-assigned saves; hasItineraryLink covers email-extracted bookings
   if (dayIndex != null || hasItineraryLink) {
     return { status: 'on_itinerary', label: 'On itinerary', color: '#16A34A', showAffordance: false }
   }
 
-  // 5. Saved (default)
+  // 4. Saved (default)
+  // Discipline 4.11 + 4.6 defense-in-depth: trip-level completion does not cascade to items.
+  // Engaged items (rated, booked, on-itinerary) return from branches 1–3. Unengaged items on
+  // past/completed trips stay at 'Saved' — trip calendar state is not evidence the user visited.
   return { status: 'saved', label: '', color: '', showAffordance: true }
 }

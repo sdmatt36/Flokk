@@ -48,22 +48,14 @@ describe('getEntityStatus', () => {
     expect(r.showAffordance).toBe(false)
   })
 
-  it('tripStatus COMPLETED → completed', () => {
+  it('tripStatus COMPLETED, no engagement → saved (Discipline 4.11: trip calendar ≠ user visited)', () => {
     const r = getEntityStatus({ ...base, tripStatus: 'COMPLETED' })
-    expect(r.status).toBe('completed')
-    expect(r.label).toBe('Completed')
-    expect(r.color).toBe('#9CA3AF')
-    expect(r.showAffordance).toBe(false)
+    expect(r.status).toBe('saved')
+    expect(r.showAffordance).toBe(true)
   })
 
-  it('tripEndDate in past → completed', () => {
+  it('tripEndDate in past, no engagement → saved', () => {
     const r = getEntityStatus({ ...base, tripEndDate: '2024-01-01T00:00:00.000Z' })
-    expect(r.status).toBe('completed')
-    expect(r.showAffordance).toBe(false)
-  })
-
-  it('tripEndDate in future → not completed', () => {
-    const r = getEntityStatus({ ...base, tripEndDate: '2099-01-01T00:00:00.000Z' })
     expect(r.status).toBe('saved')
     expect(r.showAffordance).toBe(true)
   })
@@ -77,9 +69,20 @@ describe('getEntityStatus', () => {
     expect(r.showAffordance).toBe(false)
   })
 
-  it('completed beats booked', () => {
+  it('booked beats completed trip — engagement label wins over calendar state', () => {
     const r = getEntityStatus({ ...base, hasBooking: true, tripStatus: 'COMPLETED' })
-    expect(r.status).toBe('completed')
+    expect(r.status).toBe('booked')
+  })
+
+  it('on_itinerary beats completed trip — engagement label wins over calendar state', () => {
+    const r = getEntityStatus({ ...base, dayIndex: 2, tripStatus: 'COMPLETED' })
+    expect(r.status).toBe('on_itinerary')
+  })
+
+  it('tripEndDate in future → saved (not affected)', () => {
+    const r = getEntityStatus({ ...base, tripEndDate: '2099-01-01T00:00:00.000Z' })
+    expect(r.status).toBe('saved')
+    expect(r.showAffordance).toBe(true)
   })
 
   it('booked beats on_itinerary', () => {
