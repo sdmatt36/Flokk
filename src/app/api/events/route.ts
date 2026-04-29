@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { canViewTrip } from "@/lib/trip-permissions";
 import Anthropic from "@anthropic-ai/sdk";
 import { extractRichTripContext } from "@/lib/trip-context-rich";
 import type { RichTripContext } from "@/lib/trip-context-rich";
@@ -50,7 +51,7 @@ export async function GET(req: NextRequest) {
     },
   });
 
-  if (!trip || trip.familyProfileId !== profileId) {
+  if (!trip || !(await canViewTrip(profileId, tripId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { sendTripStolenEvent } from "@/lib/loops";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
+import { canEditTripContent } from "@/lib/trip-permissions";
 
 export async function POST(
   req: Request,
@@ -34,12 +35,11 @@ export async function POST(
     return NextResponse.json({ error: "Trip not found or not shared" }, { status: 404 });
   }
 
-  // Verify target trip belongs to this user
   const targetTrip = await db.trip.findUnique({
     where: { id: targetTripId },
-    select: { familyProfileId: true, title: true },
+    select: { title: true },
   });
-  if (!targetTrip || targetTrip.familyProfileId !== profileId) {
+  if (!targetTrip || !(await canEditTripContent(profileId, targetTripId))) {
     return NextResponse.json({ error: "Target trip not found" }, { status: 404 });
   }
 

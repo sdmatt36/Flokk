@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { canViewTrip, canEditTripContent } from "@/lib/trip-permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +17,7 @@ export async function GET(
   const profileId = await resolveProfileId(userId);
   if (!profileId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const trip = await db.trip.findUnique({ where: { id: tripId } });
-  if (!trip || trip.familyProfileId !== profileId) {
+  if (!(await canViewTrip(profileId, tripId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -36,8 +36,7 @@ export async function POST(
   const profileId = await resolveProfileId(userId);
   if (!profileId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const trip = await db.trip.findUnique({ where: { id: tripId } });
-  if (!trip || trip.familyProfileId !== profileId) {
+  if (!(await canEditTripContent(profileId, tripId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

@@ -58,7 +58,7 @@ export async function GET() {
             (t.endDate.getTime() - t.startDate.getTime()) / (1000 * 60 * 60 * 24)
           )
         : null;
-    const familyName = t.familyProfile.familyName;
+    const familyName = t.familyProfile?.familyName ?? null;
     const attribution =
       !t.isAnonymous && familyName ? `by ${familyName}` : "by Community";
     const label = nights ? `${nights} nights · ${attribution}` : attribution;

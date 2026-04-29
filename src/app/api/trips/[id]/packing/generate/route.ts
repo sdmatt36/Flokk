@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import Anthropic from "@anthropic-ai/sdk";
+import { canEditTripContent } from "@/lib/trip-permissions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -41,7 +42,7 @@ export async function POST(
     console.log("[packing/generate] Profile OK, members:", profile.members.length);
 
     const trip = await db.trip.findUnique({ where: { id: tripId } });
-    if (!trip || trip.familyProfileId !== profileId) {
+    if (!trip || !(await canEditTripContent(profileId, tripId))) {
       console.log("[packing/generate] Trip not found or unauthorized tripId:", tripId);
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }

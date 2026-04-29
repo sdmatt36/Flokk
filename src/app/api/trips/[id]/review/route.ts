@@ -29,7 +29,7 @@ export async function POST(
     },
   });
 
-  if (!trip) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!trip || !trip.familyProfile) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Build traveller summary
   const members = trip.familyProfile.members;

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
+import { getTripAccess } from "@/lib/trip-permissions";
 
 export const maxDuration = 60;
 
@@ -42,8 +43,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Trip not found" }, { status: 404 });
   }
 
-  // Prevent stealing your own trip
-  if (sourceTrip.familyProfileId === profileId) {
+  // Prevent stealing a trip you already own or collaborate on
+  if (await getTripAccess(profileId, sourceTrip.id) !== null) {
     return NextResponse.json({ error: "Cannot steal your own trip" }, { status: 400 });
   }
 

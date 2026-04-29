@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
+import { canAccessTripForCloning } from "@/lib/trip-permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -32,8 +33,7 @@ export async function POST(
 
   if (!source) return NextResponse.json({ error: "Trip not found" }, { status: 404 });
 
-  const isOwner = source.familyProfileId === profileId;
-  if (!isOwner && source.privacy !== "PUBLIC") {
+  if (!(await canAccessTripForCloning(profileId, id))) {
     return NextResponse.json({ error: "Trip not accessible" }, { status: 403 });
   }
 

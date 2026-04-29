@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { canViewTrip } from "@/lib/trip-permissions";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -73,9 +74,9 @@ export async function GET(
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { familyProfileId: true, budgetTotal: true, budgetCurrency: true },
+    select: { budgetTotal: true, budgetCurrency: true },
   });
-  if (!trip || trip.familyProfileId !== profileId) {
+  if (!trip || !(await canViewTrip(profileId, tripId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

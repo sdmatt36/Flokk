@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { canEditTripContent } from "@/lib/trip-permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +19,7 @@ export async function POST(
   const profileId = await resolveProfileId(userId);
   if (!profileId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { familyProfileId: true } });
-  if (!trip || trip.familyProfileId !== profileId) {
+  if (!(await canEditTripContent(profileId, tripId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

@@ -19,15 +19,19 @@ export async function GET(request: Request) {
     ? { status: statusFilter.toUpperCase() }
     : { status: { in: ["PLANNING", "ACTIVE"] } };
   const profileId = await resolveProfileId(userId);
-  const profile = profileId
-    ? await db.familyProfile.findUnique({
-        where: { id: profileId },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        include: { trips: { where: statusWhere as any, orderBy: { startDate: "asc" } } },
-      })
-    : null;
-  const trips = profile?.trips ?? [];
-  console.log("[GET /api/trips] returning", trips.length, "trips for familyProfile", profileId ?? "none");
+  if (!profileId) {
+    return NextResponse.json({ trips: [] }, { headers: { "Cache-Control": "no-store" } });
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const trips = await db.trip.findMany({
+    where: {
+      collaborators: { some: { familyProfileId: profileId, acceptedAt: { not: null } } },
+      isPlacesLibrary: false,
+      ...(statusWhere as object),
+    },
+    orderBy: { startDate: "asc" },
+  });
+  console.log("[GET /api/trips] returning", trips.length, "trips for familyProfile", profileId);
   return NextResponse.json(
     { trips: trips.map(t => ({ id: t.id, title: t.title, destinationCity: t.destinationCity, destinationCountry: t.destinationCountry, cities: t.cities, country: t.country, countries: t.countries, startDate: t.startDate, endDate: t.endDate, status: t.status, isPlacesLibrary: t.isPlacesLibrary })) },
     { headers: { "Cache-Control": "no-store" } }

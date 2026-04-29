@@ -6,6 +6,7 @@ import { sendRatingsCompleteEvent } from "@/lib/loops";
 import { writeThroughCommunitySpot } from "@/lib/community-write-through";
 import { ensureSavedItemForRating } from "@/lib/ensure-saved-item-for-rating";
 import { normalizePlaceName } from "@/lib/google-places";
+import { canViewTrip, canEditTripContent } from "@/lib/trip-permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +18,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const profileId = await resolveProfileId(userId);
   if (!profileId) return NextResponse.json({ error: "No family profile" }, { status: 400 });
 
-  const trip = await db.trip.findUnique({ where: { id: tripId } });
-  if (!trip || trip.familyProfileId !== profileId) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!(await canViewTrip(profileId, tripId))) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const ratings = await db.placeRating.findMany({
     where: { tripId },
@@ -46,7 +46,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!profileId) return NextResponse.json({ error: "No family profile" }, { status: 400 });
 
   const trip = await db.trip.findUnique({ where: { id: tripId } });
-  if (!trip || trip.familyProfileId !== profileId) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!trip || !(await canEditTripContent(profileId, tripId))) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const body = await req.json() as {
     itineraryItemId?: string;

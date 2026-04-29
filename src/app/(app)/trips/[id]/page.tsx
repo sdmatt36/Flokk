@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { getTripAccess } from "@/lib/trip-permissions";
 import { MapPin, Calendar, ChevronLeft } from "lucide-react";
 import { TripTabContent } from "@/components/features/trips/TripTabContent";
 import { CommunityTripView } from "@/components/features/trips/CommunityTripView";
@@ -80,11 +81,15 @@ export default async function TripDetailPage({
   });
   if (!profile) redirect("/onboarding");
 
-  const isOwner = trip.familyProfileId === profile.id;
-  const isCommunity = !isOwner && trip.privacy === "PUBLIC";
+  const access = await getTripAccess(profile.id, id);
+  const isOwner = access?.role === 'OWNER';
+  const canEdit = access?.role === 'OWNER' || access?.role === 'EDITOR';
+  const canView = access !== null || trip.privacy === 'PUBLIC';
+  const isCommunity = access === null && trip.privacy === 'PUBLIC';
 
-  // Block non-owners from non-public trips
-  if (!isOwner && !isCommunity) notFound();
+  void canEdit; // used in future checkpoints for edit gate rendering
+
+  if (!canView) notFound();
 
   const dateRange = formatDateRange(trip.startDate, trip.endDate);
   const days = tripDays(trip.startDate, trip.endDate);

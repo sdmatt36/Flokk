@@ -128,7 +128,7 @@ export async function POST(
     },
   });
 
-  if (!trip) return NextResponse.json({ error: "Trip not found" }, { status: 404 });
+  if (!trip || !trip.familyProfile) return NextResponse.json({ error: "Trip not found" }, { status: 404 });
   if (!trip.shareToken) return NextResponse.json({ error: "Trip has no share token" }, { status: 400 });
 
   const sharerName = trip.familyProfile.familyName

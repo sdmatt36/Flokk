@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { sendTripMadePublicEvent } from "@/lib/loops";
+import { canEditTripContent, canManageCollaborators } from "@/lib/trip-permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +21,8 @@ export async function PATCH(
     return NextResponse.json({ error: "No family profile" }, { status: 400 });
   }
 
-  // Verify trip ownership
   const trip = await db.trip.findUnique({ where: { id } });
-  if (!trip || trip.familyProfileId !== profileId) {
+  if (!trip || !(await canEditTripContent(profileId, id))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -103,8 +103,7 @@ export async function DELETE(
     return NextResponse.json({ error: "No family profile" }, { status: 400 });
   }
 
-  const trip = await db.trip.findUnique({ where: { id } });
-  if (!trip || trip.familyProfileId !== profileId) {
+  if (!(await canManageCollaborators(profileId, id))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

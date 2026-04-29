@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { getVenueImage } from "@/lib/destination-images";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
+import { canViewTrip, canEditTripContent } from "@/lib/trip-permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +24,7 @@ export async function GET(
     return NextResponse.json({ error: "No family profile" }, { status: 400 });
   }
 
-  const trip = await db.trip.findUnique({ where: { id: tripId } });
-  if (!trip || trip.familyProfileId !== profileId) {
+  if (!(await canViewTrip(profileId, tripId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -70,8 +70,7 @@ export async function POST(
     return NextResponse.json({ error: "No family profile" }, { status: 400 });
   }
 
-  const trip = await db.trip.findUnique({ where: { id: tripId } });
-  if (!trip || trip.familyProfileId !== profileId) {
+  if (!(await canEditTripContent(profileId, tripId))) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
