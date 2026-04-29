@@ -107,6 +107,7 @@ import { getEntityStatus, type EntityStatusResult } from "@/lib/entity-status";
 import { EntityStatusPill } from "@/components/ui/EntityStatusPill";
 import { buildSaveStatusMap } from "@/lib/save-status-map";
 import { sharePlace } from "@/lib/share";
+import { NoteEditor, type TiptapDoc, emptyDoc } from "@/components/features/notes/NoteEditor";
 
 type Tab = "saved" | "itinerary" | "tours" | "recommended" | "events" | "packing" | "notes" | "vault" | "howwasit";
 
@@ -7229,10 +7230,10 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   }
 
   // ── Notes state ───────────────────────────────────────────────────────────
-  type TripNote = { id: string; content: string; checked: boolean; createdAt: string };
+  type TripNote = { id: string; content: TiptapDoc; checked: boolean; dayIndex: number | null; createdAt: string };
   const [tripNotes, setTripNotes] = useState<TripNote[]>([]);
-  const [newNote, setNewNote] = useState("");
   const [isAddingNote, setIsAddingNote] = useState(false);
+  const [newlyCreatedNoteId, setNewlyCreatedNoteId] = useState<string | null>(null);
 
   useEffect(() => {
     if (tab !== "notes" || !tripId) return;
@@ -7243,22 +7244,38 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   }, [tripId, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleAddNote() {
-    if (!newNote.trim() || isAddingNote || !tripId) return;
+    if (isAddingNote || !tripId) return;
     setIsAddingNote(true);
     try {
       const res = await fetch(`/api/trips/${tripId}/notes`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: newNote }),
+        body: JSON.stringify({ content: emptyDoc() }),
       });
       if (!res.ok) throw new Error("Failed");
       const saved: TripNote = await res.json();
       setTripNotes(prev => [...prev, saved]);
-      setNewNote("");
+      setNewlyCreatedNoteId(saved.id);
     } catch (err) {
       console.error(err);
     } finally {
       setIsAddingNote(false);
+    }
+  }
+
+  async function handleSaveNote(noteId: string, content: TiptapDoc): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/trips/${tripId}/notes/${noteId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (res.ok) {
+        setTripNotes(prev => prev.map(n => n.id === noteId ? { ...n, content } : n));
+      }
+      return res.ok;
+    } catch {
+      return false;
     }
   }
 
@@ -7274,6 +7291,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   async function handleDeleteNote(id: string) {
     await fetch(`/api/trips/${tripId}/notes/${id}`, { method: "DELETE" });
     setTripNotes(prev => prev.filter(n => n.id !== id));
+    if (newlyCreatedNoteId === id) setNewlyCreatedNoteId(null);
   }
 
   // ── Vault state ──────────────────────────────────────────────────────────
@@ -7584,48 +7602,30 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       {tab === "packing" && <PackingContent tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} tripStartDate={tripStartDate} tripEndDate={tripEndDate} />}
       {tab === "notes" && (
         <div style={{ maxWidth: "600px" }}>
-          {/* Header */}
-          <div style={{ marginBottom: "20px" }}>
-            <p style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>Trip notes</p>
-            <p style={{ fontSize: "13px", color: "#717171" }}>Reminders, things to check, ideas — everything in one place.</p>
-          </div>
-
-          {/* Add note input */}
-          <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
-            <input
-              type="text"
-              value={newNote}
-              onChange={e => setNewNote(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter") handleAddNote(); }}
-              placeholder="Add a note or reminder..."
-              style={{
-                flex: 1,
-                border: "1.5px solid #E8E8E8",
-                borderRadius: "12px",
-                padding: "11px 14px",
-                fontSize: "14px",
-                color: "#1a1a1a",
-                outline: "none",
-                fontFamily: "inherit",
-              }}
-            />
+          {/* Header + Add button */}
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "20px" }}>
+            <div>
+              <p style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>Trip notes</p>
+              <p style={{ fontSize: "13px", color: "#717171" }}>Reminders, things to check, ideas — everything in one place.</p>
+            </div>
             <button
               onClick={handleAddNote}
-              disabled={!newNote.trim() || isAddingNote}
+              disabled={isAddingNote}
               style={{
-                padding: "11px 18px",
-                borderRadius: "12px",
+                padding: "8px 16px",
+                borderRadius: "20px",
                 border: "none",
-                backgroundColor: newNote.trim() && !isAddingNote ? "#1B3A5C" : "#E0E0E0",
-                color: newNote.trim() && !isAddingNote ? "#fff" : "#aaa",
+                backgroundColor: isAddingNote ? "#E0E0E0" : "#1B3A5C",
+                color: isAddingNote ? "#aaa" : "#fff",
                 fontSize: "13px",
                 fontWeight: 700,
-                cursor: newNote.trim() && !isAddingNote ? "pointer" : "default",
+                cursor: isAddingNote ? "default" : "pointer",
                 whiteSpace: "nowrap",
-                fontFamily: "inherit",
+                flexShrink: 0,
+                marginLeft: "12px",
               }}
             >
-              + Add
+              + Add note
             </button>
           </div>
 
@@ -7636,80 +7636,84 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               <p style={{ fontSize: "13px", color: "#717171" }}>Add reminders, things to check, or anything related to this trip.</p>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               {[...tripNotes]
-                .sort((a, b) => Number(a.checked) - Number(b.checked))
+                .sort((a, b) => {
+                  if (a.checked !== b.checked) return Number(a.checked) - Number(b.checked);
+                  return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+                })
                 .map(note => (
                   <div
                     key={note.id}
                     style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: "12px",
-                      padding: "12px 14px",
                       borderRadius: "12px",
                       backgroundColor: note.checked ? "#FAFAFA" : "#fff",
                       border: "1px solid",
                       borderColor: note.checked ? "#F0F0F0" : "#EEEEEE",
-                      marginBottom: "4px",
+                      opacity: note.checked ? 0.6 : 1,
+                      transition: "opacity 0.15s",
                     }}
-                    className="group"
                   >
-                    {/* Checkbox */}
-                    <button
-                      onClick={() => handleToggleNote(note.id, note.checked)}
-                      style={{
-                        flexShrink: 0,
-                        width: "20px",
-                        height: "20px",
-                        borderRadius: "50%",
-                        border: `2px solid ${note.checked ? "#1B3A5C" : "#C8C8C8"}`,
-                        backgroundColor: note.checked ? "#1B3A5C" : "transparent",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        padding: 0,
-                        marginTop: "1px",
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      {note.checked && (
-                        <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
-                          <path d="M1 4l3 3 5-6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
+                    {/* Note header: day badge + actions */}
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px 0 12px" }}>
+                      {note.dayIndex !== null && note.dayIndex !== undefined && (
+                        <span style={{
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          color: "#C4664A",
+                          backgroundColor: "rgba(196,102,74,0.1)",
+                          padding: "2px 8px",
+                          borderRadius: "10px",
+                        }}>
+                          Day {note.dayIndex + 1}
+                        </span>
                       )}
-                    </button>
+                      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "6px" }}>
+                        {/* Checked toggle */}
+                        <button
+                          onClick={() => handleToggleNote(note.id, note.checked)}
+                          title={note.checked ? "Mark incomplete" : "Mark done"}
+                          style={{
+                            width: "20px",
+                            height: "20px",
+                            borderRadius: "50%",
+                            border: `2px solid ${note.checked ? "#1B3A5C" : "#C8C8C8"}`,
+                            backgroundColor: note.checked ? "#1B3A5C" : "transparent",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                            padding: 0,
+                            flexShrink: 0,
+                          }}
+                        >
+                          {note.checked && (
+                            <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                              <path d="M1 4l3 3 5-6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </button>
+                        {/* Delete */}
+                        <button
+                          onClick={() => handleDeleteNote(note.id)}
+                          title="Delete note"
+                          style={{ background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px", lineHeight: 1 }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
 
-                    {/* Text */}
-                    <span style={{
-                      flex: 1,
-                      fontSize: "14px",
-                      color: note.checked ? "#aaa" : "#1a1a1a",
-                      textDecoration: note.checked ? "line-through" : "none",
-                      lineHeight: 1.5,
-                      wordBreak: "break-word",
-                    }}>
-                      {note.content}
-                    </span>
-
-                    {/* Delete */}
-                    <button
-                      onClick={() => handleDeleteNote(note.id)}
-                      style={{
-                        flexShrink: 0,
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        color: "#D0D0D0",
-                        padding: "2px",
-                        lineHeight: 1,
-                        marginTop: "1px",
-                      }}
-                      title="Delete note"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {/* Editor */}
+                    <div style={{ padding: "4px 0 0 0" }}>
+                      <NoteEditor
+                        key={note.id}
+                        initialContent={note.content}
+                        onSave={(content) => handleSaveNote(note.id, content)}
+                        placeholder="Write a note..."
+                        autoFocus={note.id === newlyCreatedNoteId}
+                      />
+                    </div>
                   </div>
                 ))}
             </div>
