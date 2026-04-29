@@ -15,22 +15,25 @@ export default async function TripsPage() {
 
   const profile = await db.familyProfile.findUnique({
     where: { id: profileId },
-    include: {
-      trips: {
-        where: { isPlacesLibrary: false },
-        orderBy: { startDate: "asc" },
-        include: {
-          _count: { select: { savedItems: true, packingItems: true, manualActivities: true, itineraryItems: { where: { type: { notIn: ['FLIGHT', 'TRAIN'] } } } } },
-          savedItems: { select: { dayIndex: true }, where: { dayIndex: { not: null } } },
-          manualActivities: { select: { dayIndex: true, status: true }, where: { dayIndex: { not: null } } },
-          itineraryItems: { select: { type: true } },
-        },
-      },
-    },
+    select: { familyName: true },
   });
   if (!profile) redirect("/onboarding");
 
-  const trips = profile.trips.map((t) => {
+  const rawTrips = await db.trip.findMany({
+    where: {
+      collaborators: { some: { familyProfileId: profileId, acceptedAt: { not: null } } },
+      isPlacesLibrary: false,
+    },
+    orderBy: { startDate: "asc" },
+    include: {
+      _count: { select: { savedItems: true, packingItems: true, manualActivities: true, itineraryItems: { where: { type: { notIn: ["FLIGHT", "TRAIN"] } } } } },
+      savedItems: { select: { dayIndex: true }, where: { dayIndex: { not: null } } },
+      manualActivities: { select: { dayIndex: true, status: true }, where: { dayIndex: { not: null } } },
+      itineraryItems: { select: { type: true } },
+    },
+  });
+
+  const trips = rawTrips.map((t) => {
     // Build per-day item counts
     const dayItemCounts: Record<number, number> = {};
     for (const item of t.savedItems) {

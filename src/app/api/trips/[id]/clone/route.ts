@@ -48,14 +48,27 @@ export async function POST(
     isAnonymous: true,
   });
 
-  const newTrip = await db.trip.create({
-    data: {
-      ...builtData,
-      title: source.title,
-      heroImageUrl: source.heroImageUrl ?? builtData.heroImageUrl,
-      tripType: source.tripType,
-      familyProfileId: profileId,
-    },
+  const newTrip = await db.$transaction(async (tx) => {
+    const created = await tx.trip.create({
+      data: {
+        ...builtData,
+        title: source.title,
+        heroImageUrl: source.heroImageUrl ?? builtData.heroImageUrl,
+        tripType: source.tripType,
+        familyProfileId: profileId,
+      },
+    });
+    await tx.tripCollaborator.create({
+      data: {
+        tripId: created.id,
+        familyProfileId: profileId,
+        role: "OWNER",
+        invitedById: profileId,
+        invitedAt: new Date(),
+        acceptedAt: new Date(),
+      },
+    });
+    return created;
   });
 
   // Clone saved items (omit cost/booking details)

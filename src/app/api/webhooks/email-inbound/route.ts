@@ -848,8 +848,21 @@ Field notes:
             startDate: autoStart,
             endDate: autoEnd,
           });
-          const autoTrip = await db.trip.create({
-            data: { ...autoData, familyProfileId: familyProfile.id },
+          const autoTrip = await db.$transaction(async (tx) => {
+            const created = await tx.trip.create({
+              data: { ...autoData, familyProfileId: familyProfile.id },
+            });
+            await tx.tripCollaborator.create({
+              data: {
+                tripId: created.id,
+                familyProfileId: familyProfile.id,
+                role: "OWNER",
+                invitedById: familyProfile.id,
+                invitedAt: new Date(),
+                acceptedAt: new Date(),
+              },
+            });
+            return created;
           });
           matchedTrip = autoTrip as typeof trips[0];
           resolvedTripId = autoTrip.id;
@@ -878,8 +891,21 @@ Field notes:
             endDate: plan.endDate,
           });
 
-          const planTrip = await db.trip.create({
-            data: { ...planData, familyProfileId: familyProfile.id },
+          const planTrip = await db.$transaction(async (tx) => {
+            const created = await tx.trip.create({
+              data: { ...planData, familyProfileId: familyProfile.id },
+            });
+            await tx.tripCollaborator.create({
+              data: {
+                tripId: created.id,
+                familyProfileId: familyProfile.id,
+                role: "OWNER",
+                invitedById: familyProfile.id,
+                invitedAt: new Date(),
+                acceptedAt: new Date(),
+              },
+            });
+            return created;
           });
           logCtx.autoCreatedTripId = planTrip.id;
           logCtx.matchedTripId = planTrip.id;

@@ -8,15 +8,28 @@ export async function getOrCreatePlacesLibrary(profileId: string): Promise<strin
   });
   if (existing) return existing.id;
 
-  const trip = await db.trip.create({
-    data: {
-      familyProfileId: profileId,
-      title: "My Places",
-      isPlacesLibrary: true,
-      destinationCity: null,
-      destinationCountry: null,
-      shareToken: nanoid(12),
-    },
+  const tripId = await db.$transaction(async (tx) => {
+    const created = await tx.trip.create({
+      data: {
+        familyProfileId: profileId,
+        title: "My Places",
+        isPlacesLibrary: true,
+        destinationCity: null,
+        destinationCountry: null,
+        shareToken: nanoid(12),
+      },
+    });
+    await tx.tripCollaborator.create({
+      data: {
+        tripId: created.id,
+        familyProfileId: profileId,
+        role: "OWNER",
+        invitedById: profileId,
+        invitedAt: new Date(),
+        acceptedAt: new Date(),
+      },
+    });
+    return created.id;
   });
-  return trip.id;
+  return tripId;
 }

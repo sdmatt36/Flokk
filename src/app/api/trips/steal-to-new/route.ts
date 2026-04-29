@@ -63,8 +63,21 @@ export async function POST(req: Request) {
   });
 
   // Create new trip for this user
-  const newTrip = await db.trip.create({
-    data: { ...builtData, familyProfileId: profileId },
+  const newTrip = await db.$transaction(async (tx) => {
+    const created = await tx.trip.create({
+      data: { ...builtData, familyProfileId: profileId },
+    });
+    await tx.tripCollaborator.create({
+      data: {
+        tripId: created.id,
+        familyProfileId: profileId,
+        role: "OWNER",
+        invitedById: profileId,
+        invitedAt: new Date(),
+        acceptedAt: new Date(),
+      },
+    });
+    return created;
   });
 
   type SaveInput = {

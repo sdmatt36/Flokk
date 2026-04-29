@@ -53,13 +53,26 @@ export async function POST(request: Request) {
       isAnonymous: true,
     });
 
-    const newTrip = await db.trip.create({
-      data: {
-        ...builtData,
-        title: title.trim(),
-        heroImageUrl: source.heroImageUrl ?? builtData.heroImageUrl,
-        familyProfileId: profileId,
-      },
+    const newTrip = await db.$transaction(async (tx) => {
+      const created = await tx.trip.create({
+        data: {
+          ...builtData,
+          title: title.trim(),
+          heroImageUrl: source.heroImageUrl ?? builtData.heroImageUrl,
+          familyProfileId: profileId,
+        },
+      });
+      await tx.tripCollaborator.create({
+        data: {
+          tripId: created.id,
+          familyProfileId: profileId,
+          role: "OWNER",
+          invitedById: profileId,
+          invitedAt: new Date(),
+          acceptedAt: new Date(),
+        },
+      });
+      return created;
     });
 
     if (importActivities && source.savedItems.length > 0) {

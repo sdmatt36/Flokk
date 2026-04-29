@@ -92,8 +92,21 @@ export async function POST(req: Request) {
     isAnonymous: isAnonymous ?? true,
   });
 
-  const trip = await db.trip.create({
-    data: { ...builtData, familyProfileId: familyProfile.id },
+  const trip = await db.$transaction(async (tx) => {
+    const created = await tx.trip.create({
+      data: { ...builtData, familyProfileId: familyProfile.id },
+    });
+    await tx.tripCollaborator.create({
+      data: {
+        tripId: created.id,
+        familyProfileId: familyProfile.id,
+        role: "OWNER",
+        invitedById: familyProfile.id,
+        invitedAt: new Date(),
+        acceptedAt: new Date(),
+      },
+    });
+    return created;
   });
 
   // Loops: fire first-trip-created if this is their first trip
