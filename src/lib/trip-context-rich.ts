@@ -80,7 +80,8 @@ const TRANSIT_TYPES = new Set(["FLIGHT", "TRAIN", "CAR_RENTAL"]);
 
 function deriveCityFromCheckIn(
   checkIn: ItineraryItemInput,
-  allItems: ItineraryItemInput[]
+  allItems: ItineraryItemInput[],
+  destinationCity?: string
 ): string {
   // 1. Explicit toCity on check-in row
   if (checkIn.toCity?.trim()) return checkIn.toCity.trim();
@@ -106,13 +107,15 @@ function deriveCityFromCheckIn(
   }
 
   // 4. Last word of lodging name (last resort — e.g. "THE NEST NAHA" → "NAHA")
+  // Prefer trip destinationCity over a potentially-wrong last word
+  if (destinationCity) return destinationCity;
   const words = name.split(/\s+/).filter(Boolean);
   if (words.length > 0) return words[words.length - 1];
 
   return "Unknown";
 }
 
-export function deriveSegments(itineraryItems: ItineraryItemInput[]): TripSegment[] {
+export function deriveSegments(itineraryItems: ItineraryItemInput[], destinationCity?: string): TripSegment[] {
   const allLodging = itineraryItems.filter((i) => i.type === "LODGING");
   const checkIns = allLodging.filter((i) => /check[\s-]?in/i.test(i.title));
   const checkOuts = allLodging.filter((i) => /check[\s-]?out/i.test(i.title));
@@ -133,7 +136,7 @@ export function deriveSegments(itineraryItems: ItineraryItemInput[]): TripSegmen
     );
     return {
       name: ciName,
-      city: deriveCityFromCheckIn(ci, itineraryItems),
+      city: deriveCityFromCheckIn(ci, itineraryItems, destinationCity),
       lat: ci.latitude,
       lng: ci.longitude,
       dayStart: ci.dayIndex ?? 0,
@@ -279,7 +282,7 @@ export async function extractRichTripContext(
   const endDate = trip.endDate ? trip.endDate.toISOString().split("T")[0] : null;
 
   // Derive segments with rec allocation
-  const rawSegments = deriveSegments(trip.itineraryItems);
+  const rawSegments = deriveSegments(trip.itineraryItems, trip.destinationCity ?? undefined);
   const segments = allocateRecCounts(rawSegments, 12);
   const totalNights = segments.reduce((sum, s) => sum + s.nights, 0);
 

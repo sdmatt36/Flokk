@@ -279,7 +279,10 @@ export async function resolveShareToken(token: string): Promise<ResolvedShareEnt
     if (itineraryItem.type === "LODGING" || itineraryItem.type === "ACTIVITY") {
       // Step 1: TripDocument lookup
       if (itineraryItem.tripId) {
-        const strippedTitle = itineraryItem.title.replace(/\s*\(.*?\)\s*/g, "").trim();
+        const strippedTitle = itineraryItem.title
+          .replace(/^(check-in|check-out):\s*/i, "")
+          .replace(/\s*\(.*?\)\s*/g, "")
+          .trim();
         const tripDoc = await db.tripDocument.findFirst({
           where: {
             tripId: itineraryItem.tripId,
@@ -310,7 +313,7 @@ export async function resolveShareToken(token: string): Promise<ResolvedShareEnt
           parallelSavedItem = await db.savedItem.findFirst({
             where: {
               tripId: itineraryItem.tripId,
-              rawTitle: itineraryItem.title,
+              rawTitle: strippedTitle,
               deletedAt: null,
             },
             select: {
