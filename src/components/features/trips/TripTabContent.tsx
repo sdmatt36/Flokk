@@ -7729,11 +7729,10 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
             </button>
           </div>
 
-          {/* Day filter chips — shown when notes from multiple scopes exist */}
+          {/* Day filter chips — shown whenever any notes exist */}
           {(() => {
             const dayIndexValues = [...new Set(tripNotes.map(n => n.dayIndex).filter((d): d is number => d !== null))].sort((a, b) => a - b);
-            const hasMixed = tripNotes.some(n => n.dayIndex === null) && dayIndexValues.length > 0;
-            if (!hasMixed && dayIndexValues.length === 0) return null;
+            if (tripNotes.length === 0) return null;
             const chipStyle = (active: boolean): React.CSSProperties => ({
               padding: "4px 12px",
               borderRadius: "20px",

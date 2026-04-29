@@ -151,3 +151,28 @@
 @utility pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 16px);
 }
+
+/* ── Tiptap NoteEditor — restore list styles stripped by Tailwind preflight ── */
+.flokk-note-editor ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin: 0.25rem 0;
+}
+.flokk-note-editor ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin: 0.25rem 0;
+}
+.flokk-note-editor li {
+  margin-bottom: 0.125rem;
+}
+.flokk-note-editor li > p {
+  margin: 0;
+}
+.flokk-note-editor p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #9ca3af;
+  pointer-events: none;
+  height: 0;
+}

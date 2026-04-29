@@ -38,15 +38,8 @@ export function NoteEditor({
     autofocus: autoFocus ? "end" : false,
     editorProps: {
       attributes: {
-        style: [
-          "color: #1B3A5C",
-          "font-family: 'DM Sans', 'Plus Jakarta Sans', sans-serif",
-          "font-size: 14px",
-          "line-height: 1.6",
-          "min-height: 60px",
-          "padding: 10px 12px",
-          "outline: none",
-        ].join(";"),
+        class: "flokk-note-editor",
+        style: "color: #1B3A5C; font-family: 'DM Sans', 'Plus Jakarta Sans', sans-serif; font-size: 14px; line-height: 1.6; min-height: 60px; padding: 10px 12px; outline: none;",
       },
     },
     onUpdate: ({ editor }) => {
