@@ -87,10 +87,6 @@ export default async function HomePage() {
   });
   if (!profile) redirect("/onboarding");
 
-  // Only PLANNING/ACTIVE trips for save-to dropdowns (excludes community templates)
-  const activePlannedTrips = profile.trips.filter(
-    (t) => t.status === "PLANNING" || t.status === "ACTIVE"
-  );
   // All trips for pickers that should also show past trips, newest first
   const allTrips = [...profile.trips].sort((a, b) => {
     if (!a.startDate) return 1;

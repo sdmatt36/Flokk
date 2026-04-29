@@ -685,17 +685,12 @@ Field notes:
     // ── Match trip ─────────────────────────────────────────────────────────────
     const bookingDate = (extracted.checkIn ?? extracted.departureDate) as string | null;
 
-    // Exclude COMPLETED trips that ended more than 30 days before the booking date.
-    // Stale completed trips should never receive new bookings via keyword overlap.
-    const bookingDateObj = bookingDate
-      ? (() => { const [y, m, d] = bookingDate.split("-").map(Number); return new Date(y, m - 1, d); })()
-      : null;
-    const eligibleTrips = trips.filter((t) => {
-      if ((t.status as string) !== "COMPLETED") return true;
-      if (!bookingDateObj || !t.endDate) return true;
-      const daysSinceTripEnd = (bookingDateObj.getTime() - new Date(t.endDate).getTime()) / 86400000;
-      return daysSinceTripEnd < 30;
-    });
+    // Discipline 4.11: booking emails are explicit signals. ALL trips eligible regardless of recency.
+    // Founding Contributor flow imports historical bookings to populate imported past trips — the
+    // 30-day window blocked that path and created duplicate trips. Note: this is the booking-email
+    // path. URL forwards via geoMatchTrips() correctly DO exclude past trips because URL saves are
+    // typically future-inspiration, not retroactive memory capture (different semantics).
+    const eligibleTrips = trips;
 
     // Destination keywords from Claude-extracted location fields, normalized
     // through AIRPORT_TO_CITY so IATA codes / full airport names expand to
