@@ -126,7 +126,7 @@ export default async function HomePage() {
   };
 
   const seenPopularCities = new Set<string>();
-  const popularCards: PopularCard[] = [];
+  const uniquePool: PopularCard[] = [];
 
   for (const t of rawPopularTrips) {
     if (!t.destinationCity) continue;
@@ -137,20 +137,28 @@ export default async function HomePage() {
       t.startDate && t.endDate
         ? Math.round((t.endDate.getTime() - t.startDate.getTime()) / (1000 * 60 * 60 * 24))
         : null;
-    const attribution =
-      !t.isAnonymous && t.familyProfile.familyName
-        ? `by ${t.familyProfile.familyName}`
-        : "by Community";
-    popularCards.push({
+    const label =
+      nights === null ? "Anonymous Flokker" :
+      nights < 1 ? "Day trip" :
+      `${nights} night${nights === 1 ? '' : 's'} · Anonymous Flokker`;
+    uniquePool.push({
       id: t.id,
       city: t.destinationCity,
       country: t.destinationCountry ?? null,
       imageUrl: getTripCoverImage(t.destinationCity, t.destinationCountry, t.heroImageUrl),
       tripId: t.id,
-      label: nights ? `${nights} nights · ${attribution}` : attribution,
+      label,
     });
-    if (popularCards.length >= 4) break;
   }
+
+  // Discipline 4.11: random shuffle each page load surfaces variety across all public trips.
+  // Pool includes real and seeded; uniform attribution makes the distinction invisible to the viewer.
+  const shuffled = [...uniquePool];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  const popularCards = shuffled.slice(0, 4);
 
   // Pad with curated fallbacks if fewer than 4 real results
   const POPULAR_FALLBACKS = [
@@ -169,7 +177,7 @@ export default async function HomePage() {
         country: fb.country,
         imageUrl: getTripCoverImage(fb.city, fb.country, null),
         tripId: null,
-        label: "by Community",
+        label: "Anonymous Flokker",
       });
       if (popularCards.length >= 4) break;
     }
