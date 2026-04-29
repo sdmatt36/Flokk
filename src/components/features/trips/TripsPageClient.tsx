@@ -401,6 +401,11 @@ export function TripsPageClient({
   // Discipline 4.11: bucketing via shared helper. Reads dates, not status.
   const { current, upcoming, past } = bucketTrips(trips);
 
+  const [tab, setTab] = useState<"current" | "upcoming" | "past">(
+    current.length > 0 ? "current" : "upcoming"
+  );
+  const displayed = tab === "current" ? current : tab === "upcoming" ? upcoming : past;
+
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
 
   const [unassigned, setUnassigned] = useState<UnassignedItem[]>([]);
@@ -531,15 +536,21 @@ export function TripsPageClient({
     trips.map((t) => t.destinationCountry).filter(Boolean)
   ).size;
 
-  const sectionHeaderStyle: React.CSSProperties = {
-    fontSize: "12px",
-    fontWeight: 700,
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    color: "#717171",
-    marginBottom: "12px",
-    marginTop: "0",
-  };
+  const tabStyle = (active: boolean) => ({
+    paddingTop: "10px",
+    paddingBottom: "12px",
+    paddingLeft: "16px",
+    paddingRight: "16px",
+    fontSize: "14px",
+    fontWeight: active ? 700 : 500,
+    color: active ? "#C4664A" : "#717171",
+    backgroundColor: "transparent",
+    border: "none",
+    borderBottom: active ? "2.5px solid #C4664A" : "2.5px solid transparent",
+    marginBottom: "-1px",
+    cursor: "pointer",
+    whiteSpace: "nowrap" as const,
+  });
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#FFFFFF", paddingBottom: "80px" }}>
@@ -736,29 +747,29 @@ export function TripsPageClient({
           </div>
         )}
 
-        {/* Happening Now section — omitted when no current trips */}
-        {current.length > 0 && (
-          <div style={{ marginBottom: "28px" }}>
-            <p style={{ ...sectionHeaderStyle, color: "#C4664A" }}>Happening Now</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {current.map((trip) => (
-                <TripCard key={trip.id} trip={trip} onDelete={handleDelete} />
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Tab bar */}
+        <div style={{ display: "flex", borderBottom: "1px solid rgba(0,0,0,0.08)", marginBottom: "20px" }}>
+          {current.length > 0 && (
+            <button onClick={() => setTab("current")} style={tabStyle(tab === "current")}>
+              Happening Now {current.length > 0 && <span style={{ marginLeft: "4px", fontSize: "12px", color: tab === "current" ? "#C4664A" : "#aaa" }}>({current.length})</span>}
+            </button>
+          )}
+          <button onClick={() => setTab("upcoming")} style={tabStyle(tab === "upcoming")}>
+            Upcoming {upcoming.length > 0 && <span style={{ marginLeft: "4px", fontSize: "12px", color: tab === "upcoming" ? "#C4664A" : "#aaa" }}>({upcoming.length})</span>}
+          </button>
+          <button onClick={() => setTab("past")} style={tabStyle(tab === "past")}>
+            Past {past.length > 0 && <span style={{ marginLeft: "4px", fontSize: "12px", color: tab === "past" ? "#C4664A" : "#aaa" }}>({past.length})</span>}
+          </button>
+        </div>
 
-        {/* Upcoming section */}
-        {upcoming.length > 0 ? (
-          <div style={{ marginBottom: "28px" }}>
-            <p style={sectionHeaderStyle}>Upcoming</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {upcoming.map((trip) => (
-                <TripCard key={trip.id} trip={trip} onDelete={handleDelete} />
-              ))}
-            </div>
+        {/* Trip grid — active tab only */}
+        {displayed.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" style={{ marginBottom: "28px" }}>
+            {displayed.map((trip) => (
+              <TripCard key={trip.id} trip={trip} onDelete={handleDelete} />
+            ))}
           </div>
-        ) : current.length === 0 && past.length === 0 ? (
+        ) : tab === "upcoming" ? (
           <div style={{ backgroundColor: "#F5F5F5", borderRadius: "20px", borderLeft: "4px solid #C4664A", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", padding: "32px 24px" }}>
             <Map size={32} style={{ color: "#C4664A", marginBottom: "12px" }} />
             <p style={{ fontSize: "18px", fontWeight: 700, color: "#1a1a1a", marginBottom: "6px" }}>No upcoming trips</p>
@@ -772,19 +783,9 @@ export function TripsPageClient({
               Plan a trip
             </Link>
           </div>
+        ) : tab === "past" ? (
+          <p style={{ fontSize: "14px", color: "#717171", paddingTop: "8px" }}>Your completed trips will appear here.</p>
         ) : null}
-
-        {/* Past section */}
-        {past.length > 0 && (
-          <div style={{ marginBottom: "28px" }}>
-            <p style={sectionHeaderStyle}>Past</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {past.map((trip) => (
-                <TripCard key={trip.id} trip={trip} onDelete={handleDelete} />
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Travel stats strip */}
         {trips.length > 0 && (
