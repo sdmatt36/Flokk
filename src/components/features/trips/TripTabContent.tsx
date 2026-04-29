@@ -2017,7 +2017,6 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [detailActivity, setDetailActivity] = useState<Activity | null>(null);
   const [showAddActivityModal, setShowAddActivityModal] = useState(false);
   const [addActivityDefaultDate, setAddActivityDefaultDate] = useState<string | undefined>();
-  const [notes, setNotes] = useState<string[]>([]);
   const [recAdditions, setRecAdditions] = useState<RecAddition[]>([]);
   // Local copies of activities/flights so drag-reorder can update them independently of parent prop
   const [localActivities, setLocalActivities] = useState<Activity[]>([]);
@@ -3649,19 +3648,17 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                             Add activity
                           </button>
 
-                          {/* Per-day notes */}
-                          <div style={{ marginTop: "10px" }}>
-                            <textarea
-                              value={notes[i] ?? ""}
-                              onChange={(e) => setNotes((prev) => {
-                                const next = [...prev];
-                                next[i] = e.target.value;
-                                return next;
-                              })}
-                              placeholder="Add notes for this day..."
-                              rows={2}
-                              style={{ width: "100%", resize: "none", border: "1px solid rgba(0,0,0,0.1)", borderRadius: "8px", padding: "8px 12px", fontSize: "13px", color: "#333", background: "rgba(0,0,0,0.02)", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
-                            />
+                          {/* Per-day notes — full editor coming in next deploy */}
+                          <div style={{
+                            marginTop: "8px",
+                            padding: "12px 14px",
+                            backgroundColor: "rgba(196,102,74,0.08)",
+                            border: "1px dashed rgba(196,102,74,0.3)",
+                            borderRadius: "8px",
+                          }}>
+                            <p style={{ fontSize: "12px", color: "#717171", margin: 0, lineHeight: 1.5 }}>
+                              Per-day notes are getting an upgrade. For now, use the Notes tab to capture reminders for this trip.
+                            </p>
                           </div>
 
                         </div>
