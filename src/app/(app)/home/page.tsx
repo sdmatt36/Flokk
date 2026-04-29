@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { AddTripButton } from "@/components/features/home/AddTripModal";
 import { getTripCoverImage } from "@/lib/destination-images";
+import { bucketTrips, getTripPhase } from "@/lib/trip-phase";
 import { DropLinkTile } from "@/components/features/home/DropLinkTile";
 import { SourceFilterSaves } from "@/components/features/home/SourceFilterSaves";
 import { WelcomeBanner } from "@/components/features/home/WelcomeBanner";
@@ -196,14 +197,13 @@ export default async function HomePage() {
   const clerkUser = await clerk.users.getUser(userId);
   const rawName = clerkUser.firstName ?? clerkUser.fullName?.split(" ")[0] ?? profile.familyName ?? "there";
   const displayName = rawName.charAt(0).toUpperCase() + rawName.slice(1);
-  const today = new Date();
-  const futureTrips = profile.trips.filter((t) => t.startDate && t.startDate > today);
-  const completedTrips = profile.trips.filter(
-    (t) => t.status === "COMPLETED" && !t.id.startsWith("cmtrip-")
+  const { current: currentTrips, upcoming: upcomingTrips, past: pastTrips } = bucketTrips(
+    profile.trips.filter(t => !t.isPlacesLibrary)
   );
-  const heroTrip = futureTrips[0] ?? completedTrips[completedTrips.length - 1] ?? null;
-  const sidebarTrip = futureTrips[1] ?? null;
-  const hasCompletedTrips = completedTrips.length > 0;
+  const heroTrip = currentTrips[0] ?? upcomingTrips[0] ?? pastTrips[0] ?? null;
+  const combined = [...currentTrips, ...upcomingTrips, ...pastTrips];
+  const sidebarTrip = combined.find(t => t.id !== heroTrip?.id) ?? null;
+  const hasCompletedTrips = pastTrips.length > 0;
   const heroCover = getTripCoverImage(heroTrip?.destinationCity, heroTrip?.destinationCountry, heroTrip?.heroImageUrl);
   const sidebarCover = getTripCoverImage(sidebarTrip?.destinationCity, sidebarTrip?.destinationCountry, sidebarTrip?.heroImageUrl);
 
@@ -253,7 +253,7 @@ export default async function HomePage() {
               <div style={{ position: "absolute", top: "16px", left: "16px", zIndex: 3 }}>
                 {heroTrip ? (
                   <span style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)", color: "#fff", borderRadius: "999px", padding: "5px 12px" }}>
-                    {heroTrip.status === "ACTIVE" ? "Now traveling" : heroTrip.status === "COMPLETED" ? "Last trip" : "Up next"}
+                    {getTripPhase(heroTrip) === "current" ? "Now traveling" : getTripPhase(heroTrip) === "past" ? "Last trip" : "Up next"}
                   </span>
                 ) : (
                   <span style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)", color: "#fff", borderRadius: "999px", padding: "5px 12px" }}>

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { MapPin, X } from "lucide-react";
 import { MODAL_OVERLAY_CLASSES } from "@/lib/modal-classes";
+import { bucketTrips } from "@/lib/trip-phase";
 import { parseDateForDisplay } from "@/lib/dates";
 
 function getDomainLabel(url: string): string {
@@ -83,6 +84,7 @@ export function DropLinkModal({
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [checkinDate, setCheckinDate] = useState<string>("");
   const [checkoutDate, setCheckoutDate] = useState<string>("");
+  const [showPastTrips, setShowPastTrips] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -470,8 +472,7 @@ export function DropLinkModal({
               </p>
               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                 {(() => {
-                  const upcomingTrips = trips.filter(t => !t.status || t.status === "PLANNING" || t.status === "ACTIVE");
-                  const pastTrips = trips.filter(t => t.status === "COMPLETED");
+                  const { current: currentTrips, upcoming: upcomingTrips, past: pastTrips } = bucketTrips(trips);
                   const renderTripButton = (trip: Trip) => {
                     const active = selectedId === trip.id;
                     const pulsing = pulseId === trip.id;
@@ -508,16 +509,29 @@ export function DropLinkModal({
                   };
                   return (
                     <>
+                      {currentTrips.length > 0 && (
+                        <>
+                          <p className="text-xs uppercase tracking-wide px-2 py-1 w-full" style={{ flexBasis: "100%", color: "#C4664A" }}>Happening Now</p>
+                          {currentTrips.map(renderTripButton)}
+                        </>
+                      )}
                       {upcomingTrips.length > 0 && (
                         <>
-                          <p className="text-xs text-gray-400 uppercase tracking-wide px-2 py-1 w-full" style={{ flexBasis: "100%" }}>Upcoming</p>
+                          <p className="text-xs text-gray-400 uppercase tracking-wide px-2 py-1 w-full" style={{ flexBasis: "100%", marginTop: currentTrips.length > 0 ? "8px" : "0" }}>Upcoming</p>
                           {upcomingTrips.map(renderTripButton)}
                         </>
                       )}
                       {pastTrips.length > 0 && (
                         <>
-                          <p className="text-xs text-gray-400 uppercase tracking-wide px-2 py-1 w-full" style={{ flexBasis: "100%", marginTop: upcomingTrips.length > 0 ? "8px" : "0" }}>Past Trips</p>
-                          {pastTrips.map(renderTripButton)}
+                          <button
+                            type="button"
+                            onClick={() => setShowPastTrips(v => !v)}
+                            className="text-xs text-gray-400 uppercase tracking-wide px-2 py-1 w-full text-left"
+                            style={{ flexBasis: "100%", marginTop: (currentTrips.length > 0 || upcomingTrips.length > 0) ? "8px" : "0", background: "none", border: "none", cursor: "pointer", fontWeight: 600, letterSpacing: "0.05em" }}
+                          >
+                            Past Trips {showPastTrips ? "▲" : "▼"}
+                          </button>
+                          {showPastTrips && pastTrips.map(renderTripButton)}
                         </>
                       )}
                     </>

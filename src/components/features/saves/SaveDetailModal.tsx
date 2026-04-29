@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { X, MapPin, Sparkles, ExternalLink, ChevronDown, Check } from "lucide-react";
+import { bucketTrips } from "@/lib/trip-phase";
 import { getTripCoverImage } from "@/lib/destination-images";
 
 type SaveItem = {
@@ -29,7 +30,7 @@ type SaveItem = {
   userRating: number | null;
 };
 
-type Trip = { id: string; title: string; status?: string };
+type Trip = { id: string; title: string; startDate: string | null; endDate: string | null; status?: string };
 
 const SOURCE_LABEL: Record<string, string> = {
   URL_PASTE: "URL save", EMAIL_FORWARD: "Email", IN_APP_SAVE: "Saved in app", SHARED_TRIP_IMPORT: "Flokk share",
@@ -125,6 +126,7 @@ export function SaveDetailModal({
   const [editingUrl, setEditingUrl] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [urlError, setUrlError] = useState("");
+  const [showPastTrips, setShowPastTrips] = useState(false);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initialNotes = useRef("");
   const initialTags = useRef<string[]>([]);
@@ -536,8 +538,7 @@ export function SaveDetailModal({
                     No trip / Keep unassigned
                   </button>
                   {(() => {
-                    const upcomingTrips = trips.filter(t => !t.status || t.status === "PLANNING" || t.status === "ACTIVE");
-                    const pastTrips = trips.filter(t => t.status === "COMPLETED");
+                    const { current: currentTrips, upcoming: upcomingTrips, past: pastTrips } = bucketTrips(trips);
                     const renderTripBtn = (trip: Trip) => (
                       <button
                         key={trip.id}
@@ -549,16 +550,27 @@ export function SaveDetailModal({
                     );
                     return (
                       <>
+                        {currentTrips.length > 0 && (
+                          <>
+                            <p style={{ fontSize: "10px", color: "#C4664A", textTransform: "uppercase", letterSpacing: "0.06em", padding: "6px 16px 2px", fontWeight: 600 }}>Happening Now</p>
+                            {currentTrips.map(renderTripBtn)}
+                          </>
+                        )}
                         {upcomingTrips.length > 0 && (
                           <>
-                            <p style={{ fontSize: "10px", color: "#aaa", textTransform: "uppercase", letterSpacing: "0.06em", padding: "6px 16px 2px", fontWeight: 600 }}>Upcoming</p>
+                            <p style={{ fontSize: "10px", color: "#aaa", textTransform: "uppercase", letterSpacing: "0.06em", padding: "6px 16px 2px", fontWeight: 600, marginTop: currentTrips.length > 0 ? "4px" : "0" }}>Upcoming</p>
                             {upcomingTrips.map(renderTripBtn)}
                           </>
                         )}
                         {pastTrips.length > 0 && (
                           <>
-                            <p style={{ fontSize: "10px", color: "#aaa", textTransform: "uppercase", letterSpacing: "0.06em", padding: "6px 16px 2px", fontWeight: 600, marginTop: upcomingTrips.length > 0 ? "4px" : "0" }}>Past Trips</p>
-                            {pastTrips.map(renderTripBtn)}
+                            <button
+                              onClick={() => setShowPastTrips(v => !v)}
+                              style={{ width: "100%", padding: "6px 16px 2px", textAlign: "left", background: "none", border: "none", fontSize: "10px", color: "#aaa", textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 600, cursor: "pointer", marginTop: (currentTrips.length > 0 || upcomingTrips.length > 0) ? "4px" : "0" }}
+                            >
+                              Past Trips {showPastTrips ? "▲" : "▼"}
+                            </button>
+                            {showPastTrips && pastTrips.map(renderTripBtn)}
                           </>
                         )}
                       </>

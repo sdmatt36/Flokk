@@ -6,14 +6,9 @@ import { TripsPageClient } from "@/components/features/trips/TripsPageClient";
 
 export const dynamic = "force-dynamic";
 
-export default async function TripsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ tab?: string }>;
-}) {
+export default async function TripsPage() {
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
-  const { tab } = await searchParams;
 
   const profileId = await resolveProfileId(userId);
   if (!profileId) redirect("/onboarding");
@@ -76,5 +71,5 @@ export default async function TripsPage({
     };
   });
 
-  return <TripsPageClient trips={trips} defaultTab={tab === "past" ? "past" : "upcoming"} />;
+  return <TripsPageClient trips={trips} />;
 }

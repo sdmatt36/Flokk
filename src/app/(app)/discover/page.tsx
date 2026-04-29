@@ -15,6 +15,7 @@ import { PlaceActionRow } from "@/components/features/places/PlaceActionRow";
 import type { UserSpotRating } from "@/app/api/community/user-ratings/route";
 import { resolveSaveLink } from "@/lib/save-link";
 import { MODAL_OVERLAY_CLASSES } from "@/lib/modal-classes";
+import { bucketTrips } from "@/lib/trip-phase";
 import { EntityStatusPill } from "@/components/ui/EntityStatusPill";
 import { buildSaveStatusMap } from "@/lib/save-status-map";
 import type { EntityStatusResult } from "@/lib/entity-status";
@@ -887,50 +888,48 @@ function PlacesTab() {
                     <p className="text-xs text-gray-400 py-2">No trips found.</p>
                   ) : (
                     <>
-                      {apTrips.filter(t => t.status !== "COMPLETED").length > 0 && (
-                        <div className="mb-2">
-                          <p className="text-xs text-gray-400 font-medium mb-1">Upcoming</p>
-                          {apTrips.filter(t => t.status !== "COMPLETED").map(trip => (
-                            <div
-                              key={trip.id}
-                              onClick={() => {
-                                setApSelectedTripId(trip.id);
-                                setApDay(1);
-                                const mx = (trip.startDate && trip.endDate)
-                                  ? Math.round((new Date(trip.endDate.split("T")[0]).getTime() - new Date(trip.startDate.split("T")[0]).getTime()) / (1000 * 60 * 60 * 24)) + 1
-                                  : 30;
-                                setApMaxDays(Math.max(1, mx));
-                              }}
-                              className={`py-2 px-3 rounded-lg cursor-pointer hover:bg-gray-50 mb-1 ${apSelectedTripId === trip.id ? "bg-[#1B3A5C]/5 border border-[#1B3A5C]" : "border border-transparent"}`}
-                            >
-                              <p className="text-sm font-medium text-[#1B3A5C]">{trip.title}</p>
-                              {trip.destinationCity && <p className="text-xs text-gray-400">{trip.destinationCity}</p>}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {apTrips.filter(t => t.status === "COMPLETED").length > 0 && (
-                        <div className="mb-2">
-                          <p className="text-xs text-gray-400 font-medium mb-1">Past Trips</p>
-                          {apTrips.filter(t => t.status === "COMPLETED").map(trip => (
-                            <div
-                              key={trip.id}
-                              onClick={() => {
-                                setApSelectedTripId(trip.id);
-                                setApDay(1);
-                                const mx = (trip.startDate && trip.endDate)
-                                  ? Math.round((new Date(trip.endDate.split("T")[0]).getTime() - new Date(trip.startDate.split("T")[0]).getTime()) / (1000 * 60 * 60 * 24)) + 1
-                                  : 30;
-                                setApMaxDays(Math.max(1, mx));
-                              }}
-                              className={`py-2 px-3 rounded-lg cursor-pointer hover:bg-gray-50 mb-1 ${apSelectedTripId === trip.id ? "bg-[#1B3A5C]/5 border border-[#1B3A5C]" : "border border-transparent"}`}
-                            >
-                              <p className="text-sm font-medium text-[#1B3A5C]">{trip.title}</p>
-                              {trip.destinationCity && <p className="text-xs text-gray-400">{trip.destinationCity}</p>}
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      {(() => {
+                        const { current: apCurrent, upcoming: apUpcoming, past: apPast } = bucketTrips(apTrips);
+                        const renderApTrip = (trip: typeof apTrips[0]) => (
+                          <div
+                            key={trip.id}
+                            onClick={() => {
+                              setApSelectedTripId(trip.id);
+                              setApDay(1);
+                              const mx = (trip.startDate && trip.endDate)
+                                ? Math.round((new Date(trip.endDate.split("T")[0]).getTime() - new Date(trip.startDate.split("T")[0]).getTime()) / (1000 * 60 * 60 * 24)) + 1
+                                : 30;
+                              setApMaxDays(Math.max(1, mx));
+                            }}
+                            className={`py-2 px-3 rounded-lg cursor-pointer hover:bg-gray-50 mb-1 ${apSelectedTripId === trip.id ? "bg-[#1B3A5C]/5 border border-[#1B3A5C]" : "border border-transparent"}`}
+                          >
+                            <p className="text-sm font-medium text-[#1B3A5C]">{trip.title}</p>
+                            {trip.destinationCity && <p className="text-xs text-gray-400">{trip.destinationCity}</p>}
+                          </div>
+                        );
+                        return (
+                          <>
+                            {apCurrent.length > 0 && (
+                              <div className="mb-2">
+                                <p className="text-xs font-medium mb-1" style={{ color: "#C4664A" }}>Happening Now</p>
+                                {apCurrent.map(renderApTrip)}
+                              </div>
+                            )}
+                            {apUpcoming.length > 0 && (
+                              <div className="mb-2">
+                                <p className="text-xs text-gray-400 font-medium mb-1">Upcoming</p>
+                                {apUpcoming.map(renderApTrip)}
+                              </div>
+                            )}
+                            {apPast.length > 0 && (
+                              <div className="mb-2">
+                                <p className="text-xs text-gray-400 font-medium mb-1">Past Trips</p>
+                                {apPast.map(renderApTrip)}
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
                       {apSelectedTripId && (
                         <div className="flex items-center gap-3 mt-3">
                           <p className="text-xs text-gray-500 font-medium">Which day?</p>

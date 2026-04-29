@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle, ChevronDown, Clock, ExternalLink, Footprints, Loader2, MapPin, Plus, X } from "lucide-react";
+import { bucketTrips } from "@/lib/trip-phase";
 import TourMapBlock from "@/components/tours/TourMapBlock";
 import "mapbox-gl/dist/mapbox-gl.css";
 
@@ -262,8 +263,8 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
     }
   }
 
-  const upcomingTrips = trips.filter(t => t.status === "PLANNING" || t.status === "ACTIVE");
-  const pastTrips = trips.filter(t => t.status === "COMPLETED");
+  const { current: currentTrips, upcoming: upcomingTrips } = bucketTrips(trips);
+  const activePicks = [...currentTrips, ...upcomingTrips];
 
   return (
     <div>
@@ -454,9 +455,37 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
                   <p className="text-sm text-gray-400 py-4 text-center">No trips found. <a href="/trips/new" className="text-[#C4664A] font-medium">Create one →</a></p>
                 ) : (
                   <div className="max-h-56 overflow-y-auto mb-4">
+                    {currentTrips.length > 0 && (
+                      <>
+                        <p className="text-xs uppercase tracking-wide px-1 py-1 font-semibold" style={{ color: "#C4664A" }}>Happening Now</p>
+                        {currentTrips.map(trip => {
+                          const isMatch = normalizeCity(trip.destinationCity) === normalizeCity(destinationCity);
+                          return (
+                            <div
+                              key={trip.id}
+                              onClick={() => {
+                                const mx = (trip.startDate && trip.endDate)
+                                  ? Math.round((new Date(trip.endDate.split("T")[0]).getTime() - new Date(trip.startDate.split("T")[0]).getTime()) / (1000 * 60 * 60 * 24)) + 1
+                                  : 30;
+                                setSelectedTripId(trip.id);
+                                setMaxDays(mx);
+                                setSelectedDay(d => d > mx ? 1 : d);
+                              }}
+                              className={`py-2 px-3 rounded-lg cursor-pointer ${selectedTripId === trip.id ? "bg-[#1B3A5C]/5 border border-[#1B3A5C]" : "hover:bg-gray-50"}`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-sm text-[#1B3A5C] font-medium">{trip.title}</p>
+                                {isMatch && <span className="text-xs text-[#C4664A] font-medium shrink-0">Suggested</span>}
+                              </div>
+                              {trip.destinationCity && <p className="text-xs text-gray-400">{trip.destinationCity}</p>}
+                            </div>
+                          );
+                        })}
+                      </>
+                    )}
                     {upcomingTrips.length > 0 && (
                       <>
-                        <p className="text-xs text-gray-400 uppercase tracking-wide px-1 py-1 font-semibold">Upcoming</p>
+                        <p className={`text-xs text-gray-400 uppercase tracking-wide px-1 py-1 font-semibold ${currentTrips.length > 0 ? "mt-2" : ""}`}>Upcoming</p>
                         {upcomingTrips.map(trip => {
                           const isMatch = normalizeCity(trip.destinationCity) === normalizeCity(destinationCity);
                           return (
@@ -482,33 +511,8 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
                         })}
                       </>
                     )}
-                    {pastTrips.length > 0 && (
-                      <>
-                        <p className={`text-xs text-gray-400 uppercase tracking-wide px-1 py-1 font-semibold ${upcomingTrips.length > 0 ? "mt-2" : ""}`}>Past Trips</p>
-                        {pastTrips.map(trip => {
-                          const isMatch = normalizeCity(trip.destinationCity) === normalizeCity(destinationCity);
-                          return (
-                            <div
-                              key={trip.id}
-                              onClick={() => {
-                                const mx = (trip.startDate && trip.endDate)
-                                  ? Math.round((new Date(trip.endDate.split("T")[0]).getTime() - new Date(trip.startDate.split("T")[0]).getTime()) / (1000 * 60 * 60 * 24)) + 1
-                                  : 30;
-                                setSelectedTripId(trip.id);
-                                setMaxDays(mx);
-                                setSelectedDay(d => d > mx ? 1 : d);
-                              }}
-                              className={`py-2 px-3 rounded-lg cursor-pointer ${selectedTripId === trip.id ? "bg-[#1B3A5C]/5 border border-[#1B3A5C]" : "hover:bg-gray-50"}`}
-                            >
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="text-sm text-[#1B3A5C] font-medium">{trip.title}</p>
-                                {isMatch && <span className="text-xs text-[#C4664A] font-medium shrink-0">Suggested</span>}
-                              </div>
-                              {trip.destinationCity && <p className="text-xs text-gray-400">{trip.destinationCity}</p>}
-                            </div>
-                          );
-                        })}
-                      </>
+                    {activePicks.length === 0 && (
+                      <p className="text-sm text-gray-400 py-2 px-1">No upcoming trips. <a href="/trips/new" className="text-[#C4664A] font-medium">Create one →</a></p>
                     )}
                   </div>
                 )}

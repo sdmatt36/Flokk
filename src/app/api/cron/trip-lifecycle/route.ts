@@ -13,7 +13,20 @@ export async function GET(request: Request) {
 
   const now = new Date();
 
-  // Find trips whose endDate has passed and are still in PLANNING or ACTIVE status
+  // Discipline 4.11. PLANNING → ACTIVE → COMPLETED. Status is date-driven. The 9h buffer on COMPLETED handles timezone edges; ACTIVE advances immediately on startDate.
+
+  // Transition 1: PLANNING → ACTIVE (trip has started, not yet ended)
+  const activatedResult = await db.trip.updateMany({
+    where: {
+      status: "PLANNING",
+      startDate: { lte: now },
+      endDate: { gte: now },
+    },
+    data: { status: "ACTIVE" },
+  });
+  console.log(`[trip-lifecycle] PLANNING → ACTIVE: ${activatedResult.count} trips`);
+
+  // Transition 2: PLANNING or ACTIVE → COMPLETED (endDate passed with 9h buffer)
   const tripsToComplete = await db.trip.findMany({
     where: {
       endDate: { lt: new Date(now.getTime() - 9 * 60 * 60 * 1000) },
