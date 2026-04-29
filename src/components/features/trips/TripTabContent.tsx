@@ -2055,6 +2055,60 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [tourCancelTarget, setTourCancelTarget] = useState<{ tourId: string; title: string; stopCount: number; days: number[] } | null>(null);
   const [tourCancelling, setTourCancelling] = useState(false);
 
+  // ── Per-day notes state ──────────────────────────────────────────────────
+  type DayNote = { id: string; content: TiptapDoc; checked: boolean; dayIndex: number | null; createdAt: string };
+  const [dayNotesList, setDayNotesList] = useState<DayNote[]>([]);
+  const [addingNoteForDay, setAddingNoteForDay] = useState<number | null>(null);
+  const [newlyCreatedDayNoteId, setNewlyCreatedDayNoteId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!tripId) return;
+    fetch(`/api/trips/${tripId}/notes`)
+      .then(r => r.json())
+      .then((d: DayNote[]) => setDayNotesList(Array.isArray(d) ? d.filter(n => n.dayIndex !== null) : []))
+      .catch(console.error);
+  }, [tripId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleAddDayNote(dayIndex: number) {
+    if (addingNoteForDay !== null || !tripId) return;
+    setAddingNoteForDay(dayIndex);
+    try {
+      const res = await fetch(`/api/trips/${tripId}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: emptyDoc(), dayIndex }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const saved: DayNote = await res.json();
+      setDayNotesList(prev => [...prev, saved]);
+      setNewlyCreatedDayNoteId(saved.id);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAddingNoteForDay(null);
+    }
+  }
+
+  async function handleSaveDayNote(noteId: string, content: TiptapDoc): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/trips/${tripId}/notes/${noteId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (res.ok) setDayNotesList(prev => prev.map(n => n.id === noteId ? { ...n, content } : n));
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async function handleDeleteDayNote(noteId: string) {
+    await fetch(`/api/trips/${tripId}/notes/${noteId}`, { method: "DELETE" });
+    setDayNotesList(prev => prev.filter(n => n.id !== noteId));
+    if (newlyCreatedDayNoteId === noteId) setNewlyCreatedDayNoteId(null);
+  }
+
   // Close move menu on mousedown outside the dropdown
   useEffect(() => {
     if (!openMoveMenuId) return;
@@ -3649,17 +3703,62 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                             Add activity
                           </button>
 
-                          {/* Per-day notes — full editor coming in next deploy */}
-                          <div style={{
-                            marginTop: "8px",
-                            padding: "12px 14px",
-                            backgroundColor: "rgba(196,102,74,0.08)",
-                            border: "1px dashed rgba(196,102,74,0.3)",
-                            borderRadius: "8px",
-                          }}>
-                            <p style={{ fontSize: "12px", color: "#717171", margin: 0, lineHeight: 1.5 }}>
-                              Per-day notes are getting an upgrade. For now, use the Notes tab to capture reminders for this trip.
-                            </p>
+                          {/* Per-day notes */}
+                          <div style={{ marginTop: "10px" }}>
+                            {dayNotesList
+                              .filter(n => n.dayIndex === i)
+                              .map(note => (
+                                <div key={note.id} style={{ marginBottom: "8px", position: "relative" }}>
+                                  <NoteEditor
+                                    key={note.id}
+                                    initialContent={note.content}
+                                    onSave={(content) => handleSaveDayNote(note.id, content)}
+                                    placeholder="Notes for this day..."
+                                    autoFocus={note.id === newlyCreatedDayNoteId}
+                                  />
+                                  <button
+                                    onClick={() => handleDeleteDayNote(note.id)}
+                                    title="Delete note"
+                                    style={{
+                                      position: "absolute",
+                                      top: "6px",
+                                      right: "6px",
+                                      background: "none",
+                                      border: "none",
+                                      cursor: "pointer",
+                                      color: "#D0D0D0",
+                                      padding: "2px",
+                                      lineHeight: 1,
+                                      zIndex: 1,
+                                    }}
+                                  >
+                                    <Trash2 size={12} />
+                                  </button>
+                                </div>
+                              ))}
+                            <button
+                              onClick={() => handleAddDayNote(i)}
+                              disabled={addingNoteForDay === i}
+                              style={{
+                                width: "100%",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                gap: "5px",
+                                padding: "8px",
+                                marginTop: dayNotesList.filter(n => n.dayIndex === i).length > 0 ? "4px" : "0",
+                                border: "1px dashed rgba(196,102,74,0.35)",
+                                borderRadius: "8px",
+                                background: "none",
+                                cursor: addingNoteForDay === i ? "default" : "pointer",
+                                color: "#C4664A",
+                                fontSize: "12px",
+                                fontWeight: 600,
+                              }}
+                            >
+                              <Plus size={12} />
+                              Add note for Day {i + 1}
+                            </button>
                           </div>
 
                         </div>
@@ -7234,6 +7333,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [tripNotes, setTripNotes] = useState<TripNote[]>([]);
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [newlyCreatedNoteId, setNewlyCreatedNoteId] = useState<string | null>(null);
+  const [notesFilter, setNotesFilter] = useState<"all" | "trip" | number>("all");
 
   useEffect(() => {
     if (tab !== "notes" || !tripId) return;
@@ -7629,15 +7729,52 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
             </button>
           </div>
 
+          {/* Day filter chips — shown when notes from multiple scopes exist */}
+          {(() => {
+            const dayIndexValues = [...new Set(tripNotes.map(n => n.dayIndex).filter((d): d is number => d !== null))].sort((a, b) => a - b);
+            const hasMixed = tripNotes.some(n => n.dayIndex === null) && dayIndexValues.length > 0;
+            if (!hasMixed && dayIndexValues.length === 0) return null;
+            const chipStyle = (active: boolean): React.CSSProperties => ({
+              padding: "4px 12px",
+              borderRadius: "20px",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: "1px solid",
+              backgroundColor: active ? "#1B3A5C" : "transparent",
+              color: active ? "#fff" : "#717171",
+              borderColor: active ? "#1B3A5C" : "#E0E0E0",
+              whiteSpace: "nowrap" as const,
+            });
+            return (
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
+                <button onClick={() => setNotesFilter("all")} style={chipStyle(notesFilter === "all")}>All</button>
+                {tripNotes.some(n => n.dayIndex === null) && (
+                  <button onClick={() => setNotesFilter("trip")} style={chipStyle(notesFilter === "trip")}>Trip notes</button>
+                )}
+                {dayIndexValues.map(d => (
+                  <button key={d} onClick={() => setNotesFilter(d)} style={chipStyle(notesFilter === d)}>Day {d + 1}</button>
+                ))}
+              </div>
+            );
+          })()}
+
           {/* Notes list */}
-          {tripNotes.length === 0 ? (
-            <div style={{ padding: "40px 24px", textAlign: "center", border: "1.5px dashed #E0E0E0", borderRadius: "16px" }}>
-              <p style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a", marginBottom: "6px" }}>No notes yet.</p>
-              <p style={{ fontSize: "13px", color: "#717171" }}>Add reminders, things to check, or anything related to this trip.</p>
-            </div>
-          ) : (
+          {(() => {
+            const filtered = tripNotes.filter(n => {
+              if (notesFilter === "all") return true;
+              if (notesFilter === "trip") return n.dayIndex === null;
+              return n.dayIndex === notesFilter;
+            });
+            if (filtered.length === 0) return (
+              <div style={{ padding: "40px 24px", textAlign: "center", border: "1.5px dashed #E0E0E0", borderRadius: "16px" }}>
+                <p style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a", marginBottom: "6px" }}>No notes yet.</p>
+                <p style={{ fontSize: "13px", color: "#717171" }}>Add reminders, things to check, or anything related to this trip.</p>
+              </div>
+            );
+            return (
             <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-              {[...tripNotes]
+              {[...filtered]
                 .sort((a, b) => {
                   if (a.checked !== b.checked) return Number(a.checked) - Number(b.checked);
                   return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
@@ -7717,7 +7854,8 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                   </div>
                 ))}
             </div>
-          )}
+          );
+          })()}
 
           {/* Done count */}
           {tripNotes.filter(n => n.checked).length > 0 && (
