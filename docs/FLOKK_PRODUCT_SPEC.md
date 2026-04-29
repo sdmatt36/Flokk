@@ -1352,12 +1352,18 @@ Source tags: [C37] surfaced Chat 37; [C38] surfaced Chat 38; [C39] surfaced Chat
 - Saved event remove flow: "✓ Saved" button click confirms removal [C40]
 - ItineraryItem cascade-delete migration: ALTER FK to ON DELETE CASCADE + sweep existing orphans [C40]
 
+### Foundation debt continued [C41]
+
+- **ManualActivity address auto-population bug** [C41]: Caroline (The Weiners) reports typing "kollensvevet" as activity name → form auto-populated venue (correct: kollensvevet.no) but address was "Búðarstígur 4, 101 Reykjavík, Iceland" — an unrelated Iceland address despite kollensvevet being Norwegian. Three candidate root causes: (1) form retains prior activity's address state when user adds activities sequentially; (2) activity name field triggers Places autocomplete that auto-fills address from top result without user selection; (3) Places autocomplete is biased to trip destination (Reykjavík), returning Iceland-adjacent results for any query. Same class of bug as autocomplete duplicates (Chat 40) — implicit defaults in form auto-population without user disambiguation. Diagnostic: find ManualActivity creation form, identify address auto-population trigger (name onChange? form open?), confirm destination bias applied to autocomplete, check state clearing between creations. Fix: (a) clear form state on each new activity, (b) only auto-populate address when user explicitly selects a Place from the dropdown — never on text input alone, (c) make auto-populated address visibly editable with a clear "Remove" affordance, not just a soft hint. Investigate after Notes architecture verified, before Spots arc kickoff.
+
+- **Cardinality `.find()` audit** [C40]: Codebase-wide sweep for `.find()` and `[0]` over per-entity collections — same pattern as lodging anchor bug fixed in 1A.5. Lodging anchor was fixed in commit f47f212 but pattern likely exists at other callsites. Output is backlog enrichment; may include targeted fixes where root cause is clear.
+
 ### Bug fixes and small repairs
 
 - SaveDetailModal modal pattern migration: src/components/features/saves/SaveDetailModal.tsx uses transform-based slide-up pattern (position:fixed bottom:0 left:50% transform:translate(-50%,0) on panel + separate backdrop div). Not a className swap — requires merging backdrop+panel into single wrapper. Deferred from Chat 39 modal migration. [C39]
 - Cairo/Luxor blank itinerary diagnostic [C38]
 - Sri Lanka recommendation save bug [C38]
-- Notes edit + formatting preservation [C38]
+- Notes edit + formatting preservation [C38]: COMPLETE Chat 41 (Tiptap NoteEditor, commits b53e8b9 → 9bbccdf). Unified architecture: TripNote.content migrated String→Json, dayIndex added, per-day notes in Itinerary view, day filter chips in Notes tab, autosave with Saving/Saved indicator.
 - Documents edit capability [C38]
 - Booking DRP8E8 missing leg SQL repair [C38]
 - Tours with null ticketRequired: backfill when ticketRequired becomes hard filter [C38]
