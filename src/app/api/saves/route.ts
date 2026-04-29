@@ -3,6 +3,10 @@ function sanitizeThumbnailUrl(url: string | null | undefined): string | null {
   return url;
 }
 
+function isMapsUrl(url: string): boolean {
+  return /^https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.com|(www\.)?google\.com\/maps)/i.test(url);
+}
+
 function normalizeUrl(url: string): string {
   try {
     const u = new URL(url);
@@ -101,7 +105,7 @@ export async function POST(request: Request) {
         const enriched = await enrichWithPlaces(parsed.title, parsed.city?.trim() ?? "");
         const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string } = {};
         if (enriched.imageUrl) { placesUpdate.placePhotoUrl = enriched.imageUrl; manualEnrichedPhotoUrl = enriched.imageUrl; }
-        if (enriched.website && !savedItem.websiteUrl) { placesUpdate.websiteUrl = enriched.website; manualEnrichedWebsite = enriched.website; }
+        if (enriched.website && !savedItem.websiteUrl && !isMapsUrl(enriched.website)) { placesUpdate.websiteUrl = enriched.website; manualEnrichedWebsite = enriched.website; }
         if (Object.keys(placesUpdate).length > 0) {
           await db.savedItem.update({ where: { id: savedItem.id }, data: placesUpdate });
         }
@@ -274,7 +278,7 @@ export async function POST(request: Request) {
       const enriched = await enrichWithPlaces(rawTitle, "");
       const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string } = {};
       if (enriched.imageUrl) { placesUpdate.placePhotoUrl = enriched.imageUrl; urlEnrichedPhotoUrl = enriched.imageUrl; }
-      if (enriched.website && !savedItem.websiteUrl) { placesUpdate.websiteUrl = enriched.website; urlEnrichedWebsite = enriched.website; }
+      if (enriched.website && !savedItem.websiteUrl && !isMapsUrl(enriched.website)) { placesUpdate.websiteUrl = enriched.website; urlEnrichedWebsite = enriched.website; }
       if (Object.keys(placesUpdate).length > 0) {
         await db.savedItem.update({ where: { id: savedItem.id }, data: placesUpdate });
       }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { X, MapPin, Sparkles, ExternalLink, ChevronDown, Check } from "lucide-react";
 import { bucketTrips } from "@/lib/trip-phase";
 import { getTripCoverImage } from "@/lib/destination-images";
+import { shareEntity } from "@/lib/share";
 
 type SaveItem = {
   id: string;
@@ -117,6 +118,7 @@ export function SaveDetailModal({
   const [mounted, setMounted] = useState(false);
   const [assignedTrip, setAssignedTrip] = useState<{ id: string; title: string } | null>(null);
   const [isBooked, setIsBooked] = useState(false);
+  const [justShared, setJustShared] = useState(false);
   const [localTags, setLocalTags] = useState<string[]>([]);
   const [editingTags, setEditingTags] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -790,6 +792,19 @@ export function SaveDetailModal({
                   style={{ width: "100%", padding: "13px", borderRadius: "999px", backgroundColor: "transparent", border: "1.5px solid #C4664A", fontSize: "14px", fontWeight: 700, color: "#C4664A", cursor: "pointer" }}
                 >
                   Book it →
+                </button>
+              )}
+
+              {/* Share */}
+              {item && (
+                <button
+                  onClick={async () => {
+                    const result = await shareEntity({ entityType: "saved_item", entityId: item.id });
+                    if (result.ok) { setJustShared(true); setTimeout(() => setJustShared(false), 2000); }
+                  }}
+                  style={{ width: "100%", padding: "13px", borderRadius: "999px", backgroundColor: "transparent", border: "1.5px solid rgba(196,102,74,0.4)", fontSize: "14px", fontWeight: 700, color: justShared ? "#4a7c59" : "#C4664A", cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  {justShared ? "Link copied" : "Share"}
                 </button>
               )}
 

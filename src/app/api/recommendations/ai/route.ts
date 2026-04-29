@@ -362,7 +362,7 @@ Generate exactly ${aiNeeded} recommendations distributed across segments per the
         lng: enriched.lng,
         segmentCity: typeof m.raw.segmentCity === "string" ? m.raw.segmentCity : null,
         proximityLabel: null,
-        photoUrl: null,
+        photoUrl: enriched.imageUrl,
       });
     }
 

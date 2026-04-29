@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import TourResults from "@/components/TourResults";
+import { ExternalLink, Clock, Footprints, MapPin } from "lucide-react";
 import type { ResolvedShareEntity } from "@/lib/share-token";
 
 const NAVY = "#1B3A5C";
@@ -311,24 +311,6 @@ function ManualActivityLayout({ item }: { item: NonNullable<ResolvedShareEntity[
 // ─── GeneratedTour layout ────────────────────────────────────────────────────
 
 function TourLayout({ tour }: { tour: NonNullable<ResolvedShareEntity["generatedTour"]> }) {
-  // Map tour stops to TourResults Stop shape
-  const stops = tour.stops.map(s => ({
-    id: s.id,
-    orderIndex: s.orderIndex,
-    name: s.name,
-    address: s.address ?? "",
-    lat: s.lat ?? 0,
-    lng: s.lng ?? 0,
-    duration: s.durationMin ?? 60,
-    travelTime: s.travelTimeMin ?? 0,
-    why: s.why ?? "",
-    familyNote: s.familyNote ?? "",
-    imageUrl: s.imageUrl ?? null,
-    websiteUrl: s.websiteUrl ?? null,
-    ticketRequired: s.ticketRequired ?? null,
-    placeTypes: s.placeTypes,
-  }));
-
   return (
     <div style={{ padding: "20px 16px 0" }}>
       <span style={{ fontSize: "11px", fontWeight: 700, color: TERRA, textTransform: "uppercase", letterSpacing: "0.06em" }}>Tour</span>
@@ -341,24 +323,73 @@ function TourLayout({ tour }: { tour: NonNullable<ResolvedShareEntity["generated
       <p style={{ fontSize: "12px", color: GRAY, marginBottom: 16 }}>
         {tour.durationLabel} · {tour.transport}
       </p>
-      <TourResults
-        stops={stops}
-        removedStops={[]}
-        destinationCity={tour.destinationCity}
-        destinationCountry={tour.destinationCountry}
-        prompt={tour.prompt}
-        durationLabel={tour.durationLabel}
-        transport={tour.transport}
-        tourId={null}
-        walkViolations={0}
-        originalTargetStops={stops.length}
-        onRemoveStop={() => {}}
-        onQuickUndo={() => {}}
-        onDeleteCommit={() => {}}
-        onPermanentRestore={() => {}}
-        onReplaceStops={() => {}}
-        readOnly={true}
-      />
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        {tour.stops.map((stop, idx) => (
+          <div key={stop.id} style={{ display: "flex", alignItems: "flex-start", border: "1px solid #F3F4F6", borderRadius: "16px", overflow: "hidden", backgroundColor: "#fff" }}>
+            {/* 96×96 image */}
+            <div style={{ width: "96px", height: "96px", flexShrink: 0, backgroundColor: "#F3F4F6", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {stop.imageUrl ? (
+                <img src={stop.imageUrl} alt={stop.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                <MapPin size={20} style={{ color: "#D1D5DB" }} />
+              )}
+            </div>
+            {/* Content */}
+            <div style={{ flex: 1, minWidth: 0, padding: "10px 12px 10px 10px" }}>
+              {/* Badge + title */}
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
+                <div style={{ width: "20px", height: "20px", borderRadius: "50%", backgroundColor: TERRA, display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "10px", fontWeight: 700, flexShrink: 0, marginTop: "2px" }}>
+                  {idx + 1}
+                </div>
+                <p style={{ fontSize: "14px", fontWeight: 600, color: NAVY, margin: 0, lineHeight: 1.3 }}>{stop.name}</p>
+              </div>
+              {/* Link */}
+              {stop.websiteUrl && (
+                <a href={stop.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "12px", color: TERRA, textDecoration: "none", marginTop: "4px" }}>
+                  <ExternalLink size={12} />
+                  Link
+                </a>
+              )}
+              {/* Duration + walk + ticket pills */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "4px" }}>
+                {stop.durationMin && (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", backgroundColor: "#F3F4F6", borderRadius: "999px", padding: "2px 8px", fontSize: "11px", color: "#6B7280" }}>
+                    <Clock size={10} />
+                    {stop.durationMin} min
+                  </span>
+                )}
+                {tour.transport === "Walking" && idx > 0 && (stop.travelTimeMin ?? 0) > 0 && (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", backgroundColor: "#F3F4F6", borderRadius: "999px", padding: "2px 8px", fontSize: "11px", color: "#6B7280" }}>
+                    <Footprints size={10} />
+                    {stop.travelTimeMin} min walk
+                  </span>
+                )}
+                {stop.ticketRequired === "ticket-required" && (
+                  <span style={{ fontSize: "10px", fontWeight: 600, color: "#92400E", backgroundColor: "#FEF3C7", borderRadius: "999px", padding: "2px 8px" }}>Ticket required</span>
+                )}
+                {stop.ticketRequired === "advance-booking-recommended" && (
+                  <span style={{ fontSize: "10px", fontWeight: 600, color: "#92400E", backgroundColor: "#FEF3C7", borderRadius: "999px", padding: "2px 8px" }}>Book ahead</span>
+                )}
+                {stop.ticketRequired === "free" && (
+                  <span style={{ fontSize: "10px", fontWeight: 600, color: "#065F46", backgroundColor: "#D1FAE5", borderRadius: "999px", padding: "2px 8px" }}>Free</span>
+                )}
+              </div>
+              {/* Why */}
+              {stop.why && (
+                <p style={{ fontSize: "12px", color: "#6B7280", margin: "4px 0 0", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                  {stop.why}
+                </p>
+              )}
+              {/* familyNote */}
+              {stop.familyNote && (
+                <p style={{ fontSize: "12px", color: TERRA, fontStyle: "italic", margin: "2px 0 0", lineHeight: 1.4, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                  {stop.familyNote}
+                </p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

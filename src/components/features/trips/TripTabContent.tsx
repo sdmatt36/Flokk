@@ -781,6 +781,7 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
   const [editingUrl, setEditingUrl] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [urlError, setUrlError] = useState<string | null>(null);
+  const [justShared, setJustShared] = useState(false);
   const initialTags = useRef(item.categoryTags ?? []);
   const initial = item.title.replace(/^www\./, "").charAt(0).toUpperCase();
   const categoryLabel = localTags.filter(t => !["VG", "VGN"].includes(t)).slice(0, 2).join(" · ");
@@ -966,6 +967,16 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
                 Remove
               </button>
             )}
+            {item.id && (
+              <button type="button"
+                onClick={async () => {
+                  const result = await shareEntity({ entityType: "saved_item", entityId: item.id! });
+                  if (result.ok) { setJustShared(true); setTimeout(() => setJustShared(false), 2000); }
+                }}
+                style={{ padding: "10px", borderRadius: "999px", backgroundColor: "transparent", border: "1.5px solid rgba(196,102,74,0.4)", fontSize: "13px", fontWeight: 700, color: justShared ? "#4a7c59" : "#C4664A", cursor: "pointer", fontFamily: "inherit" }}>
+                {justShared ? "Link copied" : "Share"}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1046,7 +1057,7 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
           )}
           <button type="button" onClick={e => { e.stopPropagation(); onLearnMore(); }} style={{ fontSize: "11px", fontWeight: 600, padding: "4px 10px", borderRadius: "999px", border: "1px solid #E0E0E0", backgroundColor: "transparent", color: "#555", cursor: "pointer", whiteSpace: "nowrap" }}>Learn more</button>
           {onShare && (
-            <button type="button" onClick={e => { e.stopPropagation(); onShare(); }} style={{ fontSize: "11px", color: "#C4664A", background: "transparent", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", marginLeft: "auto" }}>
+            <button type="button" onClick={e => { e.stopPropagation(); onShare(); }} style={{ fontSize: "12px", fontWeight: 600, color: "#C4664A", background: "white", border: "1px solid rgba(196,102,74,0.3)", borderRadius: "6px", padding: "4px 10px", cursor: "pointer", fontFamily: "inherit", marginLeft: "auto" }}>
               Share
             </button>
           )}
@@ -3431,7 +3442,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                           </button>
                                         );
                                         const shareBtn = (entityId: string) => (
-                                          <button onClick={async e => { e.stopPropagation(); const result = await shareEntity({ entityType: "itinerary_item", entityId }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } }} style={{ background: "none", border: "none", cursor: "pointer", color: "#C4664A", padding: "2px", flexShrink: 0, fontSize: "11px", fontFamily: "inherit" }} title="Share">
+                                          <button onClick={async e => { e.stopPropagation(); const result = await shareEntity({ entityType: "itinerary_item", entityId }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } }} style={{ background: "white", border: "1px solid rgba(196,102,74,0.3)", borderRadius: "6px", cursor: "pointer", color: "#C4664A", padding: "4px 10px", flexShrink: 0, fontSize: "12px", fontWeight: 600, fontFamily: "inherit" }}>
                                             Share
                                           </button>
                                         );
@@ -4123,6 +4134,15 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                     >
                       Edit
                     </button>
+                    <button
+                      onClick={async () => {
+                        const result = await shareEntity({ entityType: "itinerary_item", entityId: sit.id });
+                        if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); setSelectedItineraryItem(null); }
+                      }}
+                      style={{ display: "block", width: "100%", marginTop: "8px", padding: "12px", backgroundColor: "transparent", color: "#C4664A", border: "1.5px solid rgba(196,102,74,0.4)", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      Share
+                    </button>
                   </div>
                 );
               })()}
@@ -4255,6 +4275,15 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       style={{ display: "block", width: "100%", marginTop: "12px", padding: "12px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
                     >
                       Save changes
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const result = await shareEntity({ entityType: "itinerary_item", entityId: sit.id });
+                        if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); setSelectedItineraryItem(null); }
+                      }}
+                      style={{ display: "block", width: "100%", marginTop: "8px", padding: "12px", backgroundColor: "transparent", color: "#C4664A", border: "1.5px solid rgba(196,102,74,0.4)", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      Share
                     </button>
                   </div>
                 );
