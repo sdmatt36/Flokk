@@ -94,6 +94,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
 
   const [showRemoved, setShowRemoved] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [showPastTrips, setShowPastTrips] = useState(false);
   const [pendingRemovals, setPendingRemovals] = useState<{
     stop: Stop;
     timer: ReturnType<typeof setTimeout>;
@@ -263,8 +264,9 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
     }
   }
 
-  const { current: currentTrips, upcoming: upcomingTrips } = bucketTrips(trips);
-  const activePicks = [...currentTrips, ...upcomingTrips];
+  // Discipline 4.11: bucketing via shared helper. Past trips collapsed (not excluded) — the Spots/Discover content flywheel depends on retroactive tour generation from completed trips.
+  const { current: currentTrips, upcoming: upcomingTrips, past: pastTrips } = bucketTrips(trips);
+  const activePicks = [...currentTrips, ...upcomingTrips, ...pastTrips];
 
   return (
     <div>
@@ -511,8 +513,43 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
                         })}
                       </>
                     )}
+                    {pastTrips.length > 0 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setShowPastTrips(v => !v)}
+                          className={`text-xs text-gray-400 uppercase tracking-wide px-1 py-1 font-semibold w-full text-left ${(currentTrips.length > 0 || upcomingTrips.length > 0) ? "mt-2" : ""}`}
+                          style={{ background: "none", border: "none", cursor: "pointer", letterSpacing: "0.05em" }}
+                        >
+                          Past Trips {showPastTrips ? "▲" : "▼"}
+                        </button>
+                        {showPastTrips && pastTrips.map(trip => {
+                          const isMatch = normalizeCity(trip.destinationCity) === normalizeCity(destinationCity);
+                          return (
+                            <div
+                              key={trip.id}
+                              onClick={() => {
+                                const mx = (trip.startDate && trip.endDate)
+                                  ? Math.round((new Date(trip.endDate.split("T")[0]).getTime() - new Date(trip.startDate.split("T")[0]).getTime()) / (1000 * 60 * 60 * 24)) + 1
+                                  : 30;
+                                setSelectedTripId(trip.id);
+                                setMaxDays(mx);
+                                setSelectedDay(d => d > mx ? 1 : d);
+                              }}
+                              className={`py-2 px-3 rounded-lg cursor-pointer ${selectedTripId === trip.id ? "bg-[#1B3A5C]/5 border border-[#1B3A5C]" : "hover:bg-gray-50"}`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-sm text-[#1B3A5C] font-medium">{trip.title}</p>
+                                {isMatch && <span className="text-xs text-[#C4664A] font-medium shrink-0">Suggested</span>}
+                              </div>
+                              {trip.destinationCity && <p className="text-xs text-gray-400">{trip.destinationCity}</p>}
+                            </div>
+                          );
+                        })}
+                      </>
+                    )}
                     {activePicks.length === 0 && (
-                      <p className="text-sm text-gray-400 py-2 px-1">No upcoming trips. <a href="/trips/new" className="text-[#C4664A] font-medium">Create one →</a></p>
+                      <p className="text-sm text-gray-400 py-2 px-1">No trips found. <a href="/trips/new" className="text-[#C4664A] font-medium">Create one →</a></p>
                     )}
                   </div>
                 )}
