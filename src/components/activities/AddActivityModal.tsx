@@ -104,7 +104,6 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
   const [lat, setLat] = useState<number | null>(existingActivity?.lat ?? null);
   const [lng, setLng] = useState<number | null>(existingActivity?.lng ?? null);
   const [addressFromPlaces, setAddressFromPlaces] = useState(false);
-  const addressEditedRef = useRef(false);
   const [category, setCategory] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -184,24 +183,6 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
     }
   }
 
-  async function triggerAiFallback(activityName: string) {
-    if (!activityName || activityName.length < 3) return;
-    try {
-      const r = await fetch("/api/activities/ai-lookup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activityName, city: destinationCity, country: destinationCountry }),
-      });
-      const d = await r.json() as { address: string; website: string; latitude: number; longitude: number; confidence: "high" | "low" } | null;
-      if (!d) return;
-      if (d.confidence === "high") {
-        if (d.address && !addressEditedRef.current) { setAddress(d.address); setAddressFromPlaces(true); }
-        if (d.website) setWebsite(prev => prev || d.website);
-      }
-      if (d.latitude != null && d.longitude != null) { setLat(d.latitude); setLng(d.longitude); }
-    } catch { /* ignore */ }
-  }
-
   return createPortal(
     <div
       onClick={onClose}
@@ -279,8 +260,6 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
                       const d = await r.json() as PlacesSuggestion | null;
                       if (d) {
                         setSuggestion(d);
-                      } else {
-                        triggerAiFallback(v.trim());
                       }
                     } catch { /* ignore */ } finally {
                       setSuggestionLoading(false);
@@ -317,7 +296,7 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
                       type="button"
                       onClick={() => {
                         if (suggestion.name && !venueName) setVenueName(suggestion.name);
-                        if (suggestion.address && !address) { setAddress(suggestion.address); setAddressFromPlaces(true); addressEditedRef.current = false; }
+                        if (suggestion.address && !address) { setAddress(suggestion.address); setAddressFromPlaces(true); }
                         if (suggestion.website && !website) setWebsite(suggestion.website);
                         if (suggestion.lat != null) setLat(suggestion.lat);
                         if (suggestion.lng != null) setLng(suggestion.lng);
@@ -329,7 +308,7 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
                     </button>
                     <button
                       type="button"
-                      onClick={() => { setSuggestion(null); triggerAiFallback(title.trim()); }}
+                      onClick={() => { setSuggestion(null); }}
                       style={{ fontSize: "12px", fontWeight: 700, color: "#717171", background: "none", border: "none", cursor: "pointer", padding: "4px 6px", flexShrink: 0 }}
                     >
                       No ✗
@@ -413,7 +392,7 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
             <input
               type="text"
               value={address}
-              onChange={e => { setAddress(e.target.value); setAddressFromPlaces(false); addressEditedRef.current = true; }}
+              onChange={e => { setAddress(e.target.value); setAddressFromPlaces(false); }}
               placeholder="e.g. 123 Bukchon-ro, Jongno-gu, Seoul"
               style={inputStyle}
             />
