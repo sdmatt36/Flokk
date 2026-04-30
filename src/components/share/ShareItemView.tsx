@@ -150,6 +150,17 @@ export function ShareItemView({ token, entity, isSignedIn }: Props) {
             Shared on Flokk
           </p>
         )}
+        {entity.entityType === "saved_item" && (
+          <p style={{ textAlign: "center", fontSize: "12px", color: GRAY, marginTop: 24, paddingBottom: 16 }}>
+            {entity.savedItem?.trip?.title ? (
+              <>
+                From {entity.savedItem.trip.title}
+                <span style={{ margin: "0 8px", color: "#D1D5DB" }}>·</span>
+              </>
+            ) : null}
+            Shared on Flokk
+          </p>
+        )}
       </div>
     </div>
   );
@@ -163,60 +174,81 @@ function canSaveItineraryItem(entity: ResolvedShareEntity): boolean {
 
 // ─── SavedItem layout ────────────────────────────────────────────────────────
 
+const PLATFORM_LABELS: Record<string, string> = {
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  google_maps: "Google Maps",
+  direct: "email",
+};
+
 function SavedItemLayout({ item }: { item: NonNullable<ResolvedShareEntity["savedItem"]> }) {
-  const title = item.rawTitle ?? "Place";
-  const city = [item.destinationCity, item.destinationCountry].filter(Boolean).join(", ");
-  const link = item.websiteUrl ?? item.sourceUrl ?? null;
+  const primaryTag = (item.categoryTags[0] ?? "").toLowerCase();
+  const typeLabel =
+    primaryTag.includes("lodging") ? "LODGING" :
+    primaryTag.includes("food") ? "FOOD" :
+    (primaryTag.includes("activity") || primaryTag.includes("experience")) ? "ACTIVITY" :
+    "SAVED";
+
+  const displayTitle = item.rawTitle ?? "Place";
+
+  const locationLine = item.destinationCity
+    ? [item.destinationCity, item.destinationCountry].filter(Boolean).join(", ")
+    : null;
+
+  const platformDisplay = item.sourcePlatform
+    ? (PLATFORM_LABELS[item.sourcePlatform] ?? (item.sourcePlatform.charAt(0).toUpperCase() + item.sourcePlatform.slice(1)))
+    : null;
+  const savedAtFormatted = new Date(item.savedAt).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const dateLine = platformDisplay
+    ? `Saved from ${platformDisplay} · ${savedAtFormatted}`
+    : `Saved ${savedAtFormatted}`;
+
+  const cityCountry = [item.destinationCity, item.destinationCountry].filter(Boolean).join(", ");
+  const synthesizedDescription =
+    typeLabel === "LODGING" ? (cityCountry ? `Lodging in ${cityCountry}` : "A place worth visiting") :
+    typeLabel === "FOOD"    ? (cityCountry ? `Restaurant in ${cityCountry}` : "A place worth visiting") :
+    typeLabel === "ACTIVITY"? (cityCountry ? `Experience in ${cityCountry}` : "A place worth visiting") :
+    (cityCountry ? `Saved place in ${cityCountry}` : "A place worth visiting");
+  const displayDescription = item.rawDescription ?? item.userNote ?? synthesizedDescription;
+
+  const heroPhoto = item.placePhotoUrl ?? item.mediaThumbnailUrl ?? null;
+  const visitUrl = item.websiteUrl ?? item.sourceUrl ?? null;
 
   return (
     <div>
-      {item.placePhotoUrl && (
+      {heroPhoto && (
         <div style={{ width: "100%", aspectRatio: "4/3", overflow: "hidden", background: "#E5E7EB" }}>
-          <img
-            src={item.placePhotoUrl}
-            alt={title}
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          />
+          <img src={heroPhoto} alt={displayTitle} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         </div>
       )}
       <div style={{ padding: "20px 16px 0" }}>
-        <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "24px", fontWeight: 700, color: NAVY, marginBottom: 4 }}>
-          {title}
+        <span style={{ fontSize: "11px", fontWeight: 700, color: TERRA, textTransform: "uppercase", letterSpacing: "0.06em" }}>{typeLabel}</span>
+        <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 4px" }}>
+          {displayTitle}
         </h1>
-        {city && (
-          <p style={{ fontSize: "14px", color: GRAY, marginBottom: 12 }}>{city}</p>
+        {locationLine && (
+          <p style={{ fontSize: "14px", color: GRAY, marginBottom: 8 }}>{locationLine}</p>
         )}
-        {item.rawDescription && (
-          <p style={{ fontSize: "14px", color: "#374151", lineHeight: 1.6, marginBottom: 12 }}>
-            {item.rawDescription}
-          </p>
+        <p style={{ fontSize: "13px", color: GRAY, marginBottom: 6 }}>{dateLine}</p>
+        {displayDescription && (
+          <p style={{ fontSize: "14px", color: "#374151", lineHeight: 1.6, marginBottom: 12 }}>{displayDescription}</p>
         )}
-        {item.categoryTags.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
-            {item.categoryTags.map(tag => (
-              <span key={tag} style={{ fontSize: "11px", fontWeight: 600, color: TERRA, background: "rgba(196,102,74,0.08)", borderRadius: 999, padding: "3px 10px", textTransform: "capitalize" }}>
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
-        {item.userRating && item.userRating > 0 && (
+        {item.userRating != null && item.userRating > 0 && (
           <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 12 }}>
             <span style={{ fontSize: "12px", color: GRAY }}>Rated:</span>
             <div style={{ display: "flex", gap: 2 }}>
               {[1,2,3,4,5].map(i => (
-                <span key={i} style={{ color: i <= item.userRating! ? "#f59e0b" : "#d1d5db", fontSize: 14 }}>★</span>
+                <span key={i} style={{ color: i <= item.userRating! ? "#C4664A" : "#d1d5db", fontSize: 14 }}>★</span>
               ))}
             </div>
           </div>
         )}
-        {link && (
-          <a
-            href={link}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ fontSize: "13px", color: TERRA, textDecoration: "none", display: "block", marginBottom: 8 }}
-          >
+        {visitUrl && (
+          <a href={visitUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: TERRA, textDecoration: "none", display: "block", marginBottom: 8 }}>
             Visit website
           </a>
         )}

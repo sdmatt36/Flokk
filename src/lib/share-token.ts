@@ -10,6 +10,7 @@ export interface ResolvedShareEntity {
     rawTitle: string | null;
     rawDescription: string | null;
     placePhotoUrl: string | null;
+    mediaThumbnailUrl: string | null;
     websiteUrl: string | null;
     destinationCity: string | null;
     destinationCountry: string | null;
@@ -19,8 +20,11 @@ export interface ResolvedShareEntity {
     userRating: number | null;
     userNote: string | null;
     sourcePlatform: string | null;
+    sourceMethod: string | null;
     sourceUrl: string | null;
+    savedAt: string;
     shareToken: string;
+    trip: { title: string; destinationCity: string | null } | null;
   };
   itineraryItem?: {
     id: string;
@@ -231,6 +235,7 @@ export async function resolveShareToken(token: string): Promise<ResolvedShareEnt
       rawTitle: true,
       rawDescription: true,
       placePhotoUrl: true,
+      mediaThumbnailUrl: true,
       websiteUrl: true,
       destinationCity: true,
       destinationCountry: true,
@@ -240,13 +245,28 @@ export async function resolveShareToken(token: string): Promise<ResolvedShareEnt
       userRating: true,
       userNote: true,
       sourcePlatform: true,
+      sourceMethod: true,
       sourceUrl: true,
+      savedAt: true,
       shareToken: true,
       deletedAt: true,
+      trip: {
+        select: {
+          title: true,
+          destinationCity: true,
+        },
+      },
     },
   });
   if (savedItem && !savedItem.deletedAt) {
-    return { entityType: "saved_item", savedItem: { ...savedItem, shareToken: savedItem.shareToken! } };
+    return {
+      entityType: "saved_item",
+      savedItem: {
+        ...savedItem,
+        shareToken: savedItem.shareToken!,
+        savedAt: savedItem.savedAt.toISOString(),
+      },
+    };
   }
 
   // Try ItineraryItem
