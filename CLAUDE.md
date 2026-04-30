@@ -356,3 +356,33 @@ Every completion report ends with a "What I'm watching" section listing concerns
 Matt has explicitly named the cost of running in circles when fixes aren't universal or when the full user experience isn't thought through. Every chat thread loses time to gaps that should have been surfaced one or two iterations earlier. Proactive surfacing is the cure. Reactive diagnosis is what Claude Code already does well; proactive strategic awareness is what raises the partnership.
 
 This rule applies equally to Claude Code (execution agent) and to chat-side Claude (strategic partner). Both are responsible for surfacing. Neither defers to the other.
+
+## Proactive AI Surface
+
+AI is Flokk's connective tissue. Every save, rating, booking, and completed trip is structured signal that should feed every other part of the system. The mandate is not to add AI features as separate products — it is to identify where AI can enhance, move, inspire, or fill what is otherwise empty across every surface.
+
+### Required end-of-task AI check
+
+Every "What I'm watching" section (Discipline 4.16) gains an "AI surface" subsection answering at minimum:
+
+1. ENRICHMENT GAPS — What fields are null, weak, or generic that AI could populate or improve? (cuisine, price tier, duration, dietary tags, editorial description, address cleanup, geocoding fallback, ticket-required detection, family-fit summary)
+2. SIGNAL CAPTURE — Does this work capture user signal that should feed downstream AI features? (rating feeds Best Of; save feeds behavioral profile; completed trip feeds Community Spots; manual edit feeds preference inference)
+3. CONNECTIVE TISSUE — Does this entity contribute to or consume from the collective ecosystem? (one family's rated activities improve another family's recommendations)
+4. FAMILY-TAILORED CONTENT — Where is generic content shipping that could be tailored to the specific family's preferences, ages, dietary needs, pace, accessibility constraints?
+5. PROACTIVE SUGGESTION — Where could the system surface a useful suggestion the user hasn't asked for?
+6. INSPIRATION GAP — Is there an empty state or weak surface where AI-generated content would inspire vs deflate?
+
+### AI work categories
+
+- A. EXTRACTION — structured data from unstructured sources (emails, Instagram, TikTok, screenshots)
+- B. ENRICHMENT — filling gaps on existing entities (descriptions, cuisine, price, duration, dietary tags, family-fit notes, photos, geocoding)
+- C. GENERATION — creating new content (tours, recommendations, schedule intelligence, trip summaries, share previews, editorial blurbs)
+- D. INFERENCE — deriving meaning from behavior (preference profile, family pace, dietary patterns)
+- E. AGGREGATION — synthesizing across users (Best Of rankings, Community Spots, family-weighted scores)
+- F. CURATION — choosing what to surface and when (push timing, recommendation ordering, discover selection)
+
+If nothing is visible, write "No AI surface visible." Do not omit the subsection.
+
+### Why this exists
+
+The Flokk thesis is that travel content rescued from anywhere becomes actionable through AI-enhanced family intelligence. Without explicit AI surfacing at every turn, the platform ships as a passive saver of user content rather than an active intelligence layer.
