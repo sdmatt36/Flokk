@@ -394,3 +394,7 @@ When drafting prompts, writing diagnostics, or reporting completions, surface AI
 The Flokk thesis is that travel content rescued from anywhere becomes actionable through AI-enhanced family intelligence. Without explicit AI surfacing at every turn, the platform ships as a passive saver of user content rather than an active intelligence layer. The discipline forces the question at every step: where is AI working, where is it absent that it should be present, and what signal is this work generating for tomorrow?
 
 This rule applies to chat-side Claude (strategic partner), Claude Code (execution agent), and the prompts that pass between them. Both are responsible for surfacing AI opportunities. Neither defers to the other.
+
+## Pre-Resolved Field Principle (Operating Discipline 4.18)
+
+- Pre-Resolved Field Principle (4.18) — every renderable field is a column on the entity's own row. Write-time resolution. Render code reads entity.field directly. When a field is missing, fix the write path, not the render. Render-layer priority chains and sister-record traversals are forbidden as primary resolution paths.

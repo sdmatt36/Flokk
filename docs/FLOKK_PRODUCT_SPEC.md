@@ -1,3 +1,15 @@
+<!--
+Version: v3.4
+Current State as of: Chat 43, May 1 2026
+
+Version History:
+- v3.4 (Chat 43) — Discipline 4.18 Pre-Resolved Field Principle + ItineraryItem.imageUrl schema decision
+- v3.3 (Chat 42) — Disciplines 4.15-4.17 + transit cluster + three-surface rule
+- v3.2 (Chat 40) — Workstream 1A.5 + Foundation-First refinement
+- v3.1 (Chat 41) — Bundle 2 architecture + Disciplines 4.8-4.14
+- v3.0 (Chat 38) — Foundations doc + initial spec lock
+-->
+
 # Flokk Product Specification
 This document is the source of truth for what Flokk's features are supposed to do.
 Implementation state may lag specification — that is expected.
@@ -1570,6 +1582,16 @@ Note: Chat 37 handoff docx at `/mnt/project/Flokk_Chat37_Handoff.docx` was inacc
 - contributedToSpots trigger: Trip.status → COMPLETED fires the flag
 - `/share/tour/[token]` public viewer page: specced, not built
 
+### Chat 43, May 1 2026 — ItineraryItem.imageUrl schema decision
+
+ItineraryItem previously had no imageUrl column. Render code fell back to looking up the parallel SavedItem at runtime, a path that was fragile, inconsistent across surfaces, and invisible to non-React consumers (mobile native, AI prompt context).
+
+Decision: add imageUrl as a column on ItineraryItem. Resolve at write time from parallel SavedItem.placePhotoUrl. Render code reads itineraryItem.imageUrl directly.
+
+Triggered by Greene Okinawa itinerary screenshot showing LODGING and tour cards rendering blank while parallel SavedItems on the same trip's Saved tab carried full Google Places enrichment. The data was enriched at save time and stranded on the wrong record.
+
+This decision is governed by Discipline 4.18 (Pre-Resolved Field Principle), added in this same commit. The same pattern will apply to venueUrl and future renderable fields.
+
 ---
 
 **Universal Consumer Audit required before any field claim — Discipline 4.15 (Chat 42)**: Before stating a field is "missing", "absent", or "not populated", every surface that reads or writes that field must be audited. Audit steps: (1) search the schema for the column across ALL related tables; (2) search ALL API routes and DB queries for the field in their `select` clause; (3) for any field claimed absent from the UI, verify the read path, not just the schema; (4) if a field is present on one surface but absent on another, the field exists — the read path on the second surface is incomplete. Root cause of this discipline: Chat 42 diagnostic initially stated "no address column on SavedItem" but the field exists on ItineraryItem and was present in the Vault card. The flaw was a narrow audit that searched only SavedItem and missed the consumer chain. Surface drift (field in DB but dropped from a query select or JSX render) is the most common failure mode.
@@ -1662,6 +1684,39 @@ The thesis: travel content rescued from anywhere becomes actionable through AI-e
 - Discipline 4.17 (this one) — proactive identification of AI opportunities
 
 4.7, 4.13, and 4.15 enforce thoroughness on the work in front of you. 4.16 enforces awareness of the work that should be in front of you next. 4.17 enforces awareness of how AI multiplies the work — filling gaps that exist today, and capturing signal that compounds value tomorrow.
+
+## 4.18 Pre-Resolved Field Principle (Chat 43, CRITICAL)
+
+Every field that renders in the UI must be stored on the entity's own row, resolved at write time. Render code reads `entity.field` directly. No render-time joins. No priority chains in components. No sister-record traversals at the React layer.
+
+### Why this matters
+
+Flokk consumes the same API across three platforms today and a fourth tomorrow: web app, mobile web, future native iOS, future native Android. Render logic written in React only benefits the surfaces that run React. Resolution at the data layer benefits every consumer equally — including the AI prompt context layer that reads records for recommendations, Schedule Intelligence, and Today's Plan.
+
+When a renderable field is missing or wrong, the fix is at the write path (parser, enrichment, webhook), not at the render component. Components that contain priority chains for resolving display fields are an architectural anti-pattern.
+
+### Three-Surface Rule platform corollary (refinement to 4.15)
+
+The Three-Surface Rule (card / modal / share view) is satisfied by a single data-layer fix, not three independent render fixes. The platform corollary extends this: web / mobile-web / native-app are also a single data-layer fix when fields are pre-resolved.
+
+### Application to current architecture
+
+ItineraryItem currently lacks an imageUrl column. Render code falls back to looking up the parallel SavedItem at runtime, a path which is fragile, inconsistent, and invisible to non-React consumers. Discipline 4.18 mandates the column be added, populated at write time from sister SavedItem.placePhotoUrl, and read directly by every render context.
+
+The same pattern applies to venueUrl (already a column, but null on 100% of LODGING rows because nothing writes it from the parallel SavedItem.websiteUrl), and will apply to future renderable fields: normalizedAddress, displayCity, cuisineTags, etc.
+
+### Cautionary tale
+
+Greene Okinawa itinerary screenshot, May 1 2026 morning. Day 1 LODGING cards (Hyatt Regency Seragaki, THE NEST NAHA), Day 4 ACTIVITY card (Blue Cave Snorkeling Tour) all render blank. Parallel SavedItems for the same entities, visible on the Saved tab of the same trip, render rich Google Places photos. Data was enriched at save time and stranded on the wrong record. Three months of beta usage shipped with this gap because render-layer fallback masked the missing data column.
+
+### Mechanical rule
+
+When a renderable field is reported missing, the diagnostic order is:
+1. Does the entity's own row have a column for this field? If no, add it (schema migration).
+2. Is the column populated? If no, write it (backfill + write-time hook).
+3. Is the render reading from the column? If no, fix the render (one-line read).
+
+Render-layer priority chains and sister-record traversals are forbidden as a primary resolution path. They survive only as transitional fallbacks during data migrations and must be removed once the data layer is correct.
 
 ## How To Use This Document
 1. Read this document FIRST when starting any new chat or prompt sequence

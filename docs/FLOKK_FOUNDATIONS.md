@@ -579,4 +579,19 @@ AI is Flokk's connective tissue, not a feature. Every entity gap, signal source,
 
 ---
 
-*Last updated: Chat 42. Source: direct codebase reads (Phases 1–4) + Supabase live queries (Phase 3.5–3.7).*
+## Pre-Resolved Field Principle (Chat 43)
+
+Every renderable field is a column on the entity's own row. Write-time resolution. No render-time joins, priority chains, or sister-record traversals.
+
+The principle holds across:
+- Three render surfaces: card, modal, share view
+- Three platforms today: web app, mobile web, native mobile (when shipped)
+- Two consumer classes: render code (React, native), AI prompt context (recommendations, Schedule Intelligence)
+
+When a field renders inconsistently, the bug is at the write path. Render fixes are temporary scaffolding during migrations.
+
+Captured as Discipline 4.18 in FLOKK_PRODUCT_SPEC.md v3.4. Triggering case: Greene Okinawa LODGING and tour cards rendering blank while parallel SavedItems carried full enrichment (May 1 2026).
+
+---
+
+*Last updated: Chat 43, May 1 2026. Source: direct codebase reads (Phases 1–4) + Supabase live queries (Phase 3.5–3.7).*
