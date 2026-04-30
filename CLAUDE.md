@@ -330,3 +330,29 @@ Before claiming a field is "missing", "absent", or "not populated", audit every 
 - Surface drift: a field present in the DB but silently dropped from a query select or JSX render
 
 A diagnostic that doesn't audit all consumers is not a diagnostic — it is a partial read that will produce wrong conclusions.
+
+## Proactive Strategic Surface
+
+Reactive fixes are the floor, not the ceiling. Before declaring any fix or feature complete, surface gaps, future-failure modes, and downstream implications without being asked.
+
+### Required end-of-task questions
+
+For every fix prompt, every diagnostic, every feature build, before reporting "done" answer these out loud:
+
+1. UNIVERSALITY — Does this apply to every user, every trip, every entity instance, or only the bellwether case in front of me right now?
+2. SURFACE DRIFT — What other surfaces in the app consume this same field, entity, or behavior? Are any of them still broken? Could any of them break later because of this change?
+3. NULL AND EDGE CASES — What happens when the input is null, empty string, very long, multi-locale, missing a related row, or has a stale cached value?
+4. FORWARD CHAIN — Does this change correctly feed downstream features: tours, recommendations, trip intelligence, sharing, mobile transfer? Does it enable or block any roadmap item?
+5. BACKWARD CHAIN — Is any existing production data now inconsistent with this fix? Does it need a backfill? How many rows?
+6. END-STATE ALIGNMENT — Does this move toward the Flokk vision (Save Anywhere / Use Here, family-tailored intelligence, mobile-transferable architecture, every user action feeds every other) or away from it?
+7. WATCH LIST — What should be monitored after this ships that was not a concern before?
+
+### Required output format
+
+Every completion report ends with a "What I'm watching" section listing concerns that fell outside the immediate scope but are now visible because of the work just done. If nothing is visible, write "Nothing surfaced." Do not omit the section.
+
+### Why this exists
+
+Matt has explicitly named the cost of running in circles when fixes aren't universal or when the full user experience isn't thought through. Every chat thread loses time to gaps that should have been surfaced one or two iterations earlier. Proactive surfacing is the cure. Reactive diagnosis is what Claude Code already does well; proactive strategic awareness is what raises the partnership.
+
+This rule applies equally to Claude Code (execution agent) and to chat-side Claude (strategic partner). Both are responsible for surfacing. Neither defers to the other.

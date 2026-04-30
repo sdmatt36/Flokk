@@ -1574,6 +1574,39 @@ Note: Chat 37 handoff docx at `/mnt/project/Flokk_Chat37_Handoff.docx` was inacc
 
 **Universal Consumer Audit required before any field claim — Discipline 4.15 (Chat 42)**: Before stating a field is "missing", "absent", or "not populated", every surface that reads or writes that field must be audited. Audit steps: (1) search the schema for the column across ALL related tables; (2) search ALL API routes and DB queries for the field in their `select` clause; (3) for any field claimed absent from the UI, verify the read path, not just the schema; (4) if a field is present on one surface but absent on another, the field exists — the read path on the second surface is incomplete. Root cause of this discipline: Chat 42 diagnostic initially stated "no address column on SavedItem" but the field exists on ItineraryItem and was present in the Vault card. The flaw was a narrow audit that searched only SavedItem and missed the consumer chain. Surface drift (field in DB but dropped from a query select or JSX render) is the most common failure mode.
 
+## 4.16 Proactive Strategic Surface (Chat 42, NEW)
+
+Reactive fixing is the floor. Strategic partnership requires surfacing gaps, future-failure modes, and downstream implications before being asked.
+
+### Required at the end of every fix or diagnostic
+
+A "What I'm watching" section that lists concerns visible from the work just done but outside its immediate scope. Categories to consider:
+
+- Universality of the fix — bellwether vs all instances
+- Surface drift — other reads/writes of the same field or entity that may now be inconsistent
+- Null and edge cases — empty input, missing relations, stale caches
+- Forward chain — impact on tours, recommendations, intelligence, sharing, mobile
+- Backward chain — backfill needs from existing inconsistent data
+- End-state alignment — pull toward or away from Flokk's stated vision (Save Anywhere / Use Here, family-tailored intelligence, mobile-transferable, action-feeds-action ecosystem)
+- Watch list — what to monitor post-ship
+
+### Why this discipline exists
+
+Matt named the failure pattern explicitly: running in circles when fixes are not universal and the full user experience is not thought through. The Light House URL mistake from Chat 41, the "no address column on SavedItem" miss from the Chat 42 Trace C diagnostic, and the Bundle 2 verification skips were all instances of narrow framing. A single proactive question (where else does this field live? what other surfaces consume it? what happens after we ship this?) would have prevented each one.
+
+### Discipline scope
+
+Applies to both chat-side Claude and Claude Code. Both are responsible for proactive strategic surfacing. Neither defers to the other. Diagnostic prompts that omit a "What I'm watching" section are incomplete. Fix prompts that omit one are incomplete. Verification artifacts that omit one are incomplete.
+
+### Relationship to other disciplines
+
+- Discipline 4.7 (Foundation-First Verification) — proactive surfacing of foundational risks
+- Discipline 4.13 (UX Trace Verification) — proactive checking of all surfaces, not just the broken one
+- Discipline 4.15 (Universal Consumer Audit) — proactive auditing of every read/write site
+- Discipline 4.16 (this one) — proactive surfacing of strategic implications, gaps, and future risks
+
+4.7, 4.13, and 4.15 enforce thoroughness on the work in front of you. 4.16 enforces awareness of the work that should be in front of you next.
+
 ## How To Use This Document
 1. Read this document FIRST when starting any new chat or prompt sequence
 2. When a new feature behavior is discussed, add it here BEFORE writing code
