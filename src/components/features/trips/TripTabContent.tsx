@@ -3505,6 +3505,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                           const hotelName = it.title.replace(/^check-in:\s*/i, "").replace(/^check-out:\s*/i, "");
                                           const dateLabel = isCheckOut ? "Check-out" : "Check-in";
                                           const dateFormatted = formatDateShort(it.scheduledDate);
+                                          const lodgingTime = formatTime(isCheckOut ? it.departureTime : it.arrivalTime);
                                           const costLabel = it.totalCost != null ? `${it.currency ?? ""} ${it.totalCost.toLocaleString()}`.trim() : null;
                                           return (
                                             <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => setSelectedItineraryItem(it)}>
@@ -3513,7 +3514,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                   <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{hotelName}</p>
                                                   {dateFormatted && (
                                                     <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "6px" }}>
-                                                      {dateLabel} · {dateFormatted}
+                                                      {dateLabel} · {dateFormatted}{lodgingTime ? ` · ${lodgingTime}` : ""}
                                                     </p>
                                                   )}
                                                   <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
