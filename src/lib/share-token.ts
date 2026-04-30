@@ -42,6 +42,7 @@ export interface ResolvedShareEntity {
     longitude: number | null;
     venueUrl: string | null;
     shareToken: string;
+    trip: { title: string; destinationCity: string | null } | null;
     // resolved parallel SavedItem (for LODGING/ACTIVITY when found)
     parallelSavedItem?: {
       id: string;
@@ -49,6 +50,8 @@ export interface ResolvedShareEntity {
       rawDescription: string | null;
       placePhotoUrl: string | null;
       websiteUrl: string | null;
+      destinationCity: string | null;
+      destinationCountry: string | null;
       categoryTags: string[];
       userRating: number | null;
     } | null;
@@ -270,6 +273,12 @@ export async function resolveShareToken(token: string): Promise<ResolvedShareEnt
       longitude: true,
       venueUrl: true,
       shareToken: true,
+      trip: {
+        select: {
+          title: true,
+          destinationCity: true,
+        },
+      },
     },
   });
   if (itineraryItem) {
@@ -302,6 +311,8 @@ export async function resolveShareToken(token: string): Promise<ResolvedShareEnt
               rawDescription: true,
               placePhotoUrl: true,
               websiteUrl: true,
+              destinationCity: true,
+              destinationCountry: true,
               categoryTags: true,
               userRating: true,
             },
@@ -322,6 +333,8 @@ export async function resolveShareToken(token: string): Promise<ResolvedShareEnt
               rawDescription: true,
               placePhotoUrl: true,
               websiteUrl: true,
+              destinationCity: true,
+              destinationCountry: true,
               categoryTags: true,
               userRating: true,
             },

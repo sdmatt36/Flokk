@@ -143,6 +143,13 @@ export function ShareItemView({ token, entity, isSignedIn }: Props) {
             )}
           </div>
         ) : null}
+        {entity.entityType === "itinerary_item" && entity.itineraryItem?.trip?.title && (
+          <p style={{ textAlign: "center", fontSize: "12px", color: GRAY, marginTop: 24, paddingBottom: 16 }}>
+            From {entity.itineraryItem.trip.title}
+            <span style={{ margin: "0 8px", color: "#D1D5DB" }}>·</span>
+            Shared on Flokk
+          </p>
+        )}
       </div>
     </div>
   );
@@ -223,13 +230,40 @@ function SavedItemLayout({ item }: { item: NonNullable<ResolvedShareEntity["save
 function ItineraryItemLayout({ item }: { item: NonNullable<ResolvedShareEntity["itineraryItem"]> }) {
   const ps = item.parallelSavedItem;
   const isTransit = item.type === "FLIGHT" || item.type === "TRAIN";
+  const isLodging = item.type === "LODGING";
+
+  const strippedItemTitle = item.title?.replace(/^(check-in|check-out):\s*/i, "") ?? item.title;
   const title = isTransit
     ? (item.type === "FLIGHT"
       ? `${item.fromAirport ?? item.fromCity ?? ""} → ${item.toAirport ?? item.toCity ?? ""}`
       : `${item.fromCity ?? ""} → ${item.toCity ?? ""}`)
-    : (ps?.rawTitle ?? item.title);
+    : (ps?.rawTitle ?? strippedItemTitle);
 
-  const typeLabel = item.type === "FLIGHT" ? "Flight" : item.type === "TRAIN" ? "Train" : item.type === "LODGING" ? "Lodging" : "Activity";
+  const typeLabel = item.type === "FLIGHT" ? "Flight" : item.type === "TRAIN" ? "Train" : isLodging ? "Lodging" : "Activity";
+
+  const visitUrl = ps?.websiteUrl ?? item.venueUrl ?? null;
+
+  const locationLine = ps?.destinationCity
+    ? [ps.destinationCity, ps.destinationCountry].filter(Boolean).join(", ")
+    : null;
+
+  const formattedDate = item.scheduledDate
+    ? new Date(item.scheduledDate + "T12:00:00").toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : null;
+
+  const checkPrefix = isLodging && item.title
+    ? /^check-?out/i.test(item.title) ? "Check-out" : "Check-in"
+    : null;
+
+  const synthesizedDescription = isLodging && !ps?.rawDescription && ps?.destinationCity
+    ? `Lodging in ${ps.destinationCity}${ps.destinationCountry ? `, ${ps.destinationCountry}` : ""}`
+    : null;
+  const displayDescription = ps?.rawDescription ?? synthesizedDescription;
 
   return (
     <div>
@@ -240,25 +274,42 @@ function ItineraryItemLayout({ item }: { item: NonNullable<ResolvedShareEntity["
       )}
       <div style={{ padding: "20px 16px 0" }}>
         <span style={{ fontSize: "11px", fontWeight: 700, color: TERRA, textTransform: "uppercase", letterSpacing: "0.06em" }}>{typeLabel}</span>
-        <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 8px" }}>
+        <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 4px" }}>
           {title}
         </h1>
+        {locationLine && (
+          <p style={{ fontSize: "14px", color: GRAY, marginBottom: 8 }}>{locationLine}</p>
+        )}
         {item.scheduledDate && (
           <p style={{ fontSize: "13px", color: GRAY, marginBottom: 6 }}>
-            {item.scheduledDate}{item.departureTime ? ` · ${item.departureTime}` : ""}{item.arrivalTime ? ` – ${item.arrivalTime}` : ""}
+            {isLodging && checkPrefix
+              ? `${checkPrefix} · ${formattedDate}`
+              : isTransit
+                ? `${item.scheduledDate}${item.departureTime ? ` · ${item.departureTime}` : ""}${item.arrivalTime ? ` – ${item.arrivalTime}` : ""}`
+                : formattedDate}
           </p>
         )}
         {item.address && !isTransit && (
           <p style={{ fontSize: "13px", color: GRAY, marginBottom: 6 }}>{item.address}</p>
         )}
-        {ps?.rawDescription && (
-          <p style={{ fontSize: "14px", color: "#374151", lineHeight: 1.6, marginBottom: 12 }}>{ps.rawDescription}</p>
+        {displayDescription && (
+          <p style={{ fontSize: "14px", color: "#374151", lineHeight: 1.6, marginBottom: 12 }}>{displayDescription}</p>
         )}
         {item.notes && (
           <p style={{ fontSize: "13px", color: GRAY, lineHeight: 1.5, marginBottom: 12 }}>{item.notes}</p>
         )}
-        {item.venueUrl && (
-          <a href={item.venueUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: TERRA, textDecoration: "none" }}>
+        {ps?.userRating != null && ps.userRating > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 12 }}>
+            <span style={{ fontSize: "12px", color: GRAY }}>Rated:</span>
+            <div style={{ display: "flex", gap: 2 }}>
+              {[1,2,3,4,5].map(i => (
+                <span key={i} style={{ color: i <= (ps?.userRating ?? 0) ? "#C4664A" : "#d1d5db", fontSize: 14 }}>★</span>
+              ))}
+            </div>
+          </div>
+        )}
+        {visitUrl && (
+          <a href={visitUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: TERRA, textDecoration: "none", display: "block", marginBottom: 8 }}>
             Visit website
           </a>
         )}
