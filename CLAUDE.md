@@ -14,7 +14,10 @@ Read this entire file before writing a single line of code.
 - Backfill scripts required when adding fields to existing data.
 - Prisma array updates use { set: value }.
 - Date/timezone: T12:00:00 approach (Matt is UTC+9).
-- Images: always /public/images/ locally. Never construct CDN URLs.
+- Images at write time: persist resolved image URLs to the entity's own column (placePhotoUrl,
+  imageUrl). Google Places photo URLs (lh3.googleusercontent.com) are persisted as returned —
+  do not re-resolve at render. Local /public/images/ assets are used for marketing pages and
+  fallback covers only. See Discipline 4.18 (Pre-Resolved Field Principle) for the underlying rule.
 
 ## Permanent Architecture Decisions
 
@@ -119,25 +122,23 @@ Activity/tour bookings: extract activityTitle (specific tour name),
 never platform name (GetYourGuide, Viator, Klook) or operator name.
 If activityTitle null, use cleaned email subject. Never "GetYourGuide" as title.
 
-## Current Beta State
-3 real users: The Blinks, Santiano, Drewmak
-Test profile: Greene family, Seoul Mar 26 trip
-IDs for test only, never in app logic:
-- profileId: cmmmv15y7000104jvocfz5kt6
-- tripId: cmmx6428k000004jlxgel7s86
+## Current Beta State (as of May 1, 2026)
+42 beta users. Roughly half active — uploading trips, saving content, generating tours.
+Beta cohort 2 added approximately 25% of users on April 30, 2026 via the Greene investor
+presentation; cohort grew organically through the front door, not via collaborator invite.
+
+Test profile (used in development only, never in app logic):
+- Greene family profileId: cmmmv15y7000104jvocfz5kt6
+- Greene Seoul trip ID: cmmx6428k000004jlxgel7s86
+- Greene Okinawa trip ID: cmmet611o0000yn8nz6ss7yg4
+- Greene Scotland (Edinburgh) trip ID: cmnhgp10p000104l4hlof4gjc
+- Jenifer Dasho profileId: cmo16p8zb000104jsp8bdxnou
+- Jenifer Portugal trip ID: cmobreqqh000004ley8yd74p2
 
 ## Priority Queue
-1. ACTIVITY cards tappable (in progress)
-2. GetYourGuide title extraction
-3. Day map centers on day items
-4. Arrival coords for trains (transit Seoul→Busan→hotel)
-5. Vault flight missing airport codes
-6. Hydration error #418
-7. Default time for untimed saves
-8. Post-import verification flow (needsVerification flag)
-9. Mobile app scaffold (iOS share sheet — unlocks Instagram)
-10. Loops email sequences live
-11. Booking Portal
+The active priority queue lives in the most recent chat handoff document in /mnt/project/
+(file pattern: Flokk_Chat{N}_Handoff.docx). Always reference the highest-numbered handoff
+present. Do not maintain a separate queue in this file — it drifts.
 
 ## Environment Variables (all in Vercel)
 ANTHROPIC_API_KEY, GOOGLE_MAPS_API_KEY, NEXT_PUBLIC_GOOGLE_PLACES_API_KEY,
