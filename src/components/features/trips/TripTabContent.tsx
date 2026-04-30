@@ -3467,8 +3467,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                           const route = from && to ? `${from} → ${to}` : (from || to || it.title);
                                           const airlineLabel = matchFlight?.airline && matchFlight?.flightNumber
                                             ? `${matchFlight.airline} · ${matchFlight.flightNumber}` : null;
-                                          const depTime = it.departureTime;
-                                          const arrTime = it.arrivalTime;
+                                          const depTime = formatTime(it.departureTime) ?? it.departureTime;
+                                          const arrTime = it.arrivalTime ? (formatTime(it.arrivalTime) ?? it.arrivalTime) : null;
                                           const paxLabel = it.passengers.length > 0
                                             ? it.passengers.length <= 2
                                               ? it.passengers.join(", ")
@@ -3538,8 +3538,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                         if (it.type === "TRAIN") {
                                           const trainRoute = it.fromCity && it.toCity ? `${it.fromCity} → ${it.toCity}` : it.title;
                                           const operator = it.fromCity && it.toCity && it.title !== trainRoute ? it.title : null;
-                                          const depTime = it.departureTime;
-                                          const arrTime = it.arrivalTime;
+                                          const depTime = formatTime(it.departureTime) ?? it.departureTime;
+                                          const arrTime = it.arrivalTime ? (formatTime(it.arrivalTime) ?? it.arrivalTime) : null;
                                           return (
                                             <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => setSelectedItineraryItem(it)}>
                                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
@@ -4035,8 +4035,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                     <p style={titleStyle}>{route}</p>
                     <div style={gridStyle}>
                       {sit.scheduledDate && <><span style={lblStyle}>Date</span><span style={rowStyle}>{fmtDateModal(sit.scheduledDate)}</span></>}
-                      {sit.departureTime && <><span style={lblStyle}>Departs</span><span style={rowStyle}>{sit.departureTime}</span></>}
-                      {sit.arrivalTime && <><span style={lblStyle}>Arrives</span><span style={rowStyle}>{sit.arrivalTime}</span></>}
+                      {sit.departureTime && <><span style={lblStyle}>Departs</span><span style={rowStyle}>{formatTime(sit.departureTime) || sit.departureTime}</span></>}
+                      {sit.arrivalTime && <><span style={lblStyle}>Arrives</span><span style={rowStyle}>{formatTime(sit.arrivalTime) || sit.arrivalTime}</span></>}
                       {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
                       {paxLabel && <><span style={lblStyle}>Passengers</span><span style={rowStyle}>{paxLabel}</span></>}
                     </div>
@@ -4101,8 +4101,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                     <div style={gridStyle}>
                       <span style={lblStyle}>{isCheckOut ? "Check-out" : "Check-in"}</span>
                       <span style={rowStyle}>{fmtDateModal(sit.scheduledDate) ?? "—"}</span>
-                      {!isCheckOut && sit.arrivalTime && <><span style={lblStyle}>Check-in time</span><span style={rowStyle}>{sit.arrivalTime}</span></>}
-                      {isCheckOut && sit.departureTime && <><span style={lblStyle}>Check-out time</span><span style={rowStyle}>{sit.departureTime}</span></>}
+                      {!isCheckOut && sit.arrivalTime && <><span style={lblStyle}>Check-in time</span><span style={rowStyle}>{formatTime(sit.arrivalTime) || sit.arrivalTime}</span></>}
+                      {isCheckOut && sit.departureTime && <><span style={lblStyle}>Check-out time</span><span style={rowStyle}>{formatTime(sit.departureTime) || sit.departureTime}</span></>}
                       {sit.address && <><span style={lblStyle}>Address</span><span style={rowStyle}>{sit.address}</span></>}
                       {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
                       {costLabel && <><span style={lblStyle}>Total</span><span style={rowStyle}>{costLabel}</span></>}
@@ -4204,8 +4204,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                     <div style={gridStyle}>
                       {operator && <><span style={lblStyle}>Operator</span><span style={rowStyle}>{operator}</span></>}
                       {sit.scheduledDate && <><span style={lblStyle}>Date</span><span style={rowStyle}>{fmtDateModal(sit.scheduledDate)}</span></>}
-                      {sit.departureTime && <><span style={lblStyle}>Departs</span><span style={rowStyle}>{sit.departureTime}</span></>}
-                      {sit.arrivalTime && <><span style={lblStyle}>Arrives</span><span style={rowStyle}>{sit.arrivalTime}</span></>}
+                      {sit.departureTime && <><span style={lblStyle}>Departs</span><span style={rowStyle}>{formatTime(sit.departureTime) || sit.departureTime}</span></>}
+                      {sit.arrivalTime && <><span style={lblStyle}>Arrives</span><span style={rowStyle}>{formatTime(sit.arrivalTime) || sit.arrivalTime}</span></>}
                       {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
                     </div>
                     <button
@@ -4237,7 +4237,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                     <span style={{ fontSize: "11px", color: "#BBBBBB", display: "block", marginTop: "4px", marginBottom: "16px" }}>Tap above to edit</span>
                     <div style={gridStyle}>
                       {sit.scheduledDate && <><span style={lblStyle}>Date</span><span style={rowStyle}>{fmtDateModal(sit.scheduledDate)}</span></>}
-                      {sit.departureTime && <><span style={lblStyle}>Time</span><span style={rowStyle}>{sit.departureTime}</span></>}
+                      {sit.departureTime && <><span style={lblStyle}>Time</span><span style={rowStyle}>{formatTime(sit.departureTime) || sit.departureTime}</span></>}
                       {sit.address && <><span style={lblStyle}>Meeting point</span><span style={rowStyle}>{sit.address}</span></>}
                       {sit.notes && !/^\d{1,2}:\d{2}$/.test(sit.notes) && !/^departs/i.test(sit.notes) && !/^\d{1,2}:\d{2}\s*·/.test(sit.notes) && <><span style={lblStyle}>Operator</span><span style={rowStyle}>{sit.notes}</span></>}
                       {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
