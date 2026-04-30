@@ -100,6 +100,7 @@ import { MODAL_OVERLAY_CLASSES, MODAL_PANEL_CLASSES } from "@/lib/modal-classes"
 import { parseDateForDisplay } from "@/lib/dates";
 import { toTitleCase } from "@/lib/utils";
 import { getTripCoverImage, getItemImage } from "@/lib/destination-images";
+import { ItemImageTile } from "@/components/shared/ItemImageTile";
 import { BookingIntelCard } from "@/components/features/trips/BookingIntelCard";
 import { BudgetPanel } from "@/components/features/trips/BudgetPanel";
 import { ShareTripButton } from "@/components/features/trips/ShareTripButton";
@@ -1864,6 +1865,7 @@ type ItineraryItemLocal = {
   needsVerification?: boolean | null;
   bookingSource?: string | null;
   managementUrl?: string | null;
+  imageUrl?: string | null;
 };
 
 type UnifiedDayItem = {
@@ -3511,6 +3513,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                           return (
                                             <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => setSelectedItineraryItem(it)}>
                                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                                                <ItemImageTile src={it.imageUrl} title={it.title} variant="card" />
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                   <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{hotelName}</p>
                                                   {dateFormatted && (
@@ -3573,6 +3576,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                         return (
                                           <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => { if (it.type === "ACTIVITY") setEditActivityTitle(it.title ?? ""); setSelectedItineraryItem(it); }}>
                                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                                              <ItemImageTile src={it.imageUrl} title={it.title} variant="card" />
                                               <div style={{ flex: 1, minWidth: 0 }}>
                                                 <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{it.title}</p>
                                                 {it.notes && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "6px" }}>{it.notes}</p>}
@@ -4097,6 +4101,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                 );
                 return (
                   <div>
+                    <div style={{ marginBottom: "16px" }}><ItemImageTile src={sit.imageUrl} title={sit.title} variant="modal" /></div>
                     <p style={titleStyle}>{hotelName}</p>
                     <div style={gridStyle}>
                       <span style={lblStyle}>{isCheckOut ? "Check-out" : "Check-in"}</span>
@@ -4225,6 +4230,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                   : null;
                 return (
                   <div>
+                    <div style={{ marginBottom: "16px" }}><ItemImageTile src={sit.imageUrl} title={sit.title} variant="modal" /></div>
                     <span style={{ fontSize: "11px", fontWeight: 700, color: "#999999", textTransform: "uppercase", letterSpacing: "0.08em", display: "block", marginBottom: "6px" }}>Activity name</span>
                     <input
                       type="text"

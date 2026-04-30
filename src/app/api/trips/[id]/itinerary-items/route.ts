@@ -53,6 +53,7 @@ export async function GET(
       needsVerification: true,
       bookingSource: true,
       managementUrl: true,
+      imageUrl: true,
     },
   });
 

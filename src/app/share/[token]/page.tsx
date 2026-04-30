@@ -278,7 +278,7 @@ export default async function SharePage({
           tagBg: tc.bg,
           tagColor: tc.color,
           notes: (it.type === "FLIGHT" || it.type === "TRAIN") && route ? displayTitle : null,
-          imageUrl: null, // ItineraryItem has no image field in schema
+          imageUrl: it.imageUrl ?? null, // imageUrl populated via Discipline 4.18 — see Decisions Log Chat 43
           rating: ratingData
             ? { rating: ratingData.rating, notes: ratingData.notes ?? null, wouldReturn: ratingData.wouldReturn ?? null }
             : null,
@@ -334,7 +334,7 @@ export default async function SharePage({
             title: it.title,
             lat: it.latitude ?? null,
             lng: it.longitude ?? null,
-            imageUrl: null,
+            imageUrl: it.imageUrl ?? null,
             destinationCity: trip.destinationCity,
           };
         }
@@ -344,7 +344,7 @@ export default async function SharePage({
           title: ma.title,
           lat: ma.lat ?? null,
           lng: ma.lng ?? null,
-          imageUrl: null,
+          imageUrl: ma.imageUrl ?? null,
           destinationCity: trip.destinationCity,
         };
       })
