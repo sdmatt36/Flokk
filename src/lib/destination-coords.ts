@@ -17,7 +17,7 @@ const COORDS: Array<{ cities: string[]; countries: string[]; coords: [number, nu
   { cities: ["pattaya"], countries: [], coords: [100.8840, 12.9236] },
   { cities: ["hua hin"], countries: [], coords: [99.9576, 12.5684] },
   { cities: ["pai"], countries: [], coords: [98.4410, 19.3587] },
-  { cities: ["bali", "denpasar", "ubud"], countries: ["indonesia"], coords: [115.1889, -8.4095] },
+  { cities: ["bali", "denpasar", "ubud", "canggu", "seminyak"], countries: ["indonesia"], coords: [115.1889, -8.4095] },
   { cities: ["singapore"], countries: ["singapore"], coords: [103.8198, 1.3521] },
   { cities: ["hong kong"], countries: ["hong kong"], coords: [114.1694, 22.3193] },
   { cities: ["taipei", "taichung", "kaohsiung"], countries: ["taiwan"], coords: [121.5654, 25.0330] },
@@ -81,7 +81,7 @@ const COORDS: Array<{ cities: string[]; countries: string[]; coords: [number, nu
   { cities: ["rio de janeiro", "rio"], countries: ["brazil"], coords: [-43.1729, -22.9068] },
   { cities: ["patagonia"], countries: [], coords: [-70.9179, -53.1638] },
   // Europe extras
-  { cities: ["dubrovnik"], countries: ["croatia"], coords: [18.0944, 42.6507] },
+  { cities: ["dubrovnik", "zagreb", "croatia"], countries: ["croatia"], coords: [18.0944, 42.6507] },
   { cities: ["split"], countries: [], coords: [16.4402, 43.5081] },
   { cities: ["santorini"], countries: [], coords: [25.4615, 36.3932] },
   { cities: ["mykonos"], countries: [], coords: [25.3289, 37.4467] },
@@ -95,6 +95,20 @@ const COORDS: Array<{ cities: string[]; countries: string[]; coords: [number, nu
   { cities: ["krakow", "kraków"], countries: ["poland"], coords: [19.9450, 50.0647] },
   { cities: ["seville"], countries: [], coords: [-5.9845, 37.3891] },
   { cities: ["granada"], countries: [], coords: [-3.5986, 37.1773] },
+  // UK / Ireland
+  { cities: ["edinburgh"], countries: ["scotland", "uk", "united kingdom"], coords: [-3.1883, 55.9533] },
+  { cities: ["glasgow"], countries: ["scotland", "uk", "united kingdom"], coords: [-4.2518, 55.8642] },
+  { cities: ["dublin", "ireland"], countries: ["ireland"], coords: [-6.2603, 53.3498] },
+  { cities: ["belfast", "northern ireland"], countries: ["northern ireland", "uk", "united kingdom"], coords: [-5.9301, 54.5973] },
+  // Production coverage gaps (from inventory 2026-04-30)
+  { cities: ["athens", "thessaloniki", "syros", "greece"], countries: ["greece"], coords: [23.7275, 37.9838] },
+  { cities: ["san diego"], countries: [], coords: [-117.1611, 32.7157] },
+  { cities: ["portland"], countries: [], coords: [-122.6765, 45.5231] },
+  { cities: ["detroit"], countries: [], coords: [-83.0458, 42.3314] },
+  { cities: ["kamakura", "hakone"], countries: [], coords: [139.5523, 35.3197] },
+  { cities: ["lombok", "mataram", "gili"], countries: [], coords: [116.2744, -8.7280] },
+  { cities: ["kotor", "podgorica"], countries: ["montenegro"], coords: [18.7712, 42.4246] },
+  { cities: ["manila", "cebu", "palawan", "boracay", "philippines"], countries: ["philippines"], coords: [120.9842, 14.5995] },
 ];
 
 // World center — obviously wrong rather than misleadingly wrong
