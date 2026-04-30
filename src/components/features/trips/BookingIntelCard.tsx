@@ -108,7 +108,7 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewObservations, setReviewObservations] = useState<string[] | null>(null);
   const [reviewError, setReviewError] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   const STATUS_ORDER: Record<IntelItem["status"], number> = { missing: 0, saved: 1, booked: 2 };
   const { activeItems, bookedItems } = useMemo(() => {

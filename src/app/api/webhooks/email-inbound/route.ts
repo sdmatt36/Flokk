@@ -1636,9 +1636,9 @@ Field notes:
       }) : null;
       const checkInVenueUrl = resolveCanonicalUrl({ name: hotelName, city: (extracted.city as string | null) ?? (extracted.toCity as string | null) ?? '' });
       const checkInItem = existingCheckIn
-        ? await db.itineraryItem.update({ where: { id: existingCheckIn.id }, data: { title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, address: (extracted.address as string | null) ?? null, totalCost: derivedTotalCost, currency: detectedCurrency, passengers, dayIndex: checkInDayIndex, rooms: extractedRooms ?? Prisma.JsonNull, venueUrl: checkInVenueUrl } })
+        ? await db.itineraryItem.update({ where: { id: existingCheckIn.id }, data: { title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, arrivalTime: "15:00", address: (extracted.address as string | null) ?? null, totalCost: derivedTotalCost, currency: detectedCurrency, passengers, dayIndex: checkInDayIndex, rooms: extractedRooms ?? Prisma.JsonNull, venueUrl: checkInVenueUrl } })
         : await db.itineraryItem.create({
-            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: "LODGING", title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, confirmationCode: hotelConf, address: (extracted.address as string | null) ?? null, totalCost: derivedTotalCost, currency: detectedCurrency, notes: null, passengers, dayIndex: checkInDayIndex, rooms: extractedRooms ?? Prisma.JsonNull, venueUrl: checkInVenueUrl },
+            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: "LODGING", title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, arrivalTime: "15:00", confirmationCode: hotelConf, address: (extracted.address as string | null) ?? null, totalCost: derivedTotalCost, currency: detectedCurrency, notes: null, passengers, dayIndex: checkInDayIndex, rooms: extractedRooms ?? Prisma.JsonNull, venueUrl: checkInVenueUrl },
           });
       // Geocode hotel by name + city
       const hotelCity = (extracted.city as string | null) ?? (extracted.toCity as string | null) ?? "";

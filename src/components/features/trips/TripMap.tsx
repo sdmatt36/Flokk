@@ -159,7 +159,7 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
   const cityKey = Object.keys(CITY_CENTERS).find(k =>
     destinationCity?.toLowerCase().includes(k.toLowerCase())
   ) ?? "";
-  const cityCenterFallback = CITY_CENTERS[cityKey] ?? [37.5665, 126.9780]; // Seoul if all else fails
+  const cityCenterFallback = CITY_CENTERS[cityKey] ?? [destCoords[1], destCoords[0]]; // [lat,lng] from getDestinationCoords (returns [lng,lat])
   const anchorLat = cityCenterFallback[0];
   const anchorLng = cityCenterFallback[1];
 
