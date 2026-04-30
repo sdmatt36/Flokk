@@ -459,6 +459,25 @@ See Section 7 (Open Questions / Known Gaps) for full prerequisite list.
 
 **TourStop:** `websiteUrl` directly, fallback to Google Maps via `placeId`
 
+### Address priority (by entity type)
+
+**SavedItem:** No `address` column. Address for a hotel SavedItem lives on its paired ItineraryItem.
+
+**ItineraryItem (LODGING):**
+1. `ItineraryItem.address` — written by email-inbound parser at create/update time (TEXT column, 81% populated)
+2. `TripDocument.content.address` — also written at parse time (JSON blob); may be populated when ItineraryItem.address is null if the rows were processed in separate parser runs
+3. `null`
+
+**ItineraryItem (FLIGHT/TRAIN/CAR_RENTAL):** No address applicable.
+
+**ManualActivity:** `address` field directly.
+
+**TourStop:** `address` field directly.
+
+**SavedItem (non-lodging):** No address column; address implied by `destinationCity` + map coords.
+
+**Implementation note:** `ItineraryItem.address` and `TripDocument.content.address` can drift when a hotel triggers two separate parser runs (e.g., initial check-in email vs later confirmation). The TripDocument JSON is the backup source for backfills. Diagnostic confirmed in Chat 42: 4 Moxy rows had null `ItineraryItem.address` but non-null `TripDocument.content.address`.
+
 ### Share token resolution
 
 Today: only `Trip.shareToken` exists. All share buttons call `sharePlace()` which always falls through to `/share/{Trip.shareToken}` because `SPOT_PAGES_ENABLED = false`.
@@ -497,6 +516,9 @@ Every entity type (A-J) must be verified live before commit. Perceived-broken is
 
 ### 4.14 Comprehensive Spec Grounding (NEW)
 Every product spec grounds in this document. Schema column names taken from live DB, not memory. Image/URL chains verified via actual Supabase row data. `orderIndex` not `stopOrder`. `website` not `websiteUrl` on ManualActivity. No guessing.
+
+### 4.15 Universal Consumer Audit
+Before claiming a field is "missing", "absent", or "not populated", audit every surface that reads or writes it: (1) search schema across ALL related tables; (2) search ALL API routes for the field in their select clause; (3) verify the read path, not just the schema, for any UI claim; (4) presence on one surface (Vault) and absence on another (share view) means the read path is incomplete — not that the field is absent. Root cause: Chat 42 diagnostic stated "no address column on SavedItem" when address exists on ItineraryItem and was visible in the Vault card. See CLAUDE.md Universal Consumer Audit section for full rule.
 
 ---
 

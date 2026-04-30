@@ -313,3 +313,20 @@ Examples of right thinking:
 - "This fixes TripMap.tsx so all trips on all days work correctly"
 - "This fixes /api/saves/route.ts so all users see correct data"
 - "The backfill updates all existing records to match"
+
+## Universal Consumer Audit
+
+Before claiming a field is "missing", "absent", or "not populated", audit every surface that could read or write it.
+
+**Required steps:**
+1. Search the schema for the column name across ALL related tables — not just the one in front of you.
+2. Search ALL API routes and DB query callsites for `select: { fieldName }` — absence from one query does not mean the field doesn't exist.
+3. For any field claimed to be "missing from the UI", verify the read path, not just the schema.
+4. If a field is present on one surface (Vault, Itinerary card) but absent on another (share view), the field exists — the read path on the second surface is incomplete.
+
+**What this rule prevents:**
+- "No address column on SavedItem" when address IS present on ItineraryItem (confirmed in Chat 42 diagnostic)
+- "websiteUrl is not rendered" being conflated with "websiteUrl is not fetched/stored"
+- Surface drift: a field present in the DB but silently dropped from a query select or JSX render
+
+A diagnostic that doesn't audit all consumers is not a diagnostic — it is a partial read that will produce wrong conclusions.

@@ -1572,6 +1572,8 @@ Note: Chat 37 handoff docx at `/mnt/project/Flokk_Chat37_Handoff.docx` was inacc
 
 ---
 
+**Universal Consumer Audit required before any field claim — Discipline 4.15 (Chat 42)**: Before stating a field is "missing", "absent", or "not populated", every surface that reads or writes that field must be audited. Audit steps: (1) search the schema for the column across ALL related tables; (2) search ALL API routes and DB queries for the field in their `select` clause; (3) for any field claimed absent from the UI, verify the read path, not just the schema; (4) if a field is present on one surface but absent on another, the field exists — the read path on the second surface is incomplete. Root cause of this discipline: Chat 42 diagnostic initially stated "no address column on SavedItem" but the field exists on ItineraryItem and was present in the Vault card. The flaw was a narrow audit that searched only SavedItem and missed the consumer chain. Surface drift (field in DB but dropped from a query select or JSX render) is the most common failure mode.
+
 ## How To Use This Document
 1. Read this document FIRST when starting any new chat or prompt sequence
 2. When a new feature behavior is discussed, add it here BEFORE writing code
