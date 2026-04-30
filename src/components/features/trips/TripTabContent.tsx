@@ -3097,7 +3097,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 if (!activeLodging) return null;
                                 const firstWithCoords = allDayItems.find(it =>
                                   isVTCq(it.lat, it.lng) &&
-                                  !(it.itemType === "itinerary" && it.itineraryItem?.type === "LODGING")
+                                  !(it.itemType === "itinerary" && it.itineraryItem?.type === "LODGING" && /^check-out:/i.test(it.itineraryItem?.title ?? ""))
                                 );
                                 if (!firstWithCoords?.lat || !firstWithCoords?.lng) return null;
 
@@ -3142,10 +3142,14 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                   return null;
                                 };
                                 const prevIt = item.itineraryItem;
-                                // For TRAIN/FLIGHT preceding items, use arrival coords as the starting point
+                                // For TRAIN/FLIGHT preceding items, use arrival coords as the starting point.
+                                // For FLIGHT with null arrivalLat/Lng (e.g. repair-inserted items), fall back to AIRPORT_COORDS[toAirport].
+                                const flightArrivalFallback = (prevIt?.type === "FLIGHT" && prevIt.toAirport)
+                                  ? AIRPORT_COORDS[prevIt.toAirport.toUpperCase().trim()] ?? null
+                                  : null;
                                 const fromCoords = (prevIt && (prevIt.type === "TRAIN" || prevIt.type === "FLIGHT") && isVTC(prevIt.arrivalLat, prevIt.arrivalLng))
                                   ? { lat: prevIt.arrivalLat!, lng: prevIt.arrivalLng! }
-                                  : getCoords(item);
+                                  : (flightArrivalFallback ?? getCoords(item));
                                 // For FLIGHT next items, use departure airport coords
                                 const nextItItem = next?.itineraryItem;
                                 const nextFlightItem = next?.flight;
@@ -3155,9 +3159,6 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
 
                                 const prevHasCoords = fromCoords != null;
                                 const nextHasCoords = toCoords != null;
-                                const distanceBetweenItems = prevHasCoords && nextHasCoords
-                                  ? haversineKm(fromCoords!.lat, fromCoords!.lng, toCoords!.lat, toCoords!.lng)
-                                  : 999;
 
                                 const prevItem = idx > 0 ? allDayItems[idx - 1] : null;
                                 const isFirstInTourGroup =
