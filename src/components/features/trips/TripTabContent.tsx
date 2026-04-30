@@ -5,7 +5,6 @@ import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import TourMapBlock from "@/components/tours/TourMapBlock";
-import { safeUrl } from "@/lib/url-validator";
 
 function decodeHtmlEntities(str: string | null | undefined): string {
   if (!str) return "";
@@ -874,14 +873,14 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
 
           {/* Visit site + URL edit */}
           <div style={{ marginBottom: "16px" }}>
-            {safeUrl(localWebsiteUrl) && !editingUrl ? (
+            {localWebsiteUrl && !editingUrl ? (
               <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
-                <a href={safeUrl(localWebsiteUrl)!} target="_blank" rel="noopener noreferrer"
+                <a href={localWebsiteUrl} target="_blank" rel="noopener noreferrer"
                   style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}>
                   Link →
                 </a>
                 <button type="button"
-                  onClick={() => { setUrlInput(localWebsiteUrl ?? ""); setEditingUrl(true); setUrlError(null); }}
+                  onClick={() => { setUrlInput(localWebsiteUrl); setEditingUrl(true); setUrlError(null); }}
                   style={{ fontSize: "12px", color: "#aaa", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}>
                   Edit URL
                 </button>
@@ -940,8 +939,8 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
                 Book now
               </button>
             )}
-            {!item.bookUrl && safeUrl(item.websiteUrl) && (
-              <a href={safeUrl(item.websiteUrl)!} target="_blank" rel="noopener noreferrer"
+            {!item.bookUrl && item.websiteUrl && (
+              <a href={item.websiteUrl} target="_blank" rel="noopener noreferrer"
                 style={{ display: "block", padding: "12px", borderRadius: "12px", border: "none", backgroundColor: "#1B3A5C", fontSize: "14px", fontWeight: 700, color: "#fff", cursor: "pointer", textAlign: "center", textDecoration: "none" }}>
                 Link →
               </a>
@@ -5578,8 +5577,8 @@ function RecommendedContent({
                       {itinStates[rec.name] === "done" ? "Added" : itinStates[rec.name] === "error" ? "Failed" : itinStates[rec.name] === "loading" ? "Adding..." : "+ Itinerary"}
                     </button>
                   )}
-                  {safeUrl(rec.websiteUrl) && (
-                    <a href={safeUrl(rec.websiteUrl)!} target="_blank" rel="noopener noreferrer" style={{ fontSize: "11px", fontWeight: 700, padding: "5px 12px", borderRadius: "999px", color: "#C4664A", border: "1.5px solid #C4664A", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+                  {rec.websiteUrl && (
+                    <a href={rec.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "11px", fontWeight: 700, padding: "5px 12px", borderRadius: "999px", color: "#C4664A", border: "1.5px solid #C4664A", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
                       Link →
                     </a>
                   )}

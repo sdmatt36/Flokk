@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, Clock, Footprints, MapPin } from "lucide-react";
 import type { ResolvedShareEntity } from "@/lib/share-token";
-import { safeUrl } from "@/lib/url-validator";
 
 const NAVY = "#1B3A5C";
 const TERRA = "#C4664A";
@@ -230,7 +229,7 @@ function SavedItemLayout({ item }: { item: NonNullable<ResolvedShareEntity["save
   const displayDescription = item.rawDescription ?? item.userNote ?? synthesizedDescription;
 
   const heroPhoto = item.placePhotoUrl ?? item.mediaThumbnailUrl ?? null;
-  const visitUrl = safeUrl(item.websiteUrl) ?? safeUrl(item.sourceUrl) ?? null;
+  const visitUrl = item.websiteUrl ?? item.sourceUrl ?? null;
 
   return (
     <div>
@@ -287,7 +286,7 @@ function ItineraryItemLayout({ item }: { item: NonNullable<ResolvedShareEntity["
 
   const typeLabel = item.type === "FLIGHT" ? "Flight" : item.type === "TRAIN" ? "Train" : isLodging ? "Lodging" : "Activity";
 
-  const visitUrl = safeUrl(ps?.websiteUrl) ?? safeUrl(item.venueUrl) ?? null;
+  const visitUrl = ps?.websiteUrl ?? item.venueUrl ?? null;
 
   const locationLine = ps?.destinationCity
     ? [ps.destinationCity, ps.destinationCountry].filter(Boolean).join(", ")
@@ -385,7 +384,7 @@ function ManualActivityLayout({ item }: { item: NonNullable<ResolvedShareEntity[
   const synthesizedDescription = item.city ? `Activity in ${item.city}` : "An experience worth having";
   const displayDescription = item.notes ?? synthesizedDescription;
 
-  const visitUrl = safeUrl(item.website) ?? null;
+  const visitUrl = item.website ?? null;
 
   return (
     <div>
@@ -555,8 +554,8 @@ function TourLayout({ tour }: { tour: NonNullable<ResolvedShareEntity["generated
                 <p style={{ fontSize: "14px", fontWeight: 600, color: NAVY, margin: 0, lineHeight: 1.3 }}>{stop.name}</p>
               </div>
               {/* Link */}
-              {safeUrl(stop.websiteUrl) && (
-                <a href={safeUrl(stop.websiteUrl)!} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "12px", color: TERRA, textDecoration: "none", marginTop: "4px" }}>
+              {stop.websiteUrl && (
+                <a href={stop.websiteUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "3px", fontSize: "12px", color: TERRA, textDecoration: "none", marginTop: "4px" }}>
                   <ExternalLink size={12} />
                   Link
                 </a>
