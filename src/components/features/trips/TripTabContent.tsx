@@ -4074,7 +4074,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                           const res = await fetch(`/api/trips/${tripId}/itinerary/${sit.id}`, {
                             method: "PATCH",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ departureTime: editItTime || null, scheduledDate: editItDate || null, notes: editItNotes || null }),
+                            body: JSON.stringify({ [isCheckOut ? "departureTime" : "arrivalTime"]: editItTime || null, scheduledDate: editItDate || null, notes: editItNotes || null }),
                           });
                           const d = await res.json();
                           if (res.ok && d.item) {
@@ -4099,6 +4099,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                     <div style={gridStyle}>
                       <span style={lblStyle}>{isCheckOut ? "Check-out" : "Check-in"}</span>
                       <span style={rowStyle}>{fmtDateModal(sit.scheduledDate) ?? "—"}</span>
+                      {!isCheckOut && sit.arrivalTime && <><span style={lblStyle}>Check-in time</span><span style={rowStyle}>{sit.arrivalTime}</span></>}
+                      {isCheckOut && sit.departureTime && <><span style={lblStyle}>Check-out time</span><span style={rowStyle}>{sit.departureTime}</span></>}
                       {sit.address && <><span style={lblStyle}>Address</span><span style={rowStyle}>{sit.address}</span></>}
                       {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
                       {costLabel && <><span style={lblStyle}>Total</span><span style={rowStyle}>{costLabel}</span></>}
@@ -4129,7 +4131,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       </a>
                     )}
                     <button
-                      onClick={() => { setEditItTime(sit.departureTime ?? ""); setEditItDate(sit.scheduledDate ?? ""); setEditItNotes(sit.notes ?? ""); setEditingItinFields(true); }}
+                      onClick={() => { setEditItTime(isCheckOut ? (sit.departureTime ?? "") : (sit.arrivalTime ?? "")); setEditItDate(sit.scheduledDate ?? ""); setEditItNotes(sit.notes ?? ""); setEditingItinFields(true); }}
                       style={{ display: "block", width: "100%", marginTop: "8px", padding: "12px", backgroundColor: "transparent", color: "#C4664A", border: "1.5px solid #C4664A", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
                     >
                       Edit
