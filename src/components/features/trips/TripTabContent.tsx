@@ -4012,7 +4012,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
             onClick={() => { setSelectedItineraryItem(null); setEditingItinFields(false); }}
           >
             <div
-              className="w-full sm:w-[440px] sm:max-w-[90vw] rounded-t-2xl sm:rounded-2xl bg-white max-h-[85vh] overflow-y-auto"
+              className="w-full sm:w-[440px] sm:max-w-[90vw] rounded-t-2xl sm:rounded-2xl bg-white max-h-[85vh] overflow-y-auto pb-safe sm:pb-0"
               style={{ padding: "24px" }}
               onClick={e => e.stopPropagation()}
             >
@@ -8464,7 +8464,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
             onClick={() => setVaultActivityItem(null)}
           >
             <div
-              className="w-full sm:w-[440px] sm:max-w-[90vw] rounded-t-2xl sm:rounded-2xl bg-white max-h-[85vh] overflow-y-auto"
+              className="w-full sm:w-[440px] sm:max-w-[90vw] rounded-t-2xl sm:rounded-2xl bg-white max-h-[85vh] overflow-y-auto pb-safe sm:pb-0"
               style={{ padding: "24px" }}
               onClick={e => e.stopPropagation()}
             >
