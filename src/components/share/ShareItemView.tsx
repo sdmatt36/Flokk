@@ -102,6 +102,8 @@ export function ShareItemView({ token, entity, isSignedIn }: Props) {
           <SavedItemLayout item={entity.savedItem} />
         )}
         {entity.entityType === "itinerary_item" && entity.itineraryItem && (
+          entity.itineraryItem.type === "FLIGHT" ? <FlightLayout item={entity.itineraryItem} /> :
+          entity.itineraryItem.type === "TRAIN" ? <TrainLayout item={entity.itineraryItem} /> :
           <ItineraryItemLayout item={entity.itineraryItem} />
         )}
         {entity.entityType === "manual_activity" && entity.manualActivity && (
@@ -155,6 +157,17 @@ export function ShareItemView({ token, entity, isSignedIn }: Props) {
             {entity.savedItem?.trip?.title ? (
               <>
                 From {entity.savedItem.trip.title}
+                <span style={{ margin: "0 8px", color: "#D1D5DB" }}>·</span>
+              </>
+            ) : null}
+            Shared on Flokk
+          </p>
+        )}
+        {entity.entityType === "manual_activity" && (
+          <p style={{ textAlign: "center", fontSize: "12px", color: GRAY, marginTop: 24, paddingBottom: 16 }}>
+            {entity.manualActivity?.trip?.title ? (
+              <>
+                From {entity.manualActivity.trip.title}
                 <span style={{ margin: "0 8px", color: "#D1D5DB" }}>·</span>
               </>
             ) : null}
@@ -353,7 +366,26 @@ function ItineraryItemLayout({ item }: { item: NonNullable<ResolvedShareEntity["
 // ─── ManualActivity layout ───────────────────────────────────────────────────
 
 function ManualActivityLayout({ item }: { item: NonNullable<ResolvedShareEntity["manualActivity"]> }) {
-  const label = item.type ?? "Activity";
+  const typeLabel = item.type ?? "ACTIVITY";
+
+  const formattedDate = item.date
+    ? new Date(item.date + "T12:00:00").toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : null;
+
+  // ManualActivity has city but no country column
+  const locationLine = item.city ?? null;
+
+  // notes is the description equivalent on ManualActivity (no description column)
+  const synthesizedDescription = item.city ? `Activity in ${item.city}` : "An experience worth having";
+  const displayDescription = item.notes ?? synthesizedDescription;
+
+  const visitUrl = item.website ?? null;
+
   return (
     <div>
       {item.imageUrl && (
@@ -362,29 +394,124 @@ function ManualActivityLayout({ item }: { item: NonNullable<ResolvedShareEntity[
         </div>
       )}
       <div style={{ padding: "20px 16px 0" }}>
-        <span style={{ fontSize: "11px", fontWeight: 700, color: TERRA, textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</span>
-        <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 8px" }}>
+        <span style={{ fontSize: "11px", fontWeight: 700, color: TERRA, textTransform: "uppercase", letterSpacing: "0.06em" }}>{typeLabel}</span>
+        <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 4px" }}>
           {item.title}
         </h1>
-        <p style={{ fontSize: "13px", color: GRAY, marginBottom: 4 }}>
-          {item.date}{item.time ? ` · ${item.time}` : ""}{item.endTime ? ` – ${item.endTime}` : ""}
-        </p>
+        {locationLine && (
+          <p style={{ fontSize: "14px", color: GRAY, marginBottom: 8 }}>{locationLine}</p>
+        )}
+        {formattedDate && (
+          <p style={{ fontSize: "13px", color: GRAY, marginBottom: 6 }}>
+            {formattedDate}{item.time ? ` · ${item.time}` : ""}{item.endTime ? ` – ${item.endTime}` : ""}
+          </p>
+        )}
         {item.venueName && (
-          <p style={{ fontSize: "13px", color: GRAY, marginBottom: 4 }}>{item.venueName}</p>
+          <p style={{ fontSize: "13px", color: GRAY, marginBottom: 6 }}>{item.venueName}</p>
         )}
         {item.address && (
-          <p style={{ fontSize: "13px", color: GRAY, marginBottom: 12 }}>{item.address}</p>
+          <p style={{ fontSize: "13px", color: GRAY, marginBottom: 6 }}>{item.address}</p>
+        )}
+        {displayDescription && (
+          <p style={{ fontSize: "14px", color: "#374151", lineHeight: 1.6, marginBottom: 12 }}>{displayDescription}</p>
+        )}
+        {item.price != null && (
+          <p style={{ fontSize: "13px", color: GRAY, marginBottom: 6 }}>{item.currency ? `${item.currency} ` : ""}{item.price.toLocaleString()}</p>
+        )}
+        {visitUrl && (
+          <a href={visitUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: TERRA, textDecoration: "none", display: "block", marginBottom: 8 }}>
+            Visit website
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Flight layout ───────────────────────────────────────────────────────────
+
+function FlightLayout({ item }: { item: NonNullable<ResolvedShareEntity["itineraryItem"]> }) {
+  const route = [
+    item.fromAirport ?? item.fromCity ?? null,
+    item.toAirport ?? item.toCity ?? null,
+  ].filter(Boolean).join(" → ");
+
+  const formattedDate = item.scheduledDate
+    ? new Date(item.scheduledDate + "T12:00:00").toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : null;
+
+  const timeLine = item.departureTime || item.arrivalTime
+    ? [item.departureTime, item.arrivalTime].filter(Boolean).join(" – ")
+    : null;
+
+  return (
+    <div>
+      <div style={{ padding: "20px 16px 0" }}>
+        <span style={{ fontSize: "11px", fontWeight: 700, color: TERRA, textTransform: "uppercase", letterSpacing: "0.06em" }}>FLIGHT</span>
+        <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 4px" }}>
+          {route || item.title}
+        </h1>
+        {formattedDate && (
+          <p style={{ fontSize: "13px", color: GRAY, marginBottom: 6 }}>{formattedDate}</p>
+        )}
+        {timeLine && (
+          <p style={{ fontSize: "13px", color: GRAY, marginBottom: 6 }}>{timeLine}</p>
+        )}
+        {item.confirmationCode && (
+          <p style={{ fontSize: "13px", color: GRAY, marginBottom: 12 }}>Confirmation: {item.confirmationCode}</p>
         )}
         {item.notes && (
           <p style={{ fontSize: "14px", color: "#374151", lineHeight: 1.6, marginBottom: 12 }}>{item.notes}</p>
         )}
-        {item.price != null && (
-          <p style={{ fontSize: "13px", color: GRAY, marginBottom: 8 }}>{item.currency ?? ""} {item.price.toLocaleString()}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Train layout ────────────────────────────────────────────────────────────
+
+function TrainLayout({ item }: { item: NonNullable<ResolvedShareEntity["itineraryItem"]> }) {
+  const route = [
+    item.fromCity ?? null,
+    item.toCity ?? null,
+  ].filter(Boolean).join(" → ");
+
+  const formattedDate = item.scheduledDate
+    ? new Date(item.scheduledDate + "T12:00:00").toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : null;
+
+  const timeLine = item.departureTime || item.arrivalTime
+    ? [item.departureTime, item.arrivalTime].filter(Boolean).join(" – ")
+    : null;
+
+  return (
+    <div>
+      <div style={{ padding: "20px 16px 0" }}>
+        <span style={{ fontSize: "11px", fontWeight: 700, color: TERRA, textTransform: "uppercase", letterSpacing: "0.06em" }}>TRAIN</span>
+        <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 4px" }}>
+          {route || item.title}
+        </h1>
+        {formattedDate && (
+          <p style={{ fontSize: "13px", color: GRAY, marginBottom: 6 }}>{formattedDate}</p>
         )}
-        {item.website && (
-          <a href={item.website} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: TERRA, textDecoration: "none" }}>
-            Visit website
-          </a>
+        {timeLine && (
+          <p style={{ fontSize: "13px", color: GRAY, marginBottom: 6 }}>{timeLine}</p>
+        )}
+        {item.confirmationCode && (
+          <p style={{ fontSize: "13px", color: GRAY, marginBottom: 12 }}>Confirmation: {item.confirmationCode}</p>
+        )}
+        {item.notes && (
+          <p style={{ fontSize: "14px", color: "#374151", lineHeight: 1.6, marginBottom: 12 }}>{item.notes}</p>
         )}
       </div>
     </div>

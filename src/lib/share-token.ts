@@ -79,7 +79,9 @@ export interface ResolvedShareEntity {
     type: string | null;
     imageUrl: string | null;
     dayIndex: number | null;
+    confirmationCode: string | null;
     shareToken: string;
+    trip: { title: string; destinationCity: string | null } | null;
   };
   generatedTour?: {
     id: string;
@@ -395,8 +397,15 @@ export async function resolveShareToken(token: string): Promise<ResolvedShareEnt
       type: true,
       imageUrl: true,
       dayIndex: true,
+      confirmationCode: true,
       shareToken: true,
       deletedAt: true,
+      trip: {
+        select: {
+          title: true,
+          destinationCity: true,
+        },
+      },
     },
   });
   if (manualActivity && !manualActivity.deletedAt) {
