@@ -517,11 +517,14 @@ Every entity type (A-J) must be verified live before commit. Perceived-broken is
 ### 4.14 Comprehensive Spec Grounding (NEW)
 Every product spec grounds in this document. Schema column names taken from live DB, not memory. Image/URL chains verified via actual Supabase row data. `orderIndex` not `stopOrder`. `website` not `websiteUrl` on ManualActivity. No guessing.
 
-### 4.17 Proactive AI Surface
-Every "What I'm watching" section gains an "AI surface" subsection covering six checks: (1) ENRICHMENT GAPS — fields null or generic that AI could improve; (2) SIGNAL CAPTURE — user behavior captured for downstream AI; (3) CONNECTIVE TISSUE — contribution to/from collective ecosystem; (4) FAMILY-TAILORED CONTENT — generic content that could be personalized; (5) PROACTIVE SUGGESTION — unsolicited useful suggestions the system could make; (6) INSPIRATION GAP — empty states where AI content would inspire. Six AI work categories: A=Extraction, B=Enrichment, C=Generation, D=Inference, E=Aggregation, F=Curation. See CLAUDE.md Proactive AI Surface section and FLOKK_PRODUCT_SPEC.md Discipline 4.17 for full specification.
-
 ### 4.15 Universal Consumer Audit
 Before claiming a field is "missing", "absent", or "not populated", audit every surface that reads or writes it: (1) search schema across ALL related tables; (2) search ALL API routes for the field in their select clause; (3) verify the read path, not just the schema, for any UI claim; (4) presence on one surface (Vault) and absence on another (share view) means the read path is incomplete — not that the field is absent. Root cause: Chat 42 diagnostic stated "no address column on SavedItem" when address exists on ItineraryItem and was visible in the Vault card. See CLAUDE.md Universal Consumer Audit section for full rule.
+
+### 4.16 Proactive Strategic Surface
+Reactive fixing is the floor. Strategic partnership requires surfacing gaps, future-failure modes, and downstream implications before being asked. Required "What I'm watching" section at the end of every completion report. See CLAUDE.md Proactive Strategic Surface section for full rule.
+
+### 4.17 Proactive AI Surface
+AI is Flokk's connective tissue, not a feature. Every entity gap, signal source, and weak empty state is an AI opportunity. Required "AI surface" subsection at the end of every "What I'm watching" answering six questions across six AI work categories (Extraction, Enrichment, Generation, Inference, Aggregation, Curation). See CLAUDE.md Proactive AI Surface section and FLOKK_PRODUCT_SPEC.md Discipline 4.17 for full specification.
 
 ---
 

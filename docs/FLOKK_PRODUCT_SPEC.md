@@ -1609,31 +1609,49 @@ Applies to both chat-side Claude and Claude Code. Both are responsible for proac
 
 ## 4.17 Proactive AI Surface (Chat 42, NEW)
 
-AI is Flokk's connective tissue. Every save, every rating, every booking, every completed trip is structured signal that should feed every other part of the system. The mandate is not to add AI features as separate products — it is to identify where AI can enhance, move, inspire, or fill what is otherwise empty across every surface in the app and website.
+AI is Flokk's connective tissue, not a feature category. Every save, rating, booking, and completed trip is structured signal that should feed every other part of the system. The mandate is to identify where AI can enhance, move, inspire, or fill what is otherwise empty — across every surface, every entity, every interaction.
+
+### The framing
+
+Without an explicit AI lens at every turn, Flokk ships as a passive saver. With it, Flokk becomes the intelligence layer. The discipline applies to data layer (extraction and enrichment), generation layer (tours, recommendations, descriptions, suggestions), inference layer (preference profiles, behavioral patterns), aggregation layer (Best Of, Community Spots), and curation layer (what surfaces when, ordered how). It also applies to communication: how prompts are written, how progress is reported, how features are described.
 
 ### Required at the end of every fix or diagnostic
 
-An "AI surface" subsection within "What I'm watching" (Discipline 4.16) answering at minimum:
+An "AI surface" subsection within the Discipline 4.16 watch list. Six required questions:
 
-1. ENRICHMENT GAPS — What fields on this entity are null, weak, or generic that AI could populate or improve? (cuisine, price tier, duration, dietary tags, editorial description, address cleanup, geocoding fallback, ticket-required detection, family-fit summary)
-2. SIGNAL CAPTURE — Does this work capture user signal that should feed downstream AI features? (a rating feeds Best Of rankings; a save feeds behavioral profile; a completed trip feeds Community Spots; a manual edit feeds preference inference)
-3. CONNECTIVE TISSUE — Does this entity or surface contribute to or consume from the collective ecosystem? (one family's rated activities should improve another family's recommendations; one family's completed itinerary should seed another family's tour generator)
-4. FAMILY-TAILORED CONTENT — Where is generic content shipping that could be tailored to the specific family's preferences, ages, dietary needs, pace, accessibility constraints?
-5. PROACTIVE SUGGESTION — Where could the system surface a useful suggestion the user hasn't asked for?
-6. INSPIRATION GAP — Is there an empty state or weak surface where AI-generated content would inspire vs deflate?
+1. Enrichment gaps on entities touched
+2. Signal capture from the work just done
+3. Connective tissue — contribution to and consumption from the collective ecosystem
+4. Family-tailored opportunities replacing generic content
+5. Proactive suggestions the system could surface unprompted
+6. Inspiration gaps where AI-generated content fills weak empty states
 
-### AI work categories
+### Six categories of AI work in Flokk
 
-- A. EXTRACTION — pulling structured data from unstructured sources (booking emails, Instagram, TikTok, Google Maps URLs, screenshots)
-- B. ENRICHMENT — filling gaps on existing entities (descriptions, cuisine, price, duration, dietary tags, family-fit notes, photos, geocoding)
-- C. GENERATION — creating new content (tours, recommendations, schedule intelligence, trip summaries, share previews, editorial blurbs)
-- D. INFERENCE — deriving meaning from behavior (preference profile from saves, family pace from completed trips, dietary patterns from ratings)
-- E. AGGREGATION — synthesizing across users (Best Of rankings, Community Spots, popular widgets, family-weighted scores)
-- F. CURATION — choosing what to surface and when (push timing, recommendation ordering, discover content selection)
+- A. Extraction — unstructured to structured (emails, social posts, URLs, screenshots)
+- B. Enrichment — filling gaps on existing entities
+- C. Generation — creating new content from context
+- D. Inference — deriving meaning from behavior
+- E. Aggregation — synthesizing across users
+- F. Curation — choosing what to surface and when
 
 ### Why this discipline exists
 
-The Flokk thesis is that travel content rescued from anywhere becomes actionable through AI-enhanced family intelligence. Without explicit AI surfacing at every turn, the platform ships as a passive saver of user content rather than an active intelligence layer. The discipline forces the question: where is AI working, and where is it absent that it should be present?
+The thesis: travel content rescued from anywhere becomes actionable through AI-enhanced family intelligence. The cost of not enforcing this discipline is that AI becomes a feature shipped occasionally rather than the operating logic of the platform. Discipline 4.17 keeps AI present in every conversation about what to build, what to fix, what to ship.
+
+### Concrete opportunities surfaced as of Chat 42
+
+- 9 LODGING items with no address — category B, Haiku geocode from title + city
+- Address parser duplicates ("Jongno-Gu, Jongno-Gu") — category B, parse-time cleanup
+- rawDescription 100% null on parallel SavedItems — category B/C, Places editorial or Haiku family-fit description
+- FOOD cuisine and price tier — category B, Haiku enrichment from venue context
+- ACTIVITY duration and ticket-required — category B, extract from Places or website
+- OG meta description on share pages — category C, generate share-tailored copy
+- Trip auto-naming — category C, suggest from saved content composition
+- Family-tailored content across surfaces — category D, preference profile feeds generation
+- Best Of destination rankings — category E, family-weighted aggregation
+- Community Spots from completed trips — category E, completed-trip aggregation
+- Recommendation ordering — category F, behavioral signal feeds curation
 
 ### Relationship to other disciplines
 
@@ -1643,7 +1661,7 @@ The Flokk thesis is that travel content rescued from anywhere becomes actionable
 - Discipline 4.16 (Proactive Strategic Surface) — proactive surfacing of strategic implications
 - Discipline 4.17 (this one) — proactive identification of AI opportunities
 
-4.7 / 4.13 / 4.15 enforce thoroughness on the work in front of you. 4.16 enforces awareness of the work that should be in front of you next. 4.17 enforces awareness of how AI multiplies the work — filling gaps that exist today and capturing signal that compounds value tomorrow.
+4.7, 4.13, and 4.15 enforce thoroughness on the work in front of you. 4.16 enforces awareness of the work that should be in front of you next. 4.17 enforces awareness of how AI multiplies the work — filling gaps that exist today, and capturing signal that compounds value tomorrow.
 
 ## How To Use This Document
 1. Read this document FIRST when starting any new chat or prompt sequence

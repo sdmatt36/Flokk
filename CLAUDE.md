@@ -359,30 +359,38 @@ This rule applies equally to Claude Code (execution agent) and to chat-side Clau
 
 ## Proactive AI Surface
 
-AI is Flokk's connective tissue. Every save, rating, booking, and completed trip is structured signal that should feed every other part of the system. The mandate is not to add AI features as separate products — it is to identify where AI can enhance, move, inspire, or fill what is otherwise empty across every surface.
+AI is Flokk's connective tissue, not a feature. Every save, every rating, every booking, every completed trip is structured signal that should feed every other part of the system. The mandate is not to add AI features as separate products — it is to identify where AI can enhance, move, inspire, or fill what is otherwise empty across every surface in the app and website. This applies to the build, to the user experience, and to how progress is communicated.
 
-### Required end-of-task AI check
+### Required at the end of every fix, diagnostic, or feature build
 
-Every "What I'm watching" section (Discipline 4.16) gains an "AI surface" subsection answering at minimum:
+Alongside the Discipline 4.16 "What I'm watching" section, every completion report includes an "AI surface" subsection answering at minimum:
 
-1. ENRICHMENT GAPS — What fields are null, weak, or generic that AI could populate or improve? (cuisine, price tier, duration, dietary tags, editorial description, address cleanup, geocoding fallback, ticket-required detection, family-fit summary)
-2. SIGNAL CAPTURE — Does this work capture user signal that should feed downstream AI features? (rating feeds Best Of; save feeds behavioral profile; completed trip feeds Community Spots; manual edit feeds preference inference)
-3. CONNECTIVE TISSUE — Does this entity contribute to or consume from the collective ecosystem? (one family's rated activities improve another family's recommendations)
+1. ENRICHMENT GAPS — What fields on this entity are null, weak, or generic that AI could populate or improve? (cuisine, price tier, duration, dietary tags, editorial description, address cleanup, geocoding fallback, ticket-required detection, family-fit summary)
+2. SIGNAL CAPTURE — Does this work capture user signal that should feed downstream AI features? (a rating feeds Best Of rankings; a save feeds behavioral profile; a completed trip feeds Community Spots; a manual edit feeds preference inference)
+3. CONNECTIVE TISSUE — Does this entity or surface contribute to or consume from the collective ecosystem? (one family's rated activities should improve another family's recommendations; one family's completed itinerary should seed another family's tour generator; one family's address corrections should improve geocoding for all)
 4. FAMILY-TAILORED CONTENT — Where is generic content shipping that could be tailored to the specific family's preferences, ages, dietary needs, pace, accessibility constraints?
-5. PROACTIVE SUGGESTION — Where could the system surface a useful suggestion the user hasn't asked for?
-6. INSPIRATION GAP — Is there an empty state or weak surface where AI-generated content would inspire vs deflate?
+5. PROACTIVE SUGGESTION — Where could the system surface a useful suggestion the user hasn't asked for? (suggested trip name from saved content, suggested activity from nearby unrated saves, suggested booking based on past family preferences)
+6. INSPIRATION GAP — Is there an empty state or weak surface where AI-generated content would inspire vs deflate? (a save with no description, a tour with no narrative, a trip with no cover image, a recommendation with generic copy)
 
-### AI work categories
+### Categories of AI work in Flokk
 
-- A. EXTRACTION — structured data from unstructured sources (emails, Instagram, TikTok, screenshots)
-- B. ENRICHMENT — filling gaps on existing entities (descriptions, cuisine, price, duration, dietary tags, family-fit notes, photos, geocoding)
-- C. GENERATION — creating new content (tours, recommendations, schedule intelligence, trip summaries, share previews, editorial blurbs)
-- D. INFERENCE — deriving meaning from behavior (preference profile, family pace, dietary patterns)
-- E. AGGREGATION — synthesizing across users (Best Of rankings, Community Spots, family-weighted scores)
-- F. CURATION — choosing what to surface and when (push timing, recommendation ordering, discover selection)
+A. EXTRACTION — pulling structured data from unstructured sources (booking emails, Instagram posts, TikTok captions, Google Maps URLs, screenshots)
+B. ENRICHMENT — filling gaps on existing entities (descriptions, cuisine, price, duration, dietary tags, family-fit notes, photos, geocoding)
+C. GENERATION — creating new content (tours, recommendations, schedule intelligence, trip summaries, share previews, editorial blurbs)
+D. INFERENCE — deriving meaning from behavior (preference profile from saves, family pace from completed trips, dietary patterns from ratings)
+E. AGGREGATION — synthesizing across users (Best Of rankings, Community Spots, popular widgets, family-weighted scores)
+F. CURATION — choosing what to surface and when (push timing, recommendation ordering, discover content selection)
 
-If nothing is visible, write "No AI surface visible." Do not omit the subsection.
+### Required output format
 
-### Why this exists
+Every "What I'm watching" section (Discipline 4.16) gains an "AI surface" subsection. List opportunities by category (A-F) with one-line descriptions and the relevant entity/surface. If nothing is visible, write "No AI surface visible." Do not omit.
 
-The Flokk thesis is that travel content rescued from anywhere becomes actionable through AI-enhanced family intelligence. Without explicit AI surfacing at every turn, the platform ships as a passive saver of user content rather than an active intelligence layer.
+### Communication discipline
+
+When drafting prompts, writing diagnostics, or reporting completions, surface AI opportunities in the language used — not just in the watch list. If a fix touches an entity that has an enrichment opportunity, name it. If a feature ships with a generic empty state, name what AI could place there. The point is not to add AI everywhere; it is to never ship a passive surface where an active one was available.
+
+### Why this discipline exists
+
+The Flokk thesis is that travel content rescued from anywhere becomes actionable through AI-enhanced family intelligence. Without explicit AI surfacing at every turn, the platform ships as a passive saver of user content rather than an active intelligence layer. The discipline forces the question at every step: where is AI working, where is it absent that it should be present, and what signal is this work generating for tomorrow?
+
+This rule applies to chat-side Claude (strategic partner), Claude Code (execution agent), and the prompts that pass between them. Both are responsible for surfacing AI opportunities. Neither defers to the other.
