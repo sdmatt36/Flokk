@@ -89,7 +89,8 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     // User input often includes the silent aspirate ("Koh Samui", "Kho Phangan").
     // k(?:oh|ho) matches both orderings (k-o-h and k-h-o) as whole words.
     const cityNorm = destinationCity.toLowerCase().split(",")[0].trim()
-      .replace(/\bk(?:oh|ho)\b/g, "ko");
+      .replace(/\bk(?:oh|ho)\b/g, "ko")
+      .replace(/-/g, "");
     const query = encodeURIComponent(`${stop.name} ${stop.address || ""} ${destinationCity}`);
     const searchRes = await fetch(
       `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&key=${process.env.GOOGLE_MAPS_API_KEY}`
@@ -142,8 +143,8 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
       const longNorm = long.replace(/\s+county$/i, "").trim();
       const shortNorm = short.replace(/\s+county$/i, "").trim();
       // RTGS-normalize Google components too (defense in depth: if Google ever returns "Koh" variant).
-      const longRTGS = longNorm.replace(/\bk(?:oh|ho)\b/g, "ko");
-      const shortRTGS = shortNorm.replace(/\bk(?:oh|ho)\b/g, "ko");
+      const longRTGS = longNorm.replace(/\bk(?:oh|ho)\b/g, "ko").replace(/-/g, "");
+      const shortRTGS = shortNorm.replace(/\bk(?:oh|ho)\b/g, "ko").replace(/-/g, "");
       return long.includes(cityNorm) ||
              short.includes(cityNorm) ||
              longNorm.includes(cityNorm) ||
