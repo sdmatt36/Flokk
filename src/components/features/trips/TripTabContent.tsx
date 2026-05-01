@@ -2184,11 +2184,11 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   // Untimed activities default to 720 (noon) as a stable midday position.
   //
   //  FLIGHT arrival  →  arrivalTime or 0  (always first)
-  //  LODGING check-in → 900  (15:00 default)
+  //  LODGING check-out → 50   (fixed day-anchor; clock time is not used for sort)
   //  timed activity   →  actual HH:MM in minutes
   //  untimed activity → 720  (noon)
   //  TRAIN            →  departureTime or 660  (11:00 default)
-  //  LODGING check-out → 720  (12:00 default)
+  //  LODGING check-in → 900  (15:00 default)
   //  FLIGHT departure → departureTime + 1440  (always last, beyond 24h)
   function toSortKey(item: UnifiedDayItem): number {
     function timeToMin(t: string | null | undefined): number | null {
@@ -2211,8 +2211,12 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         return 1440 + (timeToMin(it.departureTime) ?? 0);
       }
       if (it.type === "LODGING") {
-        // check-out defaults to 1020 (5pm) so it sorts after check-in's default of 900 (3pm)
-        if (it.title.toLowerCase().includes("check-out")) return timeToMin(it.departureTime) ?? 1020;
+        // Check-out is a day-anchor event: user departs previous lodging first thing in the
+        // morning before any activities. Fixed weight 50 keeps it at top-of-day regardless of
+        // the actual departureTime clock value. Previously read departureTime ("11:00" -> 660),
+        // which sorted between early-morning tour stops (e.g. 540) and midday ones (720),
+        // fragmenting tour clusters. Applies to EMAIL_IMPORT and MANUAL rows equally.
+        if (it.title.toLowerCase().includes("check-out")) return 50;
         return timeToMin(it.departureTime) ?? 900;
       }
       if (it.type === "TRAIN") return timeToMin(it.departureTime) ?? 660;
