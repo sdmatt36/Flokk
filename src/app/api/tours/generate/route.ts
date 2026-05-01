@@ -136,14 +136,27 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
       // Strip "County" suffix so "Sonoma County" matches cityNorm "sonoma".
       const longNorm = long.replace(/\s+county$/i, "").trim();
       const shortNorm = short.replace(/\s+county$/i, "").trim();
+      // Bidirectional: "Koh Samui" (user) vs "Ko Samui" (Google RTGS) — cityNorm.includes(short) catches this.
       return long.includes(cityNorm) ||
              short.includes(cityNorm) ||
              longNorm.includes(cityNorm) ||
-             shortNorm.includes(cityNorm);
+             shortNorm.includes(cityNorm) ||
+             cityNorm.includes(long) ||
+             cityNorm.includes(short) ||
+             cityNorm.includes(longNorm) ||
+             cityNorm.includes(shortNorm);
     });
     if (!cityMatch) {
       const componentList = cityComponents.map(c => c.long_name).join(", ") || "none";
-      console.log(`[tour-resolve] REJECTED "${stop.name}" — city components ${componentList} do not match "${cityNorm}" (mode: ${transport}, allowed: ${allowedTypes.join("|")})`);
+      console.log(`[tour-resolve] CITY_MISMATCH "${stop.name}" — Google: "${componentList}" vs cityNorm: "${cityNorm}" (mode: ${transport})`);
+      // Coords rescue: if AI provided plausible lat/lng, salvage the stop rather than dropping it.
+      if (typeof stop.lat === "number" && typeof stop.lng === "number" &&
+          stop.lat !== 0 && stop.lng !== 0 &&
+          stop.lat >= -90 && stop.lat <= 90 &&
+          stop.lng >= -180 && stop.lng <= 180) {
+        console.log(`[tour-resolve] COORDS_RESCUE "${stop.name}" — using AI coords`);
+        return { ...stop, imageUrl: null, websiteUrl: resolveCanonicalUrl({ name: stop.name, city: destinationCity }), placeId: null, ticketRequired: null, placeTypes: [] };
+      }
       return null;
     }
 
