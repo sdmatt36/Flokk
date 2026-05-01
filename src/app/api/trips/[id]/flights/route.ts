@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
+import { canViewTrip, canEditTripContent } from "@/lib/trip-permissions";
 
 export async function GET(
   _req: Request,
@@ -10,6 +12,13 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: tripId } = await params;
+
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  if (!(await canViewTrip(profileId, tripId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const flights = await db.flight.findMany({
     where: { tripId },
@@ -27,6 +36,13 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: tripId } = await params;
+
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  if (!(await canEditTripContent(profileId, tripId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const body = await request.json();
   const {

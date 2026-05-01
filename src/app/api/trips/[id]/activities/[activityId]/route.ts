@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { normalizeCategorySlug } from "@/lib/categories";
+import { resolveProfileId } from "@/lib/profile-access";
+import { canEditTripContent } from "@/lib/trip-permissions";
 
 async function getCityForDay(tripId: string, dayDate: string): Promise<string> {
   const lodging = await db.itineraryItem.findFirst({
@@ -32,6 +34,14 @@ export async function PATCH(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: tripId, activityId } = await params;
+
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  if (!(await canEditTripContent(profileId, tripId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const body = await request.json();
   console.log('[PATCH activity] activityId:', activityId, 'tripId:', tripId, 'body:', JSON.stringify(body));
 
@@ -138,7 +148,14 @@ export async function DELETE(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { activityId } = await params;
+  const { id: tripId, activityId } = await params;
+
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  if (!(await canEditTripContent(profileId, tripId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   await db.manualActivity.delete({ where: { id: activityId } });
 

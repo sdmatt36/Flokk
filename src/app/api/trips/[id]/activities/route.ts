@@ -6,6 +6,8 @@ import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { resolveCanonicalUrl } from "@/lib/url-resolver";
 import { normalizeCategorySlug } from "@/lib/categories";
 import { reverseGeocodeCityFromCoords } from "@/lib/google-places";
+import { resolveProfileId } from "@/lib/profile-access";
+import { canViewTrip, canEditTripContent } from "@/lib/trip-permissions";
 
 // Returns the city the traveler is in on a given date by looking at the most recent
 // LODGING check-in on or before that day. Falls back to trip destinationCity.
@@ -38,6 +40,13 @@ export async function GET(
 
   const { id: tripId } = await params;
 
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  if (!(await canViewTrip(profileId, tripId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const activities = await db.manualActivity.findMany({
     where: { tripId },
     orderBy: [{ date: "asc" }, { time: "asc" }],
@@ -54,6 +63,13 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: tripId } = await params;
+
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+  if (!(await canEditTripContent(profileId, tripId))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const body = await request.json();
   const {
