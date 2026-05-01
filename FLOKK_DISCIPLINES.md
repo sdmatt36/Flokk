@@ -1278,3 +1278,53 @@ case where condition 3 (walking in browser with realistic data) would have caugh
 — production URLs lacked the http:// prefix, which the validator silently nulled across
 seven render sites. Compounds with 4.13 (UX Trace Verification), 4.28 (User-Perception Lens),
 and 4.35 (Testing Discipline).*
+
+---
+
+## 4.40 — Verification target must include the fix
+
+The build-clean-walk-commit pattern fails when the verification target is the production URL but the fix is uncommitted in the working tree. Production runs the last pushed commit; working tree changes are invisible to the URL.
+
+### Required behavior
+
+Before declaring any fix verified, the verification path must be one of:
+
+1. Local dev server, where the working tree IS what is being tested.
+2. Push first, then verify on production after deploy completes.
+3. Vercel preview branch, where the branch deploy IS the working tree.
+
+Any of the three approaches is fine. Ambiguity about which approach is in use is not. Every verification step explicitly names which target is being walked: "localhost:3000", "production after push", or "preview branch URL".
+
+### Why this exists
+
+Three of Chat 43's "fix did not fix" cycles in the build chat were variants of walking production while the fix sat uncommitted. The code change was correct in each case; the verification was against pre-fix code, so it appeared the fix had not landed. Hours of diagnostic work investigated phantom regressions.
+
+### Compounds with
+
+Discipline 4.13 (UX Trace Verification) and Discipline 4.39 (Definition of Done Checklist). 4.39 condition 3 ("walked in browser with realistic data") implicitly assumes the walk target is current; 4.40 makes that assumption explicit and procedural.
+
+*Established Chat 43 cumulatively after three production-vs-working-tree mismatches. Codified as Discipline 4.40 in Chat 44 (Phase 7).*
+
+---
+
+## 4.41 — Halt-point compliance is non-negotiable
+
+Halt points before edits exist to catch wrong patches before they ship. When Claude Code skips a halt point and applies edits anyway, the patch may happen to be correct but the discipline is broken.
+
+### Required behavior
+
+Prompts that establish halt points ("STOP after step N", "investigation only, no edits", "confirm grep output before writing") require Claude Code to confirm at each halt before proceeding. The confirmation is explicit, not implied. "Halt point reached, here is what I found, awaiting direction" is the right shape; silently proceeding to the next step is the failure mode.
+
+Forensic-only diagnostic prompts (no edits allowed) remain the strongest pattern. When in doubt about whether a halt is required, treat it as required.
+
+### Why this exists
+
+Chat 43 saw three halt-point violations in the build chat: Tour Fix 1+2 applied before Bug A halt, Bug A applied without separate halt for verification, hyphen-strip applied without diagnostic-first halt. Each ended up logically correct, but only because the diagnostics that ran before were strong. Different diagnostics on a different day produce wrong patches shipped to production.
+
+### Compounds with
+
+Discipline 4.33 (Never Guess — Diagnose First) and Discipline 4.34 (Surgical Revert First). 4.33 mandates grep-before-fix; 4.41 mandates that the gap between grep results and edit application is gated by an explicit halt the user (or chat-side strategic Claude) can confirm.
+
+*Established Chat 43 after three halt-point violations in a single 10-hour session. Codified as Discipline 4.41 in Chat 44 (Phase 7).*
+
+---
