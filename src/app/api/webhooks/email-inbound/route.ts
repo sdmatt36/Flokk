@@ -17,7 +17,7 @@ import { extractOperatorPlan, looksLikeOperatorPlan } from "@/lib/operator-plan-
 import { buildTripFromExtraction } from "@/lib/trip-builder";
 import { inferPlatformFromUrl } from "@/lib/saved-item-types";
 import { isSaveableBooking, createBookingSavedItem } from "@/lib/booking-saved-item";
-import { detectBookingSource } from "@/lib/lodging/detect-source";
+import { detectBookingSource, isManageUrl } from "@/lib/lodging/detect-source";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -1780,6 +1780,23 @@ Field notes:
             if (Object.keys(updateData).length > 0) {
               await db.savedItem.update({ where: { id: hotelSavedItemId }, data: updateData });
             }
+            // Discipline 4.18 — propagate enriched fields to ItineraryItem rows.
+            const venueUrlFromPlaces = result.website && !isManageUrl(result.website) ? result.website : null;
+            const itineraryUpdateData: { imageUrl?: string; venueUrl?: string } = {};
+            if (result.imageUrl) itineraryUpdateData.imageUrl = result.imageUrl;
+            if (venueUrlFromPlaces) itineraryUpdateData.venueUrl = venueUrlFromPlaces;
+            if (Object.keys(itineraryUpdateData).length > 0) {
+              await db.itineraryItem.update({ where: { id: checkInItem.id }, data: itineraryUpdateData });
+              if (hotelConf) {
+                const checkOutItineraryItem = await db.itineraryItem.findFirst({
+                  where: { tripId: resolvedTripId!, confirmationCode: hotelConf, type: "LODGING", title: { startsWith: "Check-out:" } },
+                  select: { id: true },
+                });
+                if (checkOutItineraryItem) {
+                  await db.itineraryItem.update({ where: { id: checkOutItineraryItem.id }, data: itineraryUpdateData });
+                }
+              }
+            }
           })
           .catch((e) => console.warn("[email-inbound] post-create hotel enrich failed:", (e as Error)?.message ?? e));
       }
@@ -1967,6 +1984,14 @@ Field notes:
               if (result.website && !current.websiteUrl) updateData.websiteUrl = result.website;
               if (Object.keys(updateData).length > 0) {
                 await db.savedItem.update({ where: { id: catchAllSavedItemId }, data: updateData });
+              }
+              // Discipline 4.18 — propagate enriched fields to ItineraryItem.
+              const venueUrlFromPlaces = result.website && !isManageUrl(result.website) ? result.website : null;
+              const itineraryUpdateData: { imageUrl?: string; venueUrl?: string } = {};
+              if (result.imageUrl) itineraryUpdateData.imageUrl = result.imageUrl;
+              if (venueUrlFromPlaces) itineraryUpdateData.venueUrl = venueUrlFromPlaces;
+              if (Object.keys(itineraryUpdateData).length > 0) {
+                await db.itineraryItem.update({ where: { id: item.id }, data: itineraryUpdateData });
               }
             })
             .catch((e) => console.warn("[email-inbound] post-create catch-all enrich failed:", (e as Error)?.message ?? e));

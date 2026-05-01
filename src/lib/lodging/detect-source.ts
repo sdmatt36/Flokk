@@ -47,6 +47,35 @@ export function detectBookingSource(input: {
   return { source: "unknown", managementUrl: null };
 }
 
+const MANAGE_URL_DOMAINS = [
+  "booking.com/myreservations",
+  "secure.booking.com/myreservations",
+  "secure.booking.com/confirmation",
+  "airbnb.com/trips",
+  "hotels.com/my-trips",
+  "expedia.com/trips",
+  "marriott.com/loyalty",
+  "marriott.com/myaccount",
+  "marriott.com/reservation",
+  "hilton.com/en/hilton-honors",
+  "hilton.com/en/account",
+  "world.hyatt.com/content/gp/en/my-account",
+  "world.hyatt.com/myhyatt",
+  "vrbo.com/traveler",
+];
+
+/**
+ * Returns true if the URL points to a personal booking-management page rather
+ * than a canonical venue website. Gates SavedItem.websiteUrl propagation to
+ * ItineraryItem.venueUrl per Discipline 4.5 — managementUrl is owner-only,
+ * venueUrl is share-public, manage URLs must never propagate to venueUrl.
+ */
+export function isManageUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  const lowered = url.toLowerCase();
+  return MANAGE_URL_DOMAINS.some((domain) => lowered.includes(domain));
+}
+
 /** Display name for a bookingSource key */
 export function bookingSourceLabel(source: string | null | undefined): string | null {
   if (!source || source === "unknown") return null;
