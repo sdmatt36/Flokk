@@ -665,3 +665,330 @@ scaffolding during migrations.
 
 *Established Chat 43, May 1 2026. Triggering case: Greene Okinawa LODGING and tour cards
 rendering blank while parallel SavedItems carried full enrichment.*
+
+---
+
+## 4.19 — Map Rules
+
+The map rendering pipeline uses TWO COMPLETELY SEPARATE ARRAYS at all times. Conflating
+them is a recurring failure mode and must not happen.
+
+- `pinsToRender` — passes `isValidCoord` only. Used for marker JSX rendering.
+- `pinsForBounds` — passes `isValidCoord` AND `isWithinTripRadius`. Used for `fitBounds` only.
+
+Never apply the proximity filter to `pinsToRender`. Never apply only `isValidCoord` to
+`pinsForBounds`. These must always be separate arrays.
+
+`isValidCoord` rejects null, zero, and out-of-range values. `isWithinTripRadius` rejects
+coordinates more than 300 km from the trip anchor.
+
+Anchor resolution: `trip.accommodation_lat/lng` → fuzzy CITY_CENTERS match → Seoul default.
+City key match is case-insensitive includes-scan, never exact match. The Seoul fallback is a
+known limitation pending the Trip.anchorLat/anchorLng workstream that will replace
+CITY_CENTERS via 4.18 (Pre-Resolved Field Principle).
+
+`flyToDay` must use `getDayAnchor` (centroid of day items), not the trip anchor. Day
+proximity radius is 100 km. Trip proximity radius is 300 km.
+
+Transit cards render only when both adjacent items pass `isValidCoord` AND haversine
+distance between them is ≤ 50 km. For TRAIN/FLIGHT items, use `arrivalLat/arrivalLng`
+(not departure) as the FROM point in transit calculations.
+
+*Established as a standing rule after repeated map regressions from conflating the two
+arrays. Codified with all-caps "DO NOT GET WRONG AGAIN" language in CLAUDE.md before being
+formalized as Discipline 4.19 in Chat 43.*
+
+---
+
+## 4.20 — Itinerary Sort Weights
+
+The day-view itinerary sort uses these fixed weights:
+
+- Arrival flights: 10
+- Check-in: 20
+- Activities: 50
+- Trains: 70
+- Check-out: 80
+- Departure flights: 90
+
+Sort weights are operational law because day-view ordering is user-visible and any drift
+produces apparent bugs. New entity types added to the day view get explicit weights chosen
+deliberately, not via implicit ordering.
+
+*Established as foundational sort logic; codified as Discipline 4.20 in Chat 43 to prevent
+silent drift.*
+
+---
+
+## 4.21 — Email Extraction Rules
+
+For activity and tour bookings, extract `activityTitle` (the specific tour name), never
+the platform name (GetYourGuide, Viator, Klook) or the operator name. If `activityTitle`
+is null, use the cleaned email subject. Never accept platform name as title.
+
+This rule applies to every activity-extraction code path: email parsing, manual entry
+disambiguation, AI-extracted activity surfacing.
+
+*Established after GetYourGuide bookings rendered with the platform name as title. Codified
+as Discipline 4.21 in Chat 43.*
+
+---
+
+## 4.22 — Instagram Description Cleaning
+
+Always apply `cleanDisplayDescription()` before rendering descriptions extracted from
+Instagram or any other source where raw caption text may include HTML entities, excessive
+whitespace, or hashtag-only content.
+
+Use `[\s\S]*?` not `.*` with the `s` flag (ES2017 compatibility).
+
+Apply in: `SaveDetailModal`, `SaveCard` subtitle, `TripTabContent` day cards, and any
+future surface that renders user-or-source-provided descriptions.
+
+*Established after raw Instagram caption rendering with HTML entities and excessive whitespace.
+Codified as Discipline 4.22 in Chat 43.*
+
+---
+
+## 4.23 — Trade-off Transparency
+
+For any non-trivial decision (library choice, API parameter, schema relationship, default
+behavior), surface the trade-off explicitly:
+
+- What was chosen
+- What alternatives were considered
+- What is accepted as the cost of the choice
+- What is the failure mode if the assumption is wrong
+
+Defaults are decisions. Implicit defaults that are not acknowledged become latent bugs.
+
+*Established after silent default choices that surfaced as bugs later when assumptions failed.
+Codified as Discipline 4.23 in Chat 43.*
+
+---
+
+## 4.24 — Cardinality Awareness
+
+Before using `.find()`, `[0]`, or any "pick first" operator on a collection, verify:
+
+- Is the collection guaranteed to have exactly one item?
+- If multiple items can exist, is ordering deterministic?
+- Is there a contextual filter that narrows to the right item?
+
+If none apply, either fix the cardinality assumption or document multi-item handling
+explicitly.
+
+*Established after repeated bugs where multi-row data was treated as single-row. The
+canonical case (multi-lodging trips with `.find(i => i.type === "LODGING")` picking the
+wrong anchor) is documented in Discipline 4.7. Codified as Discipline 4.24 in Chat 43.*
+
+---
+
+## 4.25 — Schema Relationship Explicitness
+
+Foreign key relationships ship with explicit `onDelete` behavior:
+
+- `onDelete: Cascade` — child records deleted with parent
+- `onDelete: SetNull` — child records orphaned, become unassigned
+- `onDelete: Restrict` — parent deletion blocked while children exist
+
+Choose deliberately. The default may not match user expectations. Surface the choice in
+the response.
+
+*Established after data anomalies from accepting Prisma defaults without consideration.
+The canonical case (ItineraryItem.tripId defaulting to SET NULL, creating orphan items
+when trips were deleted) is documented in Discipline 4.7. Codified as Discipline 4.25 in
+Chat 43.*
+
+---
+
+## 4.26 — External API Integration Discipline
+
+Third-party API calls (Google Places, geocoding, payment, auth, mapping) ship with
+documented configuration:
+
+- All required parameters explicitly set (types, components, fields, languages, etc.)
+- Response field selection rationale (description vs structured_formatting, terms vs
+  address_components, etc.)
+- Failure mode handling (graceful degradation, error surface, rate limit awareness)
+- Cost and quota implications
+
+Library defaults are not accepted without checking what they imply.
+
+*Established after repeated bugs from accepting Google Places defaults that didn't match
+Flokk's needs. Codified as Discipline 4.26 in Chat 43. Compounds with 4.30 (Live API
+Verification), which enforces verification of assumed behavior against live API responses.*
+
+---
+
+## 4.27 — Shared Component and Shared API Verification
+
+Components or endpoints used across multiple callsites are tested against ALL consuming
+surfaces. A regression in one is a regression in all. Before changing shared infrastructure,
+identify all callsites and verify the change works across all of them.
+
+When fixing a shared component, the fix is not complete until verified on every consuming
+surface. "API fixed" without "UI updated" leaves the user-visible bug intact.
+
+*Established after shared component fixes that broke other consumers silently. The canonical
+case (autocomplete endpoint with eight consuming surfaces) is documented in Discipline 4.7.
+Codified as Discipline 4.27 in Chat 43.*
+
+---
+
+## 4.28 — User-Perception Lens
+
+A feature is not done when tests pass. It is done when:
+
+1. Tests pass (necessary)
+2. TypeScript compiles cleanly (necessary)
+3. Realistic user behavior produces sensible results (necessary)
+4. Failure modes degrade gracefully (empty states are honest, errors recoverable)
+5. The feature would not be perceived as broken by a typical user
+
+Perceived-broken is real-broken from a product perspective. If a user sees five identical
+dropdown entries, they perceive the platform as broken regardless of whether the underlying
+API now returns differentiated data — until the rendering also displays the differentiation.
+
+*Established after features that passed tests but rendered broken to users. Codified as
+Discipline 4.28 in Chat 43. Discipline 4.7 (Foundation-First Verification) carries the same
+five conditions in its body as illustrative examples; this discipline elevates them to a
+procedural checklist that ends every prompt.*
+
+---
+
+## 4.29 — Push Back When Foundation Is Shaky
+
+If a request would build on top of a foundation that has not been verified, push back before
+building. If a request would ship a feature that fails the user-perception test (4.28), push
+back before building. If a request is ambiguous in a way that would let multiple wrong outcomes
+pass tests, push back before building.
+
+Diligence over speed when the trade-off matters. Matt has explicitly named the partnership
+behavior of flagging implicit defaults, surfacing trade-offs proactively, and pausing for
+foundation verification before adding more layers.
+
+This discipline applies to chat-side Claude (strategic partner) and Claude Code (execution
+agent) equally. Neither defers to the other.
+
+*Established as explicit partnership behavior; codified after rushed builds revealed
+foundation gaps. Codified as Discipline 4.29 in Chat 43.*
+
+---
+
+## 4.30 — Live API Verification
+
+Unit tests with mocks verify assumptions about an API; they do not verify the API.
+
+For any third-party integration:
+
+1. Before writing the adapter, hit the live API once with realistic queries. Document the
+   actual response shape and behavior.
+2. Build the adapter against the documented live behavior, not assumed behavior.
+3. Run verification against the live API before declaring the integration "working" — mocked
+   tests passing is necessary but not sufficient.
+4. If the adapter has known coverage gaps (free tier limitations, regional gaps, time-window
+   limits), document them explicitly in code comments AND in the spec at integration time,
+   not after a user reports the gap.
+
+This discipline compounds with 4.7 (Foundation-First): the adapter is a foundation for the
+features built on top, and verifying a foundation requires verifying against reality, not
+against an assumed model of reality.
+
+*Established Chat 40 after the TheSportsDB regression: the live `searchteams.php?t=Chicago`
+returns 0 results because it searches by team name, not city; tests mocked it returning
+Chicago Cubs. The adapter shipped, Events tab went live, every user saw empty state. The fix
+was hiding the tab until a verified adapter ships. Codified as Discipline 4.30 in Chat 43.*
+
+---
+
+## 4.31 — Prompt Writing Standard (Exact Code Required)
+
+Every prompt to Claude Code includes exact code, not descriptions. Required:
+
+1. Exact function signatures with TypeScript types
+2. Exact JSX blocks including className strings
+3. Exact variable names matching what grep shows in the file
+4. Exact condition logic — not "check if valid" but the actual `if` statement
+5. Exact API call with method, headers, body shape
+6. Exact Prisma `select` fields if DB is touched
+7. Exact git commit message
+
+NEVER write:
+- "Add a check for valid coordinates" → write the exact `if` statement
+- "Update the transit card logic" → write the exact JSX replacement
+- "Make sure the type includes X" → write the exact type definition
+- "Apply the function at the render point" → show the exact line to replace
+
+If the existing code must be shown first (always), the prompt must say:
+"Show lines X-Y of [filename] before making any changes" or "Show the output of:
+grep -n [pattern] [file]". Claude Code must confirm the grep output matches expectations
+before writing a single line of new code.
+
+This discipline applies to every prompt without exception.
+
+*Established after drift from descriptive prompts produced repeated prompt-vs-implementation
+mismatches. Codified as Discipline 4.31 in Chat 43.*
+
+---
+
+## 4.32 — RESERVED
+
+This number was originally drafted as "Every Fix Must Be Universal" before being merged into
+4.10 (Universal Edit) during Chat 43 reorganization. The merger consolidated two overlapping
+universal-fix disciplines into a single rule. Number 4.32 is reserved to preserve numbering
+integrity; do not reassign.
+
+---
+
+## 4.33 — Never Guess — Diagnose First
+
+This rule applies to every prompt without exception.
+
+NEVER write a fix based on assumed code structure.
+NEVER write a fix based on what a previous prompt claimed to change.
+NEVER assume a previous fix landed correctly.
+ALWAYS grep the actual current code before writing any fix.
+ALWAYS show the exact lines being changed before changing them.
+ALWAYS verify the fix landed by grepping again after the commit.
+
+The pattern for every fix:
+
+1. grep to find exact file and line
+2. Show the exact current code (not what you think it says)
+3. Show the exact replacement code
+4. Apply the change
+5. grep again to confirm the new code is in place
+6. Commit and push
+
+If the grep output does not match what you expect, STOP. Do not proceed. Report what you
+found and ask for direction.
+
+A fix that cannot be verified by grep output is not a fix. It is a guess. Guesses are not
+acceptable.
+
+*Established cumulatively after repeated assumption-driven regressions. Codified as
+Discipline 4.33 in Chat 43.*
+
+---
+
+## 4.34 — Surgical Revert First
+
+For ambiguous regressions where the cause is unclear and patching forward would risk
+compounding the issue, revert is the first response and patch-forward is the second.
+
+Surgical revert means tightly scoped — preserve wins from a partially-bad commit, restore
+the regressed surface only. Reverts are cheaper than patch-forward when the regression is
+reversible cheaply and no persisted data is corrupted.
+
+If a bad commit had written transformed data to the database, revert becomes more expensive
+and proportionally more careful. The default is still revert-first when uncertain;
+patch-forward is reserved for cases where the cause is fully understood and the fix is
+narrow.
+
+*Established Chat 42 after the URL validator regression: commit 8d39632 bundled three fixes,
+one of which (a strict-scheme URL validator) silently nulled legitimate URLs across seven
+render sites. Reverted in commit 9c21630, preserving the Edinburgh/Athens/etc. coords additions
+and SQL backfill while removing the validator. The revert took less than 60 minutes; a
+patch-forward would have required redesigning the validator while users continued seeing
+broken URLs. Codified as Discipline 4.34 in Chat 43.*
