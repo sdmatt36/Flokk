@@ -2609,6 +2609,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         setLocalFlights(prev => prev.map(f => f.id === item.rawId ? { ...f, sortOrder: i } : f));
         fetch(`/api/trips/${tripId}/flights/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
       } else if (item.itemType === "itinerary" && item.rawId) {
+        if (item.itineraryItem?.type === "LODGING") return;
         setLocalItineraryItems(prev => prev.map(it => it.id === item.rawId ? { ...it, sortOrder: i } : it));
         fetch(`/api/trips/${tripId}/itinerary/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
       }
@@ -3288,7 +3289,13 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                             style={{ flex: 1, display: "flex", gap: "10px", alignItems: "flex-start", backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: "12px", padding: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", cursor: a.savedItemId ? "pointer" : "default" }}
                                           >
                                             <div style={{ width: "26px", height: "26px", borderRadius: "50%", backgroundColor: "rgba(196,102,74,0.1)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                              <span style={{ fontSize: "12px", fontWeight: 800, color: "#C4664A" }}>{idx + 1}</span>
+                                              <span style={{ fontSize: "12px", fontWeight: 800, color: "#C4664A" }}>{(() => {
+                                                const tId = item.recAddition?.tourId;
+                                                if (!tId) return idx + 1;
+                                                return allDayItems
+                                                  .filter(x => x.itemType === "saved" && x.recAddition?.tourId === tId)
+                                                  .indexOf(item) + 1;
+                                              })()}</span>
                                             </div>
                                             {a.img && (
                                               <div style={{ width: "52px", height: "52px", borderRadius: "8px", flexShrink: 0, backgroundImage: `url('${a.img}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
