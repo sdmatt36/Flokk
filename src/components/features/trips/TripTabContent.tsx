@@ -114,6 +114,8 @@ import { NoteEditor, type TiptapDoc, emptyDoc } from "@/components/features/note
 
 type Tab = "saved" | "itinerary" | "tours" | "recommended" | "events" | "packing" | "notes" | "vault" | "howwasit";
 
+export type ViewMode = "owner" | "share";
+
 type Flight = {
   id: string;
   type: string;
@@ -2003,7 +2005,7 @@ function ActivityDetailModal({ activity, onClose, onEdit, onDelete, onMarkBooked
   );
 }
 
-function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onEditSavedActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onDeleteActivity, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight, budgetTotal, trackedTotal, budgetCurrency, budgetLoaded, onBudgetChange, shareToken, onManageTours }: {
+function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onEditSavedActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onDeleteActivity, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight, budgetTotal, trackedTotal, budgetCurrency, budgetLoaded, onBudgetChange, shareToken, onManageTours, viewMode = "owner", initialItineraryItems, initialRecAdditions }: {
   flyTarget: { lat: number; lng: number } | null;
   onFlyTargetConsumed: () => void;
   tripId?: string;
@@ -2029,6 +2031,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   onBudgetChange: (total: number | null, currency: string) => void;
   shareToken?: string;
   onManageTours?: () => void;
+  viewMode?: ViewMode;
+  initialItineraryItems?: ItineraryItemLocal[];
+  initialRecAdditions?: RecAddition[];
 }) {
   const isDesktop = useIsDesktop();
   const [openDay, setOpenDay] = useState(0); // -1 = all collapsed
@@ -2037,11 +2042,11 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [addActivityDefaultDate, setAddActivityDefaultDate] = useState<string | undefined>();
   const [showAddToTripModal, setShowAddToTripModal] = useState(false);
   const [addToTripDefaultDate, setAddToTripDefaultDate] = useState<string | undefined>();
-  const [recAdditions, setRecAdditions] = useState<RecAddition[]>([]);
+  const [recAdditions, setRecAdditions] = useState<RecAddition[]>(viewMode === "owner" ? [] : (initialRecAdditions ?? []));
   // Local copies of activities/flights so drag-reorder can update them independently of parent prop
   const [localActivities, setLocalActivities] = useState<Activity[]>([]);
   const [localFlights, setLocalFlights] = useState<Flight[]>([]);
-  const [localItineraryItems, setLocalItineraryItems] = useState<ItineraryItemLocal[]>([]);
+  const [localItineraryItems, setLocalItineraryItems] = useState<ItineraryItemLocal[]>(viewMode === "owner" ? [] : (initialItineraryItems ?? []));
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
   const [verificationIndex, setVerificationIndex] = useState(0);
   const [expandedSlotKey, setExpandedSlotKey] = useState<string | null>(null);
@@ -2085,12 +2090,13 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [newlyCreatedDayNoteId, setNewlyCreatedDayNoteId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (viewMode !== "owner") return;
     if (!tripId) return;
     fetch(`/api/trips/${tripId}/notes`)
       .then(r => r.json())
       .then((d: DayNote[]) => setDayNotesList(Array.isArray(d) ? d.filter(n => n.dayIndex !== null) : []))
       .catch(console.error);
-  }, [tripId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tripId, viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleAddDayNote(dayIndex: number) {
     if (addingNoteForDay !== null || !tripId) return;
@@ -2157,6 +2163,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
 
   // Fallback geocoding: fire-and-forget for activities with null lat/lng
   useEffect(() => {
+    if (viewMode !== "owner") return;
     const nullCoord = localActivities.filter(
       a => a.lat == null && a.lng == null && !geocodingInProgressRef.current.has(a.id)
     );
@@ -2336,7 +2343,6 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         if (item.itemType !== "itinerary") return 50;
         if (item.itineraryItem?.type !== "LODGING") return 50;
         if (item.itineraryItem.dayIndex !== targetDayIndex) return 50;
-        if ((item.itineraryItem.sortOrder ?? 0) !== 0) return 50; // user reordered — let it ride
         const title = item.itineraryItem.title.toLowerCase();
         if (title.startsWith("check-in:")) return 1000; // force to end
         if (title.startsWith("check-out:")) return -1000; // force to start
@@ -2576,6 +2582,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   }
 
   function handleReorder(sortId: string, direction: "up" | "down") {
+    if (viewMode !== "owner") return;
     // Determine which day this item lives on
     let dayIdx: number | null = null;
     if (sortId.startsWith("saved_")) {
@@ -2617,6 +2624,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   }
 
   function handleCrossDayMove(sortId: string, newDayIndex: number) {
+    if (viewMode !== "owner") return;
     function showDragError() {
       setDragErrorToast("Could not move item. Please try again.");
       setTimeout(() => setDragErrorToast(null), 3000);
@@ -2701,6 +2709,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
 
   // Load rec additions from DB on mount (key prop forces remount after each save)
   useEffect(() => {
+    if (viewMode !== "owner") return;
     if (!tripId) return;
     fetch(`/api/trips/${tripId}/itinerary`)
       .then(r => r.json())
@@ -2747,6 +2756,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   // After that, sortOrder is the single source of truth — handleReorder just
   // swaps sortOrder values and re-renders in the new order.
   useEffect(() => {
+    if (viewMode !== "owner") return;
     if (!tripId) return;
     fetch(`/api/trips/${tripId}/itinerary-items`)
       .then(r => r.json())
@@ -2770,6 +2780,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
             }));
             withWeight.sort((a, b) => a.w - b.w);
             withWeight.forEach(({ it }, i) => {
+              // Mirror of 64279b3 handleReorder skip + c35622e auto-sort skip.
+              // Anchor weights handle LODGING render position unconditionally — writing
+              // sortOrder from initialization contaminated the escape hatch (now removed).
+              if (it.type === "LODGING") return;
               const idx = initialized.findIndex(x => x.id === it.id);
               if (idx !== -1) initialized[idx] = { ...initialized[idx], sortOrder: i };
               fetch(`/api/trips/${tripId}/itinerary/${it.id}`, {
@@ -2799,6 +2813,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
 
   // Initialize sortOrder for activities if all are 0 (seeded trips)
   useEffect(() => {
+    if (viewMode !== "owner") return;
     if (!tripId || localActivities.length === 0) return;
     const allZero = localActivities.every(a => (a.sortOrder ?? 0) === 0);
     if (!allZero) return;
@@ -2810,12 +2825,13 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         body: JSON.stringify({ sortOrder: i }),
       }).catch(e => console.error("[initSortOrder activity]", e));
     });
-  }, [localActivities.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [localActivities.length, viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-sort a day after a timed activity is added (PART B).
   // pendingAutoSortDayRef is set by the onSaved callback in AddActivityModal.
   // This effect fires after localActivities updates with the new item.
   useEffect(() => {
+    if (viewMode !== "owner") return;
     const dayToSort = pendingAutoSortDayRef.current;
     if (dayToSort === null || !tripId) return;
     pendingAutoSortDayRef.current = null;
@@ -2845,6 +2861,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
 
   // Initialize sortOrder for flights if all are 0 (seeded trips)
   useEffect(() => {
+    if (viewMode !== "owner") return;
     if (!tripId || localFlights.length === 0) return;
     const allZero = localFlights.every(f => (f.sortOrder ?? 0) === 0);
     if (!allZero) return;
@@ -2856,7 +2873,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         body: JSON.stringify({ sortOrder: i }),
       }).catch(e => console.error("[initSortOrder flight]", e));
     });
-  }, [localFlights.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [localFlights.length, viewMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Return a directions URL that deep-links into native maps on iOS/Android */
   function getDirectionsUrl(lat1: number, lng1: number, lat2: number, lng2: number): string {
@@ -3263,7 +3280,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 })()]: []),
                                 <div key={item.sortId} style={{ display: "flex", alignItems: "stretch", marginBottom: "8px" }}>
                                   {/* Up/down reorder controls */}
-                                  <div style={{ width: "22px", flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1px", paddingRight: "4px" }}>
+                                  {viewMode === "owner" && <div style={{ width: "22px", flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1px", paddingRight: "4px" }}>
                                     <button
                                       onClick={e => { e.stopPropagation(); handleReorder(item.sortId, "up"); }}
                                       disabled={idx === 0}
@@ -3274,14 +3291,14 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                       disabled={idx === allDayItems.length - 1}
                                       style={{ background: "none", border: "none", cursor: idx === allDayItems.length - 1 ? "default" : "pointer", color: idx === allDayItems.length - 1 ? "#D8D8D8" : "#C4664A", fontSize: "13px", lineHeight: 1, padding: "1px 0", fontWeight: 700 }}
                                     >↓</button>
-                                  </div>
+                                  </div>}
 
                                   {/* Saved item card */}
                                       {item.itemType === "saved" && item.recAddition && (() => {
                                         const a = item.recAddition;
                                         return (
                                           <div
-                                            onClick={a.savedItemId ? () => {
+                                            onClick={a.savedItemId && viewMode === "owner" ? () => {
                                               setDetailItemId(a.savedItemId!);
                                               setDetailRemover(() => () => {
                                                 if (a.savedItemId) {
@@ -3309,7 +3326,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
                                                 <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{a.title}</p>
-                                                {a.savedItemId && (
+                                                {a.savedItemId && viewMode === "owner" && (
                                                   <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
                                                     <button
                                                       onClick={async e => {
@@ -3506,12 +3523,12 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                         // Shared card shell: white bg, terracotta left border, no icon/emoji
                                         const cardStyle: React.CSSProperties = { flex: 1, backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderLeft: "3px solid #C4664A", borderRadius: "12px", padding: "12px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
                                         const bookedBadge = <span style={{ fontSize: "11px", fontWeight: 600, backgroundColor: "rgba(74,124,89,0.1)", color: "#4a7c59", borderRadius: "999px", padding: "2px 8px" }}>Booked</span>;
-                                        const pencilBtn = (onClick: () => void) => (
+                                        const pencilBtn = (onClick: () => void) => viewMode !== "owner" ? null : (
                                           <button onClick={e => { e.stopPropagation(); onClick(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px", flexShrink: 0 }} title="Edit">
                                             <Pencil size={14} />
                                           </button>
                                         );
-                                        const shareBtn = (entityId: string) => (
+                                        const shareBtn = (entityId: string) => viewMode !== "owner" ? null : (
                                           <button onClick={async e => { e.stopPropagation(); const result = await shareEntity({ entityType: "itinerary_item", entityId }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } }} style={{ background: "white", border: "1px solid rgba(196,102,74,0.3)", borderRadius: "6px", cursor: "pointer", color: "#C4664A", padding: "4px 10px", flexShrink: 0, fontSize: "12px", fontWeight: 600, fontFamily: "inherit" }}>
                                             Share
                                           </button>
@@ -3557,7 +3574,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                     {bookedBadge}
                                                     {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {it.confirmationCode}</span>}
                                                     {paxLabel && <span style={{ fontSize: "11px", color: "#999" }}>{paxLabel}</span>}
-                                                    <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#e53e3e", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
+                                                    {viewMode === "owner" && <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#e53e3e", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>}
                                                   </div>
                                                 </div>
                                                 <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
@@ -3597,7 +3614,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                     {lodgingStatusBadge}
                                                     {(it.confirmationCode || it.additionalConfirmations?.length) && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {[it.confirmationCode, ...(it.additionalConfirmations ?? [])].filter(Boolean).join(" · ")}</span>}
                                                     {costLabel && <span style={{ fontSize: "11px", color: "#999" }}>{costLabel}</span>}
-                                                    <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
+                                                    {viewMode === "owner" && <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>}
                                                   </div>
                                                 </div>
                                                 <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
@@ -3630,7 +3647,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                   <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
                                                     {bookedBadge}
                                                     {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {it.confirmationCode}</span>}
-                                                    <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
+                                                    {viewMode === "owner" && <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>}
                                                   </div>
                                                 </div>
                                                 <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
@@ -3670,7 +3687,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                       })()}
 
                                   {/* Move to day — button only; dropdown rendered via portal below */}
-                                  <div style={{ flexShrink: 0, marginLeft: "6px", display: "flex", alignItems: "center" }}>
+                                  {viewMode === "owner" && <div style={{ flexShrink: 0, marginLeft: "6px", display: "flex", alignItems: "center" }}>
                                     <button
                                       onClick={e => {
                                         e.stopPropagation();
@@ -3685,7 +3702,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                       }}
                                       style={{ background: "none", border: "none", cursor: "pointer", fontSize: "11px", color: "#AAAAAA", padding: "4px 5px", borderRadius: "6px", fontWeight: 500, whiteSpace: "nowrap", lineHeight: 1 }}
                                     >Move</button>
-                                  </div>
+                                  </div>}
                                 </div>,
                                 prevHasCoords && nextHasCoords ? (
                                   (() => {
@@ -3734,7 +3751,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                           </div>
 
                           {/* Auto-sort day link */}
-                          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "2px" }}>
+                          {viewMode === "owner" && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "2px" }}>
                             {autoSortConfirmDay === dayIndex ? (
                               <span style={{ fontSize: "12px", color: "#AAAAAA", padding: "4px 0" }}>Day re-sorted</span>
                             ) : (
@@ -3764,10 +3781,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 style={{ fontSize: "12px", color: "#AAAAAA", background: "none", border: "none", cursor: "pointer", padding: "4px 0", textDecoration: "underline" }}
                               >Auto-sort day</button>
                             )}
-                          </div>
+                          </div>}
 
                           {/* + Add activity dashed button */}
-                          <button
+                          {viewMode === "owner" && <button
                             onClick={() => {
                               let defaultDate: string | undefined;
                               if (tripStartDate && dayIndex !== undefined && dayIndex !== null) {
@@ -3789,7 +3806,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                           >
                             <Plus size={14} />
                             Add to day
-                          </button>
+                          </button>}
 
                           {/* Per-day notes */}
                           <div style={{ marginTop: "10px" }}>
@@ -3797,13 +3814,13 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                               .filter(n => n.dayIndex === i)
                               .map(note => (
                                 <div key={note.id} style={{ marginBottom: "8px", position: "relative" }}>
-                                  <NoteEditor
+                                  {viewMode === "owner" && <NoteEditor
                                     key={note.id}
                                     initialContent={note.content}
                                     onSave={(content) => handleSaveDayNote(note.id, content)}
                                     placeholder="Notes for this day..."
                                     autoFocus={note.id === newlyCreatedDayNoteId}
-                                  />
+                                  />}
                                   <button
                                     onClick={() => handleDeleteDayNote(note.id)}
                                     title="Delete note"
@@ -3824,7 +3841,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                   </button>
                                 </div>
                               ))}
-                            <button
+                            {viewMode === "owner" && <button
                               onClick={() => handleAddDayNote(i)}
                               disabled={addingNoteForDay === i}
                               style={{
@@ -3846,7 +3863,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                             >
                               <Plus size={12} />
                               Add note for Day {i + 1}
-                            </button>
+                            </button>}
                           </div>
 
                         </div>
@@ -7286,13 +7303,14 @@ type SavedRec = {
   tags: string;
 };
 
-export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true, initialIsPublic = false, shareToken, tripStatus, initialPostTripCaptureStarted = false, initialPostTripCaptureComplete = false, initialPostTripModalVisitCount = 0, viewerMembers }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean; initialIsPublic?: boolean; shareToken?: string; tripStatus?: string; initialPostTripCaptureStarted?: boolean; initialPostTripCaptureComplete?: boolean; initialPostTripModalVisitCount?: number; viewerMembers?: { role: "ADULT" | "CHILD"; name: string; birthDate: string | null }[] }) {
+export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true, initialIsPublic = false, shareToken, tripStatus, initialPostTripCaptureStarted = false, initialPostTripCaptureComplete = false, initialPostTripModalVisitCount = 0, viewerMembers, viewMode = "owner", initialItineraryItems, initialRecAdditions, initialFlights, initialActivities }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean; initialIsPublic?: boolean; shareToken?: string; tripStatus?: string; initialPostTripCaptureStarted?: boolean; initialPostTripCaptureComplete?: boolean; initialPostTripModalVisitCount?: number; viewerMembers?: { role: "ADULT" | "CHILD"; name: string; birthDate: string | null }[]; viewMode?: ViewMode; initialItineraryItems?: ItineraryItemLocal[]; initialRecAdditions?: RecAddition[]; initialFlights?: Flight[]; initialActivities?: Activity[]; }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [postTripCaptureStarted, setPostTripCaptureStarted] = useState(initialPostTripCaptureStarted);
   const [postTripCaptureComplete, setPostTripCaptureComplete] = useState(initialPostTripCaptureComplete);
   const [showPostTripModal, setShowPostTripModal] = useState(false);
   const [showPostTripBanner, setShowPostTripBanner] = useState(false);
   useEffect(() => {
+    if (viewMode !== "owner") return;
     if (tripStatus === "COMPLETED" && !initialPostTripCaptureStarted) {
       const newCount = initialPostTripModalVisitCount + 1;
       if (tripId) {
@@ -7320,8 +7338,8 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [editingActivityIsSavedItem, setEditingActivityIsSavedItem] = useState(false);
   const [activityDayPickerItem, setActivityDayPickerItem] = useState<Activity | null>(null);
   const [activityToast, setActivityToast] = useState<string | null>(null);
-  const [flights, setFlights] = useState<Flight[]>([]);
-  const [activities, setActivities] = useState<Activity[]>([]);
+  const [flights, setFlights] = useState<Flight[]>(viewMode === "owner" ? [] : (initialFlights ?? []));
+  const [activities, setActivities] = useState<Activity[]>(viewMode === "owner" ? [] : (initialActivities ?? []));
   const [activityDefaultDate, setActivityDefaultDate] = useState<string | undefined>(undefined);
   const [editingFlight, setEditingFlight] = useState<Flight | null>(null);
   const [editingFlightVaultDocId, setEditingFlightVaultDocId] = useState<string | null>(null);
@@ -7347,6 +7365,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [budgetLoaded, setBudgetLoaded] = useState(false);
 
   useEffect(() => {
+    if (viewMode !== "owner") return;
     if (!tripId || budgetLoaded) return;
     fetch(`/api/trips/${tripId}/budget`)
       .then(r => r.json())
@@ -7381,6 +7400,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   }, [tripId]);
 
   useEffect(() => {
+    if (viewMode !== "owner") return;
     fetchFlights();
     fetchActivities();
     window.addEventListener("flokk:refresh", fetchFlights);
@@ -7389,7 +7409,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       window.removeEventListener("flokk:refresh", fetchFlights);
       window.removeEventListener("flokk:refresh", fetchActivities);
     };
-  }, [fetchFlights, fetchActivities]);
+  }, [fetchFlights, fetchActivities, viewMode]);
 
   function handleDeleteFlight(flightId: string) {
     if (!tripId) return;
@@ -7472,6 +7492,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [notesFilter, setNotesFilter] = useState<"all" | "trip" | number>("all");
 
   useEffect(() => {
+    if (viewMode !== "owner") return;
     if (tab !== "notes" || !tripId) return;
     fetch(`/api/trips/${tripId}/notes`)
       .then(r => r.json())
@@ -7546,6 +7567,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [newKeyInfo, setNewKeyInfo] = useState({ label: "", value: "" });
 
   useEffect(() => {
+    if (viewMode !== "owner") return;
     if (tab !== "vault" || !tripId) return;
     Promise.all([
       fetch(`/api/trips/${tripId}/vault/contacts`).then(r => r.json()),
@@ -7586,7 +7608,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       )}
 
       {/* Action buttons row — above tab bar so tabs get full width */}
-      {tripId && (
+      {viewMode === "owner" && tripId && (
         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "6px", marginBottom: "8px" }}>
           <button
             onClick={() => setDropLinkOpen(true)}
@@ -7630,7 +7652,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       )}
 
       {/* Tab bar — full width, horizontally scrollable on mobile */}
-      <div
+      {viewMode === "owner" && <div
         className="hide-scrollbar"
         style={{
           display: "flex",
@@ -7694,7 +7716,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
             How was it?{!postTripCaptureComplete && <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#D97706", display: "inline-block", marginLeft: "6px", verticalAlign: "middle" }} />}
           </button>
         )}
-      </div>
+      </div>}
 
       {dropLinkOpen && (
         <DropLinkModal
@@ -7830,13 +7852,13 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         </button>
       )}
 
-      {tab === "saved" && (
+      {viewMode === "owner" && tab === "saved" && (
         <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} shareToken={shareToken} />
       )}
-      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} onEditSavedActivity={(a) => { setEditingActivity(a); setEditingActivityIsSavedItem(true); }} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onDeleteActivity={handleDeleteActivity} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} budgetTotal={budgetTotal} trackedTotal={trackedTotal} budgetCurrency={budgetCurrency} budgetLoaded={budgetLoaded} onBudgetChange={handleBudgetChange} shareToken={shareToken} onManageTours={() => setTab("tours")} />}
-      {tab === "tours" && <ToursContent tripId={tripId} tripTitle={tripTitle} />}
-      {tab === "packing" && <PackingContent tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} tripStartDate={tripStartDate} tripEndDate={tripEndDate} />}
-      {tab === "notes" && (
+      {(viewMode !== "owner" || tab === "itinerary") && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} onEditSavedActivity={(a) => { setEditingActivity(a); setEditingActivityIsSavedItem(true); }} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onDeleteActivity={handleDeleteActivity} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} budgetTotal={budgetTotal} trackedTotal={trackedTotal} budgetCurrency={budgetCurrency} budgetLoaded={budgetLoaded} onBudgetChange={handleBudgetChange} shareToken={shareToken} onManageTours={() => setTab("tours")} viewMode={viewMode} initialItineraryItems={initialItineraryItems} initialRecAdditions={initialRecAdditions} />}
+      {viewMode === "owner" && tab === "tours" && <ToursContent tripId={tripId} tripTitle={tripTitle} />}
+      {viewMode === "owner" && tab === "packing" && <PackingContent tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} tripStartDate={tripStartDate} tripEndDate={tripEndDate} />}
+      {viewMode === "owner" && tab === "notes" && (
         <div style={{ maxWidth: "600px" }}>
           {/* Header + Add button */}
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "20px" }}>
@@ -8004,7 +8026,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         </div>
       )}
 
-      {tab === "vault" && (
+      {viewMode === "owner" && tab === "vault" && (
         <div style={{ maxWidth: "640px", display: "flex", flexDirection: "column", gap: "32px" }}>
 
           {/* ── IMPORTED BOOKINGS ── */}
@@ -8494,7 +8516,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         </div>
       )}
 
-      {tab === "howwasit" && tripId && (
+      {viewMode === "owner" && tab === "howwasit" && tripId && (
         <HowWasItContent
           tripId={tripId}
           tripTitle={tripTitle}
@@ -8508,7 +8530,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         />
       )}
 
-      {tab === "recommended" && (
+      {viewMode === "owner" && tab === "recommended" && (
         <RecommendedContent
           tripId={tripId}
           tripStartDate={tripStartDate}
@@ -8522,7 +8544,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         />
       )}
 
-      {tab === "events" && SHOW_EVENTS_TAB && (
+      {viewMode === "owner" && tab === "events" && SHOW_EVENTS_TAB && (
         <EventsContent
           tripId={tripId}
           destinationCity={destinationCity}
