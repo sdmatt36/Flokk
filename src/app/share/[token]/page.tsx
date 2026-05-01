@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { getTripCoverImage } from "@/lib/destination-images";
@@ -13,16 +14,46 @@ export async function generateMetadata({
   params,
 }: {
   params: Promise<{ token: string }>;
-}) {
+}): Promise<Metadata> {
   const { token } = await params;
   const trip = await db.trip.findUnique({
     where: { shareToken: token },
-    select: { title: true, destinationCity: true, destinationCountry: true },
+    select: {
+      title: true,
+      destinationCity: true,
+      destinationCountry: true,
+      startDate: true,
+      endDate: true,
+      heroImageUrl: true,
+      isAnonymous: true,
+      familyProfile: { select: { familyName: true } },
+    },
   });
-  if (!trip) return { title: "Trip — Flokk" };
+  if (!trip) return { title: "Flokk" };
+
   const dest = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ");
+  const heroImage = getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl);
+  const curatorName = trip.isAnonymous || !trip.familyProfile?.familyName
+    ? "a Flokk family"
+    : `the ${trip.familyProfile.familyName} family`;
+  const dateRange = trip.startDate && trip.endDate ? ` · ${formatDateRange(trip.startDate, trip.endDate)}` : "";
+  const description = `${trip.title}${dest ? ` — ${dest}` : ""}${dateRange}. Shared by ${curatorName} on Flokk.`;
+
   return {
     title: `${trip.title}${dest ? ` · ${dest}` : ""} — shared on Flokk`,
+    description,
+    openGraph: {
+      title: trip.title,
+      description,
+      images: [{ url: heroImage, width: 1200, height: 630, alt: trip.title }],
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: trip.title,
+      description,
+      images: [heroImage],
+    },
   };
 }
 
@@ -58,6 +89,7 @@ const TYPE_LABEL: Record<string, string> = {
   TRAIN: "RAIL",
   LODGING: "STAY",
   ACTIVITY: "ACT",
+  CAR_RENTAL: "Car",
 };
 
 const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
@@ -65,6 +97,7 @@ const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
   TRAIN: { bg: "#F0FFF4", color: "#6B8F71" },
   LODGING: { bg: "#FFF4EE", color: "#C4664A" },
   ACTIVITY: { bg: "#F5F5F5", color: "#888" },
+  CAR_RENTAL: { bg: "rgba(27,58,92,0.1)", color: "#1B3A5C" },
 };
 
 
@@ -162,7 +195,7 @@ export default async function SharePage({
 
   for (const item of mergedItineraryItems) {
     const di = item.dayIndex ?? 0;
-    if (di <= 0) continue;
+    if (di < 0) continue;
     // Skip LODGING check-out entries — hotel shows once on arrival day
     if (item.type === "LODGING" && /check-out/i.test(item.title)) continue;
     if (!dayItemsByDay[di]) dayItemsByDay[di] = [];
@@ -175,7 +208,7 @@ export default async function SharePage({
 
   for (const save of trip.savedItems) {
     const di = save.dayIndex ?? 0;
-    if (di <= 0) continue;
+    if (di < 0) continue;
     if (!save.rawTitle) continue;
     const saveTags = save.categoryTags.join(" ");
     if (EXCLUDE_SAVE_TAGS.test(saveTags)) continue;
@@ -189,7 +222,7 @@ export default async function SharePage({
 
   for (const ma of trip.manualActivities) {
     const di = ma.dayIndex ?? 0;
-    if (di <= 0) continue;
+    if (di < 0) continue;
     if (!dayItemsByDay[di]) dayItemsByDay[di] = [];
     dayItemsByDay[di].push({
       kind: "manual",
@@ -225,7 +258,7 @@ export default async function SharePage({
 
   // ── Build DayData[] for ShareItineraryView (client component) ───────────
   const daysData: DayData[] = allDayIndices.map((di) => {
-    const dayItems = dayItemsByDay[di] ?? [];
+    const dayItems = dayItemsByDay[di - 1] ?? [];
 
     const serializableItems = dayItems.map((entry) => {
       if (entry.kind === "save") {
@@ -479,18 +512,13 @@ export default async function SharePage({
           </section>
         )}
 
-        {/* ── Questions for the Flokker ── */}
-        <div style={{ marginTop: "48px", paddingTop: "32px", borderTop: "1px solid #e5e7eb" }}>
-          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#1B3A5C", marginBottom: "8px" }}>
-            Questions for the Flokker
-          </h2>
-          <p style={{ fontSize: "14px", color: "#6b7280", marginBottom: "24px" }}>
-            Ask {curatorName} anything about this trip.
-          </p>
-          <p style={{ fontSize: "14px", color: "#9ca3af", fontStyle: "italic" }}>
-            Messaging coming soon — join Flokk to be notified when it launches.
-          </p>
-        </div>
+        {/*
+          Questions for the Flokker section — temporarily removed.
+          Will return when in-app messaging ships. Per project queue:
+          "in-app messaging between Flokkers". When that ships, this
+          section becomes a real CTA: "Have questions about this trip?
+          Message {familyName} directly."
+        */}
 
         {/* ── What is Flokk? (non-logged-in only) ── */}
         {!isLoggedIn && (

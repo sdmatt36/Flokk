@@ -63,7 +63,9 @@ const CATEGORY_LABELS: Record<string, string> = {
   ACT: "Activity",
   FLT: "Flight",
   RAIL: "Train",
+  STAY: "Hotel",
   HOTEL: "Hotel",
+  Car: "Car",
   TRANSFER: "Transfer",
   RESTAURANT: "Restaurant",
 };
