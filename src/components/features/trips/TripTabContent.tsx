@@ -2641,10 +2641,16 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     if (sortId.startsWith("saved_")) {
       const rawId = sortId.slice(6);
       const prev = recAdditions;
-      setRecAdditions(p => p.map(r => (r.savedItemId ?? r.title) === rawId ? { ...r, dayIndex: newDayIndex } : r));
+      const movingRec = recAdditions.find(r => (r.savedItemId ?? r.title) === rawId);
+      const isCrossDayTourMove = movingRec?.tourId != null && sourceDayIndex !== null && sourceDayIndex !== newDayIndex;
+      setRecAdditions(p => p.map(r =>
+        (r.savedItemId ?? r.title) === rawId
+          ? { ...r, dayIndex: newDayIndex, ...(isCrossDayTourMove ? { tourId: null } : {}) }
+          : r
+      ));
       if (rawId) fetch(`/api/saves/${rawId}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dayIndex: newDayIndex }),
+        body: JSON.stringify({ dayIndex: newDayIndex, ...(isCrossDayTourMove ? { tourId: null } : {}) }),
       }).then(r => { if (!r.ok) throw new Error(); })
         .catch(() => { setRecAdditions(prev); showDragError(); });
     } else if (sortId.startsWith("activity_")) {
