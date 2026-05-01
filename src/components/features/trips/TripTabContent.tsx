@@ -2260,7 +2260,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       it => it.dayIndex === targetDayIndex && it.type === "TRAIN"
     );
 
-    return [
+    const sortedItems = [
       ...recAdditions.filter(a => {
         if (a.dayIndex !== targetDayIndex) return false;
         // Skip if an ItineraryItem already covers this booking
@@ -2354,6 +2354,31 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           : 50;
       return lodgingW(a) - lodgingW(b);
     });
+
+    // Defense-in-depth tour cluster compaction (Discipline 4.10):
+    // If a non-tour item's sortOrder lands between two same-tourId items after the
+    // three-level sort (anchorWeight → sortOrder → toSortKey), the render loop's
+    // isFirstInTourGroup check re-fires the cluster header, fragmenting the visual
+    // group into two. This pass keeps every tourId cluster contiguous by emitting
+    // all cluster members at the position of the FIRST cluster item encountered in
+    // the sorted array. Preserves internal cluster order and non-tour item positions
+    // at the cluster's outer boundary. Multiple tours on the same day are handled
+    // independently via the emittedTourIds Set.
+    const compactedItems: UnifiedDayItem[] = [];
+    const emittedTourIds = new Set<string>();
+    for (const item of sortedItems) {
+      const tourId = item.itemType === "saved" ? (item.recAddition?.tourId ?? null) : null;
+      if (tourId) {
+        if (emittedTourIds.has(tourId)) continue; // already emitted in earlier cluster pass
+        emittedTourIds.add(tourId);
+        compactedItems.push(
+          ...sortedItems.filter(x => x.itemType === "saved" && x.recAddition?.tourId === tourId)
+        );
+      } else {
+        compactedItems.push(item);
+      }
+    }
+    return compactedItems;
   }
 
   /** Build ordered map pins for a specific day, matching visual list order exactly. */
@@ -2800,6 +2825,11 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         setLocalFlights(prev => prev.map(f => f.id === item.rawId ? { ...f, sortOrder: idx } : f));
         fetch(`/api/trips/${tripId}/flights/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx }) }).catch(console.error);
       } else if (item.itemType === "itinerary" && item.rawId) {
+        // LODGING render position is anchored semantically (check-out -1000 = day-start,
+        // check-in +1000 = day-end). Auto-sort must not persist a sortOrder that overrides
+        // the anchor invariant. User drag-reorders that deliberately set a non-zero sortOrder
+        // on a LODGING item are still respected — only the automation path is blocked here.
+        if (item.itineraryItem?.type === "LODGING") return;
         setLocalItineraryItems(prev => prev.map(it => it.id === item.rawId ? { ...it, sortOrder: idx } : it));
         fetch(`/api/trips/${tripId}/itinerary/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx }) }).catch(console.error);
       }
