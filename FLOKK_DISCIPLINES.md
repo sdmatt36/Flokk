@@ -992,3 +992,289 @@ render sites. Reverted in commit 9c21630, preserving the Edinburgh/Athens/etc. c
 and SQL backfill while removing the validator. The revert took less than 60 minutes; a
 patch-forward would have required redesigning the validator while users continued seeing
 broken URLs. Codified as Discipline 4.34 in Chat 43.*
+
+---
+
+## 4.35 — Testing Discipline
+
+Verification of any code change requires four conditions met before "done":
+
+1. TypeScript compilation clean
+2. Unit tests passing where they exist
+3. Playwright smoke tests passing on the three critical paths once shipped
+4. Manual browser walk with realistic data
+
+"Build succeeded" means the code compiled, not that it works. Definition of done is all four
+conditions, not any subset.
+
+### Why this exists
+
+Manual walk catches what types and tests cannot — perceived-broken (4.28), surface drift
+(4.15), real-data-shape mismatches that mocked tests miss. Manual walk does not scale.
+Both layers are needed.
+
+### Required behavior
+
+For any prompt that modifies application code:
+
+1. The prompt's verification step explicitly names which surfaces will be walked and what
+   behavior is expected. "Walk the Greene Okinawa trip and confirm Day 0 transit card renders,
+   Day 1 LODGING card shows check-in time" — not "verify it works."
+2. TypeScript compilation is verified before commit, not after. `tsc --noEmit` runs as the
+   last step before `git add`.
+3. Once the three Playwright smoke tests are implemented, every Vercel preview deploy runs
+   them and blocks merge on failure. The three critical paths are: save-to-trip (paste URL →
+   SavedItem appears in Vault), itinerary-renders (open existing trip → all days render with
+   no console errors), share-token-public-view (open share URL incognito → public view
+   renders).
+4. Smoke test failures are not "fix later." A failing smoke test means the merge does not
+   land.
+
+### What this is not
+
+Full coverage. Three smoke tests cover the trunk; everything else is checked by walk.
+Aspiring to 80% test coverage is the wrong target — three reliable smokes that block bad
+merges beat 80% flaky coverage that nobody trusts.
+
+### Status
+
+Smoke tests pending implementation. Discipline is binding on its other three conditions
+today; the smoke test condition activates when the tests ship.
+
+*Established Chat 43 cumulatively, ahead of the booking portal workstream where untested
+regressions become financially and legally expensive. Compounds with 4.13 (UX Trace
+Verification) and 4.28 (User-Perception Lens).*
+
+---
+
+## 4.36 — Monitoring Discipline
+
+Production errors are observed, not discovered. Every category of runtime failure that can
+occur in production has a documented detection mechanism, an alert threshold, and a graceful
+degradation path. The feedback loop between a bug shipping and the team noticing the bug
+must not depend on a user emailing support.
+
+### Why this exists
+
+The discipline framework catches design-time drift; monitoring catches runtime failure.
+Both layers are needed. A 500 error in the share view at 3am is a user lost forever if no
+one knows it happened. A CloudMailin webhook timeout that drops an email is a booking the
+user thinks Flokk has but Flokk doesn't.
+
+### Required behavior
+
+Sentry is installed and capturing runtime errors. Alert thresholds are tuned to severity:
+
+- 5xx errors on user-facing routes: immediate alert
+- Email pipeline failures (CloudMailin webhook timeout, Claude parse failure, downstream DB
+  write failure): immediate alert with payload preserved for replay
+- Anthropic API rate limit hits: hourly digest unless threshold exceeded
+- External API failures (Google Places, ScrapingBee, geocoding): hourly digest with circuit
+  breaker behavior
+
+External API integrations have documented circuit breaker behavior:
+
+- Google Places down → fallback to text-only place card with name/address from email parse
+- ScrapingBee down → email-forward queues for retry on next cron tick; user sees "still
+  processing"
+- Anthropic API rate limit → email parse queues, retries with exponential backoff
+- Mapbox down → trip page renders without map; itinerary still works
+
+The booking portal triggers additional monitoring obligations: payment failures alert
+immediately with no payload preservation (PCI scope), session expirations alert if pattern
+suggests systemic auth issue, conversion funnel drop-offs trigger investigation if rate
+exceeds baseline.
+
+### What this is not
+
+Full observability. Sentry plus a few alerts is a starting point; full distributed tracing,
+structured logging, and dashboards come later. The discipline is "errors are observed,"
+not "every byte is instrumented."
+
+### Status
+
+Sentry installation pending. Discipline is aspirational until Sentry ships; thereafter
+binding.
+
+*Established Chat 43 proactively ahead of the booking portal where production errors become
+legally and financially expensive. Compounds with 4.26 (External API Integration Discipline)
+and 4.30 (Live API Verification).*
+
+---
+
+## 4.37 — Security Discipline
+
+Security obligations are explicit and tested, not implicit. Every category of access — share
+tokens, webhooks, admin endpoints, multi-collaborator trips, GDPR deletion, payment data —
+has a documented model. Security-by-default-because-Clerk-handles-it is not a security model.
+
+### Why this exists
+
+Most security failures are not exotic attacks; they are unconsidered defaults. A
+`Trip.shareToken` that's six characters long is guessable. An email-inbound webhook with no
+rate limit is a spam vector. An admin endpoint that checks Clerk session but not role is an
+authenticated user away from production data. A multi-collaborator read path that doesn't
+verify TripCollaborator role is a horizontal privilege escalation.
+
+Today, the team has not been hit by any of these because the user count is small and the
+attack surface is unattractive. With booking portal handling payment data, the math changes.
+
+### Required behavior
+
+**Tokens.** Every share token is cryptographically random with minimum 128 bits of entropy.
+`Trip.shareToken` and any future entity-level share tokens follow this. Token format is
+documented in FLOKK_FOUNDATIONS.md.
+
+**Webhooks.** Email-inbound webhook is rate-limited per source IP. Anomalous patterns
+(10,000 emails in 60 seconds) trigger alert and queue isolation. Stripe webhooks (when wired)
+verify signature on every request before any work happens.
+
+**Admin endpoints.** Every admin route checks Clerk session AND a documented role/allowlist
+beyond bare authentication. `matt@camdenjackson.com` and `sdmatt36+test@gmail.com` are
+operational accounts, not security boundaries — the role check is real auth, not email
+matching.
+
+**Multi-collaborator reads.** Every trip read path resolves the requesting user against
+`TripCollaborator` for the trip per Discipline 4.12. No implicit "anyone with the trip ID
+can read." Share view is the explicit public path with its own token; everything else is
+authenticated.
+
+**GDPR.** Data deletion path exists, is documented, and is tested. Deleting a `FamilyProfile`
+cascades correctly (see Discipline 4.25 Schema Relationship Explicitness) to SavedItems,
+ItineraryItems, ManualActivities, Trips, TripCollaborators where the family is owner, and
+PlaceRatings.
+
+**Payment.** Booking portal: no card data in application logs, no PAN persisted in any DB
+row, Stripe Elements iframe-only for card input, all PCI-scoped routes documented and
+isolated.
+
+### What this is not
+
+A penetration test. The discipline is "security obligations are explicit"; it does not
+certify the system as secure. Booking portal will require a real security review before
+payment goes live.
+
+### Status
+
+Aspirational on most clauses today; binding on each clause as the underlying behavior is
+verified or implemented.
+
+*Established Chat 43 proactively. Today's security model is mostly implicit and untested;
+the discipline raises the floor before booking portal makes the floor matter.*
+
+---
+
+## 4.38 — Two-Chat Protocol
+
+At any moment, only one chat owns the active build queue. Other chats may run in parallel
+on orthogonal surfaces. Two chats cannot run in parallel on the same surface. When parallel
+chats exist, prompts that touch files the other chat is editing must be reviewed by the
+other chat before firing. State syncs through committed documents, not through chat memory.
+
+### Why this exists
+
+The strategic chat does not see what the build chat sees. The build chat does not see what
+the strategic chat sees. Each has memory the other lacks. Without explicit protocol, two
+chats can:
+
+- Diagnose the same bug from different starting points and propose conflicting fixes
+- Update the same document with drift between versions
+- Fire prompts based on stale assumptions about file state because the other chat just
+  modified it
+- Delete content the other chat just added
+
+The protocol prevents these failure modes without requiring complex tooling.
+
+### Required behavior
+
+**Surface ownership.** A new chat names its surface in the first message: build queue,
+architecture, investor, marketing, brand, copy. Other chats inherit "not-this-surface" by
+exclusion. If two chats need to touch the same surface, one closes.
+
+**Cross-chat prompt review.** When the strategic chat drafts a prompt that touches files
+the build chat may have recently modified, the prompt is shared with the build chat for
+review before firing. The build chat's recent file knowledge catches drift the strategic
+chat lacks. This review is not a courtesy — it is required when the two chats overlap.
+
+**State syncs through commits.** When one chat lands a major decision (new discipline,
+schema change, architectural ruling), the change is committed to CLAUDE.md,
+FLOKK_DISCIPLINES.md, FLOKK_FOUNDATIONS.md, or the latest handoff. The other chat reads
+the committed state on next interaction. Chat memory does not sync.
+
+**Concurrent prompt safety.** Prompts running in parallel must touch different files. Before
+firing a prompt, verify no other chat has an active prompt touching the same files. The
+"different files" check is per-prompt, not per-chat — the same chat can fire two parallel
+prompts only if they touch different files.
+
+### What this is not
+
+A licensing system. The protocol does not require approval gates, queueing systems, or
+shared whiteboards. It is a discipline of communication — naming the surface, sharing prompts
+when files overlap, syncing through commits.
+
+### Output format
+
+Every parallel chat begins with a one-line surface declaration: "This chat owns the [surface]
+surface." Cross-chat prompt reviews are explicit: "Sharing this with the build chat before
+firing — confirm or push back."
+
+*Established Chat 43 — the strategic chat drafted a CLAUDE.md cleanup prompt that flagged
+"duplicate" content for deletion. The build chat had committed Discipline 4.18 to CLAUDE.md
+45 minutes earlier; the strategic chat had no visibility into that commit. The build chat
+reviewed the prompt before firing and caught the issue. Without the cross-chat review, the
+cleanup would have deleted legitimate content. The review converted a risky deletion into
+an investigation-only diagnostic that revealed the duplicates didn't exist.*
+
+---
+
+## 4.39 — Definition of Done Checklist
+
+Every prompt closes with the explicit six-condition checklist. All six conditions are met
+before a fix is "done." Done is not "code merged"; done is the full checklist with every
+condition verified.
+
+### Why this exists
+
+Discipline 4.28 (User-Perception Lens) enumerates done conditions in prose. Prose conditions
+get skipped under speed pressure. A literal checklist does not. The Chat 42 URL validator
+regression shipped because the prompt's verification step was implicit; an explicit
+checklist would have surfaced "did you walk this in browser with realistic data?" as a
+question that has to be answered.
+
+This discipline turns 4.28's prose into procedural enforcement. It also folds in 4.16's
+"What I'm watching" and 4.17's "AI surface" requirements as explicit closing steps so they
+are never omitted.
+
+### Required behavior
+
+Every prompt that modifies application code closes with this checklist:
+
+1. **TypeScript compiles cleanly.** `tsc --noEmit` returns zero errors. If types changed,
+   the change is intentional and named.
+2. **Tests pass where they exist.** Unit tests for affected modules run green. Smoke tests
+   on critical paths run green per Discipline 4.35 (when implemented).
+3. **Walked in browser with realistic data.** The named surface (per the prompt's
+   verification step) is loaded in browser, exercised with real production-shape data, and
+   visually verified to render correctly. Hard refresh discipline applies (Cmd+Shift+R /
+   Ctrl+Shift+R).
+4. **"What I'm watching" section written per Discipline 4.16.** Universality, surface drift,
+   null/edge cases, forward chain, backward chain, end-state alignment, watch list. Seven
+   questions answered explicitly. "Nothing surfaced" is a valid answer; section omission is
+   not.
+5. **"AI surface" subsection written per Discipline 4.17.** Categories A through F surveyed.
+   "No AI surface visible" is a valid answer; section omission is not.
+6. **Committed and pushed with descriptive commit message.** `git add` + `git commit -m "..."`
+   + `git push`. Vercel deploys from committed code only. Commit message names the change at
+   concept level, not implementation level.
+
+### What this is not
+
+A burden. The checklist takes thirty seconds to walk through after each prompt and saves
+hours of regression diagnosis. The discipline is "the checklist is not optional," not "the
+checklist is heavy."
+
+*Established Chat 43 cumulatively. The Chat 42 URL validator regression is the canonical
+case where condition 3 (walking in browser with realistic data) would have caught the issue
+— production URLs lacked the http:// prefix, which the validator silently nulled across
+seven render sites. Compounds with 4.13 (UX Trace Verification), 4.28 (User-Perception Lens),
+and 4.35 (Testing Discipline).*
