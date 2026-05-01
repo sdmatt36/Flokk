@@ -117,7 +117,12 @@ export default async function SharePage({
       savedItems: { orderBy: [{ dayIndex: "asc" }, { savedAt: "asc" }] },
       itineraryItems: { orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }] },
       manualActivities: { orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }] },
-      familyProfile: { select: { familyName: true } },
+      familyProfile: {
+        select: {
+          familyName: true,
+          members: { select: { role: true, name: true, birthDate: true } },
+        },
+      },
       placeRatings: {
         select: {
           itineraryItemId: true,

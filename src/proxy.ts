@@ -23,6 +23,8 @@ const isPublicRoute = createRouteMatcher([
   "/explore(.*)",
   "/destination(.*)",
   "/trip/(.*)/preview",
+  // Public share view — token-gated by design; no auth required to view
+  "/share/(.*)",
   "/api/webhooks(.*)",
   "/api/cron(.*)",
 ]);
