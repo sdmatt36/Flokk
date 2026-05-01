@@ -2,7 +2,10 @@
 
 This document is the source of truth for the platform's primitives, entity model, rendering surfaces, lifecycles, and discipline references. Read at session start. Every product spec moving forward grounds in this document per Discipline 4.14 (Comprehensive Spec Grounding).
 
-Last updated: Chat 42. Built from direct codebase reads + live Supabase queries. No assumptions.
+Last updated: Chat 43, May 1 2026. Section 6 superseded by FLOKK_DISCIPLINES.md (the new
+constitution doc at repo root). Sections 2B, 4C, and 5 updated to reflect ItineraryItem.imageUrl
+column added in commit c0b4fa2 and backfilled in 2adda2f. Built from direct codebase reads +
+live Supabase queries. No assumptions.
 
 ---
 
@@ -109,7 +112,7 @@ Structured booking records from email parsing or manual entry.
 - `managementUrl` — link to manage reservation (e.g., `https://secure.booking.com/myreservations.html`)
 - `venueUrl` — resolved canonical URL (0% populated in production as of Chat 42)
 - `createdAt`
-- **NO image column of any kind** — confirmed by live DB column list
+- `imageUrl` — populated at write time from parallel SavedItem.placePhotoUrl per Discipline 4.18 (Pre-Resolved Field Principle); added in commit c0b4fa2 and backfilled in commit 2adda2f
 
 **Image path:** `getItemImage(title, null, null, type, city)` → falls to `TYPE_IMAGES`:
 - `lodging|hotel|resort|inn|hostel` → generic Unsplash hotel
@@ -332,7 +335,7 @@ Post-trip ratings. Three entity types can be rated.
 
 **Entity types rendered:**
 - SavedItem → `ShareActivityCard`: image from `placePhotoUrl ?? mediaThumbnailUrl`, "Flokk It" CTA
-- ItineraryItem → inline in `ShareItineraryView.tsx`: `imageUrl: null` explicitly (line 281 in page.tsx: `// ItineraryItem has no image field in schema`)
+- ItineraryItem → inline in `ShareItineraryView.tsx`: `imageUrl` populated at write time from the parallel SavedItem.placePhotoUrl per Discipline 4.18
 - ManualActivity → inline: `imageUrl: ma.imageUrl ?? null`
 
 **Save CTA:** "Flokk It" → calls `/api/saves/from-share` (passes title, city, lat, lng, placePhotoUrl, websiteUrl). Unauthenticated users → redirect to sign-up with `redirect_url` query param.
@@ -432,7 +435,10 @@ See Section 7 (Open Questions / Known Gaps) for full prerequisite list.
 5. `lookupDestination(city, country)` — destination Unsplash
 6. `DEFAULT_COVER` — final fallback
 
-**ItineraryItem:** No image. Falls to `TYPE_IMAGES` on type keyword. Cards render as text-only.
+**ItineraryItem:**
+1. `imageUrl` (populated at write time from parallel SavedItem.placePhotoUrl per Discipline 4.18)
+2. `getItemImage(title, null, null, type, city)` → `TYPE_IMAGES[type keyword]` for legacy rows where imageUrl is still null
+3. Cards render text-only as final fallback
 
 **ManualActivity:** `imageUrl` if set; otherwise no image.
 
@@ -496,35 +502,32 @@ Priority order (first match wins):
 
 ## 6. Disciplines
 
-### 4.8 Place Resolution
-Geocoding uses Google Places text search for lat/lng. Reverse geocode used for city derivation from coords.
+The complete numbered rule set governing Flokk development lives in **FLOKK_DISCIPLINES.md**
+(repo root). Disciplines 4.1 through 4.39 are codified there with full bodies, provenance,
+and triggering incidents.
 
-### 4.9 URL Extraction
-`resolveSaveLink()` priority chain as documented in Section 5. `stripTrackingParams()` removes utm/fbclid/gclid. ItineraryItem uses `managementUrl` not `venueUrl`.
+This section previously listed brief inline summaries of disciplines 4.8 through 4.18.
+Those summaries are now superseded by FLOKK_DISCIPLINES.md as the canonical source. When
+referencing a discipline by number in code comments, prompts, or handoff documents, the
+authority is FLOKK_DISCIPLINES.md.
 
-### 4.10 Universal Edit
-Fixes must apply to ALL users and ALL trips. No hardcoded IDs. Existing data needs backfill when schema behavior changes.
+Disciplines that touch the schema and entity model directly (and therefore appear in this
+foundations doc as architectural constraints) include:
 
-### 4.11 Trip Lifecycle
-`status: PLANNING | ACTIVE | COMPLETED`. Trip-level completion does NOT cascade to item status. Items carry their own entity status independently.
+- **4.5** Universal URL Rule — see Section 5 (URL priority chains)
+- **4.6** Universal Entity Status Rule — see Section 3 (rendering surfaces) and getEntityStatus() in Section 5
+- **4.7** Foundation-First Verification — see Section 7 (Key Architectural Constraints)
+- **4.8** Place Resolution — see Section 5 (geocoding chain)
+- **4.9** URL Extraction — see Section 5 (URL priority chains)
+- **4.10** Universal Edit — applies to every backfill and migration documented in Section 4
+- **4.12** Multi-User Trip Collaboration — see Section 3 (TripCollaborator)
+- **4.14** Comprehensive Spec Grounding — this entire document is the substrate for that discipline
+- **4.18** Pre-Resolved Field Principle — see Section 5 (image priority chain), the new ItineraryItem.imageUrl pattern
+- **4.19** Map Rules — see Section 7 (Key Architectural Constraints)
 
-### 4.12 Multi-User Trip Collaboration
-Every trip has a `TripCollaborator` row with `role: OWNER | EDITOR | VIEWER` and `acceptedAt`. Trip creation always atomic: `$transaction` creates Trip + OWNER TripCollaborator together. Eight+ callsites audited and patched in Chat 41.
-
-### 4.13 UX Trace Verification
-Every entity type (A-J) must be verified live before commit. Perceived-broken is real-broken.
-
-### 4.14 Comprehensive Spec Grounding (NEW)
-Every product spec grounds in this document. Schema column names taken from live DB, not memory. Image/URL chains verified via actual Supabase row data. `orderIndex` not `stopOrder`. `website` not `websiteUrl` on ManualActivity. No guessing.
-
-### 4.15 Universal Consumer Audit
-Before claiming a field is "missing", "absent", or "not populated", audit every surface that reads or writes it: (1) search schema across ALL related tables; (2) search ALL API routes for the field in their select clause; (3) verify the read path, not just the schema, for any UI claim; (4) presence on one surface (Vault) and absence on another (share view) means the read path is incomplete — not that the field is absent. Root cause: Chat 42 diagnostic stated "no address column on SavedItem" when address exists on ItineraryItem and was visible in the Vault card. See CLAUDE.md Universal Consumer Audit section for full rule.
-
-### 4.16 Proactive Strategic Surface
-Reactive fixing is the floor. Strategic partnership requires surfacing gaps, future-failure modes, and downstream implications before being asked. Required "What I'm watching" section at the end of every completion report. See CLAUDE.md Proactive Strategic Surface section for full rule.
-
-### 4.17 Proactive AI Surface
-AI is Flokk's connective tissue, not a feature. Every entity gap, signal source, and weak empty state is an AI opportunity. Required "AI surface" subsection at the end of every "What I'm watching" answering six questions across six AI work categories (Extraction, Enrichment, Generation, Inference, Aggregation, Curation). See CLAUDE.md Proactive AI Surface section and FLOKK_PRODUCT_SPEC.md Discipline 4.17 for full specification.
+Other disciplines (4.1-4.4, 4.11, 4.13, 4.15-4.17, 4.20-4.39) govern process, prompt drafting,
+verification, and operational rules rather than schema. They are documented in their entirety
+in FLOKK_DISCIPLINES.md.
 
 ---
 
