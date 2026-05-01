@@ -96,6 +96,7 @@ import { RecommendationDrawer, type DrawerRec } from "@/components/features/trip
 import { AddFlightModal } from "@/components/flights/AddFlightModal";
 import { EditFlightModal } from "@/components/flights/EditFlightModal";
 import { AddActivityModal, type ExistingActivity } from "@/components/activities/AddActivityModal";
+import { AddToTripModal } from "@/components/trips/AddToTripModal";
 import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
 import { MODAL_OVERLAY_CLASSES, MODAL_PANEL_CLASSES } from "@/lib/modal-classes";
 import { parseDateForDisplay } from "@/lib/dates";
@@ -1868,6 +1869,7 @@ type ItineraryItemLocal = {
   managementUrl?: string | null;
   imageUrl?: string | null;
   additionalConfirmations?: string[];
+  status?: string | null;
 };
 
 type UnifiedDayItem = {
@@ -2033,6 +2035,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [detailActivity, setDetailActivity] = useState<Activity | null>(null);
   const [showAddActivityModal, setShowAddActivityModal] = useState(false);
   const [addActivityDefaultDate, setAddActivityDefaultDate] = useState<string | undefined>();
+  const [showAddToTripModal, setShowAddToTripModal] = useState(false);
+  const [addToTripDefaultDate, setAddToTripDefaultDate] = useState<string | undefined>();
   const [recAdditions, setRecAdditions] = useState<RecAddition[]>([]);
   // Local copies of activities/flights so drag-reorder can update them independently of parent prop
   const [localActivities, setLocalActivities] = useState<Activity[]>([]);
@@ -2746,6 +2750,16 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       })
       .catch(() => {});
   }, [tripId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function refreshItineraryItems() {
+    if (!tripId) return;
+    fetch(`/api/trips/${tripId}/itinerary-items`)
+      .then(r => r.json())
+      .then(({ items }: { items: ItineraryItemLocal[] }) => {
+        if (Array.isArray(items)) setLocalItineraryItems(items);
+      })
+      .catch(() => {});
+  }
 
   // Initialize sortOrder for activities if all are 0 (seeded trips)
   useEffect(() => {
@@ -3516,6 +3530,11 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                           const dateFormatted = formatDateShort(it.scheduledDate);
                                           const lodgingTime = formatTime(isCheckOut ? it.departureTime : it.arrivalTime);
                                           const costLabel = it.totalCost != null ? `${it.currency ?? ""} ${it.totalCost.toLocaleString()}`.trim() : null;
+                                          const lodgStatus = (it.status ?? "BOOKED").toUpperCase();
+                                          const lodgStatusColor = lodgStatus === "INTERESTED" ? "#1B3A5C" : lodgStatus === "CONFIRMED" ? "#C4664A" : "#4a7c59";
+                                          const lodgStatusBg = lodgStatus === "INTERESTED" ? "rgba(27,58,92,0.08)" : lodgStatus === "CONFIRMED" ? "rgba(196,102,74,0.1)" : "rgba(74,124,89,0.1)";
+                                          const lodgStatusLabel = lodgStatus === "INTERESTED" ? "Interested" : lodgStatus === "CONFIRMED" ? "Confirmed" : "Booked";
+                                          const lodgingStatusBadge = <span style={{ fontSize: "11px", fontWeight: 600, backgroundColor: lodgStatusBg, color: lodgStatusColor, borderRadius: "999px", padding: "2px 8px" }}>{lodgStatusLabel}</span>;
                                           return (
                                             <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => setSelectedItineraryItem(it)}>
                                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
@@ -3528,7 +3547,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                     </p>
                                                   )}
                                                   <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-                                                    {bookedBadge}
+                                                    {lodgingStatusBadge}
                                                     {(it.confirmationCode || it.additionalConfirmations?.length) && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {[it.confirmationCode, ...(it.additionalConfirmations ?? [])].filter(Boolean).join(" · ")}</span>}
                                                     {costLabel && <span style={{ fontSize: "11px", color: "#999" }}>{costLabel}</span>}
                                                     <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
@@ -3703,7 +3722,6 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                           {/* + Add activity dashed button */}
                           <button
                             onClick={() => {
-                              console.log("add activity clicked", { tripId, dayIndex });
                               let defaultDate: string | undefined;
                               if (tripStartDate && dayIndex !== undefined && dayIndex !== null) {
                                 try {
@@ -3717,13 +3735,13 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                   defaultDate = `${y}-${m}-${d}`;
                                 } catch { /* fall through — modal opens without default date */ }
                               }
-                              setAddActivityDefaultDate(defaultDate);
-                              setShowAddActivityModal(true);
+                              setAddToTripDefaultDate(defaultDate);
+                              setShowAddToTripModal(true);
                             }}
                             style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", padding: "11px", marginTop: "4px", border: "1.5px dashed rgba(196,102,74,0.35)", borderRadius: "10px", background: "none", cursor: "pointer", color: "#C4664A", fontSize: "13px", fontWeight: 600 }}
                           >
                             <Plus size={14} />
-                            Add activity
+                            Add to day
                           </button>
 
                           {/* Per-day notes */}
@@ -3898,22 +3916,28 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           onMarkBooked={onMarkActivityBooked ? () => { setDetailActivity(null); onMarkActivityBooked(detailActivity.id); } : undefined}
         />
       )}
-      {showAddActivityModal && tripId && (
-        <AddActivityModal
+      {showAddToTripModal && tripId && (
+        <AddToTripModal
           tripId={tripId}
-          defaultDate={addActivityDefaultDate}
+          defaultDate={addToTripDefaultDate}
           destinationCity={destinationCity}
           destinationCountry={destinationCountry}
-          onClose={() => { setShowAddActivityModal(false); setAddActivityDefaultDate(undefined); }}
+          onClose={() => { setShowAddToTripModal(false); setAddToTripDefaultDate(undefined); }}
           onSaved={(saved) => {
-            setShowAddActivityModal(false);
-            setAddActivityDefaultDate(undefined);
-            // If the new activity has a startTime, queue an auto-sort for its day
-            const act = saved as unknown as { time?: string | null; dayIndex?: number | null };
-            if (act?.time && act?.dayIndex != null) {
-              pendingAutoSortDayRef.current = act.dayIndex;
+            setShowAddToTripModal(false);
+            setAddToTripDefaultDate(undefined);
+            const result = saved as { checkIn?: { id: string; dayIndex: number | null } } | { time?: string | null; dayIndex?: number | null };
+            if ("checkIn" in result && result.checkIn) {
+              // LODGING created — refresh ItineraryItems
+              refreshItineraryItems();
+            } else {
+              // Activity created — queue auto-sort if timed
+              const act = result as { time?: string | null; dayIndex?: number | null };
+              if (act?.time && act?.dayIndex != null) {
+                pendingAutoSortDayRef.current = act.dayIndex;
+              }
+              onActivityAdded?.();
             }
-            onActivityAdded?.();
           }}
         />
       )}
@@ -4121,6 +4145,12 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       {sit.bookingSource && sit.bookingSource !== "unknown" && (() => {
                         const SRC_LABEL: Record<string, string> = { "booking.com": "Booking.com", airbnb: "Airbnb", "hotels.com": "Hotels.com", expedia: "Expedia", marriott: "Marriott", hilton: "Hilton", hyatt: "Hyatt", vrbo: "VRBO", direct: "Direct" };
                         return <><span style={lblStyle}>Booked via</span><span style={rowStyle}>{SRC_LABEL[sit.bookingSource] ?? sit.bookingSource}</span></>;
+                      })()}
+                      {sit.status && sit.status.toUpperCase() !== "BOOKED" && (() => {
+                        const s = sit.status.toUpperCase();
+                        const c = s === "INTERESTED" ? "#1B3A5C" : "#C4664A";
+                        const label = s === "INTERESTED" ? "Interested" : "Confirmed";
+                        return <><span style={lblStyle}>Status</span><span style={{ ...rowStyle, fontWeight: 700, color: c }}>{label}</span></>;
                       })()}
                     </div>
                     {sit.address && (
