@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { getTripCoverImage } from "@/lib/destination-images";
+import { mergeDuplicateLodging } from "@/lib/itinerary/merge-duplicate-lodging";
 import { SharePageBottomBar } from "./SharePageBottomBar";
 import { ShareItineraryView, type DayData } from "./ShareItineraryView";
 import { MapPin, Calendar } from "lucide-react";
@@ -157,8 +158,9 @@ export default async function SharePage({
   }
 
   const dayItemsByDay: Record<number, DayItem[]> = {};
+  const mergedItineraryItems = mergeDuplicateLodging(trip.itineraryItems);
 
-  for (const item of trip.itineraryItems) {
+  for (const item of mergedItineraryItems) {
     const di = item.dayIndex ?? 0;
     if (di <= 0) continue;
     // Skip LODGING check-out entries — hotel shows once on arrival day

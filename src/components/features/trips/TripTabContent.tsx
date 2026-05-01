@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { mergeDuplicateLodging } from "@/lib/itinerary/merge-duplicate-lodging";
 import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -1866,6 +1867,7 @@ type ItineraryItemLocal = {
   bookingSource?: string | null;
   managementUrl?: string | null;
   imageUrl?: string | null;
+  additionalConfirmations?: string[];
 };
 
 type UnifiedDayItem = {
@@ -2041,6 +2043,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [expandedSlotKey, setExpandedSlotKey] = useState<string | null>(null);
   const [shareToast, setShareToast] = useState(false);
   const shareToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mergedItineraryItems = useMemo(
+    () => mergeDuplicateLodging(localItineraryItems),
+    [localItineraryItems]
+  );
   const [selectedItineraryItem, setSelectedItineraryItem] = useState<ItineraryItemLocal | null>(null);
   const [editActivityTitle, setEditActivityTitle] = useState("");
   const [editingItinFields, setEditingItinFields] = useState(false);
@@ -2301,7 +2307,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           flight: f,
         };
       }),
-    ...localItineraryItems.filter(it => it.dayIndex === targetDayIndex).map(it => ({
+    ...mergedItineraryItems.filter(it => it.dayIndex === targetDayIndex).map(it => ({
         sortId: `itinerary_${it.id}`,
         itemType: "itinerary" as const,
         sortOrder: it.sortOrder ?? 0,
@@ -3523,7 +3529,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                   )}
                                                   <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
                                                     {bookedBadge}
-                                                    {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {it.confirmationCode}</span>}
+                                                    {(it.confirmationCode || it.additionalConfirmations?.length) && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {[it.confirmationCode, ...(it.additionalConfirmations ?? [])].filter(Boolean).join(" · ")}</span>}
                                                     {costLabel && <span style={{ fontSize: "11px", color: "#999" }}>{costLabel}</span>}
                                                     <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                                   </div>
@@ -4109,7 +4115,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       {!isCheckOut && sit.arrivalTime && <><span style={lblStyle}>Check-in time</span><span style={rowStyle}>{formatTime(sit.arrivalTime) || sit.arrivalTime}</span></>}
                       {isCheckOut && sit.departureTime && <><span style={lblStyle}>Check-out time</span><span style={rowStyle}>{formatTime(sit.departureTime) || sit.departureTime}</span></>}
                       {sit.address && <><span style={lblStyle}>Address</span><span style={rowStyle}>{sit.address}</span></>}
-                      {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
+                      {(sit.confirmationCode || sit.additionalConfirmations?.length) && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{[sit.confirmationCode, ...(sit.additionalConfirmations ?? [])].filter(Boolean).join(" · ")}</span></>}
                       {costLabel && <><span style={lblStyle}>Total</span><span style={rowStyle}>{costLabel}</span></>}
                       {guestsLabel && <><span style={lblStyle}>Guests</span><span style={rowStyle}>{guestsLabel}</span></>}
                       {sit.bookingSource && sit.bookingSource !== "unknown" && (() => {
