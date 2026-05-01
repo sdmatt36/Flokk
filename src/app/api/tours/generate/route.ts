@@ -84,7 +84,12 @@ function maxWalkMinutes(youngestChildAge: number | null): number {
 
 async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, transport: string): Promise<ResolvedStop | null> {
   try {
-    const cityNorm = destinationCity.toLowerCase().split(",")[0].trim();
+    // Royal Thai General System (RTGS) normalization: "Koh"/"Kho" → "Ko".
+    // Google Places returns RTGS canonical "Ko Samui", "Ko Phangan", etc.
+    // User input often includes the silent aspirate ("Koh Samui", "Kho Phangan").
+    // k(?:oh|ho) matches both orderings (k-o-h and k-h-o) as whole words.
+    const cityNorm = destinationCity.toLowerCase().split(",")[0].trim()
+      .replace(/\bk(?:oh|ho)\b/g, "ko");
     const query = encodeURIComponent(`${stop.name} ${stop.address || ""} ${destinationCity}`);
     const searchRes = await fetch(
       `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&key=${process.env.GOOGLE_MAPS_API_KEY}`
@@ -136,15 +141,15 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
       // Strip "County" suffix so "Sonoma County" matches cityNorm "sonoma".
       const longNorm = long.replace(/\s+county$/i, "").trim();
       const shortNorm = short.replace(/\s+county$/i, "").trim();
-      // Bidirectional: "Koh Samui" (user) vs "Ko Samui" (Google RTGS) — cityNorm.includes(short) catches this.
+      // RTGS-normalize Google components too (defense in depth: if Google ever returns "Koh" variant).
+      const longRTGS = longNorm.replace(/\bk(?:oh|ho)\b/g, "ko");
+      const shortRTGS = shortNorm.replace(/\bk(?:oh|ho)\b/g, "ko");
       return long.includes(cityNorm) ||
              short.includes(cityNorm) ||
              longNorm.includes(cityNorm) ||
              shortNorm.includes(cityNorm) ||
-             cityNorm.includes(long) ||
-             cityNorm.includes(short) ||
-             cityNorm.includes(longNorm) ||
-             cityNorm.includes(shortNorm);
+             longRTGS.includes(cityNorm) ||
+             shortRTGS.includes(cityNorm);
     });
     if (!cityMatch) {
       const componentList = cityComponents.map(c => c.long_name).join(", ") || "none";
@@ -155,7 +160,10 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
           stop.lat >= -90 && stop.lat <= 90 &&
           stop.lng >= -180 && stop.lng <= 180) {
         console.log(`[tour-resolve] COORDS_RESCUE "${stop.name}" — using AI coords`);
-        return { ...stop, imageUrl: null, websiteUrl: resolveCanonicalUrl({ name: stop.name, city: destinationCity }), placeId: null, ticketRequired: null, placeTypes: [] };
+        // Prefer canonical URL; fall back to Google Maps search so the stop has at least one clickable link.
+        const rescueUrl = resolveCanonicalUrl({ name: stop.name, city: destinationCity })
+          ?? `https://www.google.com/maps/search/${encodeURIComponent(stop.name + " " + destinationCity)}`;
+        return { ...stop, imageUrl: null, websiteUrl: rescueUrl, placeId: null, ticketRequired: null, placeTypes: [] };
       }
       return null;
     }
