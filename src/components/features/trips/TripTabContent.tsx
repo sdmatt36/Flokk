@@ -2333,8 +2333,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         itineraryItem: it,
       })),
     // Pre-sort: same-day LODGING check-in anchors to end of day; check-out anchors to start.
-    // Only applies when sortOrder===0 (user hasn't manually reordered the item).
-    // Primary sort: sortOrder (preserves manual drag-and-drop order).
+    // Unconditional per dc1c16d Bug A fix (Discipline 4.34).
+    // Primary sort: sortOrder (preserves manual reorder order).
     // Secondary: semantic time key so untimed items appear in correct clock position.
     // Tertiary: lodging semantic weight so CHECK_IN (20) always precedes CHECK_OUT (80)
     // when both items have the same explicit time.
@@ -2344,8 +2344,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         if (item.itineraryItem?.type !== "LODGING") return 50;
         if (item.itineraryItem.dayIndex !== targetDayIndex) return 50;
         const title = item.itineraryItem.title.toLowerCase();
-        if (title.startsWith("check-in:")) return 1000; // force to end
-        if (title.startsWith("check-out:")) return -1000; // force to start
+        if (title.startsWith("check-in:")) return 1000;
+        if (title.startsWith("check-out:")) return -1000;
         return 50;
       };
       const aw = anchorWeight(a) - anchorWeight(b);
@@ -2605,20 +2605,25 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     console.log("[reorder] moving item at index", currentIndex, "to", newIndex, "in day", dayIdx, "sortId:", sortId);
 
     const reordered = localArrayMove(dayItems, currentIndex, newIndex);
-    reordered.forEach((item, i) => {
+    let sortIdx = 0;
+    reordered.forEach((item) => {
       if (item.itemType === "saved" && item.rawId) {
-        setRecAdditions(prev => prev.map(r => r.savedItemId === item.rawId ? { ...r, sortOrder: i } : r));
-        fetch(`/api/saves/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
+        setRecAdditions(prev => prev.map(r => r.savedItemId === item.rawId ? { ...r, sortOrder: sortIdx } : r));
+        fetch(`/api/saves/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: sortIdx }) }).catch(console.error);
+        sortIdx++;
       } else if (item.itemType === "activity" && item.rawId) {
-        setLocalActivities(prev => prev.map(a => a.id === item.rawId ? { ...a, sortOrder: i } : a));
-        fetch(`/api/trips/${tripId}/activities/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
+        setLocalActivities(prev => prev.map(a => a.id === item.rawId ? { ...a, sortOrder: sortIdx } : a));
+        fetch(`/api/trips/${tripId}/activities/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: sortIdx }) }).catch(console.error);
+        sortIdx++;
       } else if (item.itemType === "flight" && item.rawId) {
-        setLocalFlights(prev => prev.map(f => f.id === item.rawId ? { ...f, sortOrder: i } : f));
-        fetch(`/api/trips/${tripId}/flights/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
+        setLocalFlights(prev => prev.map(f => f.id === item.rawId ? { ...f, sortOrder: sortIdx } : f));
+        fetch(`/api/trips/${tripId}/flights/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: sortIdx }) }).catch(console.error);
+        sortIdx++;
       } else if (item.itemType === "itinerary" && item.rawId) {
         if (item.itineraryItem?.type === "LODGING") return;
-        setLocalItineraryItems(prev => prev.map(it => it.id === item.rawId ? { ...it, sortOrder: i } : it));
-        fetch(`/api/trips/${tripId}/itinerary/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
+        setLocalItineraryItems(prev => prev.map(it => it.id === item.rawId ? { ...it, sortOrder: sortIdx } : it));
+        fetch(`/api/trips/${tripId}/itinerary/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: sortIdx }) }).catch(console.error);
+        sortIdx++;
       }
     });
   }
