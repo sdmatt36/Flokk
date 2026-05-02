@@ -7,6 +7,7 @@ import { haversineMeters } from "@/lib/geo";
 import { optimizeRouteOrder } from "@/lib/tour-route-optimization";
 import { resolveCanonicalUrl } from "@/lib/url-resolver";
 import { aggregateTripContext, flatChildAges, describePace, topInterests } from "@/lib/trip-context-multi";
+import { resolveTaxonomyByPlaceId, resolveTaxonomyByQuery } from "@/lib/destination-resolver";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -210,6 +211,7 @@ export async function POST(req: NextRequest) {
     durationLabel?: string;
     transport?: string;
     tripId?: string;
+    destinationPlaceId?: string | null;
   };
   const { prompt, destinationCity } = body;
   const durationLabel = body.durationLabel ?? "";
@@ -358,6 +360,14 @@ export async function POST(req: NextRequest) {
       ? `Community-rated places in ${destinationCity} from real families (use these first when relevant):\n${seededPlaces.map(p => `${p.name} — ${p.address} (rated ${p.avgRating.toFixed(1)}/5)`).join("\n")}\n\n`
       : "";
 
+    let taxonomy = null;
+    if (body.destinationPlaceId) {
+      taxonomy = await resolveTaxonomyByPlaceId(body.destinationPlaceId);
+    }
+    if (!taxonomy && destinationCity) {
+      taxonomy = await resolveTaxonomyByQuery(destinationCity);
+    }
+
     const tourId: string = crypto.randomUUID();
     const tourTitle = prompt.trim().length <= 10
       ? `${destinationCity} tour`
@@ -374,6 +384,16 @@ export async function POST(req: NextRequest) {
         familyProfileId: profileId,
         categoryTags: [],
         originalTargetStops: targetStops,
+        destinationType: taxonomy?.destinationType ?? null,
+        destinationName: taxonomy?.destinationName ?? null,
+        destinationPlaceId: taxonomy?.destinationPlaceId ?? null,
+        destinationStructured: taxonomy?.destinationStructured ?? undefined,
+        destinationCenterLat: taxonomy?.destinationCenterLat ?? null,
+        destinationCenterLng: taxonomy?.destinationCenterLng ?? null,
+        destinationViewportNE: taxonomy?.destinationViewportNE ?? undefined,
+        destinationViewportSW: taxonomy?.destinationViewportSW ?? undefined,
+        tourViewportNE: taxonomy?.tourViewportNE ?? undefined,
+        tourViewportSW: taxonomy?.tourViewportSW ?? undefined,
       },
     });
 

@@ -6,6 +6,7 @@ import { haversineMeters } from "@/lib/geo";
 import { PLATFORM_FLOKK_TOURS } from "@/lib/saved-item-types";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { mapPlaceTypesToCanonicalSlugs } from "@/lib/categories";
+import { resolveTaxonomyByPlaceId, resolveTaxonomyByQuery } from "@/lib/destination-resolver";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
     tourId?: string;
     tripId: string;
     dayIndex: number;
+    destinationPlaceId?: string | null;
   };
 
   const { tourMeta, tripId, dayIndex } = body;
@@ -80,6 +82,15 @@ export async function POST(req: NextRequest) {
 
   const tripCity = trip.destinationCity ?? tourMeta.destinationCity;
   const tripCountry = trip.destinationCountry ?? tourMeta.destinationCountry ?? null;
+
+  let taxonomy = null;
+  if (body.destinationPlaceId) {
+    taxonomy = await resolveTaxonomyByPlaceId(body.destinationPlaceId);
+  }
+  if (!taxonomy && tripCity) {
+    const q = tripCountry ? `${tripCity}, ${tripCountry}` : tripCity;
+    taxonomy = await resolveTaxonomyByQuery(q);
+  }
 
   const tourStopIds: string[] = [];
   const savedItemIds: string[] = [];
@@ -140,6 +151,16 @@ export async function POST(req: NextRequest) {
         transport: tourMeta.transport,
         familyProfileId: profileId,
         categoryTags: normalizeAndDedupeCategoryTags(tourMeta.categoryTags ?? []),
+        destinationType: taxonomy?.destinationType ?? null,
+        destinationName: taxonomy?.destinationName ?? null,
+        destinationPlaceId: taxonomy?.destinationPlaceId ?? null,
+        destinationStructured: taxonomy?.destinationStructured ?? undefined,
+        destinationCenterLat: taxonomy?.destinationCenterLat ?? null,
+        destinationCenterLng: taxonomy?.destinationCenterLng ?? null,
+        destinationViewportNE: taxonomy?.destinationViewportNE ?? undefined,
+        destinationViewportSW: taxonomy?.destinationViewportSW ?? undefined,
+        tourViewportNE: taxonomy?.tourViewportNE ?? undefined,
+        tourViewportSW: taxonomy?.tourViewportSW ?? undefined,
       },
     });
 

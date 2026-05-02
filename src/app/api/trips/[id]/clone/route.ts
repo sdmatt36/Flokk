@@ -46,6 +46,7 @@ export async function POST(
     endDate: source.endDate ? source.endDate.toISOString().substring(0, 10) : null,
     statusOverride: "PLANNING",
     isAnonymous: true,
+    destinationPlaceId: source.destinationPlaceId ?? undefined,
   });
 
   const newTrip = await db.$transaction(async (tx) => {

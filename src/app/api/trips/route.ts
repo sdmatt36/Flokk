@@ -90,6 +90,7 @@ export async function POST(req: Request) {
     endDate,
     statusOverride: status === "COMPLETED" ? "COMPLETED" : "PLANNING",
     isAnonymous: isAnonymous ?? true,
+    destinationPlaceId: typeof body.destinationPlaceId === "string" ? body.destinationPlaceId : undefined,
   });
 
   const trip = await db.$transaction(async (tx) => {

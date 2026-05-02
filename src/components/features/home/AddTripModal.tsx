@@ -4,13 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { X, MapPin } from "lucide-react";
 import { MODAL_OVERLAY_CLASSES, MODAL_PANEL_CLASSES } from "@/lib/modal-classes";
-
-type DestinationSuggestion = {
-  placeId: string;
-  cityName: string;
-  countryName: string;
-  region: string;
-};
+import type { DestinationSuggestion } from "@/app/api/destinations/lookup/route";
 
 type AiSuggestion = {
   name: string;
@@ -47,6 +41,7 @@ function AddTripModal({ onClose }: { onClose: () => void }) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [isAnonymous, setIsAnonymous] = useState(true);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -118,9 +113,16 @@ function AddTripModal({ onClose }: { onClose: () => void }) {
     };
   }, [destination]);
 
-  function selectSuggestion(cityName: string, countryName: string) {
+  function onDestinationChange(value: string) {
+    setDestination(value);
+    if (selectedPlaceId !== null) setSelectedPlaceId(null);
+    setShowDropdown(true);
+  }
+
+  function selectSuggestion(cityName: string, countryName: string, placeId?: string) {
     const value = countryName ? `${cityName}, ${countryName}` : cityName;
     setDestination(value);
+    setSelectedPlaceId(placeId ?? null);
     setSuggestions([]);
     setAiSuggestions([]);
     setShowDropdown(false);
@@ -138,7 +140,7 @@ function AddTripModal({ onClose }: { onClose: () => void }) {
       const res = await fetch("/api/trips", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ destination, startDate, endDate, isAnonymous }),
+        body: JSON.stringify({ destination, startDate, endDate, isAnonymous, destinationPlaceId: selectedPlaceId ?? undefined }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
@@ -201,7 +203,7 @@ function AddTripModal({ onClose }: { onClose: () => void }) {
               <input
                 type="text"
                 value={destination}
-                onChange={(e) => { setDestination(e.target.value); setShowDropdown(true); }}
+                onChange={(e) => onDestinationChange(e.target.value)}
                 onFocus={() => { if (destination.length >= 2) setShowDropdown(true); }}
                 placeholder="e.g. Ninh Binh, Vietnam"
                 autoComplete="off"
@@ -234,7 +236,7 @@ function AddTripModal({ onClose }: { onClose: () => void }) {
                     <button
                       key={s.placeId}
                       type="button"
-                      onMouseDown={() => selectSuggestion(s.cityName, s.countryName)}
+                      onMouseDown={() => selectSuggestion(s.cityName, s.countryName, s.placeId)}
                       style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", padding: "10px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
                     >
                       <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />

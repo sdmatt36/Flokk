@@ -5,12 +5,7 @@ import { RotateCcw } from "lucide-react";
 import TourResults from "@/components/TourResults";
 import { TourActionMenu } from "@/components/tours/TourActionMenu";
 import { shareEntity } from "@/lib/share";
-
-type DestinationSuggestion = {
-  placeId: string;
-  cityName: string;
-  countryName: string;
-};
+import type { DestinationSuggestion } from "@/app/api/destinations/lookup/route";
 
 type Stop = {
   id: string;
@@ -65,6 +60,7 @@ export default function TourPage() {
   const [prompt, setPrompt] = useState("");
   const [destinationCity, setDestinationCity] = useState("");
   const [destinationCountry, setDestinationCountry] = useState<string | null>(null);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null);
   const [durationLabel, setDurationLabel] = useState("");
   const [transport, setTransport] = useState("");
   const [loading, setLoading] = useState(false);
@@ -213,10 +209,11 @@ export default function TourPage() {
     });
   }
 
-  function selectSuggestion(cityName: string, countryName: string) {
+  function selectSuggestion(cityName: string, countryName: string, placeId?: string) {
     const value = countryName ? `${cityName}, ${countryName}` : cityName;
     setDestinationCity(value);
     setDestinationCountry(countryName || null);
+    setSelectedPlaceId(placeId ?? null);
     setSuggestions([]);
     setShowSuggestions(false);
     setTouched(true);
@@ -225,6 +222,7 @@ export default function TourPage() {
   function handleCityChange(value: string) {
     setDestinationCity(value);
     setDestinationCountry(null);
+    if (selectedPlaceId !== null) setSelectedPlaceId(null);
     setShowSuggestions(true);
     setTouched(true);
   }
@@ -255,6 +253,7 @@ export default function TourPage() {
           transport,
           familyProfileId: undefined,
           tripId: tripId ?? undefined,
+          destinationPlaceId: selectedPlaceId ?? undefined,
         }),
       });
       const data = await res.json() as TourResponse & { error?: string };
@@ -368,6 +367,7 @@ export default function TourPage() {
             durationLabel={results.durationLabel}
             transport={results.transport}
             tourId={results.tourId ?? null}
+            destinationPlaceId={selectedPlaceId}
             walkViolations={results.walkViolations}
             originalTargetStops={results.originalTargetStops ?? 5}
             onRemoveStop={handleRemoveStop}
@@ -430,7 +430,7 @@ export default function TourPage() {
                     <button
                       key={s.placeId}
                       type="button"
-                      onMouseDown={() => selectSuggestion(s.cityName, s.countryName)}
+                      onMouseDown={() => selectSuggestion(s.cityName, s.countryName, s.placeId)}
                       className="w-full px-4 py-3 text-sm text-[#1B3A5C] cursor-pointer hover:bg-gray-50 text-left flex items-center gap-2"
                       style={{ background: "none", border: "none", fontFamily: "inherit" }}
                     >

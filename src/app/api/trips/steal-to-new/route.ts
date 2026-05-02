@@ -60,6 +60,7 @@ export async function POST(req: Request) {
     startDate,
     endDate,
     isAnonymous: true,
+    destinationPlaceId: sourceTrip.destinationPlaceId ?? undefined,
   });
 
   // Create new trip for this user

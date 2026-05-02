@@ -97,6 +97,7 @@ function NewTripForm() {
           countries: Array.from(new Set(selectedCities.map((c) => c.countryName))),
           startDate,
           endDate,
+          destinationPlaceId: selectedCities[0]?.placeId !== "__prefilled__" ? selectedCities[0]?.placeId : undefined,
         }),
       });
       const data = await res.json();

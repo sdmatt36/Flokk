@@ -1,3 +1,14 @@
+/**
+ * Destination taxonomy backfill script.
+ *
+ * NOTE (Discipline 4.27): The canonical destination resolver lives at
+ * src/lib/destination-resolver.ts and is used by all live write paths
+ * (trip-builder, tours/save). The classification + viewport logic in
+ * this script duplicates that module's logic for one-shot batch use.
+ *
+ * If destination-resolver.ts behavior changes, this script may need
+ * a corresponding update or refactor to import from the canonical module.
+ */
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';

@@ -1,6 +1,7 @@
 import { nanoid } from "nanoid";
 import { getTripCoverImage, DEFAULT_COVER } from "@/lib/destination-images";
 import { textSearchPhoto } from "@/lib/google-places";
+import { resolveTaxonomyByPlaceId, resolveTaxonomyByQuery, DestinationTaxonomy, ViewportPoint, StructuredAddress } from "@/lib/destination-resolver";
 
 export type TripBuilderInput = {
   cities: string[];              // empty array allowed
@@ -10,6 +11,7 @@ export type TripBuilderInput = {
   endDate: string | null;        // ISO date or null
   statusOverride?: "PLANNING" | "COMPLETED" | null;  // when unset, computed from endDate
   isAnonymous?: boolean;         // defaults to true
+  destinationPlaceId?: string | null;
 };
 
 export type TripBuilderOutput = {
@@ -26,6 +28,16 @@ export type TripBuilderOutput = {
   isAnonymous: boolean;
   heroImageUrl: string | null;
   shareToken: string;
+  destinationType: DestinationTaxonomy['destinationType'];
+  destinationName: string | null;
+  destinationPlaceId: string | null;
+  destinationStructured: StructuredAddress | undefined;
+  destinationCenterLat: number | null;
+  destinationCenterLng: number | null;
+  destinationViewportNE: ViewportPoint | undefined;
+  destinationViewportSW: ViewportPoint | undefined;
+  tourViewportNE: ViewportPoint | undefined;
+  tourViewportSW: ViewportPoint | undefined;
 };
 
 /**
@@ -86,6 +98,15 @@ export async function buildTripFromExtraction(input: TripBuilderInput): Promise<
     status = input.endDate && new Date(input.endDate) < new Date() ? "COMPLETED" : "PLANNING";
   }
 
+  let taxonomy: DestinationTaxonomy | null = null;
+  if (input.destinationPlaceId) {
+    taxonomy = await resolveTaxonomyByPlaceId(input.destinationPlaceId);
+  }
+  if (!taxonomy && destinationCity) {
+    const q = country ? `${destinationCity}, ${country}` : destinationCity;
+    taxonomy = await resolveTaxonomyByQuery(q);
+  }
+
   return {
     title,
     destinationCity,
@@ -100,5 +121,15 @@ export async function buildTripFromExtraction(input: TripBuilderInput): Promise<
     isAnonymous: input.isAnonymous ?? true,
     heroImageUrl: heroImageUrl ?? null,
     shareToken: nanoid(12),
+    destinationType: taxonomy?.destinationType ?? null,
+    destinationName: taxonomy?.destinationName ?? null,
+    destinationPlaceId: taxonomy?.destinationPlaceId ?? null,
+    destinationStructured: taxonomy?.destinationStructured ?? undefined,
+    destinationCenterLat: taxonomy?.destinationCenterLat ?? null,
+    destinationCenterLng: taxonomy?.destinationCenterLng ?? null,
+    destinationViewportNE: taxonomy?.destinationViewportNE ?? undefined,
+    destinationViewportSW: taxonomy?.destinationViewportSW ?? undefined,
+    tourViewportNE: taxonomy?.tourViewportNE ?? undefined,
+    tourViewportSW: taxonomy?.tourViewportSW ?? undefined,
   };
 }

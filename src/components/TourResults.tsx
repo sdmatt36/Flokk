@@ -51,6 +51,7 @@ type Props = {
   durationLabel: string;
   transport: string;
   tourId?: string | null;
+  destinationPlaceId?: string | null;
   walkViolations?: number;
   originalTargetStops: number;
   onRemoveStop: (stopId: string) => void;
@@ -81,7 +82,7 @@ function RemovalPlaceholder({ stop, onUndo }: { stop: Stop; onUndo: () => void }
   );
 }
 
-export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, walkViolations, originalTargetStops, onRemoveStop, onQuickUndo, onDeleteCommit, onPermanentRestore, onReplaceStops, readOnly = false }: Props) {
+export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, destinationPlaceId, walkViolations, originalTargetStops, onRemoveStop, onQuickUndo, onDeleteCommit, onPermanentRestore, onReplaceStops, readOnly = false }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [trips, setTrips] = useState<TripOption[]>([]);
   const [tripsLoading, setTripsLoading] = useState(false);
@@ -197,6 +198,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
           ...(tourId ? { tourId } : { stops }),
           tripId: selectedTripId,
           dayIndex: selectedDay - 1,
+          destinationPlaceId: destinationPlaceId ?? undefined,
         }),
       });
       const data = await res.json() as { tourId?: string; error?: string };
