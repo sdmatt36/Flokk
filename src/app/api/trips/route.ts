@@ -33,7 +33,7 @@ export async function GET(request: Request) {
   });
   console.log("[GET /api/trips] returning", trips.length, "trips for familyProfile", profileId);
   return NextResponse.json(
-    { trips: trips.map(t => ({ id: t.id, title: t.title, destinationCity: t.destinationCity, destinationCountry: t.destinationCountry, cities: t.cities, country: t.country, countries: t.countries, startDate: t.startDate, endDate: t.endDate, status: t.status, isPlacesLibrary: t.isPlacesLibrary })) },
+    { trips: trips.map(t => ({ id: t.id, title: t.title, destinationCity: t.destinationCity, destinationCountry: t.destinationCountry, cities: t.cities, country: t.country, countries: t.countries, startDate: t.startDate, endDate: t.endDate, status: t.status, isPlacesLibrary: t.isPlacesLibrary, destinationName: t.destinationName, destinationCenterLat: t.destinationCenterLat, destinationCenterLng: t.destinationCenterLng })) },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

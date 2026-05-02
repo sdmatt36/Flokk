@@ -19,10 +19,10 @@ function NewTripForm() {
   const [selectedCities, setSelectedCities] = useState<DestinationSuggestion[]>(() => {
     // Pre-fill from query params if present
     if (destParam && countryParam) {
-      return [{ placeId: "__prefilled__", cityName: destParam, countryName: countryParam, region: "", description: "" }];
+      return [{ placeId: "__prefilled__", cityName: destParam, countryName: countryParam, region: "", description: "", displayLabel: `${destParam}, ${countryParam}` }];
     }
     if (destParam) {
-      return [{ placeId: "__prefilled__", cityName: destParam, countryName: "", region: "", description: "" }];
+      return [{ placeId: "__prefilled__", cityName: destParam, countryName: "", region: "", description: "", displayLabel: destParam }];
     }
     return [];
   });
@@ -195,8 +195,7 @@ function NewTripForm() {
                         onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9F9F9"; }}
                         onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
                       >
-                        <span style={{ fontWeight: 600 }}>{s.cityName}{s.region && s.region !== s.countryName ? `, ${s.region}` : ""}</span>
-                        {s.countryName && <span style={{ color: "#717171", marginLeft: 6 }}>{s.countryName}</span>}
+                        <span style={{ fontWeight: 600 }}>{s.displayLabel}</span>
                       </button>
                     </li>
                   ))}

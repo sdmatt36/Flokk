@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, ChevronDown, Clock, ExternalLink, Footprints, Loader2, MapPin, Plus, X } from "lucide-react";
 import { bucketTrips } from "@/lib/trip-phase";
+import { haversineKm } from "@/lib/geo";
 import TourMapBlock from "@/components/tours/TourMapBlock";
 import "mapbox-gl/dist/mapbox-gl.css";
 
@@ -25,10 +26,14 @@ type TripOption = {
   id: string;
   title: string;
   destinationCity: string | null;
+  destinationName: string | null;
+  destinationCenterLat: number | null;
+  destinationCenterLng: number | null;
   status: string;
   startDate: string | null;
   endDate: string | null;
 };
+
 
 function decodeHtmlEntities(str: string | null | undefined): string {
   if (!str) return "";
@@ -47,6 +52,9 @@ type Props = {
   removedStops: Stop[];
   destinationCity: string;
   destinationCountry?: string | null;
+  tourDestinationName?: string | null;
+  tourDestinationCenterLat?: number | null;
+  tourDestinationCenterLng?: number | null;
   prompt: string;
   durationLabel: string;
   transport: string;
@@ -82,7 +90,7 @@ function RemovalPlaceholder({ stop, onUndo }: { stop: Stop; onUndo: () => void }
   );
 }
 
-export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, destinationPlaceId, walkViolations, originalTargetStops, onRemoveStop, onQuickUndo, onDeleteCommit, onPermanentRestore, onReplaceStops, readOnly = false }: Props) {
+export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, tourDestinationName, tourDestinationCenterLat, tourDestinationCenterLng, prompt, durationLabel, transport, tourId, destinationPlaceId, walkViolations, originalTargetStops, onRemoveStop, onQuickUndo, onDeleteCommit, onPermanentRestore, onReplaceStops, readOnly = false }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [trips, setTrips] = useState<TripOption[]>([]);
   const [tripsLoading, setTripsLoading] = useState(false);
@@ -266,6 +274,17 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
       setIsRegenerating(false);
     }
   }
+
+  const selectedTrip = trips.find(t => t.id === selectedTripId) ?? null;
+  const distanceKm = (() => {
+    if (!selectedTrip || selectedTrip.destinationCenterLat == null || selectedTrip.destinationCenterLng == null) return null;
+    if (tourDestinationCenterLat == null || tourDestinationCenterLng == null) return null;
+    return haversineKm(
+      { lat: tourDestinationCenterLat, lng: tourDestinationCenterLng },
+      { lat: selectedTrip.destinationCenterLat, lng: selectedTrip.destinationCenterLng }
+    );
+  })();
+  const isCrossDestination = distanceKm != null && distanceKm >= 50;
 
   // Discipline 4.11: bucketing via shared helper. Past trips collapsed (not excluded) — the Spots/Discover content flywheel depends on retroactive tour generation from completed trips.
   const { current: currentTrips, upcoming: upcomingTrips, past: pastTrips } = bucketTrips(trips);
@@ -580,6 +599,17 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
                   </div>
                 )}
 
+                {isCrossDestination && selectedTrip && (
+                  <div style={{ border: "1.5px solid #C4664A", borderRadius: "10px", padding: "10px 12px", marginBottom: "8px", backgroundColor: "#FFF8F6" }}>
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle size={14} className="text-[#C4664A] shrink-0 mt-0.5" />
+                      <p className="text-xs text-[#1a1a1a] leading-relaxed">
+                        This tour is for {tourDestinationName ?? destinationCity}, but {selectedTrip.title} is planned for {selectedTrip.destinationName ?? selectedTrip.destinationCity ?? "a different destination"} (~{Math.round(distanceKm!)} km away). The stops may not match your trip.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {saveError && <p className="text-red-500 text-sm mb-2">{saveError}</p>}
 
                 <button
@@ -588,7 +618,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
                   className="w-full bg-[#1B3A5C] text-white rounded-xl py-3 text-sm font-medium mt-4 disabled:opacity-50"
                   style={{ border: "none", cursor: selectedTripId && !saving ? "pointer" : "default" }}
                 >
-                  {saving ? "Saving..." : `Add ${stops.length} stops to Day ${selectedDay}`}
+                  {saving ? "Saving..." : isCrossDestination ? "Save anyway" : `Add ${stops.length} stops to Day ${selectedDay}`}
                 </button>
                 <button onClick={closeModal} className="text-sm text-gray-400 text-center mt-3 cursor-pointer block w-full" style={{ background: "none", border: "none" }}>
                   Cancel

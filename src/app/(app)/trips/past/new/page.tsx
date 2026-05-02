@@ -161,7 +161,7 @@ function Step1Basics({
   const [error, setError] = useState("");
   const [titleManuallyEdited, setTitleManuallyEdited] = useState(false);
   const [showSuggestionsFor, setShowSuggestionsFor] = useState<number | null>(null);
-  const [destSuggestions, setDestSuggestions] = useState<{cityName: string; countryName: string; region?: string; placeId?: string}[][]>([[]]);
+  const [destSuggestions, setDestSuggestions] = useState<{cityName: string; countryName: string; region?: string; placeId?: string; displayLabel?: string}[][]>([[]]);
   const destDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const primaryCity = destinations[0]?.city ?? "";
@@ -253,10 +253,7 @@ function Step1Basics({
                         onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#FFF8F6"; }}
                         onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = ""; }}
                       >
-                        <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{s.cityName}{s.region && s.region !== s.countryName ? `, ${s.region}` : ""}</span>
-                        {s.countryName && s.countryName !== s.cityName && (
-                          <span style={{ fontSize: "12px", color: "#888", marginLeft: "4px" }}>· {s.countryName}</span>
-                        )}
+                        <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{s.displayLabel ?? (s.countryName ? `${s.cityName}, ${s.countryName}` : s.cityName)}</span>
                       </button>
                     ))}
                   </div>

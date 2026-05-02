@@ -240,12 +240,7 @@ function AddTripModal({ onClose }: { onClose: () => void }) {
                       style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", padding: "10px 14px", background: "none", border: "none", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
                     >
                       <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
-                      <span>
-                        <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{s.cityName}{s.region && s.region !== s.countryName ? `, ${s.region}` : ""}</span>
-                        {s.countryName && s.countryName !== s.cityName && (
-                          <span style={{ fontSize: "12px", color: "#888", marginLeft: "6px" }}>· {s.countryName}</span>
-                        )}
-                      </span>
+                      <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{s.displayLabel}</span>
                     </button>
                   ))}
                   {aiSuggestions.length > 0 && (

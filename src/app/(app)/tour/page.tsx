@@ -29,6 +29,9 @@ type TourResponse = {
   removedStops?: Stop[];
   destinationCity: string;
   destinationCountry?: string | null;
+  destinationName?: string | null;
+  destinationCenterLat?: number | null;
+  destinationCenterLng?: number | null;
   prompt: string;
   durationLabel: string;
   transport: string;
@@ -363,6 +366,9 @@ export default function TourPage() {
             removedStops={removedStops}
             destinationCity={results.destinationCity}
             destinationCountry={results.destinationCountry ?? null}
+            tourDestinationName={results.destinationName ?? null}
+            tourDestinationCenterLat={results.destinationCenterLat ?? null}
+            tourDestinationCenterLng={results.destinationCenterLng ?? null}
             prompt={results.prompt}
             durationLabel={results.durationLabel}
             transport={results.transport}
@@ -434,10 +440,7 @@ export default function TourPage() {
                       className="w-full px-4 py-3 text-sm text-[#1B3A5C] cursor-pointer hover:bg-gray-50 text-left flex items-center gap-2"
                       style={{ background: "none", border: "none", fontFamily: "inherit" }}
                     >
-                      <span className="font-semibold">{s.cityName}</span>
-                      {s.countryName && s.countryName !== s.cityName && (
-                        <span className="text-gray-400 text-xs">· {s.countryName}</span>
-                      )}
+                      <span className="font-semibold">{s.displayLabel}</span>
                     </button>
                   ))}
                 </div>

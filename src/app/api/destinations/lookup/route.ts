@@ -9,7 +9,15 @@ export type DestinationSuggestion = {
   countryName: string;
   region: string;
   description: string;
+  displayLabel: string;
 };
+
+function buildDisplayLabel(cityName: string, region: string, countryName: string): string {
+  if (region && region !== cityName && region !== countryName) {
+    return countryName ? `${cityName}, ${region}, ${countryName}` : `${cityName}, ${region}`;
+  }
+  return countryName ? `${cityName}, ${countryName}` : cityName;
+}
 
 export async function GET(req: NextRequest) {
   const { userId } = await auth();
@@ -78,6 +86,7 @@ export async function GET(req: NextRequest) {
           countryName,
           region,
           description: p.description,
+          displayLabel: buildDisplayLabel(cityName, region, countryName),
         };
       })
     );
