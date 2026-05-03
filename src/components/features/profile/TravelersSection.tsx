@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Trash2 } from "lucide-react";
 
 const DIETARY_OPTIONS = [
   { value: "HALAL", label: "Halal" },
@@ -121,6 +122,9 @@ function TravelerCard({
   const [saving, setSaving] = useState(false);
   const [savingAllergies, setSavingAllergies] = useState(false);
   const [ext, setExt] = useState<MemberExt>(() => loadExt(member.id));
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteToast, setDeleteToast] = useState<string | null>(null);
 
   const parsed = parseName(member.name);
   const [form, setForm] = useState({
@@ -204,6 +208,24 @@ function TravelerCard({
     setEditing(false);
   }
 
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/family/members/${member.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed");
+      setConfirmDelete(false);
+      setDeleteToast("Member removed");
+      setTimeout(() => setDeleteToast(null), 3000);
+      onDeleted(member.id);
+    } catch {
+      setConfirmDelete(false);
+      setDeleteToast("Couldn't remove, try again");
+      setTimeout(() => setDeleteToast(null), 3000);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   const rolePill = (
     <span style={{
       fontSize: "11px", fontWeight: 700, padding: "2px 10px", borderRadius: "999px",
@@ -228,6 +250,15 @@ function TravelerCard({
           style={{ background: "none", border: "none", cursor: "pointer", fontSize: "13px", fontWeight: 500, color: "#C4664A", padding: 0, flexShrink: 0 }}
         >
           Edit
+        </button>
+        <button
+          onClick={() => setConfirmDelete(true)}
+          title="Remove member"
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "44px", height: "44px", borderRadius: "50%", border: "none", background: "none", cursor: "pointer", color: "#CCCCCC", flexShrink: 0, marginRight: "-8px" }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#C4664A"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#CCCCCC"; }}
+        >
+          <Trash2 size={16} />
         </button>
       </div>
 
@@ -447,6 +478,49 @@ function TravelerCard({
               Cancel
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {confirmDelete && (
+        <div
+          onClick={() => { if (!deleting) setConfirmDelete(false); }}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "24px" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: "#fff", borderRadius: "20px", padding: "28px 24px 24px", maxWidth: "360px", width: "100%", boxShadow: "0 8px 40px rgba(0,0,0,0.18)" }}
+          >
+            <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#1B3A5C", marginBottom: "10px" }}>
+              Remove {form.firstName || member.name || "this traveler"} from your family?
+            </h2>
+            <p style={{ fontSize: "14px", color: "#717171", lineHeight: 1.5, marginBottom: "20px" }}>
+              This cannot be undone.
+            </p>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleting}
+                style={{ flex: 1, height: "48px", borderRadius: "999px", border: "1.5px solid #EEEEEE", background: "#fff", fontSize: "15px", fontWeight: 600, color: "#717171", cursor: deleting ? "not-allowed" : "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                style={{ flex: 1, height: "48px", borderRadius: "999px", border: "none", backgroundColor: deleting ? "#EEEEEE" : "#C4664A", color: deleting ? "#AAAAAA" : "#fff", fontSize: "15px", fontWeight: 700, cursor: deleting ? "not-allowed" : "pointer" }}
+              >
+                {deleting ? "Removing..." : "Remove"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {deleteToast && (
+        <div style={{ position: "fixed", bottom: "32px", left: "50%", transform: "translateX(-50%)", backgroundColor: "#1B3A5C", color: "#fff", fontSize: "13px", fontWeight: 600, padding: "10px 20px", borderRadius: "999px", zIndex: 9999, pointerEvents: "none", whiteSpace: "nowrap" }}>
+          {deleteToast}
         </div>
       )}
     </div>

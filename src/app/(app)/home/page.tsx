@@ -463,7 +463,7 @@ export default async function HomePage() {
                 <h2 style={{ fontWeight: 700, color: "#1a1a1a", fontSize: "15px" }}>
                   {profile.familyName ? `${profile.familyName} crew` : "Your crew"}
                 </h2>
-                <Link href="/family" style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}>
+                <Link href="/profile?tab=travelers" style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}>
                   Edit family
                 </Link>
               </div>
