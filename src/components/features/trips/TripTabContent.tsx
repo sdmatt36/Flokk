@@ -3258,16 +3258,16 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 <div key={item.sortId} style={{ display: "flex", alignItems: "stretch", marginBottom: "8px" }}>
                                   {/* Up/down reorder controls */}
                                   <div style={{ width: "22px", flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "1px", paddingRight: "4px" }}>
-                                    {(() => {
-                                      const isCheckIn = item.itemType === "itinerary" && item.itineraryItem?.type === "LODGING" && item.itineraryItem.title.toLowerCase().startsWith("check-in:");
-                                      const nextIsCheckIn = (() => { const n = allDayItems[idx + 1]; return n?.itemType === "itinerary" && n.itineraryItem?.type === "LODGING" && (n.itineraryItem.title.toLowerCase().startsWith("check-in:") ?? false); })();
-                                      const upDisabled = idx === 0 || isCheckIn;
-                                      const downDisabled = idx === allDayItems.length - 1 || nextIsCheckIn;
-                                      return (<>
-                                        <button onClick={e => { e.stopPropagation(); handleReorder(item.sortId, "up"); }} disabled={upDisabled} style={{ background: "none", border: "none", cursor: upDisabled ? "default" : "pointer", color: upDisabled ? "#D8D8D8" : "#C4664A", fontSize: "13px", lineHeight: 1, padding: "1px 0", fontWeight: 700 }}>↑</button>
-                                        <button onClick={e => { e.stopPropagation(); handleReorder(item.sortId, "down"); }} disabled={downDisabled} style={{ background: "none", border: "none", cursor: downDisabled ? "default" : "pointer", color: downDisabled ? "#D8D8D8" : "#C4664A", fontSize: "13px", lineHeight: 1, padding: "1px 0", fontWeight: 700 }}>↓</button>
-                                      </>);
-                                    })()}
+                                    <button
+                                      onClick={e => { e.stopPropagation(); handleReorder(item.sortId, "up"); }}
+                                      disabled={idx === 0}
+                                      style={{ background: "none", border: "none", cursor: idx === 0 ? "default" : "pointer", color: idx === 0 ? "#D8D8D8" : "#C4664A", fontSize: "13px", lineHeight: 1, padding: "1px 0", fontWeight: 700 }}
+                                    >↑</button>
+                                    <button
+                                      onClick={e => { e.stopPropagation(); handleReorder(item.sortId, "down"); }}
+                                      disabled={idx === allDayItems.length - 1}
+                                      style={{ background: "none", border: "none", cursor: idx === allDayItems.length - 1 ? "default" : "pointer", color: idx === allDayItems.length - 1 ? "#D8D8D8" : "#C4664A", fontSize: "13px", lineHeight: 1, padding: "1px 0", fontWeight: 700 }}
+                                    >↓</button>
                                   </div>
 
                                   {/* Saved item card */}
