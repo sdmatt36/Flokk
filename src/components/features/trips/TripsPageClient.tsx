@@ -122,7 +122,31 @@ function TripCard({ trip, onDelete }: { trip: Trip; onDelete: (id: string) => vo
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isAnonymous: anonymous, isPublic: true }),
     });
-    await navigator.clipboard.writeText(`${window.location.origin}/share/${trip.shareToken}`);
+    const shareUrl = `${window.location.origin}/share/${trip.shareToken}`;
+    const isTouchDevice = typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+    if (isTouchDevice && typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title: trip.title ?? "Trip on Flokk", url: shareUrl });
+        setShareStep("idle");
+        return;
+      } catch (err) {
+        if ((err as Error).name === "AbortError") { setShareStep("idle"); return; }
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = shareUrl;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      textarea.setAttribute("readonly", "");
+      document.body.appendChild(textarea);
+      textarea.select();
+      textarea.setSelectionRange(0, shareUrl.length);
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
     setShareStep("copied");
     setTimeout(() => setShareStep("idle"), 2000);
   }
