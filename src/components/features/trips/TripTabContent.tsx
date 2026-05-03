@@ -2235,8 +2235,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       if (/hotel|hostel|resort|airbnb|inn|hyatt|hilton|marriott|sheraton|westin|check.?in/i.test(a.title)) return 900;
       return 720;
     }
-    // Save or other: use actual startTime if present, else noon
-    return timeToMin(item.startTime) ?? 720;
+    // Null-startTime items sort last (matches share view convergence per Disc 4.27).
+    return timeToMin(item.startTime) ?? 9999;
   }
 
   /** Build the sorted UnifiedDayItem list for any given dayIndex (extracted from render) */
