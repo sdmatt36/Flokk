@@ -110,6 +110,8 @@ import { getEntityStatus, type EntityStatusResult } from "@/lib/entity-status";
 import { EntityStatusPill } from "@/components/ui/EntityStatusPill";
 import { buildSaveStatusMap } from "@/lib/save-status-map";
 import { shareEntity } from "@/lib/share";
+import { ShareButton } from "@/components/shared/ShareButton";
+import { ShareEntityType } from "@/lib/share-token";
 import { NoteEditor, type TiptapDoc, emptyDoc } from "@/components/features/notes/NoteEditor";
 
 type Tab = "saved" | "itinerary" | "tours" | "recommended" | "events" | "packing" | "notes" | "vault" | "howwasit";
@@ -1161,20 +1163,35 @@ function EventSavedCard({ item }: { item: SavedDisplayItem }) {
 
 const SAVED_FILTER_PILLS = ["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Kids Camps", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other", "Unorganized"];
 
-function cardActionRow({ onShare, onEdit, onRemove, removeLabel = "Remove" }: {
-  onShare?: (() => void) | null;
+function cardActionRow({
+  shareEntityType,
+  shareEntityId,
+  shareTitle,
+  customOnShare,
+  onEdit,
+  onRemove,
+  removeLabel = "Remove",
+}: {
+  shareEntityType?: ShareEntityType | null;
+  shareEntityId?: string | null;
+  shareTitle?: string | null;
+  customOnShare?: (() => void) | null;
   onEdit?: (() => void) | null;
   onRemove?: (() => void) | null;
   removeLabel?: string;
 }) {
-  if (!onShare && !onEdit && !onRemove) return null;
+  const hasShare = (shareEntityType && shareEntityId) || customOnShare;
+  if (!hasShare && !onEdit && !onRemove) return null;
   return (
     <div
       onClick={e => e.stopPropagation()}
       style={{ display: "flex", gap: "12px", alignItems: "center", marginTop: "10px", paddingTop: "8px", borderTop: "1px solid rgba(0,0,0,0.06)" }}
     >
-      {onShare && (
-        <button onClick={e => { e.stopPropagation(); onShare(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#C4664A", padding: 0, fontSize: "12px", fontWeight: 600, fontFamily: "inherit" }}>Share</button>
+      {shareEntityType && shareEntityId && (
+        <ShareButton entityType={shareEntityType} entityId={shareEntityId} title={shareTitle ?? undefined} />
+      )}
+      {(!shareEntityType || !shareEntityId) && customOnShare && (
+        <button onClick={e => { e.stopPropagation(); customOnShare(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#C4664A", padding: 0, fontSize: "12px", fontWeight: 600, fontFamily: "inherit" }}>Share</button>
       )}
       {onEdit && (
         <button onClick={e => { e.stopPropagation(); onEdit(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#888", padding: 0, fontSize: "12px", fontWeight: 500, fontFamily: "inherit" }}>Edit</button>
@@ -1186,13 +1203,13 @@ function cardActionRow({ onShare, onEdit, onRemove, removeLabel = "Remove" }: {
   );
 }
 
-function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDelete, onShare }: {
+function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDelete, shareEntityId }: {
   item: SavedDisplayItem;
   onAddToItinerary: () => void;
   onLearnMore: () => void;
   assignedDay?: number;
   onDelete?: () => void;
-  onShare?: () => void;
+  shareEntityId?: string;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   const hasImg = !!item.img && !imgFailed;
@@ -1261,10 +1278,10 @@ function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDel
             </a>
           )}
         </div>
-        {(onShare || onDelete) && (
+        {(shareEntityId || onDelete) && (
           <div onClick={e => e.stopPropagation()} style={{ display: "flex", gap: "8px", marginTop: "10px", paddingTop: "8px", borderTop: "1px solid rgba(0,0,0,0.06)" }}>
-            {onShare && (
-              <button onClick={(e) => { e.stopPropagation(); onShare(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#C4664A", padding: 0, fontSize: "12px", fontWeight: 600, fontFamily: "inherit" }}>Share</button>
+            {shareEntityId && (
+              <ShareButton entityType="saved_item" entityId={shareEntityId} title={item.title} />
             )}
             {onDelete && (
               <button onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 0, fontSize: "12px", fontFamily: "inherit" }}>Delete</button>
@@ -1606,7 +1623,7 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
               onLearnMore={() => handleLearnMore(item)}
               assignedDay={assignedDays[item.title]}
               onDelete={() => handleDeleteSave(item)}
-              onShare={() => handleShare(item)}
+              shareEntityId={item.id}
             />
           ))}
         </div>
@@ -3346,7 +3363,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                 </span>
                                               </div>
                                               {a.savedItemId && cardActionRow({
-                                                onShare: async () => { const result = await shareEntity({ entityType: "saved_item", entityId: a.savedItemId! }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } },
+                                                shareEntityType: "saved_item",
+                                                shareEntityId: a.savedItemId,
+                                                shareTitle: a.title,
                                                 onEdit: async () => {
                                                   const isLodging = /lodging|accommodation|hotel|airbnb|hostel/i.test((a.categoryTags ?? []).join(" "));
                                                   try {
@@ -3456,7 +3475,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                 <p style={{ fontSize: "11px", color: "#AAAAAA", marginTop: "4px" }}>No location — add an address to show on map</p>
                                               )}
                                               {cardActionRow({
-                                                onShare: async () => { const result = await shareEntity({ entityType: "manual_activity", entityId: a.id }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } },
+                                                shareEntityType: "manual_activity",
+                                                shareEntityId: a.id,
+                                                shareTitle: a.title,
                                                 onEdit: onEditActivity ? () => onEditActivity(a) : null,
                                                 onRemove: onDeleteActivity ? () => { if (window.confirm("Delete this activity permanently?")) onDeleteActivity(a.id); } : null,
                                                 removeLabel: "Delete",
@@ -3516,7 +3537,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                 </div>
                                               </div>
                                               {cardActionRow({
-                                                onShare: async () => { const result = await shareEntity({ entityType: "itinerary_item", entityId: it.id }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } },
+                                                shareEntityType: "itinerary_item",
+                                                shareEntityId: it.id,
+                                                shareTitle: route,
                                                 onEdit: matchFlight ? () => setEditingFlight(matchFlight) : null,
                                                 onRemove: () => { if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); },
                                               })}
@@ -3556,7 +3579,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                 </div>
                                               </div>
                                               {cardActionRow({
-                                                onShare: async () => { const result = await shareEntity({ entityType: "itinerary_item", entityId: it.id }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } },
+                                                shareEntityType: "itinerary_item",
+                                                shareEntityId: it.id,
+                                                shareTitle: hotelName,
                                                 onEdit: () => setSelectedItineraryItem(it),
                                                 onRemove: () => { if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); },
                                               })}
@@ -3589,7 +3614,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                 </div>
                                               </div>
                                               {cardActionRow({
-                                                onShare: async () => { const result = await shareEntity({ entityType: "itinerary_item", entityId: it.id }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } },
+                                                shareEntityType: "itinerary_item",
+                                                shareEntityId: it.id,
+                                                shareTitle: trainRoute,
                                                 onEdit: () => setSelectedItineraryItem(it),
                                                 onRemove: () => { if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); },
                                               })}
@@ -3616,7 +3643,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                               </div>
                                             </div>
                                             {cardActionRow({
-                                              onShare: async () => { const result = await shareEntity({ entityType: "itinerary_item", entityId: it.id }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } },
+                                              shareEntityType: "itinerary_item",
+                                              shareEntityId: it.id,
+                                              shareTitle: it.title,
                                               onEdit: () => { if (it.type === "ACTIVITY") setEditActivityTitle(it.title ?? ""); setSelectedItineraryItem(it); },
                                               onRemove: () => { if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); },
                                             })}

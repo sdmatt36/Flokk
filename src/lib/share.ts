@@ -38,6 +38,44 @@ async function copyToClipboard(text: string): Promise<boolean> {
   }
 }
 
+// Fetches a share token for the entity and returns the shareable URL.
+// Does not copy or share — lets the caller decide what to do with the URL.
+export async function getShareUrl(entityType: ShareEntityType, entityId: string): Promise<string | null> {
+  try {
+    const res = await fetch("/api/share/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entityType, entityId }),
+    });
+    if (!res.ok) return null;
+    const { token } = await res.json() as { token: string };
+    return `${window.location.origin}/s/${token}`;
+  } catch {
+    return null;
+  }
+}
+
+// Invokes navigator.share on any device that supports it (no isTouchDevice guard).
+// Returns { shared: true } on success, { cancelled: true } on AbortError,
+// { fallback: true } when navigator.share is unavailable.
+export async function invokeNativeShare(
+  url: string,
+  title: string,
+): Promise<{ shared: boolean; cancelled: boolean; fallback: boolean }> {
+  if (typeof navigator === "undefined" || !navigator.share) {
+    return { shared: false, cancelled: false, fallback: true };
+  }
+  try {
+    await navigator.share({ url, title });
+    return { shared: true, cancelled: false, fallback: false };
+  } catch (err) {
+    if ((err as Error).name === "AbortError") {
+      return { shared: false, cancelled: true, fallback: false };
+    }
+    return { shared: false, cancelled: false, fallback: true };
+  }
+}
+
 // Called from any Share button on the platform.
 // Lazily generates the entity-level /s/{token} URL and shares or copies it.
 // On mobile: tries Web Share API first (native sheet, works after async on iOS).
