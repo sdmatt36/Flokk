@@ -1,5 +1,9 @@
 import crypto from "crypto";
 
+// Bump this when deriveSegments, allocateRecCounts, or rec prompt assembly
+// changes in a way that should invalidate all cached recs. Per Discipline 4.27.
+const REC_CONTEXT_SCHEMA_VERSION = 2;
+
 export type TripContext = {
   tripId: string;
   destinationCity: string;
@@ -12,6 +16,7 @@ export type TripContext = {
 
 export function buildContextHash(ctx: TripContext): string {
   const normalized = [
+    String(REC_CONTEXT_SCHEMA_VERSION),
     ctx.destinationCity.toLowerCase().trim(),
     ...ctx.itineraryItemIds.slice().sort(),
     ...ctx.savedItemIds.slice().sort(),

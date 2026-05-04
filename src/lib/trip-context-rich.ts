@@ -74,6 +74,7 @@ export type ItineraryItemInput = {
   dayIndex: number | null;
   fromCity: string | null;
   toCity: string | null;
+  departureTime?: string | null;
 };
 
 const TRANSIT_TYPES = new Set(["FLIGHT", "TRAIN", "CAR_RENTAL"]);
@@ -86,16 +87,26 @@ function deriveCityFromCheckIn(
   // 1. Explicit toCity on check-in row
   if (checkIn.toCity?.trim()) return checkIn.toCity.trim();
 
-  // 2. Same-day inbound transit toCity (flight/train arriving same day as check-in)
-  const dayIdx = checkIn.dayIndex;
-  if (dayIdx != null) {
-    const inbound = allItems.find(
+  // 2. Find the final same-day inbound transit (last by departureTime).
+  // Connecting itineraries (e.g. HND→SIN→CMB on Day 0) would return the
+  // stopover city if we used find() — sort by departureTime and take last
+  // so the final leg's toCity wins. Null-departureTime items are excluded
+  // to avoid unpredictable sort order; falls through to step 3 if none qualify.
+  if (checkIn.dayIndex != null) {
+    const sameDayInbound = allItems.filter(
       (i) =>
         (i.type === "FLIGHT" || i.type === "TRAIN") &&
         i.toCity != null &&
-        i.dayIndex === dayIdx
+        i.dayIndex === checkIn.dayIndex &&
+        i.departureTime != null
     );
-    if (inbound?.toCity) return inbound.toCity.trim();
+    if (sameDayInbound.length > 0) {
+      const sorted = [...sameDayInbound].sort((a, b) =>
+        (a.departureTime ?? "").localeCompare(b.departureTime ?? "")
+      );
+      const last = sorted[sorted.length - 1];
+      if (last?.toCity) return last.toCity.trim();
+    }
   }
 
   // 3. Comma-parse from lodging name (e.g. "Hyatt Regency Seragaki Island, Okinawa" → "Okinawa")
@@ -222,6 +233,7 @@ export async function extractRichTripContext(
           dayIndex: true,
           fromCity: true,
           toCity: true,
+          departureTime: true,
         },
       },
       savedItems: {
