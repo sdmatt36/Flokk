@@ -7,7 +7,7 @@ const STOPS = [
   { lng: 139.7707, lat: 35.6654, num: 1, primary: true,  title: "Tsukiji Outer Market", subtitle: "8:00 AM · breakfast",  familyPro: false, labelSide: "right" },
   { lng: 139.7634, lat: 35.6597, num: 2, primary: false, title: "Hama-rikyu Gardens",   subtitle: "10:30 AM · stroll",   familyPro: false, labelSide: "left"  },
   { lng: 139.7649, lat: 35.6720, num: 3, primary: false, title: "Ginza food halls",     subtitle: "12:00 PM · lunch",    familyPro: false, labelSide: "right" },
-  { lng: 139.7634, lat: 35.6764, num: 4, primary: false, title: "Poop break",           subtitle: "1:15 PM · family-pro",familyPro: true,  labelSide: "right" },
+  { lng: 139.7665, lat: 35.6800, num: 4, primary: false, title: "Poop break",           subtitle: "1:15 PM · family-pro",familyPro: true,  labelSide: "right" },
   { lng: 139.7574, lat: 35.6852, num: 5, primary: false, title: "Imperial Palace",      subtitle: "2:30 PM · culture",   familyPro: false, labelSide: "left"  },
   { lng: 139.7731, lat: 35.6984, num: 6, primary: false, title: "Akihabara",            subtitle: "4:00 PM · stop",      familyPro: false, labelSide: "right" },
   { lng: 139.7741, lat: 35.7148, num: 7, primary: false, title: "",                     subtitle: "",                    familyPro: false, labelSide: "right" },
@@ -117,7 +117,7 @@ export default function BuildATourHero() {
         );
 
         map.fitBounds(bounds, {
-          padding: { top: 80, right: 100, bottom: 80, left: 540 },
+          padding: { top: 60, right: 80, bottom: 160, left: 540 },
           duration: 0,
         });
 
@@ -147,6 +147,28 @@ export default function BuildATourHero() {
         layersToHide.forEach((id) => {
           if (map.getLayer(id)) {
             map.setLayoutProperty(id, "visibility", "none");
+          }
+        });
+
+        const roadLayersToTone = map.getStyle().layers
+          .filter((layer) => {
+            const id = layer.id;
+            return (
+              id.startsWith("road-") &&
+              layer.type === "line" &&
+              !id.includes("label") &&
+              !id.includes("shield")
+            );
+          })
+          .map((l) => l.id);
+
+        roadLayersToTone.forEach((id) => {
+          if (map.getLayer(id)) {
+            try {
+              map.setPaintProperty(id, "line-color", "#E8E0D0");
+            } catch (err) {
+              // Some layers use data-driven expressions; skip if setPaintProperty fails
+            }
           }
         });
 
