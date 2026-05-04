@@ -4,14 +4,14 @@ import { useEffect, useRef } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 const STOPS = [
-  { lng: 139.7707, lat: 35.6654, num: 1, primary: true,  title: "Tsukiji Outer Market", subtitle: "8:00 AM · breakfast",  familyPro: false, labelSide: "right" },
-  { lng: 139.7634, lat: 35.6597, num: 2, primary: false, title: "Hama-rikyu Gardens",   subtitle: "10:30 AM · stroll",   familyPro: false, labelSide: "left"  },
-  { lng: 139.7649, lat: 35.6720, num: 3, primary: false, title: "Ginza food halls",     subtitle: "12:00 PM · lunch",    familyPro: false, labelSide: "right" },
-  { lng: 139.7665, lat: 35.6800, num: 4, primary: false, title: "Poop break",           subtitle: "1:15 PM · family-pro",familyPro: true,  labelSide: "right" },
-  { lng: 139.7574, lat: 35.6852, num: 5, primary: false, title: "Imperial Palace",      subtitle: "2:30 PM · culture",   familyPro: false, labelSide: "left"  },
-  { lng: 139.7731, lat: 35.6984, num: 6, primary: false, title: "Akihabara",            subtitle: "4:00 PM · stop",      familyPro: false, labelSide: "right" },
-  { lng: 139.7741, lat: 35.7148, num: 7, primary: false, title: "",                     subtitle: "",                    familyPro: false, labelSide: "right" },
-  { lng: 139.7967, lat: 35.7148, num: 8, primary: true,  title: "Senso-ji + ramen",     subtitle: "5:30 PM · finale",    familyPro: false, labelSide: "right" },
+  { lng: 139.7967, lat: 35.7148, num: 1, primary: true,  title: "Senso-ji Temple",      subtitle: "8:00 AM · sunrise visit",  familyPro: false, labelSide: "right" },
+  { lng: 139.7730, lat: 35.7156, num: 2, primary: false, title: "Ueno Park",            subtitle: "9:30 AM · stroll",         familyPro: false, labelSide: "left"  },
+  { lng: 139.7731, lat: 35.6984, num: 3, primary: false, title: "Akihabara",            subtitle: "11:00 AM · culture",       familyPro: false, labelSide: "right" },
+  { lng: 139.7671, lat: 35.6812, num: 4, primary: false, title: "Poop break",           subtitle: "12:15 PM · family-pro",    familyPro: true,  labelSide: "left"  },
+  { lng: 139.7574, lat: 35.6852, num: 5, primary: false, title: "Imperial Palace",      subtitle: "1:00 PM · walk",           familyPro: false, labelSide: "left"  },
+  { lng: 139.7649, lat: 35.6720, num: 6, primary: false, title: "Ginza food halls",     subtitle: "2:30 PM · lunch",          familyPro: false, labelSide: "right" },
+  { lng: 139.7634, lat: 35.6597, num: 7, primary: false, title: "Hama-rikyu Gardens",   subtitle: "4:00 PM · stroll",         familyPro: false, labelSide: "left"  },
+  { lng: 139.7707, lat: 35.6654, num: 8, primary: true,  title: "Tsukiji Outer Market", subtitle: "5:30 PM · dinner finale",  familyPro: false, labelSide: "right" },
 ] as const;
 
 const ROUTE_COORDS = STOPS.map((s) => [s.lng, s.lat]);
