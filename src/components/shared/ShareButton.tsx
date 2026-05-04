@@ -39,10 +39,8 @@ export function ShareButton({
     return () => clearTimeout(t);
   }, [copyToast]);
 
-  // Desktop only: prefetch token on hover so the click-time navigator.share call
-  // has no async gap and the macOS user-activation gesture chain stays intact.
-  // pointerenter fires on touch devices too (at touchstart), so the isTouchDevice
-  // guard is explicit.
+  // Desktop only: prefetch token on hover so click opens the popover instantly
+  // (no fetch latency). pointerenter fires on touch too, so the isTouch guard is explicit.
   async function handlePointerEnter() {
     if (isTouch() || prefetchStarted.current) return;
     prefetchStarted.current = true;
@@ -56,24 +54,16 @@ export function ShareButton({
 
     if (!isTouch()) {
       // ── Desktop path ─────────────────────────────────────────────────────────
-      // Case 1: hover prefetch completed → call navigator.share synchronously.
-      // No async gap means the macOS gesture chain is intact and target selection works.
-      if (cachedUrl) {
-        const result = await invokeNativeShare(cachedUrl, title);
-        if (result.fallback) {
-          setShareUrl(cachedUrl);
-          setPopoverAnchor(e.currentTarget);
-        }
-        return;
+      // macOS Chrome silently no-ops navigator.share target selection regardless of
+      // gesture timing. Desktop always uses the popover menu instead.
+      let url = cachedUrl;
+      if (!url) {
+        setIsLoading(true);
+        url = await getShareUrl(entityType, entityId);
+        setIsLoading(false);
+        if (!url) return;
+        setCachedUrl(url);
       }
-      // Case 2: no cached URL (user clicked before hover prefetch completed, or used
-      // keyboard navigation). Skip navigator.share — open popover immediately after
-      // fetching. Avoids the silent no-op on macOS when gesture context is stale.
-      setIsLoading(true);
-      const url = await getShareUrl(entityType, entityId);
-      setIsLoading(false);
-      if (!url) return;
-      setCachedUrl(url);
       setShareUrl(url);
       setPopoverAnchor(e.currentTarget);
       return;
