@@ -4,14 +4,14 @@ import { useEffect, useRef } from "react";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 const STOPS = [
-  { lng: 139.7707, lat: 35.6654, num: 1, primary: true,  title: "Tsukiji Outer Market", subtitle: "8:00 AM · breakfast",  familyPro: false },
-  { lng: 139.7634, lat: 35.6597, num: 2, primary: false, title: "Hama-rikyu Gardens",   subtitle: "10:30 AM · stroll",   familyPro: false },
-  { lng: 139.7649, lat: 35.6720, num: 3, primary: false, title: "Ginza food halls",     subtitle: "12:00 PM · lunch",    familyPro: false },
-  { lng: 139.7634, lat: 35.6764, num: 4, primary: false, title: "Poop break",           subtitle: "1:15 PM · family-pro",familyPro: true  },
-  { lng: 139.7574, lat: 35.6852, num: 5, primary: false, title: "Imperial Palace",      subtitle: "2:30 PM · culture",   familyPro: false },
-  { lng: 139.7731, lat: 35.6984, num: 6, primary: false, title: "Akihabara",            subtitle: "4:00 PM · stop",      familyPro: false },
-  { lng: 139.7741, lat: 35.7148, num: 7, primary: false, title: "",                     subtitle: "",                    familyPro: false },
-  { lng: 139.7967, lat: 35.7148, num: 8, primary: true,  title: "Senso-ji + ramen",     subtitle: "5:30 PM · finale",    familyPro: false },
+  { lng: 139.7707, lat: 35.6654, num: 1, primary: true,  title: "Tsukiji Outer Market", subtitle: "8:00 AM · breakfast",  familyPro: false, labelSide: "right" },
+  { lng: 139.7634, lat: 35.6597, num: 2, primary: false, title: "Hama-rikyu Gardens",   subtitle: "10:30 AM · stroll",   familyPro: false, labelSide: "left"  },
+  { lng: 139.7649, lat: 35.6720, num: 3, primary: false, title: "Ginza food halls",     subtitle: "12:00 PM · lunch",    familyPro: false, labelSide: "right" },
+  { lng: 139.7634, lat: 35.6764, num: 4, primary: false, title: "Poop break",           subtitle: "1:15 PM · family-pro",familyPro: true,  labelSide: "right" },
+  { lng: 139.7574, lat: 35.6852, num: 5, primary: false, title: "Imperial Palace",      subtitle: "2:30 PM · culture",   familyPro: false, labelSide: "left"  },
+  { lng: 139.7731, lat: 35.6984, num: 6, primary: false, title: "Akihabara",            subtitle: "4:00 PM · stop",      familyPro: false, labelSide: "right" },
+  { lng: 139.7741, lat: 35.7148, num: 7, primary: false, title: "",                     subtitle: "",                    familyPro: false, labelSide: "right" },
+  { lng: 139.7967, lat: 35.7148, num: 8, primary: true,  title: "Senso-ji + ramen",     subtitle: "5:30 PM · finale",    familyPro: false, labelSide: "right" },
 ] as const;
 
 const ROUTE_COORDS = STOPS.map((s) => [s.lng, s.lat]);
@@ -44,9 +44,13 @@ function createMarkerEl(stop: (typeof STOPS)[number]): HTMLElement {
   if (stop.title) {
     const borderColor = stop.familyPro ? "#C4664A" : "#E0E0E0";
     const borderWidth = stop.familyPro ? "1.5px" : "1px";
+    const labelGap = 8;
+    const labelPositionStyle = stop.labelSide === "left"
+      ? `right:${size + labelGap}px;`
+      : `left:${size + labelGap}px;`;
     const label = document.createElement("div");
     label.style.cssText =
-      `position:absolute;left:${size + 8}px;top:50%;transform:translateY(-50%);` +
+      `position:absolute;${labelPositionStyle}top:50%;transform:translateY(-50%);` +
       `background:white;border:${borderWidth} solid ${borderColor};border-radius:6px;` +
       `padding:6px 10px;box-shadow:0 1px 3px rgba(0,0,0,0.12);white-space:nowrap;pointer-events:none;`;
 
@@ -88,9 +92,9 @@ export default function BuildATourHero() {
 
       const map = new mapboxgl.Map({
         container: containerRef.current,
-        style: "mapbox://styles/mapbox/light-v11",
-        center: [139.772, 35.69],
-        zoom: 12.2,
+        style: "mapbox://styles/mapbox/streets-v12",
+        center: [139.772, 35.685],
+        zoom: 11.2,
         interactive: false,
         attributionControl: false,
       });
@@ -106,6 +110,15 @@ export default function BuildATourHero() {
 
       // Route layers added after style loads
       map.on("load", () => {
+        const labelLayersToHide = [
+          'settlement-major-label', 'settlement-minor-label', 'settlement-subdivision-label',
+          'place-city-lg-s', 'place-city-md-s', 'place-city-sm', 'place-town',
+          'place-village', 'place-suburb', 'place-neighbourhood', 'place-hamlet',
+        ];
+        labelLayersToHide.forEach((layerId) => {
+          if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', 'none');
+        });
+
         map.addSource("hero-route", {
           type: "geojson",
           data: {
