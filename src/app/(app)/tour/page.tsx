@@ -48,6 +48,7 @@ type SavedTourEntry = {
   stopCount: number;
   transport: string;
   destinationCountry: string | null;
+  destinationDisplayName: string;
   coverImage: string | null;
 };
 
@@ -498,16 +499,16 @@ export default function TourPage() {
           <div className="mt-6" ref={tourLibraryRef}>
             <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-3">Your tours</p>
             <div className="flex flex-wrap gap-2">
-              {Object.entries(savedTours).map(([city, tours]) => (
-                <div key={city} className="relative">
+              {Object.entries(savedTours).map(([groupKey, tours]) => (
+                <div key={groupKey} className="relative">
                   <button
-                    onClick={() => setExpandedCity(expandedCity === city ? null : city)}
+                    onClick={() => setExpandedCity(expandedCity === groupKey ? null : groupKey)}
                     className="border border-gray-200 rounded-full px-3 py-1.5 text-sm text-[#1B3A5C] bg-white hover:border-[#1B3A5C] transition-colors"
                     style={{ fontFamily: "inherit" }}
                   >
-                    {city} ({tours.length})
+                    {tours[0]?.destinationDisplayName ?? groupKey} ({tours.length})
                   </button>
-                  {expandedCity === city && (
+                  {expandedCity === groupKey && (
                     <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-2 min-w-[260px]">
                       {tours.map(tour => (
                         <div key={tour.id} className="flex items-center gap-3 px-2 py-2 hover:bg-gray-50 rounded-lg">

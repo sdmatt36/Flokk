@@ -7,11 +7,80 @@ import { haversineMeters } from "@/lib/geo";
 import { optimizeRouteOrder } from "@/lib/tour-route-optimization";
 import { resolveCanonicalUrl } from "@/lib/url-resolver";
 import { aggregateTripContext, flatChildAges, describePace, topInterests } from "@/lib/trip-context-multi";
+import { DestinationType } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY ?? "";
+
+async function resolveDestinationCanonical(destinationCity: string): Promise<{
+  destinationPlaceId: string;
+  destinationName: string;
+  destinationStructured: Record<string, string>;
+  destinationType: DestinationType;
+} | null> {
+  if (!GOOGLE_API_KEY) return null;
+  try {
+    const acRes = await fetch(
+      `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(destinationCity)}&types=(cities)&language=en&key=${GOOGLE_API_KEY}`
+    );
+    const acData = await acRes.json() as {
+      status: string;
+      predictions: Array<{
+        place_id: string;
+        description: string;
+        structured_formatting: { main_text: string };
+      }>;
+    };
+    if (acData.status !== "OK" || !acData.predictions?.length) return null;
+    const top = acData.predictions[0];
+    const placeId = top.place_id;
+    const mainText = top.structured_formatting.main_text;
+
+    const detailRes = await fetch(
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=address_components,types&key=${GOOGLE_API_KEY}`
+    );
+    const detailData = await detailRes.json() as {
+      result?: {
+        address_components?: Array<{ long_name: string; short_name: string; types: string[] }>;
+        types?: string[];
+      };
+    };
+    const components = detailData.result?.address_components ?? [];
+    const placeTypes = detailData.result?.types ?? [];
+
+    const locality = components.find(c => c.types.includes("locality"));
+    const adminArea1 = components.find(c => c.types.includes("administrative_area_level_1"));
+    const countryComp = components.find(c => c.types.includes("country"));
+
+    const structured: Record<string, string> = {};
+    if (locality) {
+      structured.city = locality.long_name;
+    } else if (!placeTypes.includes("administrative_area_level_1") && !placeTypes.includes("country")) {
+      structured.island = mainText;
+    }
+    if (adminArea1) {
+      structured.state = adminArea1.long_name;
+      structured.stateShort = adminArea1.short_name;
+    }
+    if (countryComp) {
+      structured.country = countryComp.long_name;
+      structured.countryShort = countryComp.short_name;
+    }
+
+    let destinationType: DestinationType = DestinationType.CITY;
+    if (placeTypes.includes("country")) destinationType = DestinationType.COUNTRY;
+    else if (placeTypes.includes("administrative_area_level_1")) destinationType = DestinationType.STATE;
+    else if (!locality) destinationType = DestinationType.ISLAND;
+
+    return { destinationPlaceId: placeId, destinationName: top.description, destinationStructured: structured, destinationType };
+  } catch (err) {
+    console.error("[tours/generate] canonical resolution failed:", err);
+    return null;
+  }
+}
 
 interface RawStop {
   name: string;
@@ -354,6 +423,26 @@ export async function POST(req: NextRequest) {
         originalTargetStops: targetStops,
       },
     });
+
+    // Resolve canonical destination fields server-side. Non-blocking — tour generation
+    // proceeds regardless of success or failure. Populates destinationPlaceId,
+    // destinationName, destinationStructured for deduped pill display in Your Tours.
+    try {
+      const canonical = await resolveDestinationCanonical(destinationCity);
+      if (canonical) {
+        await db.generatedTour.update({
+          where: { id: tourId },
+          data: {
+            destinationPlaceId: canonical.destinationPlaceId,
+            destinationName: canonical.destinationName,
+            destinationStructured: canonical.destinationStructured,
+            destinationType: canonical.destinationType,
+          },
+        });
+      }
+    } catch (err) {
+      console.error("[tours/generate] canonical persist failed, proceeding:", err);
+    }
 
     const emitTourStopTool: Anthropic.Tool = {
       name: "emit_tour_stop",
