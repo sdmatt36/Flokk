@@ -1,3 +1,20 @@
+// Category-level fallback images for AI rec cards — used when Places enrichment returns no image.
+// Keys match the normalized category slugs from the rec schema.
+export const CATEGORY_IMAGES: Record<string, string> = {
+  food_and_drink:           "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80",
+  culture:                  "https://images.unsplash.com/photo-1528181304800-259b08848526?w=800&q=80",
+  nature_and_outdoors:      "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&q=80",
+  adventure:                "https://images.unsplash.com/photo-1551632811-561732d1e306?w=800&q=80",
+  experiences:              "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80",
+  sports_and_entertainment: "https://images.unsplash.com/photo-1471295253337-3ceaaedca402?w=800&q=80",
+  shopping:                 "https://images.unsplash.com/photo-1555529669-e69e7aa0ba9a?w=800&q=80",
+  kids_and_family:          "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=800&q=80",
+  lodging:                  "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80",
+  nightlife:                "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&q=80",
+  wellness:                 "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800&q=80",
+  other:                    "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&q=80",
+};
+
 // Curated venue-level images — checked before any dynamic source.
 // Keys are lowercase substrings; a match is found if the key appears in the item title or vice versa.
 export const VENUE_IMAGES: Record<string, string> = {
@@ -154,6 +171,13 @@ export const DESTINATION_IMAGES: Record<string, string> = {
   // South Asia
   "colombo": "https://images.unsplash.com/photo-1586500036706-41963de24d8b?w=800&q=80",
   "galle": "https://images.unsplash.com/photo-1586500036706-41963de24d8b?w=800&q=80",
+  // Sri Lanka Cultural Triangle — regional cluster anchors
+  "habarana":       "https://images.unsplash.com/photo-1545564516-b4d5d7f9c0c0?w=800&q=80",
+  "sigiriya":       "https://images.unsplash.com/photo-1566146991569-696da38bb775?w=800&q=80",
+  "dambulla":       "https://images.unsplash.com/photo-1545564516-b4d5d7f9c0c0?w=800&q=80",
+  "polonnaruwa":    "https://images.unsplash.com/photo-1545564516-b4d5d7f9c0c0?w=800&q=80",
+  "kandy":          "https://images.unsplash.com/photo-1528181304800-259b08848526?w=800&q=80",
+  "anuradhapura":   "https://images.unsplash.com/photo-1545564516-b4d5d7f9c0c0?w=800&q=80",
   "kathmandu": "https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=800&q=80",
 
   // Europe

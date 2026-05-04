@@ -341,7 +341,11 @@ Generate exactly ${aiNeeded} recommendations distributed across segments per the
       const batchResults = await Promise.all(
         batch.map(async (m) => {
           try {
-            const e = await enrichWithPlaces(m.raw.name as string, m.recCity);
+            // Pass empty city so cityMatches always returns true. Layer C 75km drop
+            // already enforces geographic bounds for rec generation. SavedItem callers
+            // continue to pass real city and are unaffected. Per Discipline 4.27
+            // (do not modify shared component, change call site only).
+            const e = await enrichWithPlaces(m.raw.name as string, "");
             return { imageUrl: e.imageUrl, placeId: e.placeId, lat: e.lat, lng: e.lng };
           } catch {
             return { imageUrl: null, placeId: null, lat: null, lng: null };

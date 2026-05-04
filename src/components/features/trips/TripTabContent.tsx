@@ -101,7 +101,7 @@ import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
 import { MODAL_OVERLAY_CLASSES, MODAL_PANEL_CLASSES } from "@/lib/modal-classes";
 import { parseDateForDisplay } from "@/lib/dates";
 import { toTitleCase } from "@/lib/utils";
-import { getTripCoverImage, getItemImage } from "@/lib/destination-images";
+import { getTripCoverImage, getItemImage, CATEGORY_IMAGES } from "@/lib/destination-images";
 import { ItemImageTile } from "@/components/shared/ItemImageTile";
 import { BookingIntelCard } from "@/components/features/trips/BookingIntelCard";
 import { BudgetPanel } from "@/components/features/trips/BudgetPanel";
@@ -5567,7 +5567,9 @@ function RecommendedContent({
           const recKey = `${rec.name.toLowerCase().trim()}|${(destinationCity ?? "").toLowerCase().trim()}`;
           const recStatus = recStatusMap.get(recKey) ?? null;
           const showRecAffordances = !recStatus || recStatus.showAffordance;
-          const cardImageUrl = rec.photoUrl ?? rec.imageUrl ?? getTripCoverImage(destinationCity, destinationCountry);
+          const cardImageUrl = rec.photoUrl ?? rec.imageUrl
+            ?? CATEGORY_IMAGES[rec.category]
+            ?? getTripCoverImage(rec.segmentCity, destinationCountry);
           return (
             <div
               key={`${rec.name}-${i}`}
