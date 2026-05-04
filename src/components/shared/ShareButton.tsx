@@ -5,7 +5,6 @@ import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
 import { ShareEntityType } from "@/lib/share-token";
 import { getShareUrl, invokeNativeShare } from "@/lib/share";
-import { SharePopover } from "./SharePopover";
 
 // Evaluated inside event handlers (client-only context) to avoid SSR mismatch.
 function isTouch(): boolean {
@@ -27,20 +26,18 @@ export function ShareButton({
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [cachedUrl, setCachedUrl] = useState<string | null>(null);
-  const [popoverAnchor, setPopoverAnchor] = useState<HTMLElement | null>(null);
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [copyToast, setCopyToast] = useState(false);
+  const [toastAnchor, setToastAnchor] = useState<DOMRect | null>(null);
   // Tracks whether a prefetch has been initiated so re-hovers don't fire duplicate fetches.
   const prefetchStarted = useRef(false);
 
   useEffect(() => {
-    if (!copyToast) return;
-    const t = setTimeout(() => setCopyToast(false), 3000);
+    if (!toastAnchor) return;
+    const t = setTimeout(() => setToastAnchor(null), 3000);
     return () => clearTimeout(t);
-  }, [copyToast]);
+  }, [toastAnchor]);
 
-  // Desktop only: prefetch token on hover so click opens the popover instantly
-  // (no fetch latency). pointerenter fires on touch too, so the isTouch guard is explicit.
+  // Desktop only: prefetch token on hover so click copies instantly (no fetch latency).
+  // pointerenter fires on touch too, so the isTouch guard is explicit.
   async function handlePointerEnter() {
     if (isTouch() || prefetchStarted.current) return;
     prefetchStarted.current = true;
@@ -48,40 +45,53 @@ export function ShareButton({
     if (url) setCachedUrl(url);
   }
 
+  async function copyAndToast(url: string, buttonEl: HTMLElement) {
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = url;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      textarea.setAttribute("readonly", "");
+      document.body.appendChild(textarea);
+      textarea.select();
+      textarea.setSelectionRange(0, url.length);
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+    setToastAnchor(buttonEl.getBoundingClientRect());
+  }
+
   async function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
     e.stopPropagation();
     if (isLoading) return;
 
-    if (!isTouch()) {
-      // ── Desktop path ─────────────────────────────────────────────────────────
-      // macOS Chrome silently no-ops navigator.share target selection regardless of
-      // gesture timing. Desktop always uses the popover menu instead.
-      let url = cachedUrl;
-      if (!url) {
-        setIsLoading(true);
-        url = await getShareUrl(entityType, entityId);
-        setIsLoading(false);
-        if (!url) return;
-        setCachedUrl(url);
-      }
-      setShareUrl(url);
-      setPopoverAnchor(e.currentTarget);
+    if (isTouch()) {
+      // ── Mobile / touch path ───────────────────────────────────────────────────
+      // iOS Safari and Android Chrome forgive the async gap before navigator.share.
+      setIsLoading(true);
+      const url = cachedUrl ?? await getShareUrl(entityType, entityId);
+      setIsLoading(false);
+      if (!url) return;
+      if (!cachedUrl) setCachedUrl(url);
+      const result = await invokeNativeShare(url, title);
+      if (result.fallback) await copyAndToast(url, e.currentTarget);
       return;
     }
 
-    // ── Mobile / touch path ───────────────────────────────────────────────────
-    // iOS Safari and Android Chrome forgive the async gap before navigator.share.
-    // Re-use cached URL if pointerenter somehow fired and completed (rare on mobile).
-    setIsLoading(true);
-    const url = cachedUrl ?? await getShareUrl(entityType, entityId);
-    setIsLoading(false);
-    if (!url) return;
-    if (!cachedUrl) setCachedUrl(url);
-    const result = await invokeNativeShare(url, title);
-    if (result.fallback) {
-      setShareUrl(url);
-      setPopoverAnchor(e.currentTarget);
+    // ── Desktop path ──────────────────────────────────────────────────────────
+    // Copy to clipboard and show anchored toast. navigator.share target selection
+    // silently no-ops on macOS Chrome regardless of gesture timing.
+    let url = cachedUrl;
+    if (!url) {
+      setIsLoading(true);
+      url = await getShareUrl(entityType, entityId);
+      setIsLoading(false);
+      if (!url) return;
+      setCachedUrl(url);
     }
+    await copyAndToast(url, e.currentTarget);
   }
 
   const baseStyle: React.CSSProperties = {
@@ -102,38 +112,31 @@ export function ShareButton({
         {isLoading ? "..." : label}
       </button>
 
-      {popoverAnchor && shareUrl && (
-        <SharePopover
-          url={shareUrl}
-          title={title}
-          anchorEl={popoverAnchor}
-          onClose={() => { setPopoverAnchor(null); setShareUrl(null); }}
-          onCopySuccess={() => setCopyToast(true)}
-        />
-      )}
-
-      {copyToast && typeof document !== "undefined" && createPortal(
+      {toastAnchor && typeof document !== "undefined" && createPortal(
         <div
           style={{
             position: "fixed",
-            bottom: "80px",
-            left: "50%",
+            top: `${toastAnchor.top - 48}px`,
+            left: `${toastAnchor.left + toastAnchor.width / 2}px`,
             transform: "translateX(-50%)",
-            backgroundColor: "#1B3A5C",
-            color: "#fff",
-            fontSize: "16px",
+            backgroundColor: "#fff",
+            border: "1.5px solid #C4664A",
+            color: "#1B3A5C",
+            fontSize: "14px",
             fontWeight: 600,
-            padding: "12px 24px",
-            borderRadius: "999px",
+            padding: "8px 14px",
+            borderRadius: "8px",
             zIndex: 10001,
             pointerEvents: "none",
             display: "flex",
             alignItems: "center",
-            gap: "8px",
+            gap: "6px",
             fontFamily: "inherit",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+            whiteSpace: "nowrap",
           }}
         >
-          <Check size={16} strokeWidth={2.5} />
+          <Check size={14} strokeWidth={2.5} color="#C4664A" />
           Link copied
         </div>,
         document.body,
