@@ -1634,14 +1634,15 @@ Field notes:
       const existingCheckIn = hotelConf ? await db.itineraryItem.findFirst({
         where: { tripId: resolvedTripId, confirmationCode: hotelConf, type: "LODGING", title: { startsWith: "Check-in:" } },
       }) : null;
-      const checkInVenueUrl = resolveCanonicalUrl({ name: hotelName, city: (extracted.city as string | null) ?? (extracted.toCity as string | null) ?? '' });
+      // Resolve hotel city before creates so toCity is persisted at write time (Discipline 4.18)
+      const hotelCity = (extracted.city as string | null) ?? (extracted.toCity as string | null) ?? "";
+      const checkInVenueUrl = resolveCanonicalUrl({ name: hotelName, city: hotelCity });
       const checkInItem = existingCheckIn
-        ? await db.itineraryItem.update({ where: { id: existingCheckIn.id }, data: { title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, arrivalTime: "15:00", address: (extracted.address as string | null) ?? null, totalCost: derivedTotalCost, currency: detectedCurrency, passengers, dayIndex: checkInDayIndex, rooms: extractedRooms ?? Prisma.JsonNull, venueUrl: checkInVenueUrl } })
+        ? await db.itineraryItem.update({ where: { id: existingCheckIn.id }, data: { title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, arrivalTime: "15:00", address: (extracted.address as string | null) ?? null, totalCost: derivedTotalCost, currency: detectedCurrency, passengers, dayIndex: checkInDayIndex, rooms: extractedRooms ?? Prisma.JsonNull, venueUrl: checkInVenueUrl, toCity: hotelCity || null } })
         : await db.itineraryItem.create({
-            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: "LODGING", title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, arrivalTime: "15:00", confirmationCode: hotelConf, address: (extracted.address as string | null) ?? null, totalCost: derivedTotalCost, currency: detectedCurrency, notes: null, passengers, dayIndex: checkInDayIndex, rooms: extractedRooms ?? Prisma.JsonNull, venueUrl: checkInVenueUrl },
+            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: "LODGING", title: `Check-in: ${hotelName}`, scheduledDate: checkInDate, arrivalTime: "15:00", confirmationCode: hotelConf, address: (extracted.address as string | null) ?? null, totalCost: derivedTotalCost, currency: detectedCurrency, notes: null, passengers, dayIndex: checkInDayIndex, rooms: extractedRooms ?? Prisma.JsonNull, venueUrl: checkInVenueUrl, toCity: hotelCity || null },
           });
       // Geocode hotel by name + city
-      const hotelCity = (extracted.city as string | null) ?? (extracted.toCity as string | null) ?? "";
       const hotelGeo = await geocodePlace(`${hotelName}${hotelCity ? " " + hotelCity : ""}`);
       if (hotelGeo) {
         await db.itineraryItem.update({ where: { id: checkInItem.id }, data: { latitude: hotelGeo.lat, longitude: hotelGeo.lng } });
@@ -1656,7 +1657,7 @@ Field notes:
         }) : null;
         const checkOutVenueUrl = resolveCanonicalUrl({ name: hotelName, city: hotelCity });
         const checkOutItem = existingCheckOut
-          ? await db.itineraryItem.update({ where: { id: existingCheckOut.id }, data: { title: `Check-out: ${hotelName}`, scheduledDate: checkOutDate, departureTime: "11:00", address: (extracted.address as string | null) ?? null, passengers, dayIndex: checkOutDayIndex, rooms: extractedRooms ?? Prisma.JsonNull, venueUrl: checkOutVenueUrl } })
+          ? await db.itineraryItem.update({ where: { id: existingCheckOut.id }, data: { title: `Check-out: ${hotelName}`, scheduledDate: checkOutDate, departureTime: "11:00", address: (extracted.address as string | null) ?? null, passengers, dayIndex: checkOutDayIndex, rooms: extractedRooms ?? Prisma.JsonNull, venueUrl: checkOutVenueUrl, toCity: hotelCity || null } })
           : await db.itineraryItem.create({
           data: {
             tripId: resolvedTripId,
@@ -1674,6 +1675,7 @@ Field notes:
             dayIndex: checkOutDayIndex,
             rooms: extractedRooms ?? Prisma.JsonNull,
             venueUrl: checkOutVenueUrl,
+            toCity: hotelCity || null,
           },
         });
         if (hotelGeo) await db.itineraryItem.update({ where: { id: checkOutItem.id }, data: { latitude: hotelGeo.lat, longitude: hotelGeo.lng } });

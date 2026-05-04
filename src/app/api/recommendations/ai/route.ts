@@ -44,6 +44,7 @@ export type FetchedRec = {
   lat: number | null;
   lng: number | null;
   segmentCity: string | null;
+  segmentIndex: number | null;
   proximityLabel: string | null;
   avgRating?: number;
 };
@@ -191,6 +192,7 @@ export async function GET(req: NextRequest) {
       lat: s.lat,
       lng: s.lng,
       segmentCity: flokkerSegmentCity,
+      segmentIndex: null,
       proximityLabel: null,
       avgRating: s.avgRating,
     };
@@ -211,10 +213,11 @@ export async function GET(req: NextRequest) {
   const systemPrompt = `You are a family travel recommendation engine. You receive structured trip context with segments, planned activities, family profile, and historical preferences. Return ONLY valid JSON — no markdown, no preamble.
 
 CRITICAL REQUIREMENTS:
-1. Each recommendation must include segmentCity matching exactly one of the trip's segment cities
+1. Each recommendation must include segmentIndex (1-based integer) matching the segment number in the user prompt
 2. Do NOT duplicate already-planned or already-saved items: ${alreadyNamed.join(", ")}
 3. Each recommendation must be a unique physical place — never multiple recommendations for the same venue with different framings
-4. Past loved places and broader saves are TASTE SIGNALS, not items to match. Reason about the family's preferences from these patterns and apply those preferences to THIS trip. Do NOT recommend literal equivalents. Recommend things in THIS trip's destination cities that fit the INFERRED preference patterns.
+4. Past loved places and broader saves are TASTE SIGNALS, not items to match. Reason about the family's preferences from these patterns and apply those preferences to THIS trip. Do NOT recommend literal equivalents. Recommend things near each segment's anchor that fit the INFERRED preference patterns.
+5. Each recommendation must be physically located within 75km drive of its segment's anchor coordinates. If you cannot find enough venues within this radius, generate fewer rather than include venues outside the radius.
 
 Generate exactly ${aiNeeded} recommendations distributed across segments per the allocation in the user message.`;
 
@@ -222,7 +225,9 @@ Generate exactly ${aiNeeded} recommendations distributed across segments per the
     `This family is on a ${durationDays}-day trip with ${segsForPrompt.length} segment${segsForPrompt.length !== 1 ? "s" : ""} based on their actual bookings:`,
     "",
     ...segsForPrompt.map((s, i) =>
-      `Segment ${i + 1}: Days ${s.dayStart}–${s.dayEnd} (${s.nights} nights) staying at ${s.lodgingName} in ${s.city}. Generate ${s.recAllocation} recommendations for this segment, near ${s.lodgingName}.`
+      s.lodgingLat != null && s.lodgingLng != null
+        ? `Segment ${i + 1}: Days ${s.dayStart}–${s.dayEnd} (${s.nights} nights) at ${s.lodgingName} (anchor: ${s.lodgingLat.toFixed(4)}, ${s.lodgingLng.toFixed(4)}, 75km radius). Generate ${s.recAllocation} recommendations within this radius. segmentIndex: ${i + 1}.`
+        : `Segment ${i + 1}: Days ${s.dayStart}–${s.dayEnd} (${s.nights} nights) at ${s.lodgingName} in ${s.city}. Generate ${s.recAllocation} recommendations near ${s.lodgingName}. segmentIndex: ${i + 1}.`
     ),
     "",
     richContext.transitItems.length > 0
@@ -262,13 +267,13 @@ Generate exactly ${aiNeeded} recommendations distributed across segments per the
     "",
     "These reveal what kinds of experiences resonate with this family. Reason about the patterns (e.g. 'walkable urban exploration', 'food markets and local cuisine', 'family-scale entertainment', 'outdoor activity in nature', 'immersive cultural experiences') and apply those patterns to recommendations for THIS trip's segment cities. Do NOT recommend literal equivalents.",
     "",
-    `Generate exactly ${aiNeeded} recommendations distributed per segment allocations above. Each rec MUST specify segmentCity from this set: ${richContext.segments.map(s => s.city).join(", ")}.`,
+    `Generate exactly ${aiNeeded} recommendations distributed per segment allocations above. Each rec MUST include segmentIndex (1-based integer) matching the segment number above.`,
     "",
     "Return JSON array. Each rec:",
     "{",
     '  "name": string,',
     '  "category": string (exactly one of: food_and_drink, culture, nature_and_outdoors, adventure, experiences, sports_and_entertainment, shopping, kids_and_family, lodging, nightlife, wellness, other),',
-    `  "segmentCity": string (REQUIRED — must match a segment city exactly: ${richContext.segments.map(s => `"${s.city}"`).join(" or ")}),`,
+    `  "segmentIndex": integer (REQUIRED — 1-based, must match the segment number from the prompt: 1 to ${segsForPrompt.length}),`,
     `  "whyThisFamily": string (specific reasoning for ${aggCtx.isMultiFamily ? "these families'" : "this family's"} inferred patterns or trip context),`,
     '  "ageAppropriate": boolean,',
     '  "budgetTier": string (one of: Free, Budget, Mid, Premium, Luxury),',
@@ -310,9 +315,13 @@ Generate exactly ${aiNeeded} recommendations distributed across segments per the
 
     // Parse and prepare rec metadata (cheap, sequential)
     const recMeta = (arr as Array<Record<string, unknown>>).map(r => {
-      const recCity = typeof r.segmentCity === "string" ? r.segmentCity : (trip.destinationCity ?? "");
+      // Derive city from segmentIndex (1-based) — falls back to segmentCity string then destinationCity
+      const segIdx = typeof r.segmentIndex === "number" ? Math.round(r.segmentIndex) - 1 : -1;
+      const recSegment = segIdx >= 0 && segIdx < segsForPrompt.length ? segsForPrompt[segIdx] : null;
+      const recCity = recSegment?.city ?? (typeof r.segmentCity === "string" ? r.segmentCity : (trip.destinationCity ?? ""));
       return {
         raw: r,
+        segIdx,
         category: normalizeCategorySlug(r.category as string | null) ?? "other",
         recCity,
         websiteUrl: (r.websiteUrl as string | null) ?? resolveCanonicalUrl({
@@ -360,7 +369,8 @@ Generate exactly ${aiNeeded} recommendations distributed across segments per the
         placeId: enriched.placeId,
         lat: enriched.lat,
         lng: enriched.lng,
-        segmentCity: typeof m.raw.segmentCity === "string" ? m.raw.segmentCity : null,
+        segmentCity: m.recCity || null,
+        segmentIndex: m.segIdx >= 0 ? m.segIdx + 1 : null,
         proximityLabel: null,
         photoUrl: enriched.imageUrl,
       });
@@ -375,10 +385,34 @@ Generate exactly ${aiNeeded} recommendations distributed across segments per the
     });
   }
 
-  const recommendations: FetchedRec[] = [...eventRecs, ...flokkerRecs, ...aiRawRecs].map(rec => {
-    const segment = rec.segmentCity
-      ? richContext.segments.find(s => s.city.toLowerCase() === rec.segmentCity!.toLowerCase())
-      : null;
+  // Layer C: Drop AI recs beyond 75km drive from segment lodging anchor (defensive layer)
+  const MAX_REC_KM = 75;
+  const filteredAiRecs = aiRawRecs.filter(rec => {
+    if (!rec.lat || !rec.lng) return true;
+    const segArrayIdx = rec.segmentIndex != null ? rec.segmentIndex - 1 : -1;
+    const seg = segArrayIdx >= 0 && segArrayIdx < richContext.segments.length
+      ? richContext.segments[segArrayIdx]
+      : rec.segmentCity
+        ? richContext.segments.find(s => s.city.toLowerCase() === rec.segmentCity!.toLowerCase())
+        : null;
+    if (!seg || seg.lodgingLat == null || seg.lodgingLng == null) return true;
+    const km = haversineKm({ lat: rec.lat, lng: rec.lng }, { lat: seg.lodgingLat, lng: seg.lodgingLng });
+    if (km > MAX_REC_KM) {
+      console.log(`[recommendations/ai] Layer C dropped "${rec.name}" (${km.toFixed(1)}km from ${seg.lodgingName})`);
+      return false;
+    }
+    return true;
+  });
+  const limitedResults = filteredAiRecs.length < 3 && aiNeeded > 0;
+
+  const recommendations: FetchedRec[] = [...eventRecs, ...flokkerRecs, ...filteredAiRecs].map(rec => {
+    // Prefer segmentIndex-based lookup so two same-city segments resolve independently
+    const segArrayIdx = rec.segmentIndex != null ? rec.segmentIndex - 1 : -1;
+    const segment = segArrayIdx >= 0 && segArrayIdx < richContext.segments.length
+      ? richContext.segments[segArrayIdx]
+      : rec.segmentCity
+        ? richContext.segments.find(s => s.city.toLowerCase() === rec.segmentCity!.toLowerCase())
+        : null;
 
     if (!segment || segment.lodgingLat == null || segment.lodgingLng == null) {
       return { ...rec, proximityLabel: null };
@@ -428,10 +462,11 @@ Generate exactly ${aiNeeded} recommendations distributed across segments per the
 
   console.log("[recommendations]", {
     tripId,
-    sources: { event: eventRecs.length, flokker: flokkerRecs.length, ai: aiRawRecs.length },
+    sources: { event: eventRecs.length, flokker: flokkerRecs.length, ai: aiRawRecs.length, aiAfterLayerC: filteredAiRecs.length },
     total: recommendations.length,
     aiGenerationSucceeded,
     aiNeeded,
+    limitedResults,
     willCache: shouldCache,
   });
 
@@ -450,5 +485,6 @@ Generate exactly ${aiNeeded} recommendations distributed across segments per the
     recommendations,
     cached: false,
     aiGenerationFailed: !aiGenerationSucceeded && aiNeeded > 0,
+    limitedResults,
   });
 }

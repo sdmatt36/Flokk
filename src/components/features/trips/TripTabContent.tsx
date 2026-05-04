@@ -5414,6 +5414,7 @@ function RecommendedContent({
   const [itinStates, setItinStates] = useState<Record<string, "idle" | "loading" | "done" | "error">>({});
   const [recStatusMap, setRecStatusMap] = useState<Map<string, EntityStatusResult>>(new Map());
   const [loadingPhase, setLoadingPhase] = useState<"initial" | "venues" | "almost">("initial");
+  const [aiLimitedResults, setAiLimitedResults] = useState(false);
 
   useEffect(() => {
     if (!aiLoading) return;
@@ -5457,8 +5458,9 @@ function RecommendedContent({
     setAiLoading(true);
     fetch(`/api/recommendations/ai?tripId=${encodeURIComponent(tripId)}`)
       .then(r => r.json())
-      .then((data: { recommendations: FetchedRec[] }) => {
+      .then((data: { recommendations: FetchedRec[]; limitedResults?: boolean }) => {
         setAiRecs(Array.isArray(data.recommendations) ? data.recommendations : []);
+        setAiLimitedResults(data.limitedResults ?? false);
       })
       .catch(() => {})
       .finally(() => setAiLoading(false));
@@ -5551,6 +5553,12 @@ function RecommendedContent({
         <div style={{ fontSize: "18px", fontWeight: 700, color: "#1a1a1a", marginBottom: "6px" }}>Recommended for your trip</div>
         <div style={{ fontSize: "13px", color: "#717171" }}>Based on your family&apos;s interests, travel style, and past saves</div>
       </div>
+
+      {aiLimitedResults && (
+        <div style={{ fontSize: "13px", color: "#717171", padding: "10px 14px", background: "#FAFAFA", border: "1px solid #E8E8E8", borderRadius: "8px", marginBottom: "20px" }}>
+          Limited recommendations available for this destination. More may appear as your trip details are added.
+        </div>
+      )}
 
       {/* AI rec cards */}
       <div style={{ display: "grid", gridTemplateColumns: isDesktop ? "repeat(2, 1fr)" : "1fr", gap: "16px" }}>

@@ -2,7 +2,7 @@ import crypto from "crypto";
 
 // Bump this when deriveSegments, allocateRecCounts, or rec prompt assembly
 // changes in a way that should invalidate all cached recs. Per Discipline 4.27.
-const REC_CONTEXT_SCHEMA_VERSION = 2;
+const REC_CONTEXT_SCHEMA_VERSION = 3;
 
 export type TripContext = {
   tripId: string;
