@@ -7,6 +7,11 @@ import { ShareEntityType } from "@/lib/share-token";
 import { getShareUrl, invokeNativeShare } from "@/lib/share";
 import { SharePopover } from "./SharePopover";
 
+// Evaluated inside event handlers (client-only context) to avoid SSR mismatch.
+function isTouch(): boolean {
+  return typeof window !== "undefined" && ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+}
+
 export function ShareButton({
   entityType,
   entityId,
@@ -21,34 +26,72 @@ export function ShareButton({
   style?: React.CSSProperties;
 }) {
   const [isLoading, setIsLoading] = useState(false);
+  const [cachedUrl, setCachedUrl] = useState<string | null>(null);
   const [popoverAnchor, setPopoverAnchor] = useState<HTMLElement | null>(null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copyToast, setCopyToast] = useState(false);
-  const btnRef = useRef<HTMLButtonElement>(null);
+  // Tracks whether a prefetch has been initiated so re-hovers don't fire duplicate fetches.
+  const prefetchStarted = useRef(false);
 
-  // Auto-dismiss copy toast after 3 seconds
   useEffect(() => {
     if (!copyToast) return;
     const t = setTimeout(() => setCopyToast(false), 3000);
     return () => clearTimeout(t);
   }, [copyToast]);
 
+  // Desktop only: prefetch token on hover so the click-time navigator.share call
+  // has no async gap and the macOS user-activation gesture chain stays intact.
+  // pointerenter fires on touch devices too (at touchstart), so the isTouchDevice
+  // guard is explicit.
+  async function handlePointerEnter() {
+    if (isTouch() || prefetchStarted.current) return;
+    prefetchStarted.current = true;
+    const url = await getShareUrl(entityType, entityId);
+    if (url) setCachedUrl(url);
+  }
+
   async function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
     e.stopPropagation();
     if (isLoading) return;
 
+    if (!isTouch()) {
+      // ── Desktop path ─────────────────────────────────────────────────────────
+      // Case 1: hover prefetch completed → call navigator.share synchronously.
+      // No async gap means the macOS gesture chain is intact and target selection works.
+      if (cachedUrl) {
+        const result = await invokeNativeShare(cachedUrl, title);
+        if (result.fallback) {
+          setShareUrl(cachedUrl);
+          setPopoverAnchor(e.currentTarget);
+        }
+        return;
+      }
+      // Case 2: no cached URL (user clicked before hover prefetch completed, or used
+      // keyboard navigation). Skip navigator.share — open popover immediately after
+      // fetching. Avoids the silent no-op on macOS when gesture context is stale.
+      setIsLoading(true);
+      const url = await getShareUrl(entityType, entityId);
+      setIsLoading(false);
+      if (!url) return;
+      setCachedUrl(url);
+      setShareUrl(url);
+      setPopoverAnchor(e.currentTarget);
+      return;
+    }
+
+    // ── Mobile / touch path ───────────────────────────────────────────────────
+    // iOS Safari and Android Chrome forgive the async gap before navigator.share.
+    // Re-use cached URL if pointerenter somehow fired and completed (rare on mobile).
     setIsLoading(true);
-    const url = await getShareUrl(entityType, entityId);
+    const url = cachedUrl ?? await getShareUrl(entityType, entityId);
     setIsLoading(false);
-
     if (!url) return;
-
+    if (!cachedUrl) setCachedUrl(url);
     const result = await invokeNativeShare(url, title);
     if (result.fallback) {
       setShareUrl(url);
       setPopoverAnchor(e.currentTarget);
     }
-    // shared or cancelled: nothing to do
   }
 
   const baseStyle: React.CSSProperties = {
@@ -65,7 +108,7 @@ export function ShareButton({
 
   return (
     <>
-      <button ref={btnRef} onClick={handleClick} style={baseStyle}>
+      <button onPointerEnter={handlePointerEnter} onClick={handleClick} style={baseStyle}>
         {isLoading ? "..." : label}
       </button>
 
