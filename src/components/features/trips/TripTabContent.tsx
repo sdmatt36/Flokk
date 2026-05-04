@@ -1161,6 +1161,31 @@ function EventSavedCard({ item }: { item: SavedDisplayItem }) {
 
 const SAVED_FILTER_PILLS = ["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Kids Camps", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other", "Unorganized"];
 
+function cardActionRow({ onShare, onEdit, onRemove, removeLabel = "Remove" }: {
+  onShare?: (() => void) | null;
+  onEdit?: (() => void) | null;
+  onRemove?: (() => void) | null;
+  removeLabel?: string;
+}) {
+  if (!onShare && !onEdit && !onRemove) return null;
+  return (
+    <div
+      onClick={e => e.stopPropagation()}
+      style={{ display: "flex", gap: "12px", alignItems: "center", marginTop: "10px", paddingTop: "8px", borderTop: "1px solid rgba(0,0,0,0.06)" }}
+    >
+      {onShare && (
+        <button onClick={e => { e.stopPropagation(); onShare(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#C4664A", padding: 0, fontSize: "12px", fontWeight: 600, fontFamily: "inherit" }}>Share</button>
+      )}
+      {onEdit && (
+        <button onClick={e => { e.stopPropagation(); onEdit(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#888", padding: 0, fontSize: "12px", fontWeight: 500, fontFamily: "inherit" }}>Edit</button>
+      )}
+      {onRemove && (
+        <button onClick={e => { e.stopPropagation(); onRemove(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#bbb", padding: 0, fontSize: "12px", fontFamily: "inherit" }}>{removeLabel}</button>
+      )}
+    </div>
+  );
+}
+
 function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDelete, onShare }: {
   item: SavedDisplayItem;
   onAddToItinerary: () => void;
@@ -1189,22 +1214,6 @@ function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDel
       onClick={onLearnMore}
       style={{ cursor: "pointer", position: "relative", backgroundColor: "#FAFAFA", borderRadius: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", overflow: "hidden" }}
     >
-      {/* Share + Delete buttons */}
-      {(onShare || onDelete) && (
-        <div className="absolute top-2 right-2 z-10 flex gap-1">
-          {onShare && (
-            <button onClick={(e) => { e.stopPropagation(); onShare(); }} className="bg-white/90 backdrop-blur-sm rounded-full shadow-sm border border-gray-100" style={{ padding: "5px", lineHeight: 0, cursor: "pointer" }}>
-              <Share2 size={13} style={{ color: "#C4664A" }} />
-            </button>
-          )}
-          {onDelete && (
-            <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="bg-white/90 backdrop-blur-sm rounded-full shadow-sm border border-gray-100" style={{ padding: "5px", lineHeight: 0, cursor: "pointer" }}>
-              <Trash2 size={13} style={{ color: "#9ca3af" }} />
-            </button>
-          )}
-        </div>
-      )}
-
       {/* Image */}
       {hasImg ? (
         <div style={{ height: "160px", backgroundImage: `url(${item.img})`, backgroundSize: "cover", backgroundPosition: "center", position: "relative" }}>
@@ -1252,6 +1261,16 @@ function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDel
             </a>
           )}
         </div>
+        {(onShare || onDelete) && (
+          <div onClick={e => e.stopPropagation()} style={{ display: "flex", gap: "8px", marginTop: "10px", paddingTop: "8px", borderTop: "1px solid rgba(0,0,0,0.06)" }}>
+            {onShare && (
+              <button onClick={(e) => { e.stopPropagation(); onShare(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#C4664A", padding: 0, fontSize: "12px", fontWeight: 600, fontFamily: "inherit" }}>Share</button>
+            )}
+            {onDelete && (
+              <button onClick={(e) => { e.stopPropagation(); onDelete(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 0, fontSize: "12px", fontFamily: "inherit" }}>Delete</button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -3301,64 +3320,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                               <div style={{ width: "52px", height: "52px", borderRadius: "8px", flexShrink: 0, backgroundImage: `url('${a.img}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
                                             )}
                                             <div style={{ flex: 1, minWidth: 0 }}>
-                                              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
-                                                <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{a.title}</p>
-                                                {a.savedItemId && (
-                                                  <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
-                                                    <button
-                                                      onClick={async e => {
-                                                        e.stopPropagation();
-                                                        const result = await shareEntity({ entityType: "saved_item", entityId: a.savedItemId! });
-                                                        if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); }
-                                                      }}
-                                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#C4664A", padding: "2px", lineHeight: 1, fontSize: "11px", fontFamily: "inherit" }}
-                                                      title="Share"
-                                                    >
-                                                      Share
-                                                    </button>
-                                                    <button
-                                                      onClick={async e => {
-                                                        e.stopPropagation();
-                                                        const isLodging = /lodging|accommodation|hotel|airbnb|hostel/i.test((a.categoryTags ?? []).join(" "));
-                                                        try {
-                                                          const res = await fetch(`/api/saves/${a.savedItemId}`);
-                                                          const data = await res.json() as { item: { rawTitle: string | null; extractedCheckin: string | null; extractedCheckout: string | null; websiteUrl: string | null; notes: string | null } };
-                                                          const it = data.item;
-                                                          if (isLodging) {
-                                                            setEditingLodging({ id: a.savedItemId!, rawTitle: it.rawTitle ?? a.title, extractedCheckin: it.extractedCheckin ?? "", extractedCheckout: it.extractedCheckout ?? "", websiteUrl: it.websiteUrl ?? "", notes: it.notes ?? "" });
-                                                          } else {
-                                                            let actDate = "";
-                                                            if (tripStartDate && a.dayIndex != null) {
-                                                              try {
-                                                                const s = new Date(tripStartDate + "T12:00:00");
-                                                                s.setDate(s.getDate() + a.dayIndex);
-                                                                actDate = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(s.getDate()).padStart(2, "0")}`;
-                                                              } catch { /* ignore */ }
-                                                            }
-                                                            onEditSavedActivity?.({ id: a.savedItemId!, title: it.rawTitle ?? a.title, date: actDate, time: null, endTime: null, venueName: null, address: null, website: it.websiteUrl ?? null, price: null, currency: null, notes: it.notes ?? null, status: "interested", confirmationCode: null, lat: a.lat ?? null, lng: a.lng ?? null });
-                                                          }
-                                                        } catch { /* ignore */ }
-                                                      }}
-                                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#999", padding: "2px", lineHeight: 1 }}
-                                                      title="Edit"
-                                                    >
-                                                      <Pencil size={14} />
-                                                    </button>
-                                                    <button
-                                                      onClick={async e => {
-                                                        e.stopPropagation();
-                                                        if (!confirm(`Delete "${a.title}"? This cannot be undone.`)) return;
-                                                        await fetch(`/api/saves/${a.savedItemId}`, { method: "DELETE" });
-                                                        setRecAdditions(prev => prev.filter(r => r.savedItemId !== a.savedItemId));
-                                                      }}
-                                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px", lineHeight: 1 }}
-                                                      title="Delete"
-                                                    >
-                                                      <Trash2 size={14} />
-                                                    </button>
-                                                  </div>
-                                                )}
-                                              </div>
+                                              <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{a.title}</p>
                                               {(() => {
                                                 const loc = a.location ?? "";
                                                 const arrMatch = loc.match(/arrives\s+(\d{1,2}:\d{2})/i);
@@ -3383,6 +3345,36 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                   {a.isBooked ? "Booked ✓" : "Added"}
                                                 </span>
                                               </div>
+                                              {a.savedItemId && cardActionRow({
+                                                onShare: async () => { const result = await shareEntity({ entityType: "saved_item", entityId: a.savedItemId! }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } },
+                                                onEdit: async () => {
+                                                  const isLodging = /lodging|accommodation|hotel|airbnb|hostel/i.test((a.categoryTags ?? []).join(" "));
+                                                  try {
+                                                    const res = await fetch(`/api/saves/${a.savedItemId}`);
+                                                    const data = await res.json() as { item: { rawTitle: string | null; extractedCheckin: string | null; extractedCheckout: string | null; websiteUrl: string | null; notes: string | null } };
+                                                    const it = data.item;
+                                                    if (isLodging) {
+                                                      setEditingLodging({ id: a.savedItemId!, rawTitle: it.rawTitle ?? a.title, extractedCheckin: it.extractedCheckin ?? "", extractedCheckout: it.extractedCheckout ?? "", websiteUrl: it.websiteUrl ?? "", notes: it.notes ?? "" });
+                                                    } else {
+                                                      let actDate = "";
+                                                      if (tripStartDate && a.dayIndex != null) {
+                                                        try {
+                                                          const s = new Date(tripStartDate + "T12:00:00");
+                                                          s.setDate(s.getDate() + a.dayIndex);
+                                                          actDate = `${s.getFullYear()}-${String(s.getMonth() + 1).padStart(2, "0")}-${String(s.getDate()).padStart(2, "0")}`;
+                                                        } catch { /* ignore */ }
+                                                      }
+                                                      onEditSavedActivity?.({ id: a.savedItemId!, title: it.rawTitle ?? a.title, date: actDate, time: null, endTime: null, venueName: null, address: null, website: it.websiteUrl ?? null, price: null, currency: null, notes: it.notes ?? null, status: "interested", confirmationCode: null, lat: a.lat ?? null, lng: a.lng ?? null });
+                                                    }
+                                                  } catch { /* ignore */ }
+                                                },
+                                                onRemove: async () => {
+                                                  if (!confirm(`Delete "${a.title}"? This cannot be undone.`)) return;
+                                                  await fetch(`/api/saves/${a.savedItemId}`, { method: "DELETE" });
+                                                  setRecAdditions(prev => prev.filter(r => r.savedItemId !== a.savedItemId));
+                                                },
+                                                removeLabel: "Delete",
+                                              })}
                                             </div>
                                           </div>
                                         );
@@ -3441,31 +3433,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                               <Compass size={12} style={{ color: "#6B8F71" }} />
                                             </div>
                                             <div style={{ flex: 1, minWidth: 0 }}>
-                                              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px" }}>
-                                                <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{a.title}</p>
-                                                <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
-                                                  <button
-                                                    onClick={async e => {
-                                                      e.stopPropagation();
-                                                      const result = await shareEntity({ entityType: "manual_activity", entityId: a.id });
-                                                      if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); }
-                                                    }}
-                                                    style={{ background: "none", border: "none", cursor: "pointer", color: "#C4664A", padding: "2px", lineHeight: 1, fontSize: "11px", fontFamily: "inherit" }}
-                                                    title="Share"
-                                                  >
-                                                    Share
-                                                  </button>
-                                                  {onEditActivity && (
-                                                    <button
-                                                      onClick={e => { e.stopPropagation(); onEditActivity(a); }}
-                                                      style={{ background: "none", border: "none", cursor: "pointer", color: "#666", padding: "2px", lineHeight: 1 }}
-                                                      title="Edit activity"
-                                                    >
-                                                      <Pencil size={16} />
-                                                    </button>
-                                                  )}
-                                                </div>
-                                              </div>
+                                              <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{a.title}</p>
                                               {(a.time || a.venueName) && (
                                                 <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }}>{a.time ?? ""}{a.endTime ? ` – ${a.endTime}` : ""}{a.venueName ? ` · ${a.venueName}` : ""}</p>
                                               )}
@@ -3487,9 +3455,12 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                               {noLocationIds.has(a.id) && (
                                                 <p style={{ fontSize: "11px", color: "#AAAAAA", marginTop: "4px" }}>No location — add an address to show on map</p>
                                               )}
-                                              {onDeleteActivity && (
-                                                <button onClick={e => { e.stopPropagation(); if (window.confirm("Delete this activity permanently?")) onDeleteActivity(a.id); }} style={{ fontSize: "11px", color: "#e53e3e", fontWeight: 500, background: "none", border: "none", cursor: "pointer", padding: "4px 0 0" }}>Delete</button>
-                                              )}
+                                              {cardActionRow({
+                                                onShare: async () => { const result = await shareEntity({ entityType: "manual_activity", entityId: a.id }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } },
+                                                onEdit: onEditActivity ? () => onEditActivity(a) : null,
+                                                onRemove: onDeleteActivity ? () => { if (window.confirm("Delete this activity permanently?")) onDeleteActivity(a.id); } : null,
+                                                removeLabel: "Delete",
+                                              })}
                                             </div>
                                           </div>
                                         );
@@ -3500,16 +3471,6 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                         // Shared card shell: white bg, terracotta left border, no icon/emoji
                                         const cardStyle: React.CSSProperties = { flex: 1, backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderLeft: "3px solid #C4664A", borderRadius: "12px", padding: "12px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
                                         const bookedBadge = <span style={{ fontSize: "11px", fontWeight: 600, backgroundColor: "rgba(74,124,89,0.1)", color: "#4a7c59", borderRadius: "999px", padding: "2px 8px" }}>Booked</span>;
-                                        const pencilBtn = (onClick: () => void) => (
-                                          <button onClick={e => { e.stopPropagation(); onClick(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px", flexShrink: 0 }} title="Edit">
-                                            <Pencil size={14} />
-                                          </button>
-                                        );
-                                        const shareBtn = (entityId: string) => (
-                                          <button onClick={async e => { e.stopPropagation(); const result = await shareEntity({ entityType: "itinerary_item", entityId }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } }} style={{ background: "white", border: "1px solid rgba(196,102,74,0.3)", borderRadius: "6px", cursor: "pointer", color: "#C4664A", padding: "4px 10px", flexShrink: 0, fontSize: "12px", fontWeight: 600, fontFamily: "inherit" }}>
-                                            Share
-                                          </button>
-                                        );
                                         function formatDateShort(d: string | null): string | null {
                                           if (!d) return null;
                                           try {
@@ -3539,7 +3500,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                             : null;
                                           return (
                                             <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => setSelectedItineraryItem(it)}>
-                                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                                              <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                   <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{route}</p>
                                                   {airlineLabel && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "3px" }}>{airlineLabel}</p>}
@@ -3551,14 +3512,14 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                     {bookedBadge}
                                                     {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {it.confirmationCode}</span>}
                                                     {paxLabel && <span style={{ fontSize: "11px", color: "#999" }}>{paxLabel}</span>}
-                                                    <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#e53e3e", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                                   </div>
                                                 </div>
-                                                <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
-                                                  {shareBtn(it.id)}
-                                                  {matchFlight && pencilBtn(() => setEditingFlight(matchFlight))}
-                                                </div>
                                               </div>
+                                              {cardActionRow({
+                                                onShare: async () => { const result = await shareEntity({ entityType: "itinerary_item", entityId: it.id }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } },
+                                                onEdit: matchFlight ? () => setEditingFlight(matchFlight) : null,
+                                                onRemove: () => { if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); },
+                                              })}
                                             </div>
                                           );
                                         }
@@ -3578,7 +3539,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                           const lodgingStatusBadge = <span style={{ fontSize: "11px", fontWeight: 600, backgroundColor: lodgStatusBg, color: lodgStatusColor, borderRadius: "999px", padding: "2px 8px" }}>{lodgStatusLabel}</span>;
                                           return (
                                             <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => setSelectedItineraryItem(it)}>
-                                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                                              <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
                                                 <ItemImageTile src={it.imageUrl} title={it.title} variant="card" />
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                   <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{hotelName}</p>
@@ -3591,14 +3552,14 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                     {lodgingStatusBadge}
                                                     {(it.confirmationCode || it.additionalConfirmations?.length) && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {[it.confirmationCode, ...(it.additionalConfirmations ?? [])].filter(Boolean).join(" · ")}</span>}
                                                     {costLabel && <span style={{ fontSize: "11px", color: "#999" }}>{costLabel}</span>}
-                                                    <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                                   </div>
                                                 </div>
-                                                <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
-                                                  {shareBtn(it.id)}
-                                                  {pencilBtn(() => setSelectedItineraryItem(it))}
-                                                </div>
                                               </div>
+                                              {cardActionRow({
+                                                onShare: async () => { const result = await shareEntity({ entityType: "itinerary_item", entityId: it.id }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } },
+                                                onEdit: () => setSelectedItineraryItem(it),
+                                                onRemove: () => { if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); },
+                                              })}
                                             </div>
                                           );
                                         }
@@ -3611,7 +3572,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                           const arrTime = it.arrivalTime ? (formatTime(it.arrivalTime) ?? it.arrivalTime) : null;
                                           return (
                                             <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => setSelectedItineraryItem(it)}>
-                                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                                              <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
                                                 <div style={{ flex: 1, minWidth: 0 }}>
                                                   <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{trainRoute}</p>
                                                   {operator && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "3px" }}>{operator}</p>}
@@ -3624,14 +3585,14 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                   <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
                                                     {bookedBadge}
                                                     {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {it.confirmationCode}</span>}
-                                                    <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                                   </div>
                                                 </div>
-                                                <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
-                                                  {shareBtn(it.id)}
-                                                  {pencilBtn(() => setSelectedItineraryItem(it))}
-                                                </div>
                                               </div>
+                                              {cardActionRow({
+                                                onShare: async () => { const result = await shareEntity({ entityType: "itinerary_item", entityId: it.id }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } },
+                                                onEdit: () => setSelectedItineraryItem(it),
+                                                onRemove: () => { if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); },
+                                              })}
                                             </div>
                                           );
                                         }
@@ -3641,7 +3602,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                         const isActivity = it.type === "ACTIVITY";
                                         return (
                                           <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => { if (it.type === "ACTIVITY") setEditActivityTitle(it.title ?? ""); setSelectedItineraryItem(it); }}>
-                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                                            <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
                                               <ItemImageTile src={it.imageUrl} title={it.title} variant="card" />
                                               <div style={{ flex: 1, minWidth: 0 }}>
                                                 <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{it.title}</p>
@@ -3651,14 +3612,14 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                   {!isActivity && <span style={{ fontSize: "11px", color: "#999" }}>{typeLabel}</span>}
                                                   {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>Conf: {it.confirmationCode}</span>}
                                                   {it.totalCost != null && <span style={{ fontSize: "11px", color: "#999" }}>{it.currency ?? ""} {it.totalCost.toLocaleString()}</span>}
-                                                  <button onClick={e => { e.stopPropagation(); e.preventDefault(); if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); }} style={{ fontSize: "11px", color: "#bbb", background: "none", border: "none", padding: 0, cursor: "pointer", marginLeft: "2px" }}>Remove</button>
                                                 </div>
                                               </div>
-                                              <div style={{ display: "flex", gap: "2px", flexShrink: 0 }}>
-                                                {shareBtn(it.id)}
-                                                {pencilBtn(() => { if (it.type === "ACTIVITY") setEditActivityTitle(it.title ?? ""); setSelectedItineraryItem(it); })}
-                                              </div>
                                             </div>
+                                            {cardActionRow({
+                                              onShare: async () => { const result = await shareEntity({ entityType: "itinerary_item", entityId: it.id }); if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); } },
+                                              onEdit: () => { if (it.type === "ACTIVITY") setEditActivityTitle(it.title ?? ""); setSelectedItineraryItem(it); },
+                                              onRemove: () => { if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); },
+                                            })}
                                           </div>
                                         );
                                       })()}
