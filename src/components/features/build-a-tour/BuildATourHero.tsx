@@ -93,8 +93,6 @@ export default function BuildATourHero() {
       const map = new mapboxgl.Map({
         container: containerRef.current,
         style: "mapbox://styles/mapbox/streets-v12",
-        center: [139.772, 35.685],
-        zoom: 11.2,
         interactive: false,
         attributionControl: false,
       });
@@ -110,13 +108,46 @@ export default function BuildATourHero() {
 
       // Route layers added after style loads
       map.on("load", () => {
-        const labelLayersToHide = [
-          'settlement-major-label', 'settlement-minor-label', 'settlement-subdivision-label',
-          'place-city-lg-s', 'place-city-md-s', 'place-city-sm', 'place-town',
-          'place-village', 'place-suburb', 'place-neighbourhood', 'place-hamlet',
-        ];
-        labelLayersToHide.forEach((layerId) => {
-          if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', 'none');
+        const bounds = STOPS.reduce(
+          (b, s) => b.extend([s.lng, s.lat]),
+          new mapboxgl.LngLatBounds(
+            [STOPS[0].lng, STOPS[0].lat],
+            [STOPS[0].lng, STOPS[0].lat]
+          )
+        );
+
+        map.fitBounds(bounds, {
+          padding: { top: 80, right: 100, bottom: 80, left: 540 },
+          duration: 0,
+        });
+
+        // Strip all visual noise — POIs, labels, transit, road shields. Keep only roads + water + parks.
+        const layersToHide = map.getStyle().layers
+          .filter((layer) => {
+            const id = layer.id;
+            return (
+              id.includes("label") ||
+              id.includes("poi") ||
+              id.includes("transit") ||
+              id.includes("airport") ||
+              id.includes("place") ||
+              id.includes("settlement") ||
+              id.includes("road-shield") ||
+              id.includes("road-number") ||
+              id.includes("housenumber") ||
+              id.includes("water-point") ||
+              id.includes("waterway-label") ||
+              id.includes("country") ||
+              id.includes("state") ||
+              id.includes("admin")
+            );
+          })
+          .map((l) => l.id);
+
+        layersToHide.forEach((id) => {
+          if (map.getLayer(id)) {
+            map.setLayoutProperty(id, "visibility", "none");
+          }
         });
 
         map.addSource("hero-route", {
