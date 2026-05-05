@@ -76,7 +76,10 @@ export async function POST(req: Request) {
     }
 
     // Add to Loops as a contact
-    await createLoopsContact(email, firstName, lastName);
+    const loopsResult = await createLoopsContact(email, firstName, lastName);
+    if (!loopsResult.success) {
+      console.error("[CONTACT_LOOPS_FAILURE]", { email, error: loopsResult.error });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

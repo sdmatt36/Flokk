@@ -9,7 +9,7 @@ export async function createLoopsContact(
   email: string,
   firstName: string,
   lastName: string
-) {
+): Promise<{ success: true } | { success: false; error: string }> {
   const key = process.env.LOOPS_API_KEY;
   console.log("[loops] createContact key first 8:", key ? key.slice(0, 8) : "MISSING");
   try {
@@ -29,8 +29,12 @@ export async function createLoopsContact(
     });
     const data = await res.json();
     console.log("[loops] createContact status:", res.status, "body:", JSON.stringify(data));
+    if (!res.ok) return { success: false, error: `HTTP ${res.status}: ${JSON.stringify(data)}` };
+    return { success: true };
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
     console.error("[loops] createContact failed:", e);
+    return { success: false, error: msg };
   }
 }
 
@@ -67,7 +71,7 @@ export async function sendTransactional(
   email: string,
   transactionalId: string,
   dataVariables: Record<string, string>
-) {
+): Promise<{ success: true } | { success: false; error: string }> {
   const key = process.env.LOOPS_API_KEY;
   try {
     const res = await fetch("https://app.loops.so/api/v1/transactional", {
@@ -84,9 +88,12 @@ export async function sendTransactional(
     });
     const data = await res.json();
     console.log(`[loops] transactional ${transactionalId} to ${email} — status: ${res.status} body:`, JSON.stringify(data));
-    return data;
+    if (!res.ok) return { success: false, error: `HTTP ${res.status}: ${JSON.stringify(data)}` };
+    return { success: true };
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
     console.error("[loops] sendTransactional failed:", e);
+    return { success: false, error: msg };
   }
 }
 

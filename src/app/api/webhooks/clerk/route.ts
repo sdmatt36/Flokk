@@ -31,27 +31,63 @@ export async function POST(req: NextRequest) {
   if (event.type === "user.created") {
     const data = event.data;
     const clerkId = data.id as string;
-    const emailAddresses = data.email_addresses as { email_address: string }[];
-    const email = emailAddresses?.[0]?.email_address ?? "";
+
+    // Primary email lookup with fallback to first address
+    const emailAddresses = data.email_addresses as { id: string; email_address: string }[];
+    const primaryId = data.primary_email_address_id as string | null;
+    const primaryEntry = primaryId ? emailAddresses?.find((e) => e.id === primaryId) : null;
+    const email = primaryEntry?.email_address ?? emailAddresses?.[0]?.email_address ?? "";
+
     const firstName = (data.first_name as string) ?? "";
-    const lastName = (data.last_name as string) ?? "";
+    const lastName  = (data.last_name  as string) ?? "";
 
     if (!email) {
-      console.warn("[clerk-webhook] user.created — no email found, skipping");
-      return NextResponse.json({ received: true });
+      console.error("[CLERK_WEBHOOK_NO_EMAIL]", { clerkId });
+      return NextResponse.json({ error: "no email" }, { status: 400 });
     }
 
-    // Upsert user in DB
-    await db.user.upsert({
-      where: { email },
-      update: { clerkId },
-      create: { clerkId, email },
-    });
+    // Upsert user in DB — re-throw on failure so Clerk retries
+    try {
+      await db.user.upsert({
+        where:  { email },
+        update: { clerkId },
+        create: { clerkId, email },
+      });
+    } catch (error) {
+      console.error("[CLERK_WEBHOOK_DB_FAILURE]", {
+        clerkId,
+        email,
+        operation: "user.upsert",
+        message: (error as Error)?.message ?? String(error),
+        stack:   (error as Error)?.stack,
+      });
+      throw error;
+    }
 
-    // Loops: create contact + send welcome email
-    await createLoopsContact(email, firstName, lastName);
-    await sendTransactional(email, "cmn5kw2ca0tha0hyvgvpm9ser", { firstName });
-    console.log("[loops] welcome sent to", email);
+    // Loops: create contact
+    const contactResult = await createLoopsContact(email, firstName, lastName);
+    if (!contactResult.success) {
+      console.error("[CLERK_WEBHOOK_LOOPS_FAILURE]", {
+        clerkId,
+        email,
+        operation: "createLoopsContact",
+        error: contactResult.error,
+      });
+    }
+
+    // Loops: send welcome email
+    const txResult = await sendTransactional(email, "cmn5kw2ca0tha0hyvgvpm9ser", { firstName });
+    if (!txResult.success) {
+      console.error("[CLERK_WEBHOOK_LOOPS_FAILURE]", {
+        clerkId,
+        email,
+        operation: "sendTransactional",
+        templateId: "cmn5kw2ca0tha0hyvgvpm9ser",
+        error: txResult.error,
+      });
+    }
+
+    console.log("[clerk-webhook] user.created processed", { clerkId, email });
   }
 
   return NextResponse.json({ received: true });
