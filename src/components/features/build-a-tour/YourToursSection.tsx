@@ -73,18 +73,18 @@ export default function YourToursSection({ savedTours, loadingTours, onLoadTour,
     : groups.map(([groupKey, tours]) => ({ type: "destination" as const, groupKey, tours }));
 
   return (
-    <div style={{ marginTop: "24px" }}>
+    <div style={{ marginTop: "96px" }}>
       {/* Header row */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: "12px", marginBottom: "16px" }}>
         <div>
-          <p style={{ fontSize: "11px", color: "#C4664A", fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", marginBottom: "4px", fontFamily: "DM Sans, system-ui, sans-serif" }}>
+          <p style={{ fontSize: "11px", color: "#C4664A", fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", marginBottom: "6px", fontFamily: "DM Sans, system-ui, sans-serif" }}>
             YOUR TOURS
           </p>
-          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", fontWeight: 700, color: "#1B3A5C", margin: 0 }}>
+          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "26px", fontWeight: 700, color: "#1B3A5C", margin: 0, lineHeight: 1.2 }}>
             Picking up where you left off
           </h2>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
           <select
             value={selectedKey ?? ""}
             onChange={(e) => setSelectedKey(e.target.value || null)}
@@ -157,10 +157,10 @@ export default function YourToursSection({ savedTours, loadingTours, onLoadTour,
 
                 {/* Bottom content */}
                 <div style={{ position: "absolute", bottom: "12px", left: "12px", right: "12px" }}>
-                  <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", fontWeight: 700, color: "white", margin: "0 0 2px", lineHeight: 1.2 }}>
+                  <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: "white", margin: "0 0 4px", lineHeight: 1.2 }}>
                     {displayName}
                   </p>
-                  <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.9)", margin: 0, fontFamily: "DM Sans, system-ui, sans-serif" }}>
+                  <p style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.95)", margin: 0, fontFamily: "DM Sans, system-ui, sans-serif" }}>
                     {subtitle}
                   </p>
                 </div>
@@ -214,10 +214,10 @@ export default function YourToursSection({ savedTours, loadingTours, onLoadTour,
 
               {/* Bottom content */}
               <div style={{ position: "absolute", bottom: "12px", left: "12px", right: "12px", pointerEvents: "none" }}>
-                <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "16px", fontWeight: 700, color: "white", margin: "0 0 2px", lineHeight: 1.2 }}>
+                <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", fontWeight: 700, color: "white", margin: "0 0 4px", lineHeight: 1.2 }}>
                   {tour.title || "Untitled tour"}
                 </p>
-                <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.9)", margin: 0, fontFamily: "DM Sans, system-ui, sans-serif" }}>
+                <p style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.95)", margin: 0, fontFamily: "DM Sans, system-ui, sans-serif" }}>
                   {tour.stopCount} stops · {tour.transport} · {relativeDate(tour.createdAt)}
                 </p>
               </div>

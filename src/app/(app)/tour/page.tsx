@@ -388,7 +388,7 @@ export default function TourPage() {
       {/* Content — centered, matches hero width */}
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", width: "100%" }}>
         {/* Form card — full width, inner controls constrained to 720px */}
-        <div className="bg-white rounded-2xl shadow-lg relative" style={{ zIndex: 10, marginTop: -50, border: "1px solid rgba(0,0,0,0.04)", padding: "32px 60px" }}>
+        <div className="bg-white rounded-2xl relative" style={{ zIndex: 2, marginTop: -80, border: "1px solid rgba(0,0,0,0.04)", padding: "40px 60px", boxShadow: "0 2px 16px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04)" }}>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
           <textarea
             rows={4}
@@ -396,9 +396,10 @@ export default function TourPage() {
             onChange={(e) => { setPrompt(e.target.value); setTouched(true); }}
             placeholder="A ramen tour in Tokyo near Shinjuku for a family with young kids"
             className="w-full border border-gray-200 rounded-xl p-4 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#1B3A5C]"
+            style={{ minHeight: 140 }}
           />
 
-          <div className="flex flex-col sm:flex-row gap-3 mt-3">
+          <div className="flex flex-col sm:flex-row gap-3 mt-4">
             {/* City input with autocomplete */}
             <div ref={suggestionsRef} className="relative flex-1">
               <input
@@ -459,7 +460,7 @@ export default function TourPage() {
           </div>
 
           {/* Who's Coming + Vibe chips */}
-          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #F0F0F0" }}>
+          <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid #F0F0F0" }}>
             <div style={{ fontSize: 11, color: "#717171", letterSpacing: "0.5px", fontWeight: 500, marginBottom: 8 }}>
               WHO&apos;S COMING
             </div>
@@ -523,7 +524,7 @@ export default function TourPage() {
           <button
             onClick={handleSubmit}
             disabled={loading || !allFilled}
-            className="w-full mt-4 bg-[#1B3A5C] text-white rounded-xl py-3 px-6 text-sm font-medium flex items-center justify-center disabled:opacity-60"
+            className="w-full mt-7 bg-[#1B3A5C] text-white rounded-xl py-3 px-6 text-sm font-medium flex items-center justify-center disabled:opacity-60"
           >
             {loading ? "Building your tour..." : "Build my tour"}
           </button>
