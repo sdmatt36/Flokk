@@ -137,6 +137,7 @@ export const DESTINATION_IMAGES: Record<string, string> = {
   "osaka": "https://images.unsplash.com/photo-1590559899731-a382839e5549?w=800&q=80",
   "okinawa": "https://images.unsplash.com/photo-1610641818989-c2051b5e2cfd?w=800&q=80",
   "naha": "https://images.unsplash.com/photo-1610641818989-c2051b5e2cfd?w=800&q=80",
+  "kamakura": "https://images.unsplash.com/photo-1583144309137-47a8a36d7d23?w=800&q=80",
   "hiroshima": "https://images.unsplash.com/photo-1547981609-4b6bfe67ca0b?w=800&q=80",
   "fukuoka": "https://images.unsplash.com/photo-1607619056574-7b8d3ee536b2?w=800&q=80",
   "sapporo": "https://images.unsplash.com/photo-1578637387939-43c525550085?w=800&q=80",
@@ -152,6 +153,7 @@ export const DESTINATION_IMAGES: Record<string, string> = {
   "bangkok": "https://images.unsplash.com/photo-1508009603885-50cf7c579365?w=800&q=80",
   "phuket": "https://images.unsplash.com/photo-1589394815804-964ed0be2eb5?w=800&q=80",
   "koh samui": "https://images.unsplash.com/photo-1589394815804-964ed0be2eb5?w=800&q=80",
+  "ko pha ngan": "https://images.unsplash.com/photo-1552465011-b4e21bf6e79a?w=800&q=80",
 
   // Southeast Asia
   "bali": "https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800&q=80",
@@ -224,6 +226,8 @@ export const DESTINATION_IMAGES: Record<string, string> = {
   "cancun": "https://images.unsplash.com/photo-1552074284-5e88ef1aef18?w=800&q=80",
   "tulum": "https://images.unsplash.com/photo-1552074284-5e88ef1aef18?w=800&q=80",
   "mexico city": "https://images.unsplash.com/photo-1518659526054-190340b32735?w=800&q=80",
+  "aspen": "https://images.unsplash.com/photo-1605540436563-5bca919ae766?w=800&q=80",
+  "mont-tremblant": "https://images.unsplash.com/photo-1516815231560-8f41ec531527?w=800&q=80",
   "montreal": "https://images.unsplash.com/photo-1519178614-68673b201f36?w=800&q=80",
   "toronto": "https://images.unsplash.com/photo-1517090186835-e348b621c9ca?w=800&q=80",
   "rio de janeiro": "https://images.unsplash.com/photo-1483729558449-99ef09a8c325?w=800&q=80",

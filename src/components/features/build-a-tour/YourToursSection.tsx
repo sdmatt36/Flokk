@@ -23,6 +23,10 @@ type Props = {
 
 const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=800&q=80";
 
+const DESTINATION_DISPLAY_OVERRIDES: Record<string, string> = {
+  "Naha, Japan": "Okinawa, Japan",
+};
+
 function relativeDate(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const days = Math.floor(diff / 86400000);
@@ -34,16 +38,19 @@ function relativeDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function truncate(s: string, n: number): string {
-  return s.length > n ? s.slice(0, n).trimEnd() + "…" : s;
+function truncateAtWord(s: string, n: number): string {
+  if (s.length <= n) return s;
+  const cut = s.slice(0, n);
+  const lastSpace = cut.lastIndexOf(" ");
+  return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).trimEnd() + "…";
 }
 
 export default function YourToursSection({ savedTours, loadingTours, onLoadTour, onDelete }: Props) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
-  // All groups sorted alphabetically by display name
+  // Groups sorted by most-recently-created tour first
   const groups = Object.entries(savedTours).sort(([, a], [, b]) =>
-    a[0].destinationDisplayName.localeCompare(b[0].destinationDisplayName)
+    new Date(b[0].createdAt).getTime() - new Date(a[0].createdAt).getTime()
   );
 
   const totalCount = groups.reduce((n, [, tours]) => n + tours.length, 0);
@@ -97,7 +104,7 @@ export default function YourToursSection({ savedTours, loadingTours, onLoadTour,
             <option value="">All destinations ({totalCount})</option>
             {groups.map(([groupKey, tours]) => (
               <option key={groupKey} value={groupKey}>
-                {tours[0].destinationDisplayName} ({tours.length})
+                {DESTINATION_DISPLAY_OVERRIDES[tours[0].destinationDisplayName] ?? tours[0].destinationDisplayName} ({tours.length})
               </option>
             ))}
           </select>
@@ -114,7 +121,8 @@ export default function YourToursSection({ savedTours, loadingTours, onLoadTour,
             const { groupKey, tours } = item;
             const dest = tours[0];
             const coverImage = dest.coverImage ?? FALLBACK_IMAGE;
-            const lastTitle = dest.title ? truncate(dest.title, 30) : null;
+            const displayName = DESTINATION_DISPLAY_OVERRIDES[dest.destinationDisplayName] ?? dest.destinationDisplayName;
+            const lastTitle = dest.title ? truncateAtWord(dest.title, 38) : null;
             const subtitle = lastTitle ? `Last: ${lastTitle}` : `Last tour: ${relativeDate(dest.createdAt)}`;
             return (
               <div
@@ -150,7 +158,7 @@ export default function YourToursSection({ savedTours, loadingTours, onLoadTour,
                 {/* Bottom content */}
                 <div style={{ position: "absolute", bottom: "12px", left: "12px", right: "12px" }}>
                   <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "18px", fontWeight: 700, color: "white", margin: "0 0 2px", lineHeight: 1.2 }}>
-                    {dest.destinationDisplayName}
+                    {displayName}
                   </p>
                   <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.9)", margin: 0, fontFamily: "DM Sans, system-ui, sans-serif" }}>
                     {subtitle}

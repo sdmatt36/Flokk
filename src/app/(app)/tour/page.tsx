@@ -11,6 +11,7 @@ type DestinationSuggestion = {
   placeId: string;
   cityName: string;
   countryName: string;
+  region: string;
 };
 
 type Stop = {
@@ -384,9 +385,10 @@ export default function TourPage() {
     <div className="min-h-screen bg-gray-50 pb-16">
       <BuildATourHero />
 
-      {/* Content — centered */}
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 24px", width: "100%" }}>
-        {/* Form card — floats up over hero */}
+      {/* Content — centered, matches hero width */}
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", width: "100%" }}>
+        {/* Form card — constrained width, floats up over hero */}
+        <div style={{ maxWidth: 720, margin: "0 auto" }}>
         <div className="bg-white rounded-2xl shadow-lg p-6 relative" style={{ zIndex: 10, marginTop: -50, border: "1px solid rgba(0,0,0,0.04)" }}>
           <textarea
             rows={4}
@@ -419,9 +421,11 @@ export default function TourPage() {
                       style={{ background: "none", border: "none", fontFamily: "inherit" }}
                     >
                       <span className="font-semibold">{s.cityName}</span>
-                      {s.countryName && s.countryName !== s.cityName && (
+                      {s.region && s.region !== s.countryName ? (
+                        <span className="text-gray-400 text-xs">· {s.region}</span>
+                      ) : s.countryName && s.countryName !== s.cityName ? (
                         <span className="text-gray-400 text-xs">· {s.countryName}</span>
-                      )}
+                      ) : null}
                     </button>
                   ))}
                 </div>
@@ -537,6 +541,7 @@ export default function TourPage() {
           )}
 
           {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
+        </div>
         </div>
 
         {/* Tour Library */}
