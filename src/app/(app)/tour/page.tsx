@@ -6,6 +6,7 @@ import TourResults from "@/components/TourResults";
 import { shareEntity } from "@/lib/share";
 import BuildATourHero from "@/components/features/build-a-tour/BuildATourHero";
 import YourToursSection from "@/components/features/build-a-tour/YourToursSection";
+import FlokkLearnsYouPanel from "@/components/features/build-a-tour/FlokkLearnsYouPanel";
 
 type DestinationSuggestion = {
   placeId: string;
@@ -385,11 +386,11 @@ export default function TourPage() {
     <div className="min-h-screen pb-16" style={{ background: "linear-gradient(180deg, #FAEAD0 0%, #FAEAD0 200px, #FFFFFF 600px)" }}>
       <BuildATourHero />
 
-      {/* Content — centered, matches hero width */}
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", width: "100%" }}>
-        {/* Form card — full width, inner controls constrained to 720px */}
-        <div className="bg-white rounded-2xl relative" style={{ zIndex: 5, marginTop: -120, border: "1px solid rgba(0,0,0,0.04)", padding: "40px 60px", boxShadow: "0 8px 32px rgba(27,58,92,0.08), 0 2px 8px rgba(27,58,92,0.04)" }}>
-        <div style={{ maxWidth: 720, marginLeft: "auto", marginRight: "auto" }}>
+      {/* Two-column row: form card + Flokk Learns You panel */}
+      <div className="flex flex-col md:flex-row" style={{ maxWidth: 1200, margin: "0 auto", marginTop: -120, position: "relative", zIndex: 5, padding: "0 32px", gap: 24, alignItems: "stretch" }}>
+        {/* Form card */}
+        <div className="bg-white rounded-2xl" style={{ flex: "1 1 720px", border: "1px solid rgba(0,0,0,0.04)", padding: "40px 60px", boxShadow: "0 8px 32px rgba(27,58,92,0.08), 0 2px 8px rgba(27,58,92,0.04)" }}>
+        <div>
           <textarea
             rows={4}
             value={prompt}
@@ -544,8 +545,11 @@ export default function TourPage() {
           {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
         </div>
         </div>
+        <FlokkLearnsYouPanel />
+      </div>
 
-        {/* Tour Library — matches form card full width */}
+      {/* Tour Library */}
+      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 32px" }}>
         <YourToursSection
           savedTours={savedTours}
           loadingTours={loadingTours}
