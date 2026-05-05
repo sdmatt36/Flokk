@@ -387,9 +387,9 @@ export default function TourPage() {
 
       {/* Content — centered, matches hero width */}
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", width: "100%" }}>
-        {/* Form card — constrained width, floats up over hero */}
+        {/* Form card — full width, inner controls constrained to 720px */}
+        <div className="bg-white rounded-2xl shadow-lg relative" style={{ zIndex: 10, marginTop: -50, border: "1px solid rgba(0,0,0,0.04)", padding: "32px 60px" }}>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
-        <div className="bg-white rounded-2xl shadow-lg p-6 relative" style={{ zIndex: 10, marginTop: -50, border: "1px solid rgba(0,0,0,0.04)" }}>
           <textarea
             rows={4}
             value={prompt}
@@ -544,7 +544,7 @@ export default function TourPage() {
         </div>
         </div>
 
-        {/* Tour Library */}
+        {/* Tour Library — matches form card full width */}
         <YourToursSection
           savedTours={savedTours}
           loadingTours={loadingTours}
