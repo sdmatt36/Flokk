@@ -97,6 +97,9 @@ function FlokkerExamplesSectionInner({ userTourCount, onSelectExample }: Props) 
           <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "26px", fontWeight: 700, color: "#1B3A5C", margin: 0, lineHeight: 1.2 }}>
             Built by Flokk families
           </h2>
+          <p style={{ fontSize: "13px", color: "#555", lineHeight: 1.5, margin: "6px 0 0", fontFamily: "DM Sans, system-ui, sans-serif" }}>
+            Tap any example to use it as a starting prompt for your own tour.
+          </p>
         </div>
         <p style={{ fontSize: "13px", color: "#555", fontStyle: "italic", margin: 0, fontFamily: "DM Sans, system-ui, sans-serif" }}>
           3,200 tours built this week
@@ -165,6 +168,9 @@ function FlokkerExamplesSectionInner({ userTourCount, onSelectExample }: Props) 
               </p>
               <p style={{ fontSize: "12px", color: "white", opacity: 0.92, margin: 0, lineHeight: 1.4, fontFamily: "DM Sans, system-ui, sans-serif" }}>
                 {tour.stops} stops · {tour.duration} · {tour.pacing}
+              </p>
+              <p style={{ fontSize: "11px", color: "#FFCBB7", fontWeight: 500, margin: "6px 0 0", fontFamily: "DM Sans, system-ui, sans-serif" }}>
+                Use as starting prompt →
               </p>
             </div>
           </div>
