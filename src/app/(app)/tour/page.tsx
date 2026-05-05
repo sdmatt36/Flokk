@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef } from "react";
 import { RotateCcw } from "lucide-react";
 import TourResults from "@/components/TourResults";
-import { TourActionMenu } from "@/components/tours/TourActionMenu";
 import { shareEntity } from "@/lib/share";
 import BuildATourHero from "@/components/features/build-a-tour/BuildATourHero";
+import YourToursSection from "@/components/features/build-a-tour/YourToursSection";
 
 type DestinationSuggestion = {
   placeId: string;
@@ -78,8 +78,6 @@ export default function TourPage() {
 
   // Library state
   const [savedTours, setSavedTours] = useState<Record<string, SavedTourEntry[]>>({});
-  const [expandedCity, setExpandedCity] = useState<string | null>(null);
-  const tourLibraryRef = useRef<HTMLDivElement>(null);
 
   // Autocomplete
   const [suggestions, setSuggestions] = useState<DestinationSuggestion[]>([]);
@@ -125,16 +123,6 @@ export default function TourPage() {
     return () => clearInterval(interval);
   }, [results?.tourId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Dismiss tour library pill popover on outside click
-  useEffect(() => {
-    function handle(e: MouseEvent) {
-      if (tourLibraryRef.current && !tourLibraryRef.current.contains(e.target as Node)) {
-        setExpandedCity(null);
-      }
-    }
-    document.addEventListener("mousedown", handle);
-    return () => document.removeEventListener("mousedown", handle);
-  }, []);
 
   // Fetch city suggestions with debounce
   useEffect(() => {
@@ -186,7 +174,6 @@ export default function TourPage() {
   }
 
   async function loadSavedTour(id: string) {
-    setExpandedCity(null);
     setLoading(true);
     setError("");
     try {
@@ -208,7 +195,6 @@ export default function TourPage() {
         updated[city] = updated[city].filter(t => t.id !== id);
         if (updated[city].length === 0) {
           delete updated[city];
-          if (expandedCity === city) setExpandedCity(null);
         }
       }
       return updated;
@@ -290,7 +276,6 @@ export default function TourPage() {
     setTouched(false);
     setSuggestions([]);
     setShowSuggestions(false);
-    setExpandedCity(null);
   }
 
   function handleRemoveStop(stopId: string) {
@@ -481,46 +466,11 @@ export default function TourPage() {
         </div>
 
         {/* Tour Library */}
-        {hasSavedTours && (
-          <div className="mt-6" ref={tourLibraryRef}>
-            <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold mb-3">Your tours</p>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(savedTours).map(([groupKey, tours]) => (
-                <div key={groupKey} className="relative">
-                  <button
-                    onClick={() => setExpandedCity(expandedCity === groupKey ? null : groupKey)}
-                    className="border border-gray-200 rounded-full px-3 py-1.5 text-sm text-[#1B3A5C] bg-white hover:border-[#1B3A5C] transition-colors"
-                    style={{ fontFamily: "inherit" }}
-                  >
-                    {tours[0]?.destinationDisplayName ?? groupKey} ({tours.length})
-                  </button>
-                  {expandedCity === groupKey && (
-                    <div className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-2 min-w-[260px]">
-                      {tours.map(tour => (
-                        <div key={tour.id} className="flex items-center gap-3 px-2 py-2 hover:bg-gray-50 rounded-lg">
-                          {tour.coverImage ? (
-                            <img src={tour.coverImage} alt="" style={{ width: "40px", height: "40px", objectFit: "cover", borderRadius: "6px", flexShrink: 0 }} />
-                          ) : (
-                            <div style={{ width: "40px", height: "40px", borderRadius: "6px", backgroundColor: "#F3F4F6", flexShrink: 0 }} />
-                          )}
-                          <button
-                            onClick={() => loadSavedTour(tour.id)}
-                            className="text-left flex-1 min-w-0"
-                            style={{ background: "none", border: "none", fontFamily: "inherit", cursor: "pointer" }}
-                          >
-                            <span className="block text-sm text-[#1B3A5C] font-semibold truncate">{tour.title}</span>
-                            <span className="block text-xs text-gray-400 mt-0.5">{tour.stopCount} stops · {tour.transport}</span>
-                          </button>
-                          <TourActionMenu tourId={tour.id} onDelete={handleTourDelete} anchorPosition="pill" />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        <YourToursSection
+          savedTours={savedTours}
+          onLoadTour={loadSavedTour}
+          onDelete={handleTourDelete}
+        />
 
         {/* How to Build a Flokkin' Great Tour */}
         <div className="mt-8 mb-12">
