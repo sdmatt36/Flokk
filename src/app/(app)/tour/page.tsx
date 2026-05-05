@@ -5,6 +5,7 @@ import { RotateCcw } from "lucide-react";
 import TourResults from "@/components/TourResults";
 import { TourActionMenu } from "@/components/tours/TourActionMenu";
 import { shareEntity } from "@/lib/share";
+import BuildATourHero from "@/components/features/build-a-tour/BuildATourHero";
 
 type DestinationSuggestion = {
   placeId: string;
@@ -384,27 +385,12 @@ export default function TourPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-16">
-      {/* Hero */}
-      <div className="relative overflow-hidden" style={{ height: "280px" }}>
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: "url('/images/tour-builder-hero.jpg')",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-          }}
-        />
-        <div className="absolute inset-0 bg-black/50" />
-        <div className="relative z-10 h-full flex flex-col items-center justify-center text-center px-4">
-          <h1 className="font-serif text-4xl font-bold text-white">Build a Tour</h1>
-          <p className="text-sm text-white/80 mt-2">Describe what you want. We&apos;ll map it.</p>
-        </div>
-      </div>
+      <BuildATourHero />
 
       {/* Content — centered */}
       <div style={{ maxWidth: 720, margin: "0 auto", padding: "0 24px", width: "100%" }}>
         {/* Form card — floats up over hero */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 relative z-10 -mt-10">
+        <div className="bg-white rounded-2xl shadow-lg p-6 relative" style={{ zIndex: 10, marginTop: -50, border: "1px solid rgba(0,0,0,0.04)" }}>
           <textarea
             rows={4}
             value={prompt}
