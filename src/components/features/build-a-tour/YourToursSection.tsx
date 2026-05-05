@@ -16,6 +16,7 @@ type SavedTourEntry = {
 
 type Props = {
   savedTours: Record<string, SavedTourEntry[]>;
+  loadingTours: boolean;
   onLoadTour: (id: string) => void;
   onDelete: (id: string) => void;
 };
@@ -37,7 +38,7 @@ function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n).trimEnd() + "…" : s;
 }
 
-export default function YourToursSection({ savedTours, onLoadTour, onDelete }: Props) {
+export default function YourToursSection({ savedTours, loadingTours, onLoadTour, onDelete }: Props) {
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   // All groups sorted alphabetically by display name
@@ -46,6 +47,8 @@ export default function YourToursSection({ savedTours, onLoadTour, onDelete }: P
   );
 
   const totalCount = groups.reduce((n, [, tours]) => n + tours.length, 0);
+
+  if (loadingTours) return null;
 
   if (totalCount === 0) {
     return (

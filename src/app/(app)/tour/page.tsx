@@ -53,13 +53,24 @@ type SavedTourEntry = {
   coverImage: string | null;
 };
 
-const VIBE_CHIPS = [
-  "Just the two of us",
+const WHOS_COMING_OPTIONS = [
   "With the whole family",
-  "Multi-family adventure",
-  "Grandparents in tow",
-  "Teens take the lead",
-  "Off the beaten path",
+  "Just adults",
+  "Multi-family",
+  "Grandparents",
+  "Teens lead",
+];
+
+const VIBE_OPTIONS = [
+  "Food & markets",
+  "Culture",
+  "Nature",
+  "Adventure",
+  "Beach",
+  "Off-path",
+  "Family-paced",
+  "Blend",
+  "✨ Surprise me",
 ];
 
 export default function TourPage() {
@@ -75,9 +86,12 @@ export default function TourPage() {
   const [stops, setStops] = useState<Stop[]>([]);
   const [removedStops, setRemovedStops] = useState<Stop[]>([]);
   const [touched, setTouched] = useState(false);
+  const [whosComing, setWhosComing] = useState("With the whole family");
+  const [vibes, setVibes] = useState<string[]>(["Food & markets"]);
 
   // Library state
   const [savedTours, setSavedTours] = useState<Record<string, SavedTourEntry[]>>({});
+  const [loadingTours, setLoadingTours] = useState(true);
 
   // Autocomplete
   const [suggestions, setSuggestions] = useState<DestinationSuggestion[]>([]);
@@ -164,13 +178,16 @@ export default function TourPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function fetchSavedTours() {
+    setLoadingTours(true);
     try {
       const res = await fetch("/api/tours/my-tours");
       if (res.ok) {
         const data = await res.json() as Record<string, SavedTourEntry[]>;
         setSavedTours(data);
       }
-    } catch { /* non-fatal */ }
+    } catch { /* non-fatal */ } finally {
+      setLoadingTours(false);
+    }
   }
 
   async function loadSavedTour(id: string) {
@@ -217,11 +234,6 @@ export default function TourPage() {
     setTouched(true);
   }
 
-  function appendVibe(vibe: string) {
-    setPrompt(prev => prev ? `${prev} ${vibe}` : vibe);
-    setTouched(true);
-  }
-
   const allFilled =
     prompt.trim() !== "" &&
     destinationCity.trim() !== "" &&
@@ -237,7 +249,7 @@ export default function TourPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: prompt.trim(),
+          prompt: `${prompt.trim()}\n\nGroup: ${whosComing}\nVibe: ${vibes.join(", ")}`,
           destinationCity: destinationCity.trim(),
           durationLabel,
           transport,
@@ -442,6 +454,68 @@ export default function TourPage() {
             </select>
           </div>
 
+          {/* Who's Coming + Vibe chips */}
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #F0F0F0" }}>
+            <div style={{ fontSize: 11, color: "#717171", letterSpacing: "0.5px", fontWeight: 500, marginBottom: 8 }}>
+              WHO&apos;S COMING
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+              {WHOS_COMING_OPTIONS.map((opt) => {
+                const selected = whosComing === opt;
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setWhosComing(opt)}
+                    style={{
+                      padding: "6px 12px",
+                      background: selected ? "#1B3A5C" : "white",
+                      color: selected ? "white" : "#1B3A5C",
+                      border: selected ? "none" : "1px solid #E0E0E0",
+                      borderRadius: 20,
+                      fontSize: 12,
+                      fontWeight: selected ? 500 : 400,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    {opt}{selected ? " ✓" : ""}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ fontSize: 11, color: "#717171", letterSpacing: "0.5px", fontWeight: 500, marginBottom: 8 }}>
+              VIBE
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {VIBE_OPTIONS.map((opt) => {
+                const selected = vibes.includes(opt);
+                const isSurprise = opt === "✨ Surprise me";
+                return (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setVibes((prev) => prev.includes(opt) ? prev.filter(v => v !== opt) : [...prev, opt])}
+                    style={{
+                      padding: "6px 12px",
+                      background: selected ? "rgba(196,102,74,0.12)" : (isSurprise ? "linear-gradient(90deg, rgba(196,102,74,0.12), rgba(27,58,92,0.12))" : "white"),
+                      color: (selected || isSurprise) ? "#C4664A" : "#1B3A5C",
+                      border: selected ? "1px solid rgba(196,102,74,0.4)" : (isSurprise ? "1px solid rgba(196,102,74,0.3)" : "1px solid #E0E0E0"),
+                      borderRadius: 20,
+                      fontSize: 12,
+                      fontWeight: (selected || isSurprise) ? 500 : 400,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >
+                    {opt}{selected ? " ✓" : ""}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <button
             onClick={handleSubmit}
             disabled={loading || !allFilled}
@@ -468,29 +542,12 @@ export default function TourPage() {
         {/* Tour Library */}
         <YourToursSection
           savedTours={savedTours}
+          loadingTours={loadingTours}
           onLoadTour={loadSavedTour}
           onDelete={handleTourDelete}
         />
 
-        {/* How to Build a Flokkin' Great Tour */}
-        <div className="mt-8 mb-12">
-          <h2 className="font-serif text-xl font-semibold text-[#1B3A5C] mb-2">How to Build a Flokkin&apos; Great Tour</h2>
-          <p className="text-sm text-gray-500 mb-5">Who&apos;s coming along?</p>
-
-          <div className="flex flex-wrap gap-2">
-            {VIBE_CHIPS.map((vibe) => (
-              <button
-                key={vibe}
-                onClick={() => appendVibe(vibe)}
-                className="border border-gray-200 rounded-full px-4 py-2 text-sm text-gray-600 cursor-pointer hover:border-[#1B3A5C] hover:text-[#1B3A5C] transition-colors bg-white"
-                style={{ fontFamily: "inherit" }}
-              >
-                {vibe}
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-gray-400 italic mt-4">Try: &apos;Best sushi near Tsukiji&apos; · &apos;Street art walk in Shoreditch&apos; · &apos;Castle hopping in Edinburgh&apos;</p>
-        </div>
+        <div className="mb-12" />
       </div>
     </div>
   );
