@@ -13,7 +13,7 @@ export default function BuildATourHero() {
           height: "620px",
           borderRadius: "24px",
           overflow: "hidden",
-          background: "linear-gradient(180deg, #FCD9A0 0%, #F5B870 100%)",
+          background: "linear-gradient(180deg, #FAEAD0 0%, #F0D5A8 100%)",
         }}
       >
         {/* LAYERS 1–3: map background + route + pins */}
@@ -25,13 +25,13 @@ export default function BuildATourHero() {
         >
           <defs>
             <pattern id="map-blocks" x="0" y="0" width="180" height="180" patternUnits="userSpaceOnUse">
-              <rect x="10" y="10" width="68" height="58" fill="#F5C078" opacity="0.85" rx="2" />
-              <rect x="88" y="16" width="58" height="50" fill="#EFB562" opacity="0.85" rx="2" />
-              <rect x="12" y="78" width="55" height="65" fill="#F2BB6E" opacity="0.85" rx="2" />
-              <rect x="78" y="74" width="50" height="70" fill="#F8C580" opacity="0.85" rx="2" />
-              <rect x="138" y="92" width="40" height="55" fill="#EBB060" opacity="0.85" rx="2" />
-              <rect x="38" y="152" width="62" height="22" fill="#F4BD72" opacity="0.85" rx="2" />
-              <rect x="110" y="158" width="55" height="20" fill="#EEB064" opacity="0.85" rx="2" />
+              <rect x="10" y="10" width="68" height="58" fill="#EBD8B8" opacity="0.6" rx="2" />
+              <rect x="88" y="16" width="58" height="50" fill="#E5CCA8" opacity="0.6" rx="2" />
+              <rect x="12" y="78" width="55" height="65" fill="#E8D2B0" opacity="0.6" rx="2" />
+              <rect x="78" y="74" width="50" height="70" fill="#EFDCBC" opacity="0.6" rx="2" />
+              <rect x="138" y="92" width="40" height="55" fill="#E0C8A0" opacity="0.6" rx="2" />
+              <rect x="38" y="152" width="62" height="22" fill="#E8D0AC" opacity="0.6" rx="2" />
+              <rect x="110" y="158" width="55" height="20" fill="#E2C8A4" opacity="0.6" rx="2" />
             </pattern>
           </defs>
 
@@ -203,7 +203,7 @@ export default function BuildATourHero() {
             position: "absolute",
             inset: 0,
             background:
-              "linear-gradient(90deg, rgba(252,217,160,0.97) 0%, rgba(252,217,160,0.92) 26%, rgba(252,217,160,0.55) 36%, rgba(252,217,160,0) 44%)",
+              "linear-gradient(90deg, rgba(250,234,208,0.97) 0%, rgba(250,234,208,0.92) 26%, rgba(250,234,208,0.55) 36%, rgba(250,234,208,0) 44%)",
             pointerEvents: "none",
           }}
         />
