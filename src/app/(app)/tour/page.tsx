@@ -382,14 +382,14 @@ export default function TourPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-16">
+    <div className="min-h-screen pb-16" style={{ background: "linear-gradient(180deg, #FAEAD0 0%, #FAEAD0 200px, #FFFFFF 600px)" }}>
       <BuildATourHero />
 
       {/* Content — centered, matches hero width */}
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", width: "100%" }}>
         {/* Form card — full width, inner controls constrained to 720px */}
         <div className="bg-white rounded-2xl relative" style={{ zIndex: 5, marginTop: -120, border: "1px solid rgba(0,0,0,0.04)", padding: "40px 60px", boxShadow: "0 8px 32px rgba(27,58,92,0.08), 0 2px 8px rgba(27,58,92,0.04)" }}>
-        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+        <div style={{ maxWidth: 720, marginLeft: "auto", marginRight: "auto" }}>
           <textarea
             rows={4}
             value={prompt}

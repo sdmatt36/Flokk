@@ -10,7 +10,7 @@ export default function BuildATourHero() {
         style={{
           position: "relative",
           width: "100%",
-          height: "620px",
+          height: "720px",
           borderRadius: "24px",
           overflow: "hidden",
           background: "linear-gradient(180deg, #FAEAD0 0%, #F0D5A8 100%)",
@@ -19,7 +19,7 @@ export default function BuildATourHero() {
         {/* LAYERS 1–3: map background + route + pins */}
         <svg
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-          viewBox="0 0 1200 620"
+          viewBox="0 0 1200 720"
           preserveAspectRatio="xMidYMid slice"
           xmlns="http://www.w3.org/2000/svg"
         >
@@ -36,11 +36,11 @@ export default function BuildATourHero() {
           </defs>
 
           {/* Block fill */}
-          <rect width="1200" height="620" fill="url(#map-blocks)" />
+          <rect width="1200" height="720" fill="url(#map-blocks)" />
 
           {/* Tokyo Bay */}
           <path
-            d="M 0 560 Q 150 550 320 558 Q 480 568 640 560 Q 820 550 1000 565 Q 1100 570 1200 560 L 1200 620 L 0 620 Z"
+            d="M 0 560 Q 150 550 320 558 Q 480 568 640 560 Q 820 550 1000 565 Q 1100 570 1200 560 L 1200 720 L 0 720 Z"
             fill="#3A8FB5"
             opacity="1"
           />
@@ -79,10 +79,10 @@ export default function BuildATourHero() {
           <line x1="0" y1="540" x2="1200" y2="540" stroke="white" strokeWidth="4" opacity="0.8" />
 
           {/* Major vertical roads (slight diagonal) */}
-          <line x1="540" y1="0" x2="575" y2="620" stroke="white" strokeWidth="7" opacity="0.92" />
-          <line x1="720" y1="0" x2="745" y2="620" stroke="white" strokeWidth="8" opacity="0.95" />
-          <line x1="900" y1="0" x2="925" y2="620" stroke="white" strokeWidth="7" opacity="0.92" />
-          <line x1="1080" y1="0" x2="1105" y2="620" stroke="white" strokeWidth="7" opacity="0.92" />
+          <line x1="540" y1="0" x2="575" y2="720" stroke="white" strokeWidth="7" opacity="0.92" />
+          <line x1="720" y1="0" x2="745" y2="720" stroke="white" strokeWidth="8" opacity="0.95" />
+          <line x1="900" y1="0" x2="925" y2="720" stroke="white" strokeWidth="7" opacity="0.92" />
+          <line x1="1080" y1="0" x2="1105" y2="720" stroke="white" strokeWidth="7" opacity="0.92" />
 
           {/* Minor cross-streets — horizontal */}
           <line x1="0" y1="69" x2="1200" y2="69" stroke="white" strokeWidth="3" opacity="0.71" />
@@ -90,11 +90,11 @@ export default function BuildATourHero() {
           <line x1="0" y1="355" x2="1200" y2="355" stroke="white" strokeWidth="3" opacity="0.72" />
 
           {/* Minor cross-streets — vertical */}
-          <line x1="215" y1="0" x2="215" y2="620" stroke="white" strokeWidth="3" opacity="0.71" />
-          <line x1="375" y1="0" x2="375" y2="620" stroke="white" strokeWidth="3" opacity="0.70" />
-          <line x1="654" y1="0" x2="654" y2="620" stroke="white" strokeWidth="3" opacity="0.71" />
-          <line x1="832" y1="0" x2="832" y2="620" stroke="white" strokeWidth="3" opacity="0.71" />
-          <line x1="1012" y1="0" x2="1012" y2="620" stroke="white" strokeWidth="3" opacity="0.70" />
+          <line x1="215" y1="0" x2="215" y2="720" stroke="white" strokeWidth="3" opacity="0.71" />
+          <line x1="375" y1="0" x2="375" y2="720" stroke="white" strokeWidth="3" opacity="0.70" />
+          <line x1="654" y1="0" x2="654" y2="720" stroke="white" strokeWidth="3" opacity="0.71" />
+          <line x1="832" y1="0" x2="832" y2="720" stroke="white" strokeWidth="3" opacity="0.71" />
+          <line x1="1012" y1="0" x2="1012" y2="720" stroke="white" strokeWidth="3" opacity="0.70" />
 
           {/* LAYER 2: Route line */}
           <path
