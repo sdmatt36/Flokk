@@ -7,6 +7,7 @@ import { shareEntity } from "@/lib/share";
 import BuildATourHero from "@/components/features/build-a-tour/BuildATourHero";
 import YourToursSection from "@/components/features/build-a-tour/YourToursSection";
 import FlokkLearnsYouPanel from "@/components/features/build-a-tour/FlokkLearnsYouPanel";
+import FlokkerExamplesSection from "@/components/features/build-a-tour/FlokkerExamplesSection";
 
 type DestinationSuggestion = {
   placeId: string;
@@ -389,7 +390,7 @@ export default function TourPage() {
       {/* Two-column row: form card + Flokk Learns You panel */}
       <div className="flex flex-col md:flex-row" style={{ maxWidth: 1200, margin: "0 auto", marginTop: -120, position: "relative", zIndex: 5, padding: "0 32px", gap: 24, alignItems: "stretch" }}>
         {/* Form card */}
-        <div className="bg-white rounded-2xl" style={{ flex: "1 1 720px", border: "1px solid rgba(0,0,0,0.04)", padding: "40px 60px", boxShadow: "0 8px 32px rgba(27,58,92,0.08), 0 2px 8px rgba(27,58,92,0.04)" }}>
+        <div className="bg-white rounded-2xl tour-form-card" style={{ flex: "1 1 720px", border: "1px solid rgba(0,0,0,0.04)", padding: "40px 60px", boxShadow: "0 8px 32px rgba(27,58,92,0.08), 0 2px 8px rgba(27,58,92,0.04)" }}>
         <div>
           <textarea
             rows={4}
@@ -559,6 +560,11 @@ export default function TourPage() {
 
         <div className="mb-12" />
       </div>
+
+      <FlokkerExamplesSection
+        userTourCount={Object.keys(savedTours).length}
+        onSelectExample={(p) => setPrompt(p)}
+      />
     </div>
   );
 }
