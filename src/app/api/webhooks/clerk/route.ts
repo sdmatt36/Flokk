@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Webhook } from "svix";
-import { createLoopsContact, sendTransactional } from "@/lib/loops";
+import { createLoopsContact } from "@/lib/loops";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -72,18 +72,6 @@ export async function POST(req: NextRequest) {
         email,
         operation: "createLoopsContact",
         error: contactResult.error,
-      });
-    }
-
-    // Loops: send welcome email
-    const txResult = await sendTransactional(email, "cmn5kw2ca0tha0hyvgvpm9ser", { firstName });
-    if (!txResult.success) {
-      console.error("[CLERK_WEBHOOK_LOOPS_FAILURE]", {
-        clerkId,
-        email,
-        operation: "sendTransactional",
-        templateId: "cmn5kw2ca0tha0hyvgvpm9ser",
-        error: txResult.error,
       });
     }
 
