@@ -99,6 +99,10 @@ const LEGACY_MAP: Record<string, CategorySlug> = {
   "neighbourhood":           "other",
   "tech":                    "other",
   "science":                 "other",
+  // PlaceRating placeType values not already covered by canonical slug check
+  "restaurant":              "food_and_drink",
+  "place":                   "other",
+  "train":                   "other",
 };
 
 /**

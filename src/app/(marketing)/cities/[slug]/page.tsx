@@ -133,39 +133,54 @@ async function loadCity(slug: string) {
       `,
     ]);
 
-    // Build dedup map from CommunitySpot (normalize category to canonical slug)
+    // Build dedup map from CommunitySpot — key by slug(name) only.
+    // Sort order ensures highest-rated CS wins on name collision.
     const spotMap = new Map<string, SpotItem>();
     for (const s of spots) {
-      const normCat = normalizeCategorySlug(s.category) ?? s.category;
-      const key = `${slugForDedup(s.name)}|${normCat ?? ""}`;
-      spotMap.set(key, { ...s, category: normCat });
-    }
-
-    // Merge PlaceRating aggregates — augment matching spots, append new ones
-    const prOnlySpots: SpotItem[] = [];
-    for (const row of ratingRows) {
-      const normCat = normalizeCategorySlug(row.category) ?? row.category;
-      const key = `${slugForDedup(row.name)}|${normCat ?? ""}`;
-      const count = Number(row.ratingCount);
-      const existing = spotMap.get(key);
-      if (existing) {
-        if (count > existing.ratingCount) {
-          spotMap.set(key, { ...existing, averageRating: row.averageRating, ratingCount: count });
-        }
-      } else {
-        prOnlySpots.push({
-          id: `pr_${slugForDedup(row.name)}_${slugForDedup(row.category)}`,
-          name: row.name,
-          category: normCat,
-          photoUrl: null,
-          averageRating: row.averageRating,
-          ratingCount: count,
-          description: null,
-        });
+      const nameKey = slugForDedup(s.name);
+      if (!spotMap.has(nameKey)) {
+        const normCat = normalizeCategorySlug(s.category) ?? s.category;
+        spotMap.set(nameKey, { ...s, category: normCat });
       }
     }
 
-    const allSpots: SpotItem[] = [...spotMap.values(), ...prOnlySpots];
+    // Merge PlaceRating aggregates — key by slug(name) only.
+    // CS row wins for visual data (photo, category, description).
+    // Ratings aggregate: weighted average + summed count.
+    const prOnlyMap = new Map<string, SpotItem>();
+    for (const row of ratingRows) {
+      const nameKey = slugForDedup(row.name);
+      const count = Number(row.ratingCount);
+      const normCat = normalizeCategorySlug(row.category) ?? "other";
+      const csEntry = spotMap.get(nameKey);
+
+      if (csEntry) {
+        // Augment CommunitySpot with aggregated PlaceRating data
+        const newCount = csEntry.ratingCount + count;
+        const newAvg = ((csEntry.averageRating ?? 0) * csEntry.ratingCount + row.averageRating * count) / newCount;
+        spotMap.set(nameKey, { ...csEntry, averageRating: newAvg, ratingCount: newCount });
+      } else {
+        // PR-only: aggregate multiple placeType rows for same place name
+        const prEntry = prOnlyMap.get(nameKey);
+        if (prEntry) {
+          const newCount = prEntry.ratingCount + count;
+          const newAvg = ((prEntry.averageRating ?? 0) * prEntry.ratingCount + row.averageRating * count) / newCount;
+          prOnlyMap.set(nameKey, { ...prEntry, averageRating: newAvg, ratingCount: newCount });
+        } else {
+          prOnlyMap.set(nameKey, {
+            id: `pr_${nameKey}`,
+            name: row.name,
+            category: normCat,
+            photoUrl: null,
+            averageRating: row.averageRating,
+            ratingCount: count,
+            description: null,
+          });
+        }
+      }
+    }
+
+    const allSpots: SpotItem[] = [...spotMap.values(), ...prOnlyMap.values()];
 
     // Fetch and cache city photo on first visit
     let photoUrl = city.photoUrl;
