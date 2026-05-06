@@ -11,6 +11,20 @@ export type DestinationSuggestion = {
   description: string;
 };
 
+// Geographic area types we accept. Excludes establishments, POIs, hotels, etc.
+// natural_feature and archipelago are needed for islands (Maui, Bali, Kauai, Oahu).
+// administrative_area_level_1 is needed for states (Hawaii, Alaska).
+// administrative_area_level_2 is needed for counties/islands when they are the canonical entity.
+const ALLOWED_TYPES = new Set([
+  "locality",
+  "sublocality",
+  "colloquial_area",
+  "administrative_area_level_1",
+  "administrative_area_level_2",
+  "natural_feature",
+  "archipelago",
+]);
+
 export async function GET(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json([], { status: 401 });
@@ -23,7 +37,6 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL("https://maps.googleapis.com/maps/api/place/autocomplete/json");
     url.searchParams.set("input", q);
-    url.searchParams.set("types", "(cities)");
     url.searchParams.set("language", "en");
     url.searchParams.set("key", GOOGLE_API_KEY);
 
@@ -33,6 +46,7 @@ export async function GET(req: NextRequest) {
       predictions: Array<{
         place_id: string;
         description: string;
+        types: string[];
         structured_formatting: { main_text: string; secondary_text: string };
         terms: Array<{ value: string }>;
       }>;
@@ -43,18 +57,31 @@ export async function GET(req: NextRequest) {
       return NextResponse.json([]);
     }
 
+    // Keep only geographic area types — drops establishments, hotels, restaurants, POIs.
+    // Islands (natural_feature) and states (admin_level_1) surface correctly once
+    // the old types=(cities) filter is gone.
+    const geographic = (data.predictions ?? []).slice(0, 15).filter((p) =>
+      p.types.some((t) => ALLOWED_TYPES.has(t))
+    );
+
     // Deduplicate by description (formatted address) before mapping
     const seen = new Set<string>();
-    const unique = (data.predictions ?? []).filter((p) => {
+    const unique = geographic.filter((p) => {
       if (seen.has(p.description)) return false;
       seen.add(p.description);
       return true;
     });
 
-    // Fetch address_components per result to get administrative_area_level_1 (e.g. "Scotland")
+    // Fetch address_components per result to get admin_area_level_1 (e.g. "Scotland")
     const mapped: DestinationSuggestion[] = await Promise.all(
       unique.slice(0, 6).map(async (p) => {
-        const cityName = p.structured_formatting.main_text;
+        // Strip " County" suffix from admin_level_2 results so "Maui County" → "Maui"
+        const rawCityName = p.structured_formatting.main_text;
+        const isCounty = p.types.includes("administrative_area_level_2");
+        const cityName =
+          isCounty && rawCityName.endsWith(" County")
+            ? rawCityName.slice(0, -" County".length)
+            : rawCityName;
 
         let region = "";
         let countryName = "";
