@@ -158,7 +158,12 @@ async function loadCity(slug: string) {
         // Augment CommunitySpot with aggregated PlaceRating data
         const newCount = csEntry.ratingCount + count;
         const newAvg = ((csEntry.averageRating ?? 0) * csEntry.ratingCount + row.averageRating * count) / newCount;
-        spotMap.set(nameKey, { ...csEntry, averageRating: newAvg, ratingCount: newCount });
+        // Promote PR's specific category when CS has the low-info 'other' fallback.
+        const promotedCategory =
+          csEntry.category === "other" && normCat && normCat !== "other"
+            ? normCat
+            : csEntry.category;
+        spotMap.set(nameKey, { ...csEntry, category: promotedCategory, averageRating: newAvg, ratingCount: newCount });
       } else {
         // PR-only: aggregate multiple placeType rows for same place name
         const prEntry = prOnlyMap.get(nameKey);
