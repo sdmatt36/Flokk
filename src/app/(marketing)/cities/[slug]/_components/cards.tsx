@@ -36,6 +36,8 @@ export interface CompactSpotCardProps {
   id: string;
   name: string;
   category: string | null;
+  cuisine?: string | null;
+  lodgingType?: string | null;
   photoUrl: string | null;
   averageRating: number | null;
   ratingCount: number;
@@ -178,9 +180,9 @@ export function SpotCard({ spot }: { spot: CompactSpotCardProps }) {
         <p style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C", lineHeight: 1.3, margin: 0 }} className="line-clamp-2">
           {spot.name}
         </p>
-        {spot.category && (
+        {(spot.cuisine ?? spot.lodgingType ?? spot.category) && (
           <p style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "3px", textTransform: "capitalize" }}>
-            {spot.category.replace(/_/g, " ")}
+            {(spot.cuisine ?? spot.lodgingType ?? spot.category)!.replace(/_/g, " ")}
           </p>
         )}
         {spot.ratingCount > 0 ? (

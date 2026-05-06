@@ -23,6 +23,7 @@ const GRID_CSS = `
 `;
 
 type SortKey = "top-rated" | "most-rated";
+type FilterField = "category" | "cuisine" | "lodgingType";
 
 interface SpotSectionProps {
   id: string;
@@ -31,11 +32,14 @@ interface SpotSectionProps {
   cityName: string;
   addHref?: string;
   emptyText: string;
-  showCategoryFilter?: boolean;
+  filterField?: FilterField;
 }
 
-function categoryLabel(slug: string) {
-  return CATEGORIES.find((c) => c.slug === slug)?.label ?? slug.replace(/_/g, " ");
+function formatFilterLabel(value: string, field: FilterField): string {
+  if (field === "category") {
+    return CATEGORIES.find((c) => c.slug === value)?.label ?? value.replace(/_/g, " ");
+  }
+  return value; // cuisine + lodgingType are already human-readable strings
 }
 
 export function SpotSection({
@@ -45,20 +49,30 @@ export function SpotSection({
   cityName: _cityName,
   addHref = "/discover/spots",
   emptyText,
-  showCategoryFilter = false,
+  filterField = "category",
 }: SpotSectionProps) {
   const [sort, setSort] = useState<SortKey>("top-rated");
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
 
-  const presentCategories = useMemo(
-    () => [...new Set(spots.map((s) => s.category).filter(Boolean))] as string[],
-    [spots]
-  );
+  // Unique filter values sorted by count descending — dominant value surfaces first
+  const uniqueValues = useMemo(() => {
+    const seen = new Map<string, number>();
+    for (const s of spots) {
+      const v = (s as unknown as Record<string, unknown>)[filterField] as string | null | undefined;
+      if (v) seen.set(v, (seen.get(v) ?? 0) + 1);
+    }
+    return [...seen.entries()].sort((a, b) => b[1] - a[1]);
+  }, [spots, filterField]);
 
-  const filtered = activeCategory
-    ? spots.filter((s) => s.category === activeCategory)
-    : spots;
+  const showChips = uniqueValues.length >= 2;
+
+  const filtered = useMemo(() => {
+    if (selectedFilter === null) return spots;
+    return spots.filter(
+      (s) => (s as unknown as Record<string, unknown>)[filterField] === selectedFilter
+    );
+  }, [spots, selectedFilter, filterField]);
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) =>
@@ -124,36 +138,36 @@ export function SpotSection({
         </div>
       ) : (
         <>
-          {/* Category filter pills (Activities section only) */}
-          {showCategoryFilter && presentCategories.length > 1 && (
+          {/* Filter chips — shown when 2+ unique values in the filterField */}
+          {showChips && (
             <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
               <button
-                onClick={() => { setActiveCategory(null); setExpanded(false); }}
+                onClick={() => { setSelectedFilter(null); setExpanded(false); }}
                 style={{
                   fontSize: "12px", padding: "4px 12px", borderRadius: "20px",
-                  border: `1px solid ${activeCategory === null ? "#C4664A" : "#E5E7EB"}`,
-                  backgroundColor: activeCategory === null ? "#FFF3EE" : "#fff",
-                  color: activeCategory === null ? "#C4664A" : "#666",
-                  fontWeight: activeCategory === null ? 600 : 400,
+                  border: `1px solid ${selectedFilter === null ? "#C4664A" : "#E5E7EB"}`,
+                  backgroundColor: selectedFilter === null ? "#FFF3EE" : "#fff",
+                  color: selectedFilter === null ? "#C4664A" : "#666",
+                  fontWeight: selectedFilter === null ? 600 : 400,
                   cursor: "pointer",
                 }}
               >
                 All
               </button>
-              {presentCategories.map((cat) => (
+              {uniqueValues.map(([value, count]) => (
                 <button
-                  key={cat}
-                  onClick={() => { setActiveCategory(activeCategory === cat ? null : cat); setExpanded(false); }}
+                  key={value}
+                  onClick={() => { setSelectedFilter(selectedFilter === value ? null : value); setExpanded(false); }}
                   style={{
                     fontSize: "12px", padding: "4px 12px", borderRadius: "20px",
-                    border: `1px solid ${activeCategory === cat ? "#C4664A" : "#E5E7EB"}`,
-                    backgroundColor: activeCategory === cat ? "#FFF3EE" : "#fff",
-                    color: activeCategory === cat ? "#C4664A" : "#666",
-                    fontWeight: activeCategory === cat ? 600 : 400,
-                    cursor: "pointer", textTransform: "capitalize",
+                    border: `1px solid ${selectedFilter === value ? "#C4664A" : "#E5E7EB"}`,
+                    backgroundColor: selectedFilter === value ? "#FFF3EE" : "#fff",
+                    color: selectedFilter === value ? "#C4664A" : "#666",
+                    fontWeight: selectedFilter === value ? 600 : 400,
+                    cursor: "pointer",
                   }}
                 >
-                  {categoryLabel(cat)}
+                  {formatFilterLabel(value, filterField)} ({count})
                 </button>
               ))}
             </div>

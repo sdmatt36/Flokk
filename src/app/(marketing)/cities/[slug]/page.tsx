@@ -63,6 +63,8 @@ type SpotItem = {
   id: string;
   name: string;
   category: string | null;
+  cuisine: string | null;
+  lodgingType: string | null;
   photoUrl: string | null;
   averageRating: number | null;
   ratingCount: number;
@@ -89,7 +91,7 @@ async function loadCity(slug: string) {
       db.communitySpot.findMany({
         where: { cityId: city.id },
         select: {
-          id: true, name: true, category: true,
+          id: true, name: true, category: true, cuisine: true, lodgingType: true,
           photoUrl: true, averageRating: true, ratingCount: true, description: true,
         },
         orderBy: [{ ratingCount: "desc" }, { averageRating: "desc" }],
@@ -176,6 +178,8 @@ async function loadCity(slug: string) {
             id: `pr_${nameKey}`,
             name: row.name,
             category: normCat,
+            cuisine: null,
+            lodgingType: null,
             photoUrl: null,
             averageRating: row.averageRating,
             ratingCount: count,
@@ -344,6 +348,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
           spots={foodSpots}
           cityName={city.name}
           emptyText="No food picks yet. Got a favorite? Share it."
+          filterField="cuisine"
         />
 
         {/* Activities */}
@@ -353,7 +358,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
           spots={activitySpots}
           cityName={city.name}
           emptyText={`No activities yet. Help us build ${city.name}.`}
-          showCategoryFilter
+          filterField="category"
         />
 
         {/* Lodging */}
@@ -363,6 +368,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
           spots={lodgingSpots}
           cityName={city.name}
           emptyText="No lodging picks yet."
+          filterField="lodgingType"
         />
 
         <SubmitContentCTA cityName={city.name} />
