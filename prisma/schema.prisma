@@ -974,6 +974,55 @@ model PlaceRating {
   savedItem        SavedItem?    @relation(fields: [savedItemId], references: [id])
 }
 
+// =============================================================================
+// GEO HIERARCHY
+// =============================================================================
+
+model Continent {
+  id        String    @id @default(cuid())
+  slug      String    @unique
+  name      String
+  blurb     String?   @db.Text
+  photoUrl  String?
+  countries Country[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Country {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  name        String
+  code        String?
+  continentId String
+  continent   Continent @relation(fields: [continentId], references: [id])
+  blurb       String?   @db.Text
+  photoUrl    String?
+  cities      City[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([continentId])
+}
+
+model City {
+  id             String          @id @default(cuid())
+  slug           String          @unique
+  name           String
+  countryId      String
+  country        Country         @relation(fields: [countryId], references: [id])
+  latitude       Float?
+  longitude      Float?
+  googlePlaceId  String?         @unique
+  photoUrl       String?
+  blurb          String?         @db.Text
+  communitySpots CommunitySpot[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([countryId])
+}
+
 model CommunitySpot {
   id                String               @id @default(cuid())
   name              String
@@ -995,6 +1044,9 @@ model CommunitySpot {
   contributions     SpotContribution[]
   savedItems        SavedItem[]          @relation("SavedItemToCommunitySpot")
   needsUrlReview    Boolean              @default(false)
+  cityId            String?
+  geoCity           City?                @relation(fields: [cityId], references: [id])
+  isAiGenerated     Boolean              @default(false)
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 
@@ -1002,6 +1054,7 @@ model CommunitySpot {
   @@index([category])
   @@index([authorProfileId])
   @@index([city, category])
+  @@index([cityId])
 }
 
 model SpotContribution {
