@@ -1057,6 +1057,7 @@ type SavedTourEntry = {
   createdAt: string;
   stopCount: number;
   destinationCountry?: string | null;
+  destinationDisplayName: string;
   coverImage?: string | null;
 };
 
@@ -1111,7 +1112,7 @@ function ToursTabContent({ tours, search, activeCountry, selectedCity, onDelete 
       {filteredCities.map(([city, cityTours]) => (
         <div key={city} style={{ marginBottom: 32 }}>
           <p style={{ fontSize: 12, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 }}>
-            {city} ({cityTours.length})
+            {cityTours[0]?.destinationDisplayName ?? city} ({cityTours.length})
           </p>
           <div className={TOUR_GRID} style={{ gap: 16 }}>
             {cityTours.map(tour => (
@@ -1150,11 +1151,11 @@ function ToursTabContent({ tours, search, activeCountry, selectedCity, onDelete 
                 {/* Card body */}
                 <div style={{ padding: "12px" }}>
                   <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginBottom: "4px", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {tour.title}
+                    {tour.title.charAt(0).toUpperCase() + tour.title.slice(1)}
                   </p>
                   <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 2 }}>
                     <MapPin size={11} style={{ color: "#9ca3af", flexShrink: 0 }} />
-                    <span style={{ fontSize: "12px", color: "#9ca3af", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{city}</span>
+                    <span style={{ fontSize: "12px", color: "#9ca3af", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tour.destinationDisplayName}</span>
                   </div>
                   <p style={{ fontSize: "12px", color: "#9ca3af", margin: 0 }}>
                     {tour.stopCount} stop{tour.stopCount !== 1 ? "s" : ""}
