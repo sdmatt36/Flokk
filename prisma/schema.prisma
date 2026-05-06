@@ -1016,6 +1016,7 @@ model City {
   googlePlaceId  String?         @unique
   photoUrl       String?
   blurb          String?         @db.Text
+  tags           String[]        @default([])
   communitySpots CommunitySpot[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
