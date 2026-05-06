@@ -1,10 +1,12 @@
-// Read-only compact card components for the city page.
-// These are the canonical card definitions that /countries/[slug] and
-// /continents/[slug] will import — no parallel render paths (Discipline 4.42).
+// Compact read-only card components for the city/country/continent marketing pages.
+// Canonical single render path per Discipline 4.42.
 
 import Link from "next/link";
+import { Playfair_Display } from "next/font/google";
 import { SpotImage } from "@/components/shared/SpotImage";
 import { getTripCoverImage } from "@/lib/destination-images";
+
+const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700"] });
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -56,34 +58,44 @@ export function TripCard({ trip }: { trip: CompactTripCardProps }) {
   const href = trip.shareToken ? `/share/${trip.shareToken}` : `/trips/${trip.id}`;
 
   return (
-    <Link href={href} style={{ textDecoration: "none", display: "block", flexShrink: 0, width: "280px" }}>
+    <Link href={href} style={{ textDecoration: "none", display: "block", width: "100%" }}>
       <div style={{
-        backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden",
+        backgroundColor: "#fff", borderRadius: "20px", overflow: "hidden",
         border: "1.5px solid #EEEEEE", boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
         height: "100%",
       }}>
+        {/* Hero image with title overlay */}
         <div style={{
-          height: "140px", position: "relative", overflow: "hidden",
+          height: "160px", position: "relative", overflow: "hidden",
           backgroundImage: `url('${hero}')`,
           backgroundSize: "cover", backgroundPosition: "center",
         }}>
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.5) 100%)" }} />
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.55) 100%)" }} />
           {trip.isAnonymous && (
             <span style={{
-              position: "absolute", bottom: "8px", left: "8px",
+              position: "absolute", top: "8px", left: "8px",
               fontSize: "10px", color: "rgba(255,255,255,0.7)",
               backgroundColor: "rgba(0,0,0,0.35)", borderRadius: "10px", padding: "2px 8px",
             }}>
               Anonymous
             </span>
           )}
+          <div style={{ position: "absolute", bottom: "10px", left: "12px", right: "12px" }}>
+            <p style={{
+              fontSize: "16px", fontWeight: 800, color: "#fff",
+              lineHeight: 1.25, margin: 0,
+              textShadow: "0 1px 3px rgba(0,0,0,0.4)",
+              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+            }}>
+              {trip.title}
+            </p>
+          </div>
         </div>
-        <div style={{ padding: "12px 14px" }}>
-          <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, margin: 0 }} className="line-clamp-2">
-            {trip.title}
-          </p>
+
+        {/* Metadata below image */}
+        <div style={{ padding: "10px 12px" }}>
           {(trip.destinationCity || trip.destinationCountry) && (
-            <p style={{ fontSize: "12px", color: "#888", marginTop: "4px" }}>
+            <p style={{ fontSize: "12px", color: "#888", margin: 0 }}>
               {[trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ")}
             </p>
           )}
@@ -104,34 +116,38 @@ export function TourCard({ tour }: { tour: CompactTourCardProps }) {
   const href = tour.shareToken ? `/share/${tour.shareToken}` : `/tour`;
 
   return (
-    <Link href={href} style={{ textDecoration: "none", display: "block", flexShrink: 0, width: "280px" }}>
+    <Link href={href} style={{ textDecoration: "none", display: "block", width: "100%" }}>
       <div style={{
-        backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden",
+        borderRadius: "16px", overflow: "hidden",
         border: "1.5px solid #EEEEEE", boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-        height: "100%",
+        position: "relative",
+        aspectRatio: "4/3",
+        backgroundImage: `url('${TOUR_FALLBACK}')`,
+        backgroundSize: "cover", backgroundPosition: "center",
       }}>
-        <div style={{
-          height: "140px", backgroundImage: `url('${TOUR_FALLBACK}')`,
-          backgroundSize: "cover", backgroundPosition: "center", position: "relative",
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.72) 100%)" }} />
+        {/* Stop count chip */}
+        <span style={{
+          position: "absolute", top: "8px", left: "8px",
+          fontSize: "10px", fontWeight: 600, color: "#fff",
+          backgroundColor: "rgba(27,58,92,0.92)", borderRadius: "10px", padding: "2px 8px",
         }}>
-          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.45) 100%)" }} />
-          <span style={{
-            position: "absolute", bottom: "8px", left: "8px",
-            fontSize: "10px", color: "#fff",
-            backgroundColor: "#C4664A", borderRadius: "10px", padding: "2px 8px",
-          }}>
-            Tour
-          </span>
-        </div>
-        <div style={{ padding: "12px 14px" }}>
-          <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, margin: 0 }} className="line-clamp-2">
+          {tour.stopCount} {tour.stopCount === 1 ? "stop" : "stops"}
+        </span>
+        {/* Title and destination at bottom */}
+        <div style={{ position: "absolute", bottom: "12px", left: "12px", right: "12px" }}>
+          <p
+            className={playfair.className}
+            style={{
+              fontSize: "18px", fontWeight: 700, color: "#fff",
+              lineHeight: 1.25, margin: 0,
+              display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+            }}
+          >
             {tour.title}
           </p>
-          <p style={{ fontSize: "12px", color: "#888", marginTop: "4px" }}>
-            {[tour.destinationCity, tour.destinationCountry].filter(Boolean).join(", ")}
-          </p>
-          <p style={{ fontSize: "11px", color: "#aaa", marginTop: "2px" }}>
-            {tour.stopCount} {tour.stopCount === 1 ? "stop" : "stops"} · {tour.transport}
+          <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.7)", marginTop: "4px", margin: "4px 0 0" }}>
+            {[tour.destinationCity, tour.destinationCountry].filter(Boolean).join(", ")} · {tour.transport}
           </p>
         </div>
       </div>
@@ -146,9 +162,9 @@ export function SpotCard({ spot }: { spot: CompactSpotCardProps }) {
     <div style={{
       backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden",
       border: "1.5px solid #EEEEEE", boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-      flexShrink: 0, width: "240px",
+      width: "100%",
     }}>
-      <div style={{ height: "120px", overflow: "hidden", backgroundColor: "#f3f4f6" }}>
+      <div style={{ height: "140px", overflow: "hidden", backgroundColor: "#f3f4f6" }}>
         <SpotImage
           spotId={spot.id}
           src={spot.photoUrl}
@@ -159,11 +175,11 @@ export function SpotCard({ spot }: { spot: CompactSpotCardProps }) {
         />
       </div>
       <div style={{ padding: "10px 12px" }}>
-        <p style={{ fontSize: "13px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, margin: 0 }} className="line-clamp-2">
+        <p style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C", lineHeight: 1.3, margin: 0 }} className="line-clamp-2">
           {spot.name}
         </p>
         {spot.category && (
-          <p style={{ fontSize: "11px", color: "#888", marginTop: "3px", textTransform: "capitalize" }}>
+          <p style={{ fontSize: "11px", color: "#9CA3AF", marginTop: "3px", textTransform: "capitalize" }}>
             {spot.category.replace(/_/g, " ")}
           </p>
         )}
@@ -171,7 +187,7 @@ export function SpotCard({ spot }: { spot: CompactSpotCardProps }) {
           <p style={{ fontSize: "11px", color: "#C4664A", marginTop: "3px" }}>
             {"★".repeat(Math.round(spot.averageRating ?? 0))}
             <span style={{ color: "#aaa", marginLeft: "4px" }}>
-              {spot.averageRating?.toFixed(1)} ({spot.ratingCount})
+              {spot.averageRating?.toFixed(1)} · {spot.ratingCount} {spot.ratingCount === 1 ? "family" : "families"}
             </span>
           </p>
         ) : (

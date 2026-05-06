@@ -1,7 +1,25 @@
+"use client";
+
+import { useState } from "react";
+import React from "react";
 import Link from "next/link";
 import { Playfair_Display } from "next/font/google";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700"] });
+
+const GRID_CSS = `
+  .city-section-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 900px) {
+    .city-section-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 500px) {
+    .city-section-grid { grid-template-columns: 1fr; }
+  }
+`;
 
 interface CitySectionProps {
   id: string;
@@ -26,8 +44,15 @@ export function CitySection({
   children,
   isEmpty,
 }: CitySectionProps) {
+  const [expanded, setExpanded] = useState(false);
+  const childArray = React.Children.toArray(children);
+  const visible = expanded ? childArray : childArray.slice(0, 8);
+  const hiddenCount = childArray.length - 8;
+
   return (
     <section id={id} style={{ paddingTop: "48px", paddingBottom: "8px", scrollMarginTop: "108px" }}>
+      <style>{GRID_CSS}</style>
+
       {/* Section header */}
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: "16px", gap: "8px" }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: "10px", flexWrap: "wrap" }}>
@@ -71,15 +96,25 @@ export function CitySection({
           <p style={{ fontSize: "14px", color: "#9CA3AF", margin: 0 }}>{emptyText}</p>
         </div>
       ) : (
-        <div style={{
-          display: "flex", overflowX: "auto",
-          gap: "12px", paddingBottom: "16px",
-          scrollSnapType: "x mandatory",
-          WebkitOverflowScrolling: "touch",
-          msOverflowStyle: "none",
-        }}>
-          {children}
-        </div>
+        <>
+          <div className="city-section-grid">
+            {visible}
+          </div>
+          {!expanded && hiddenCount > 0 && (
+            <div style={{ textAlign: "center", marginTop: "16px" }}>
+              <button
+                onClick={() => setExpanded(true)}
+                style={{
+                  fontSize: "13px", color: "#C4664A", background: "none",
+                  border: "1px solid #C4664A", borderRadius: "20px",
+                  padding: "8px 20px", cursor: "pointer",
+                }}
+              >
+                Show {hiddenCount} more
+              </button>
+            </div>
+          )}
+        </>
       )}
     </section>
   );

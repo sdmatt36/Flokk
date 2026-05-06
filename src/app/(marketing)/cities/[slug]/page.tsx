@@ -4,12 +4,13 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 
+import { normalizeCategorySlug } from "@/lib/categories";
 import { CityHero } from "./_components/CityHero";
 import { SectionNav } from "./_components/SectionNav";
 import { CitySection } from "./_components/CitySection";
-import { ActivitiesSection } from "./_components/ActivitiesSection";
+import { SpotSection } from "./_components/SpotSection";
 import { SubmitContentCTA } from "./_components/SubmitContentCTA";
-import { TripCard, TourCard, SpotCard } from "./_components/cards";
+import { TripCard, TourCard } from "./_components/cards";
 
 // ── DB ────────────────────────────────────────────────────────────────────────
 
@@ -24,7 +25,49 @@ function getDb() {
 const FOOD_CATEGORIES = new Set(["food_and_drink", "Food", "food"]);
 const LODGING_CATEGORIES = new Set(["lodging", "Lodging"]);
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function slugForDedup(s: string): string {
+  return s.toLowerCase().normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+async function fetchCityPhoto(cityName: string, countryName: string): Promise<string | null> {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const searchRes = await fetch(
+      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(`${cityName}, ${countryName}`)}&type=locality&key=${apiKey}`,
+      { cache: "no-store" }
+    );
+    if (!searchRes.ok) return null;
+    const searchData = await searchRes.json() as { results?: Array<{ photos?: Array<{ photo_reference: string }> }> };
+    const photoRef = searchData.results?.[0]?.photos?.[0]?.photo_reference;
+    if (!photoRef) return null;
+    const photoRes = await fetch(
+      `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photo_reference=${photoRef}&key=${apiKey}`,
+      { redirect: "follow", cache: "no-store" }
+    );
+    const finalUrl = photoRes.url;
+    return finalUrl.startsWith("https://lh3.googleusercontent.com") ? finalUrl : null;
+  } catch {
+    return null;
+  }
+}
+
 // ── Data loading ──────────────────────────────────────────────────────────────
+
+type SpotItem = {
+  id: string;
+  name: string;
+  category: string | null;
+  photoUrl: string | null;
+  averageRating: number | null;
+  ratingCount: number;
+  description: string | null;
+};
 
 async function loadCity(slug: string) {
   const db = getDb();
@@ -35,7 +78,14 @@ async function loadCity(slug: string) {
     });
     if (!city) return null;
 
-    const [spots, trips, tours] = await Promise.all([
+    interface RatingRow {
+      name: string;
+      category: string;
+      averageRating: number;
+      ratingCount: bigint | number;
+    }
+
+    const [spots, trips, tours, ratingRows] = await Promise.all([
       db.communitySpot.findMany({
         where: { cityId: city.id },
         select: {
@@ -71,9 +121,62 @@ async function loadCity(slug: string) {
         orderBy: { createdAt: "desc" },
         take: 12,
       }),
+      db.$queryRaw<RatingRow[]>`
+        SELECT
+          "placeName" AS name,
+          "placeType" AS category,
+          AVG("rating")::float AS "averageRating",
+          COUNT(DISTINCT "familyProfileId")::int AS "ratingCount"
+        FROM "PlaceRating"
+        WHERE LOWER("destinationCity") = LOWER(${city.name})
+        GROUP BY "placeName", "placeType"
+      `,
     ]);
 
-    return { city, spots, trips, tours };
+    // Build dedup map from CommunitySpot (normalize category to canonical slug)
+    const spotMap = new Map<string, SpotItem>();
+    for (const s of spots) {
+      const normCat = normalizeCategorySlug(s.category) ?? s.category;
+      const key = `${slugForDedup(s.name)}|${normCat ?? ""}`;
+      spotMap.set(key, { ...s, category: normCat });
+    }
+
+    // Merge PlaceRating aggregates — augment matching spots, append new ones
+    const prOnlySpots: SpotItem[] = [];
+    for (const row of ratingRows) {
+      const normCat = normalizeCategorySlug(row.category) ?? row.category;
+      const key = `${slugForDedup(row.name)}|${normCat ?? ""}`;
+      const count = Number(row.ratingCount);
+      const existing = spotMap.get(key);
+      if (existing) {
+        if (count > existing.ratingCount) {
+          spotMap.set(key, { ...existing, averageRating: row.averageRating, ratingCount: count });
+        }
+      } else {
+        prOnlySpots.push({
+          id: `pr_${slugForDedup(row.name)}_${slugForDedup(row.category)}`,
+          name: row.name,
+          category: normCat,
+          photoUrl: null,
+          averageRating: row.averageRating,
+          ratingCount: count,
+          description: null,
+        });
+      }
+    }
+
+    const allSpots: SpotItem[] = [...spotMap.values(), ...prOnlySpots];
+
+    // Fetch and cache city photo on first visit
+    let photoUrl = city.photoUrl;
+    if (!photoUrl) {
+      photoUrl = await fetchCityPhoto(city.name, city.country.name);
+      if (photoUrl) {
+        await db.city.update({ where: { id: city.id }, data: { photoUrl } });
+      }
+    }
+
+    return { city: { ...city, photoUrl }, spots: allSpots, trips, tours };
   } finally {
     await db.$disconnect();
   }
@@ -164,6 +267,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
         latitude={city.latitude}
         longitude={city.longitude}
         tags={city.tags}
+        photoUrl={city.photoUrl}
       />
 
       <SectionNav />
@@ -180,7 +284,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
           addLabel="Add →"
         >
           {trips.map((trip) => (
-            <div key={trip.id} style={{ scrollSnapAlign: "start" }}>
+            <div key={trip.id}>
               <TripCard trip={trip} />
             </div>
           ))}
@@ -197,7 +301,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
           addLabel="Build one →"
         >
           {tours.map((tour) => (
-            <div key={tour.id} style={{ scrollSnapAlign: "start" }}>
+            <div key={tour.id}>
               <TourCard
                 tour={{
                   id: tour.id,
@@ -214,37 +318,32 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
         </CitySection>
 
         {/* Food */}
-        <CitySection
+        <SpotSection
           id="food"
           title="Food & Drink"
-          count={foodSpots.length}
+          spots={foodSpots}
+          cityName={city.name}
           emptyText="No food picks yet. Got a favorite? Share it."
-          isEmpty={foodSpots.length === 0}
-        >
-          {foodSpots.map((spot) => (
-            <div key={spot.id} style={{ scrollSnapAlign: "start" }}>
-              <SpotCard spot={spot} />
-            </div>
-          ))}
-        </CitySection>
+        />
 
-        {/* Activities (client — has filter pills) */}
-        <ActivitiesSection spots={activitySpots} cityName={city.name} />
+        {/* Activities */}
+        <SpotSection
+          id="activities"
+          title="Activities"
+          spots={activitySpots}
+          cityName={city.name}
+          emptyText={`No activities yet. Help us build ${city.name}.`}
+          showCategoryFilter
+        />
 
         {/* Lodging */}
-        <CitySection
+        <SpotSection
           id="lodging"
           title="Lodging"
-          count={lodgingSpots.length}
+          spots={lodgingSpots}
+          cityName={city.name}
           emptyText="No lodging picks yet."
-          isEmpty={lodgingSpots.length === 0}
-        >
-          {lodgingSpots.map((spot) => (
-            <div key={spot.id} style={{ scrollSnapAlign: "start" }}>
-              <SpotCard spot={spot} />
-            </div>
-          ))}
-        </CitySection>
+        />
 
         <SubmitContentCTA cityName={city.name} />
       </div>
