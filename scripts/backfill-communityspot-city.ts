@@ -9,6 +9,14 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL ?? process.en
 const adapter = new PrismaPg(pool);
 const db = new PrismaClient({ adapter });
 
+// Maps raw city strings from CommunitySpot.city to canonical city slugs.
+// Handles neighborhoods (Shibuya → tokyo) and region descriptors (Ha Long Bay → ha-long).
+// Extensible: add entries as new naming variants surface.
+const CITY_ALIASES: Record<string, string> = {
+  "ha long bay": "ha-long",
+  "shibuya": "tokyo",
+};
+
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -47,15 +55,29 @@ async function main() {
   console.log(`Unlinked spots to process: ${spots.length}`);
 
   let linked = 0;
+  let aliasLinked = 0;
   let unmatched = 0;
   let ambiguous = 0;
   const unmatchedSpots: Array<{ id: string; name: string; city: string }> = [];
   const ambiguousSpots: Array<{ id: string; name: string; city: string; candidates: string[] }> = [];
+  const aliasLog: Array<{ city: string; resolvedSlug: string }> = [];
 
   for (const spot of spots) {
     const rawCity = spot.city.trim();
     let matchedId: string | null = null;
     let candidateSlugs: string[] = [];
+    let wasAlias = false;
+
+    // Pass 0 — alias map (neighborhood/region → canonical city slug)
+    const aliasKey = rawCity.toLowerCase();
+    if (CITY_ALIASES[aliasKey]) {
+      const targetSlug = CITY_ALIASES[aliasKey];
+      if (slugMap.has(targetSlug)) {
+        matchedId = slugMap.get(targetSlug)!;
+        wasAlias = true;
+        aliasLog.push({ city: rawCity, resolvedSlug: targetSlug });
+      }
+    }
 
     // Pass 1 — slug of full city string
     const fullSlug = slugify(rawCity);
@@ -121,15 +143,28 @@ async function main() {
       where: { id: spot.id },
       data: { cityId: matchedId },
     });
-    linked++;
+    if (wasAlias) {
+      aliasLinked++;
+    } else {
+      linked++;
+    }
   }
 
   // ── Summary ──────────────────────────────────────────────────────────────────
   console.log("\n── Backfill complete ──────────────────────────────────────────");
-  console.log(`  Total scanned:    ${spots.length}`);
-  console.log(`  Newly linked:     ${linked}`);
-  console.log(`  Unmatched:        ${unmatched}`);
+  console.log(`  Total scanned:     ${spots.length}`);
+  console.log(`  Newly linked:      ${linked}`);
+  console.log(`  Alias linked:      ${aliasLinked}`);
+  console.log(`  Unmatched:         ${unmatched}`);
   console.log(`  Ambiguous skipped: ${ambiguous}`);
+
+  if (aliasLog.length > 0) {
+    const aliasCounts = aliasLog.reduce<Record<string, number>>((acc, { resolvedSlug }) => {
+      acc[resolvedSlug] = (acc[resolvedSlug] ?? 0) + 1;
+      return acc;
+    }, {});
+    console.log(`  Alias breakdown:   ${Object.entries(aliasCounts).map(([s, n]) => `${s}: ${n}`).join(", ")}`);
+  }
 
   if (unmatchedSpots.length > 0) {
     console.log("\nUnmatched spots (first 30):");

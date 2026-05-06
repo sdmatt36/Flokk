@@ -12145,5 +12145,40 @@
       "scenic",
       "family-friendly"
     ]
+  },
+  {
+    "slug": "chiang-mai",
+    "name": "Chiang Mai",
+    "countrySlug": "thailand",
+    "tier": 2,
+    "tags": [
+      "cultural",
+      "historic",
+      "food",
+      "family-friendly"
+    ]
+  },
+  {
+    "slug": "edinburgh",
+    "name": "Edinburgh",
+    "countrySlug": "united-kingdom",
+    "tier": 2,
+    "tags": [
+      "historic",
+      "cultural",
+      "scenic",
+      "family-friendly"
+    ]
+  },
+  {
+    "slug": "hiratsuka",
+    "name": "Hiratsuka",
+    "countrySlug": "japan",
+    "tier": 2,
+    "tags": [
+      "beach",
+      "off-the-beaten-path",
+      "scenic"
+    ]
   }
 ]
