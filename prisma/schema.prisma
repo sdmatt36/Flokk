@@ -1030,6 +1030,8 @@ model CommunitySpot {
   city              String
   country           String?
   category          String?
+  cuisine           String?
+  lodgingType       String?
   googlePlaceId     String?              @unique
   address           String?
   lat               Float?
