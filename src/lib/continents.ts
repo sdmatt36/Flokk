@@ -2,6 +2,28 @@
 // Continent is NOT stored on CommunitySpot. It's computed from country at render time.
 // Matt-approved judgment calls: Russia → Europe, Turkey → Europe, Egypt → Africa.
 
+// ── Discover grid config ──────────────────────────────────────────────────────
+// Used by ContinentGrid.tsx and /continents/[slug]/page.tsx (Discipline 4.50)
+
+export type ContinentConfig = {
+  slug: string;
+  label: string;
+  tagline: string;
+  color: string;
+};
+
+export const CONTINENT_CONFIGS: ContinentConfig[] = [
+  { slug: "asia",          label: "Asia",          tagline: "Temples at dawn, noodles at midnight.",          color: "#B14A3A" },
+  { slug: "europe",        label: "Europe",        tagline: "Every train ride leads to a story.",             color: "#C49454" },
+  { slug: "africa",        label: "Africa",        tagline: "Where the kids stop talking and just look.",     color: "#C77F2A" },
+  { slug: "north-america", label: "North America", tagline: "Pack the car, find the road.",                   color: "#3C6A78" },
+  { slug: "south-america", label: "South America", tagline: "High peaks, low jungles, long lunches.",         color: "#5C7E94" },
+  { slug: "oceania",       label: "Oceania",       tagline: "Where the road ends, the water starts.",         color: "#2E6B6F" },
+  { slug: "antarctica",    label: "Antarctica",    tagline: "Start in Ushuaia. Tell your flokk how it ended.", color: "#7A8B9C" },
+];
+
+// ── Spots-hierarchy continent type ───────────────────────────────────────────
+
 export type Continent =
   | "Africa"
   | "Asia"

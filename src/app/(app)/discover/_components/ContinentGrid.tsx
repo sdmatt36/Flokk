@@ -1,105 +1,196 @@
 "use client";
 
-/*
- * Continent cover images — drop into public/images/continents/{slug}.jpg
- *
- * Suggested Unsplash search queries:
- *   asia          → "fushimi inari path"
- *   europe        → "cinque terre vernazza"
- *   africa        → "elephants kilimanjaro"
- *   north-america → "moraine lake banff sunrise"
- *   south-america → "torres del paine sunrise"
- *   oceania       → "milford sound new zealand"
- *   antarctica    → "antarctica expedition ship iceberg"
- */
-
-import { useState } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
+import { ComposableMap, Geographies, Geography, Marker } from "react-simple-maps";
+import { merge } from "topojson-client";
+import type { Topology, GeometryCollection, Polygon, MultiPolygon } from "topojson-specification";
+import worldAtlasData from "world-atlas/countries-110m.json";
+import { CONTINENT_CONFIGS } from "@/lib/continents";
+import type { ContinentConfig } from "@/lib/continents";
 
-type Continent = {
-  slug: string;
-  label: string;
-  tagline: string;
-  color: string;
+// ── Topology setup ─────────────────────────────────────────────────────────────
+
+const topology = worldAtlasData as unknown as Topology<{ countries: GeometryCollection }>;
+const allCountryGeoms = topology.objects.countries.geometries as unknown as (Polygon | MultiPolygon)[];
+
+// ── Country ID → continent mapping (ISO 3166-1 numeric, from world-atlas) ────
+
+const CONTINENT_IDS: Record<string, Set<string>> = {
+  asia: new Set([
+    "004","031","050","051","064","096","104","116","144","156","158","268","275",
+    "360","364","368","376","392","398","400","408","410","418","422","458","462",
+    "496","512","524","586","608","626","634","682","704","760","762","764","784",
+    "792","795","860","887",
+  ]),
+  europe: new Set([
+    "008","040","056","070","100","112","191","203","208","233","246","250","276",
+    "300","304","348","352","372","380","428","440","442","498","499","528","578",
+    "616","620","642","643","688","703","705","724","752","756","804","807","826",
+  ]),
+  africa: new Set([
+    "012","024","072","108","120","140","148","178","180","204","226","231","232",
+    "238","262","266","270","288","324","384","404","426","430","434","450","466",
+    "478","504","508","516","562","566","624","646","686","694","706","710","716",
+    "728","729","732","748","768","788","800","818","834","854","894",
+  ]),
+  "north-america": new Set([
+    "044","084","124","188","192","214","222","304","320","332","340","388","484",
+    "558","591","630","780","840",
+  ]),
+  "south-america": new Set([
+    "032","068","076","152","170","218","238","328","600","604","740","858","862",
+  ]),
+  oceania: new Set([
+    "036","090","242","540","548","554","598","776","798","882",
+  ]),
+  antarctica: new Set([
+    "010","260",
+  ]),
 };
 
-const CONTINENTS: Continent[] = [
-  { slug: "asia",          label: "Asia",          tagline: "Temples at dawn, noodles at midnight.",          color: "#B14A3A" },
-  { slug: "europe",        label: "Europe",        tagline: "Every train ride leads to a story.",             color: "#C49454" },
-  { slug: "africa",        label: "Africa",        tagline: "Where the kids stop talking and just look.",     color: "#C77F2A" },
-  { slug: "north-america", label: "North America", tagline: "Pack the car, find the road.",                   color: "#3C6A78" },
-  { slug: "south-america", label: "South America", tagline: "High peaks, low jungles, long lunches.",         color: "#5C7E94" },
-  { slug: "oceania",       label: "Oceania",       tagline: "Where the road ends, the water starts.",         color: "#2E6B6F" },
-  { slug: "antarctica",    label: "Antarctica",    tagline: "Start in Ushuaia. Tell your flokk how it ended.", color: "#7A8B9C" },
-];
+// ── City anchor dots [lng, lat] ────────────────────────────────────────────────
+
+const CITY_DOTS: Record<string, [number, number][]> = {
+  asia:          [[139.69,35.68],[100.50,13.75],[72.88,19.08],[103.82,1.35],[126.98,37.57]],
+  europe:        [[-0.13,51.51],[2.35,48.86],[12.50,41.90],[2.17,41.39],[28.98,41.01]],
+  africa:        [[31.25,30.05],[18.42,-33.92],[-8.01,31.63],[36.82,-1.29],[3.38,6.52]],
+  "north-america":[[-74.01,40.71],[-118.24,34.05],[-99.13,19.43],[-86.85,21.16],[-79.38,43.65]],
+  "south-america":[[-43.17,-22.91],[-58.38,-34.61],[-77.04,-12.05],[-71.98,-13.53],[-70.67,-33.45]],
+  oceania:       [[151.21,-33.87],[174.76,-36.85],[-157.86,21.31],[178.44,-18.14],[168.66,-45.03]],
+  antarctica:    [],
+};
+
+// ── Per-continent projection config ───────────────────────────────────────────
+
+type ProjConfig = {
+  center?: [number, number];
+  scale?: number;
+  rotate?: [number, number, number];
+};
+
+const PROJECTION_CONFIGS: Record<string, ProjConfig> = {
+  asia:            { center: [102, 28], scale: 300 },
+  europe:          { center: [15, 54], scale: 950 },
+  africa:          { center: [20, 2], scale: 370 },
+  "north-america": { center: [-100, 48], scale: 310 },
+  "south-america": { center: [-60, -22], scale: 510 },
+  oceania:         { center: [152, -27], scale: 310 },
+  antarctica:      { rotate: [0, 90, 0], scale: 280 },
+};
+
+// ── Pre-compute merged silhouette GeoJSON per continent (module-level, once) ──
+
+type MergedFeature = {
+  type: "FeatureCollection";
+  features: Array<{ type: "Feature"; geometry: ReturnType<typeof merge>; properties: object }>;
+};
+
+const CONTINENT_GEOJSON: Record<string, MergedFeature> = {};
+
+for (const c of CONTINENT_CONFIGS) {
+  const ids = CONTINENT_IDS[c.slug];
+  const matching = allCountryGeoms.filter(g => ids?.has(String((g as unknown as { id?: string }).id ?? "")));
+  const merged = merge(topology as unknown as Topology, matching as (Polygon | MultiPolygon)[]);
+  CONTINENT_GEOJSON[c.slug] = {
+    type: "FeatureCollection",
+    features: [{ type: "Feature", geometry: merged, properties: {} }],
+  };
+}
+
+// ── ContinentTile ──────────────────────────────────────────────────────────────
 
 function ContinentTile({
   continent,
   playfairClassName,
   className = "",
 }: {
-  continent: Continent;
+  continent: ContinentConfig;
   playfairClassName: string;
   className?: string;
 }) {
   const router = useRouter();
-  const [imageFailed, setImageFailed] = useState(false);
+  const { slug, label, tagline, color } = continent;
+  const projection = slug === "antarctica" ? "geoAzimuthalEqualArea" : "geoMercator";
+  const projConfig = PROJECTION_CONFIGS[slug] ?? {};
+  const cityDots = CITY_DOTS[slug] ?? [];
+  const geojson = CONTINENT_GEOJSON[slug];
 
   return (
     <button
-      onClick={() => router.push(`/continents/${continent.slug}`)}
-      className={`group relative aspect-[3/4] rounded-2xl overflow-hidden cursor-pointer text-left transition-transform duration-300 hover:scale-[1.02] w-full ${className}`}
-      style={{ backgroundColor: continent.color }}
+      onClick={() => router.push(`/continents/${slug}`)}
+      className={`group relative aspect-[3/4] rounded-2xl overflow-hidden cursor-pointer text-left transition-all duration-300 hover:scale-[1.02] hover:shadow-lg bg-[#FBF6EC] border border-[#E8DDC8] w-full ${className}`}
     >
-      {!imageFailed && (
-        <Image
-          src={`/images/continents/${continent.slug}.jpg`}
-          alt={continent.label}
-          fill
-          sizes="(max-width: 768px) 50vw, (max-width: 1280px) 25vw, 280px"
-          className="object-cover"
-          onError={() => setImageFailed(true)}
-        />
+      {/* Silhouette map — top 70% of tile */}
+      {geojson && (
+        <div className="absolute inset-0">
+          <ComposableMap
+            projection={projection}
+            projectionConfig={projConfig}
+            width={300}
+            height={400}
+            style={{ width: "100%", height: "70%" }}
+          >
+            <Geographies geography={geojson}>
+              {({ geographies }) =>
+                geographies.map((geo) => (
+                  <Geography
+                    key={geo.rsmKey}
+                    geography={geo}
+                    fill={color}
+                    stroke="#FBF6EC"
+                    strokeWidth={0.5}
+                    style={{
+                      default: { outline: "none" },
+                      hover: { outline: "none" },
+                      pressed: { outline: "none" },
+                    }}
+                  />
+                ))
+              }
+            </Geographies>
+            {cityDots.map(([lng, lat], i) => (
+              <Marker key={i} coordinates={[lng, lat]}>
+                <circle r={3} fill="#1B3A5C" stroke="#FBF6EC" strokeWidth={1} />
+              </Marker>
+            ))}
+          </ComposableMap>
+        </div>
       )}
 
-      {/* Gradient — always present so text reads against colour fallback too */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-
-      {/* Hover arrow */}
+      {/* Arrow icon — top-right, reveals on hover */}
       <ArrowRight
         size={20}
-        className="absolute top-3 right-3 text-[#FAF7F2] opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+        style={{ color }}
       />
 
-      {/* Text block */}
+      {/* Text block — bottom 30% */}
       <div className="absolute bottom-0 left-0 right-0 p-4 md:p-5">
-        <span className={`${playfairClassName} text-2xl md:text-3xl text-[#FAF7F2] block`}>
-          {continent.label}
+        <span className={`${playfairClassName} text-2xl md:text-3xl text-[#1B3A5C] block`}>
+          {label}
         </span>
-        <span className="text-sm md:text-base italic text-[#FAF7F2]/85 mt-1 block">
-          {continent.tagline}
+        <span className="text-sm md:text-base italic text-[#1B3A5C]/70 mt-1 block">
+          {tagline}
         </span>
       </div>
     </button>
   );
 }
 
+// ── ContinentGrid ──────────────────────────────────────────────────────────────
+
 export function ContinentGrid({ playfairClassName }: { playfairClassName: string }) {
   return (
     <div className="max-w-7xl mx-auto px-6 py-12 md:py-16">
       {/*
-       * 8-column grid at md+. Tiles 1–4: col-span-2 each (fills row 1, 4×2=8).
-       * Tiles 5–7: col-span-2 each, tile 5 starts at col 2 → 1 empty track on
-       * each side (cols 1 and 8), centering the trio. Tile sizes identical to
-       * row 1 since col-span-2 in grid-cols-8 = 1/4 of container.
-       * Mobile (grid-cols-2): col-span-2 → col-span-1 via default auto-flow;
-       * md:col-start-2 on tile 5 doesn't apply below md, so all 7 tiles
-       * auto-place 2-per-row, tile 7 sits alone in col 1 final row.
+       * 8-column grid at md+. Tiles 1–4: col-span-2 each (fills row 1).
+       * Tiles 5–7: col-span-2 each, tile 5 at col-start-2 → 1 empty track
+       * on each side, centering the trio. Mobile (grid-cols-2): auto-flows
+       * 2-per-row, tile 7 alone in col 1 of the final row.
        */}
       <div className="grid grid-cols-2 md:grid-cols-8 gap-4 md:gap-6">
-        {CONTINENTS.slice(0, 4).map((c) => (
+        {CONTINENT_CONFIGS.slice(0, 4).map((c) => (
           <ContinentTile
             key={c.slug}
             continent={c}
@@ -107,7 +198,7 @@ export function ContinentGrid({ playfairClassName }: { playfairClassName: string
             className="md:col-span-2"
           />
         ))}
-        {CONTINENTS.slice(4).map((c, i) => (
+        {CONTINENT_CONFIGS.slice(4).map((c, i) => (
           <ContinentTile
             key={c.slug}
             continent={c}
