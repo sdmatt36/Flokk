@@ -21,6 +21,7 @@ import { buildSaveStatusMap } from "@/lib/save-status-map";
 import type { EntityStatusResult } from "@/lib/entity-status";
 import { CommunitySpotCard } from "@/components/shared/cards/CommunitySpotCard";
 import { CommunityTripCard } from "@/components/shared/cards/CommunityTripCard";
+import { CommunitySpotDetailPanel } from "@/components/shared/cards/CommunitySpotDetailPanel";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700", "900"] });
 
@@ -1796,78 +1797,37 @@ export default function DiscoverPage() {
 
       {/* ── Activity detail modal ── */}
       {activeTab === "trips" && selectedActivity && (
-        <div
-          onClick={() => setSelectedActivity(null)}
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ backgroundColor: "#fff", borderRadius: "20px", width: "100%", maxWidth: "440px", overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "90vh" }}
-          >
-            {/* Image */}
-            {selectedActivity.imageUrl && (
-              <div style={{ height: "220px", flexShrink: 0, position: "relative", overflow: "hidden" }}>
-                <SpotImage
-                  src={selectedActivity.imageUrl}
-                  category={selectedActivity.type}
-                  alt={selectedActivity.title}
-                  allowResolve={false}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
-                {selectedActivity.rating !== null && selectedActivity.rating >= 3 && (
-                  <span style={{ position: "absolute", bottom: "12px", left: "12px", backgroundColor: "#C4664A", color: "#fff", fontSize: "11px", fontWeight: 700, padding: "4px 10px", borderRadius: "999px" }}>
-                    Flokk Approved
-                  </span>
-                )}
-              </div>
-            )}
-            {/* Body */}
-            <div style={{ padding: "20px 20px 24px", overflowY: "auto", flex: 1, position: "relative" }}>
-              {/* Close button */}
-              <button
-                onClick={() => setSelectedActivity(null)}
-                style={{ position: "absolute", top: "16px", right: "16px", background: "none", border: "none", cursor: "pointer", color: "#999", fontSize: "22px", lineHeight: 1, padding: "0 0 0 12px" }}
-              >
-                <X size={20} />
-              </button>
-              <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "4px" }}>{selectedActivity.city ?? ""}</p>
-              <p style={{ fontSize: "18px", fontWeight: 700, color: "#1B3A5C", marginBottom: "10px", lineHeight: 1.3, paddingRight: "32px" }}>{selectedActivity.title}</p>
-              {selectedActivity.ratingNotes && (
-                <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.6, marginBottom: "12px" }}>{selectedActivity.ratingNotes}</p>
-              )}
-              {selectedActivity.rating !== null && (selectedActivity.visitorCount ?? 0) >= 2 && (
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
-                  <span style={{ color: "#f59e0b", fontSize: "16px", letterSpacing: "1px" }}>
-                    {"★".repeat(selectedActivity.rating)}{"☆".repeat(5 - selectedActivity.rating)}
-                  </span>
-                  <span style={{ fontSize: "12px", color: "#AAAAAA" }}>{selectedActivity.visitorCount} families rated this</span>
-                </div>
-              )}
-              <PlaceActionRow
-                place={{
-                  name: selectedActivity.title,
-                  city: selectedActivity.city,
-                  websiteUrl: selectedActivity.websiteUrl,
-                  photoUrl: selectedActivity.imageUrl,
-                  category: selectedActivity.type,
-                }}
-                isSaved={
-                  !!userSaveStatusMap.get(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`) &&
-                  (userSaveStatusMap.get(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`)!.status !== "saved") ||
-                  savedActivities.has(selectedActivity.id)
-                }
-                showAddToItinerary={(() => {
-                  const s = userSaveStatusMap.get(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`);
-                  return !s || s.showAffordance;
-                })()}
-                userRating={userSpotRatings.get(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`) ?? null}
-                onFlokkIt={() => { handlePickSave(selectedActivity); setSelectedActivity(null); }}
-                onShareToast={(msg) => { setShareToast(msg); setTimeout(() => setShareToast(null), 3000); }}
-                variant="card-expanded"
-              />
-            </div>
-          </div>
-        </div>
+        <CommunitySpotDetailPanel
+          spot={{
+            id: selectedActivity.id,
+            title: selectedActivity.title,
+            city: selectedActivity.city,
+            photoUrl: selectedActivity.imageUrl,
+            category: selectedActivity.type,
+            rating: selectedActivity.rating,
+            ratingCount: selectedActivity.visitorCount,
+            description: selectedActivity.ratingNotes,
+            websiteUrl: selectedActivity.websiteUrl,
+            sourceUrl: selectedActivity.sourceUrl,
+            communitySpotWebsiteUrl: selectedActivity.communitySpotWebsiteUrl,
+            lat: selectedActivity.lat,
+            lng: selectedActivity.lng,
+          }}
+          isSaved={
+            (!!userSaveStatusMap.get(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`) &&
+            userSaveStatusMap.get(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`)!.status !== "saved") ||
+            savedActivities.has(selectedActivity.id)
+          }
+          saveStatus={userSaveStatusMap.get(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`) ?? null}
+          userRating={userSpotRatings.get(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`) ?? null}
+          onClose={() => setSelectedActivity(null)}
+          onFlokkIt={() => { handlePickSave(selectedActivity); setSelectedActivity(null); }}
+          onShareToast={(msg) => { setShareToast(msg); setTimeout(() => setShareToast(null), 3000); }}
+          showAddToItinerary={(() => {
+            const s = userSaveStatusMap.get(`${selectedActivity.title.toLowerCase().trim()}|${(selectedActivity.city ?? "").toLowerCase().trim()}`);
+            return !s || s.showAffordance;
+          })()}
+        />
       )}
 
       {shareToast && (

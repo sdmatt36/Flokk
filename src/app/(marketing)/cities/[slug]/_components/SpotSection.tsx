@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Playfair_Display } from "next/font/google";
 import { useUser } from "@clerk/nextjs";
 import { CommunitySpotCard } from "@/components/shared/cards/CommunitySpotCard";
+import { CommunitySpotDetailPanel } from "@/components/shared/cards/CommunitySpotDetailPanel";
 import { AddToItineraryProvider } from "@/components/features/places/AddToItineraryProvider";
 import { buildSaveStatusMap } from "@/lib/save-status-map";
 import type { EntityStatusResult } from "@/lib/entity-status";
@@ -39,6 +40,11 @@ export interface CitySpot {
   averageRating: number | null;
   ratingCount: number;
   description: string | null;
+  websiteUrl?: string | null;
+  address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  googlePlaceId?: string | null;
 }
 
 interface SpotSectionProps {
@@ -71,6 +77,7 @@ export function SpotSection({
   const [sort, setSort] = useState<SortKey>("top-rated");
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [openSpot, setOpenSpot] = useState<CitySpot | null>(null);
   const [userSaveStatusMap, setUserSaveStatusMap] = useState<Map<string, EntityStatusResult>>(new Map());
   const [userSpotRatings, setUserSpotRatings] = useState<Map<string, number>>(new Map());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
@@ -239,10 +246,14 @@ export function SpotSection({
                       rating,
                       ratingCount: spot.ratingCount,
                       description: spot.description,
+                      websiteUrl: spot.websiteUrl ?? null,
+                      lat: spot.lat ?? null,
+                      lng: spot.lng ?? null,
                     }}
                     isSaved={isSaved}
                     saveStatus={saveStatus}
                     userRating={userRating}
+                    onClickCard={() => setOpenSpot(spot)}
                     onFlokkIt={async () => {
                       try {
                         await fetch("/api/saves/from-share", {
@@ -252,7 +263,7 @@ export function SpotSection({
                             title: spot.name,
                             city: cityName,
                             placePhotoUrl: spot.photoUrl ?? "",
-                            websiteUrl: "",
+                            websiteUrl: spot.websiteUrl ?? "",
                             tripId: null,
                           }),
                         });
@@ -282,6 +293,53 @@ export function SpotSection({
             )}
           </>
         )}
+
+        {openSpot && (() => {
+          const panelKey = `${openSpot.name.toLowerCase().trim()}|${cityName.toLowerCase().trim()}`;
+          const panelStatus = userSaveStatusMap.get(panelKey) ?? null;
+          const panelSaved = savedIds.has(openSpot.id) || (!!panelStatus && panelStatus.status !== "saved");
+          const panelRating = openSpot.averageRating !== null ? Math.round(openSpot.averageRating) : null;
+          return (
+            <CommunitySpotDetailPanel
+              spot={{
+                id: openSpot.id,
+                title: openSpot.name,
+                city: cityName,
+                photoUrl: openSpot.photoUrl,
+                category: openSpot.category,
+                rating: panelRating,
+                ratingCount: openSpot.ratingCount,
+                description: openSpot.description,
+                websiteUrl: openSpot.websiteUrl ?? null,
+                lat: openSpot.lat ?? null,
+                lng: openSpot.lng ?? null,
+              }}
+              isSaved={panelSaved}
+              saveStatus={panelStatus}
+              userRating={userSpotRatings.get(panelKey) ?? null}
+              onClose={() => setOpenSpot(null)}
+              onFlokkIt={async () => {
+                try {
+                  await fetch("/api/saves/from-share", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      title: openSpot.name,
+                      city: cityName,
+                      placePhotoUrl: openSpot.photoUrl ?? "",
+                      websiteUrl: openSpot.websiteUrl ?? "",
+                      tripId: null,
+                    }),
+                  });
+                  setSavedIds((prev) => new Set(prev).add(openSpot.id));
+                  setOpenSpot(null);
+                } catch {}
+              }}
+              onShareToast={(msg) => { setShareToast(msg); setTimeout(() => setShareToast(null), 3000); }}
+              showAddToItinerary={!!isSignedIn}
+            />
+          );
+        })()}
 
         {shareToast && (
           <div style={{

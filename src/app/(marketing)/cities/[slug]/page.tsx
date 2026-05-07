@@ -47,6 +47,11 @@ type SpotItem = {
   averageRating: number | null;
   ratingCount: number;
   description: string | null;
+  websiteUrl: string | null;
+  address: string | null;
+  lat: number | null;
+  lng: number | null;
+  googlePlaceId: string | null;
 };
 
 async function loadCity(slug: string) {
@@ -71,6 +76,7 @@ async function loadCity(slug: string) {
         select: {
           id: true, name: true, category: true, cuisine: true, lodgingType: true,
           photoUrl: true, averageRating: true, ratingCount: true, description: true,
+          websiteUrl: true, address: true, lat: true, lng: true, googlePlaceId: true,
         },
         orderBy: [{ ratingCount: "desc" }, { averageRating: "desc" }],
         take: 50,
@@ -166,6 +172,11 @@ async function loadCity(slug: string) {
             averageRating: row.averageRating,
             ratingCount: count,
             description: null,
+            websiteUrl: null,
+            address: null,
+            lat: null,
+            lng: null,
+            googlePlaceId: null,
           });
         }
       }
