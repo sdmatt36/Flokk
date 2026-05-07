@@ -156,7 +156,7 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     const cityNorm = destinationCity.toLowerCase().split(",")[0].trim();
     const query = encodeURIComponent(`${stop.name} ${stop.address || ""} ${destinationCity}`);
     const searchRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&key=${process.env.GOOGLE_MAPS_API_KEY}`
+      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&language=en&key=${process.env.GOOGLE_MAPS_API_KEY}`
     );
     const searchData = await searchRes.json() as {
       results?: Array<{ place_id: string; geometry?: { location?: { lat: number; lng: number } } }>;
@@ -169,7 +169,7 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     }
 
     const detailsRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${firstResult.place_id}&fields=name,formatted_address,geometry,photos,address_components,website,types,price_level,editorial_summary&key=${process.env.GOOGLE_MAPS_API_KEY}`
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${firstResult.place_id}&fields=name,formatted_address,geometry,photos,address_components,website,types,price_level,editorial_summary&language=en&key=${process.env.GOOGLE_MAPS_API_KEY}`
     );
     const detailsData = await detailsRes.json() as {
       result?: {
