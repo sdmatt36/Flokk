@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
-import { ComposableMap, Geographies, Geography, Marker } from "react-simple-maps";
+import { geoPath, geoMercator, geoAzimuthalEqualArea } from "d3-geo";
 import { merge } from "topojson-client";
 import type { Topology, GeometryCollection, Polygon, MultiPolygon } from "topojson-specification";
 import worldAtlasData from "world-atlas/countries-110m.json";
@@ -52,50 +52,54 @@ const CONTINENT_IDS: Record<string, Set<string>> = {
 // ── City anchor dots [lng, lat] ────────────────────────────────────────────────
 
 const CITY_DOTS: Record<string, [number, number][]> = {
-  asia:          [[139.69,35.68],[100.50,13.75],[72.88,19.08],[103.82,1.35],[126.98,37.57]],
-  europe:        [[-0.13,51.51],[2.35,48.86],[12.50,41.90],[2.17,41.39],[28.98,41.01]],
-  africa:        [[31.25,30.05],[18.42,-33.92],[-8.01,31.63],[36.82,-1.29],[3.38,6.52]],
+  asia:           [[139.69,35.68],[100.50,13.75],[72.88,19.08],[103.82,1.35],[126.98,37.57]],
+  europe:         [[-0.13,51.51],[2.35,48.86],[12.50,41.90],[2.17,41.39],[28.98,41.01]],
+  africa:         [[31.25,30.05],[18.42,-33.92],[-8.01,31.63],[36.82,-1.29],[3.38,6.52]],
   "north-america":[[-74.01,40.71],[-118.24,34.05],[-99.13,19.43],[-86.85,21.16],[-79.38,43.65]],
   "south-america":[[-43.17,-22.91],[-58.38,-34.61],[-77.04,-12.05],[-71.98,-13.53],[-70.67,-33.45]],
-  oceania:       [[151.21,-33.87],[174.76,-36.85],[-157.86,21.31],[178.44,-18.14],[168.66,-45.03]],
-  antarctica:    [],
+  oceania:        [[151.21,-33.87],[174.76,-36.85],[-157.86,21.31],[178.44,-18.14],[168.66,-45.03]],
+  antarctica:     [],
 };
 
-// ── Per-continent projection config ───────────────────────────────────────────
+// ── Pre-compute SVG path + dot positions per continent (module-level, once) ───
 
-type ProjConfig = {
-  center?: [number, number];
-  scale?: number;
-  rotate?: [number, number, number];
-};
+const VIEW_W = 300;
+const VIEW_H = 280;
 
-const PROJECTION_CONFIGS: Record<string, ProjConfig> = {
-  asia:            { center: [102, 28], scale: 300 },
-  europe:          { center: [15, 54], scale: 950 },
-  africa:          { center: [20, 2], scale: 370 },
-  "north-america": { center: [-100, 48], scale: 310 },
-  "south-america": { center: [-60, -22], scale: 510 },
-  oceania:         { center: [152, -27], scale: 310 },
-  antarctica:      { rotate: [0, 90, 0], scale: 280 },
-};
-
-// ── Pre-compute merged silhouette GeoJSON per continent (module-level, once) ──
-
-type MergedFeature = {
-  type: "FeatureCollection";
-  features: Array<{ type: "Feature"; geometry: ReturnType<typeof merge>; properties: object }>;
-};
-
-const CONTINENT_GEOJSON: Record<string, MergedFeature> = {};
+type ContinentSVG = { pathD: string; dots: [number, number][] };
+const CONTINENT_SVG: Record<string, ContinentSVG> = {};
 
 for (const c of CONTINENT_CONFIGS) {
   const ids = CONTINENT_IDS[c.slug];
-  const matching = allCountryGeoms.filter(g => ids?.has(String((g as unknown as { id?: string }).id ?? "")));
-  const merged = merge(topology as unknown as Topology, matching as (Polygon | MultiPolygon)[]);
-  CONTINENT_GEOJSON[c.slug] = {
-    type: "FeatureCollection",
-    features: [{ type: "Feature", geometry: merged, properties: {} }],
-  };
+  const matching = allCountryGeoms.filter(
+    g => ids?.has(String((g as unknown as { id?: string }).id ?? ""))
+  );
+
+  if (matching.length === 0) {
+    CONTINENT_SVG[c.slug] = { pathD: "", dots: [] };
+    continue;
+  }
+
+  const merged = merge(
+    topology as unknown as Topology,
+    matching as (Polygon | MultiPolygon)[]
+  );
+
+  const projection = c.slug === "antarctica"
+    ? geoAzimuthalEqualArea().rotate([0, 90])
+    : geoMercator();
+
+  // fitSize auto-scales the projection to fill VIEW_W × VIEW_H exactly
+  projection.fitSize([VIEW_W, VIEW_H], merged as Parameters<typeof projection.fitSize>[1]);
+
+  const pathGen = geoPath(projection);
+  const pathD = pathGen(merged as Parameters<typeof pathGen>[0]) ?? "";
+
+  const dots = (CITY_DOTS[c.slug] ?? [])
+    .map(([lng, lat]) => projection([lng, lat]))
+    .filter((p): p is [number, number] => p !== null);
+
+  CONTINENT_SVG[c.slug] = { pathD, dots };
 }
 
 // ── ContinentTile ──────────────────────────────────────────────────────────────
@@ -111,50 +115,34 @@ function ContinentTile({
 }) {
   const router = useRouter();
   const { slug, label, tagline, color } = continent;
-  const projection = slug === "antarctica" ? "geoAzimuthalEqualArea" : "geoMercator";
-  const projConfig = PROJECTION_CONFIGS[slug] ?? {};
-  const cityDots = CITY_DOTS[slug] ?? [];
-  const geojson = CONTINENT_GEOJSON[slug];
+  const { pathD, dots } = CONTINENT_SVG[slug] ?? { pathD: "", dots: [] };
 
   return (
     <button
       onClick={() => router.push(`/continents/${slug}`)}
       className={`group relative aspect-[3/4] rounded-2xl overflow-hidden cursor-pointer text-left transition-all duration-300 hover:scale-[1.02] hover:shadow-lg bg-[#FBF6EC] border border-[#E8DDC8] w-full ${className}`}
     >
-      {/* Silhouette map — top 70% of tile */}
-      {geojson && (
+      {/* Silhouette SVG — top 70% of tile */}
+      {pathD && (
         <div className="absolute inset-0">
-          <ComposableMap
-            projection={projection}
-            projectionConfig={projConfig}
-            width={300}
-            height={400}
-            style={{ width: "100%", height: "70%" }}
+          <svg
+            viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+            className="w-full h-[70%]"
+            preserveAspectRatio="xMidYMid meet"
           >
-            <Geographies geography={geojson}>
-              {({ geographies }) =>
-                geographies.map((geo) => (
-                  <Geography
-                    key={geo.rsmKey}
-                    geography={geo}
-                    fill={color}
-                    stroke="#FBF6EC"
-                    strokeWidth={0.5}
-                    style={{
-                      default: { outline: "none" },
-                      hover: { outline: "none" },
-                      pressed: { outline: "none" },
-                    }}
-                  />
-                ))
-              }
-            </Geographies>
-            {cityDots.map(([lng, lat], i) => (
-              <Marker key={i} coordinates={[lng, lat]}>
-                <circle r={3} fill="#1B3A5C" stroke="#FBF6EC" strokeWidth={1} />
-              </Marker>
+            <path d={pathD} fill={color} stroke="#FBF6EC" strokeWidth={0.5} />
+            {dots.map(([cx, cy], i) => (
+              <circle
+                key={i}
+                cx={cx}
+                cy={cy}
+                r={3}
+                fill="#1B3A5C"
+                stroke="#FBF6EC"
+                strokeWidth={1}
+              />
             ))}
-          </ComposableMap>
+          </svg>
         </div>
       )}
 
