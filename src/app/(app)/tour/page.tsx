@@ -424,7 +424,7 @@ export default function TourPage() {
                       style={{ background: "none", border: "none", fontFamily: "inherit" }}
                     >
                       <span className="font-semibold">{s.cityName}</span>
-                      {s.region && s.region !== s.countryName ? (
+                      {s.region && s.region !== s.countryName && s.region !== s.cityName ? (
                         <span className="text-gray-400 text-xs">· {s.region}</span>
                       ) : s.countryName && s.countryName !== s.cityName ? (
                         <span className="text-gray-400 text-xs">· {s.countryName}</span>
