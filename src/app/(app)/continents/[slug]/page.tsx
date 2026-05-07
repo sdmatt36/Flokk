@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import type { Metadata } from "next";
-import { Playfair_Display } from "next/font/google";
+import { Playfair_Display, DM_Sans } from "next/font/google";
+import { db } from "@/lib/db";
 import { CONTINENT_CONFIGS } from "@/lib/continents";
+import { CountryGrid } from "./_components/CountryGrid";
 
 const playfair = Playfair_Display({ subsets: ["latin"], display: "swap" });
+const dmsans = DM_Sans({ subsets: ["latin"], display: "swap" });
 
 export function generateStaticParams() {
   return CONTINENT_CONFIGS.map((c) => ({ slug: c.slug }));
@@ -14,11 +16,11 @@ export async function generateMetadata(
   { params }: { params: Promise<{ slug: string }> }
 ): Promise<Metadata> {
   const { slug } = await params;
-  const continent = CONTINENT_CONFIGS.find((c) => c.slug === slug);
-  if (!continent) return { title: "Not found | Flokk" };
+  const config = CONTINENT_CONFIGS.find((c) => c.slug === slug);
+  if (!config) return { title: "Not found | Flokk" };
   return {
-    title: `${continent.label} | Flokk`,
-    description: continent.tagline,
+    title: `${config.label} | Flokk`,
+    description: config.tagline,
   };
 }
 
@@ -26,44 +28,89 @@ export default async function ContinentPage(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
-  const continent = CONTINENT_CONFIGS.find((c) => c.slug === slug);
+  const config = CONTINENT_CONFIGS.find((c) => c.slug === slug);
+  if (!config) notFound();
+
+  const continent = await db.continent.findUnique({
+    where: { slug },
+    select: {
+      blurb: true,
+      countries: {
+        orderBy: { name: "asc" },
+        select: {
+          slug: true,
+          name: true,
+          _count: { select: { cities: true } },
+        },
+      },
+    },
+  });
+
   if (!continent) notFound();
 
   return (
     <main>
-      {/* Tagline band */}
+      {/* Hero band */}
       <div
-        className="flex flex-col items-center justify-center h-24 md:h-36 gap-2 text-center px-4"
+        className="relative flex flex-col items-center justify-center py-16 md:py-20 text-center px-4 overflow-hidden"
         style={{ backgroundColor: "#1B3A5C" }}
       >
-        <p
-          className={`${playfair.className} text-3xl md:text-5xl font-normal tracking-tight`}
-          style={{ color: "#FAF7F2" }}
-        >
-          {continent.label}
-        </p>
-        <p
-          className="text-sm md:text-base italic"
-          style={{ color: "rgba(250, 247, 242, 0.8)" }}
-        >
-          {continent.tagline}
-        </p>
+        {/* Silhouette watermark */}
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundColor: config.color,
+            opacity: 0.12,
+            WebkitMaskImage: `url(/svg/continents/${slug}.svg)`,
+            WebkitMaskRepeat: "no-repeat",
+            WebkitMaskPosition: "center",
+            WebkitMaskSize: "contain",
+            maskImage: `url(/svg/continents/${slug}.svg)`,
+            maskRepeat: "no-repeat",
+            maskPosition: "center",
+            maskSize: "contain",
+          }}
+        />
+
+        {/* Text — above watermark */}
+        <div className="relative z-10">
+          <h1
+            className={`${playfair.className} text-5xl md:text-6xl font-normal tracking-tight`}
+            style={{ color: "#FAF7F2" }}
+          >
+            {config.label}
+          </h1>
+          <p
+            className={`${dmsans.className} text-base md:text-lg italic mt-2`}
+            style={{ color: "rgba(250, 247, 242, 0.8)" }}
+          >
+            {config.tagline}
+          </p>
+          <p
+            className={`${dmsans.className} text-sm mt-4`}
+            style={{ color: "rgba(250, 247, 242, 0.6)" }}
+          >
+            {continent.countries.length} countries
+          </p>
+        </div>
       </div>
 
-      {/* Placeholder body */}
-      <section className="max-w-2xl mx-auto px-6 py-24 text-center">
-        <h2
-          className={`${playfair.className} text-3xl text-[#1B3A5C]`}
-        >
-          Coming soon to {continent.label}.
-        </h2>
-        <p className="text-sm md:text-base italic text-[#1B3A5C]/70 mt-3">
-          We&apos;re flokking up something special. Check back soon — or browse{" "}
-          <Link href="/trips" className="underline underline-offset-2">
-            your trips
-          </Link>{" "}
-          in the meantime.
-        </p>
+      {/* Blurb */}
+      {continent.blurb && (
+        <section className="max-w-prose mx-auto px-6 py-12 md:py-16 text-center">
+          <p className={`${playfair.className} text-lg md:text-xl text-[#1B3A5C] leading-relaxed`}>
+            {continent.blurb}
+          </p>
+        </section>
+      )}
+
+      {/* Countries grid */}
+      <section className="max-w-7xl mx-auto px-6 pb-16">
+        <CountryGrid
+          countries={continent.countries}
+          continentColor={config.color}
+          playfairClassName={playfair.className}
+        />
       </section>
     </main>
   );
