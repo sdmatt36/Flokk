@@ -16,7 +16,7 @@ export interface TourCardProps {
 }
 
 export function TourCard({ tour }: { tour: TourCardProps }) {
-  const href = tour.shareToken ? `/share/${tour.shareToken}` : `/tour`;
+  const href = tour.shareToken ? `/s/${tour.shareToken}` : `/tour`;
 
   return (
     <Link href={href} style={{ textDecoration: "none", display: "block", width: "100%" }}>
