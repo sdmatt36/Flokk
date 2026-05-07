@@ -10,7 +10,8 @@ import { SectionNav } from "./_components/SectionNav";
 import { CitySection } from "./_components/CitySection";
 import { SpotSection } from "./_components/SpotSection";
 import { SubmitContentCTA } from "./_components/SubmitContentCTA";
-import { TripCard, TourCard } from "./_components/cards";
+import { CommunityTripCard } from "@/components/shared/cards/CommunityTripCard";
+import { TourCard } from "./_components/TourCard";
 
 // ── DB ────────────────────────────────────────────────────────────────────────
 
@@ -83,6 +84,8 @@ async function loadCity(slug: string) {
         select: {
           id: true, title: true, destinationCity: true, destinationCountry: true,
           heroImageUrl: true, shareToken: true, startDate: true, endDate: true, isAnonymous: true,
+          familyProfile: { select: { familyName: true } },
+          _count: { select: { savedItems: true, placeRatings: true } },
         },
         orderBy: { viewCount: "desc" },
         take: 12,
@@ -278,7 +281,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
         >
           {trips.map((trip) => (
             <div key={trip.id}>
-              <TripCard trip={trip} />
+              <CommunityTripCard trip={trip} />
             </div>
           ))}
         </CitySection>

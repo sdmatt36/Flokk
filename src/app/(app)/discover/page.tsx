@@ -19,6 +19,8 @@ import { bucketTrips } from "@/lib/trip-phase";
 import { EntityStatusPill } from "@/components/ui/EntityStatusPill";
 import { buildSaveStatusMap } from "@/lib/save-status-map";
 import type { EntityStatusResult } from "@/lib/entity-status";
+import { CommunitySpotCard } from "@/components/shared/cards/CommunitySpotCard";
+import { CommunityTripCard } from "@/components/shared/cards/CommunityTripCard";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700", "900"] });
 
@@ -1486,52 +1488,9 @@ export default function DiscoverPage() {
             <p style={{ fontSize: "13px", color: "#AAAAAA", padding: "8px 0" }}>Loading trips…</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3" style={{ gap: "24px" }}>
-              {displayedTrips.map((trip) => {
-                const coverImage = getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl);
-                const nights = trip.startDate && trip.endDate
-                  ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24))
-                  : null;
-                const destination = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ");
-                const familyName = trip.isAnonymous || !trip.familyProfile?.familyName
-                  ? "A Flokk Family"
-                  : `${trip.familyProfile.familyName} Family`;
-                const cardHref = trip.shareToken ? `/share/${trip.shareToken}` : `/trips/${trip.id}`;
-                return (
-                  <Link key={trip.id} href={cardHref} style={{ textDecoration: "none", display: "block" }}>
-                    <div
-                      className="hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
-                      style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
-                    >
-                      <div style={{ height: "160px", backgroundImage: `url(${coverImage})`, backgroundSize: "cover", backgroundPosition: "center", position: "relative" }}>
-                        <div style={{ position: "absolute", top: "10px", left: "10px" }}>
-                          <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: "#C4664A", color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>
-                            {trip.destinationCity ?? destination}
-                          </span>
-                        </div>
-                        {trip.shareToken && (
-                          <div style={{ position: "absolute", top: "10px", right: "10px" }}>
-                            <span style={{ fontSize: "10px", fontWeight: 700, backgroundColor: "rgba(27,58,92,0.85)", backdropFilter: "blur(4px)", color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>
-                              Community trip
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", minHeight: "120px" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "4px" }}>
-                          <MapPin size={12} style={{ color: "#C4664A", flexShrink: 0 }} />
-                          <span style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>{trip.title}</span>
-                        </div>
-                        <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "10px" }}>
-                          {[familyName, nights ? `${nights} nights` : null].filter(Boolean).join(" · ")}
-                        </p>
-                        <p style={{ fontSize: "11px", color: "#C4664A", lineHeight: 1.4, fontWeight: 500, marginTop: "auto" }}>
-                          {trip.shareToken ? "Steal days →" : "View trip →"}
-                        </p>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
+              {displayedTrips.map((trip) => (
+                <CommunityTripCard key={trip.id} trip={trip} />
+              ))}
             </div>
           )}
 
@@ -1610,72 +1569,31 @@ export default function DiscoverPage() {
                 const actStatus = userSaveStatusMap.get(actKey) ?? null;
                 const isActSaved = (!!actStatus && actStatus.status !== "saved") || savedActivities.has(act.id);
                 return (
-                <div key={act.id} onClick={() => setSelectedActivity(act)} style={{ backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden", border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", cursor: "pointer" }}>
-                  <div style={{ height: "160px", backgroundColor: "#1B3A5C1A", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", overflow: "hidden" }}>
-                    <SpotImage
-                      src={act.imageUrl}
-                      category={act.type}
-                      alt={act.title}
-                      allowResolve={false}
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    />
-                    {act.rating !== null && act.rating >= 3 && (
-                      <span className="absolute bottom-3 left-3 bg-[#C4664A] text-white text-xs px-2 py-1 rounded-full font-medium">
-                        Flokk Approved
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", flex: 1 }}>
-                    <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "3px" }}>{act.city ?? ""}</p>
-                    <p style={{ fontSize: "14px", fontWeight: 600, color: "#1B3A5C", marginBottom: "4px", lineHeight: 1.3 }}>{act.title}</p>
-                    {actStatus && actStatus.status !== "saved" && (
-                      <div style={{ marginBottom: "6px" }}>
-                        <EntityStatusPill status={actStatus.status} label={actStatus.label} color={actStatus.color} />
-                      </div>
-                    )}
-                    {act.ratingNotes && (
-                      <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "6px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{act.ratingNotes}</p>
-                    )}
-                    {/* Community rating */}
-                    {act.rating !== null && (act.visitorCount ?? 0) >= 2 ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-                        <span style={{ color: "#f59e0b", fontSize: "13px", letterSpacing: "1px" }}>
-                          {"★".repeat(act.rating)}{"☆".repeat(5 - act.rating)}
-                        </span>
-                        <span style={{ fontSize: "11px", color: "#AAAAAA" }}>
-                          {act.visitorCount} families rated this
-                        </span>
-                      </div>
-                    ) : (act.visitorCount ?? 0) === 1 ? (
-                      <p style={{ fontSize: "11px", color: "#CCCCCC", marginBottom: "4px" }}>1 family rated this</p>
-                    ) : null}
-                    <div style={{ marginTop: "auto" }} onClick={(e) => e.stopPropagation()}>
-                      <PlaceActionRow
-                        place={{
-                          name: act.title,
-                          city: act.city,
-                          websiteUrl: resolveSaveLink({
-                            websiteUrl: act.websiteUrl,
-                            sourceUrl: act.sourceUrl,
-                            communitySpotWebsiteUrl: act.communitySpotWebsiteUrl,
-                            lat: act.lat,
-                            lng: act.lng,
-                            rawTitle: act.title,
-                            destinationCity: act.city,
-                          })?.url ?? null,
-                          photoUrl: act.imageUrl,
-                          category: act.type,
-                        }}
-                        isSaved={isActSaved}
-                        showAddToItinerary={!actStatus || actStatus.showAffordance}
-                        userRating={userSpotRatings.get(actKey) ?? null}
-                        onFlokkIt={() => handlePickSave(act)}
-                        onShareToast={(msg) => { setShareToast(msg); setTimeout(() => setShareToast(null), 3000); }}
-                        variant="card-compact"
-                      />
-                    </div>
-                  </div>
-                </div>
+                  <CommunitySpotCard
+                    key={act.id}
+                    spot={{
+                      id: act.id,
+                      title: act.title,
+                      city: act.city,
+                      photoUrl: act.imageUrl,
+                      category: act.type,
+                      rating: act.rating,
+                      ratingCount: act.visitorCount,
+                      description: act.ratingNotes,
+                      websiteUrl: act.websiteUrl,
+                      sourceUrl: act.sourceUrl,
+                      communitySpotWebsiteUrl: act.communitySpotWebsiteUrl,
+                      lat: act.lat,
+                      lng: act.lng,
+                    }}
+                    isSaved={isActSaved}
+                    saveStatus={actStatus}
+                    userRating={userSpotRatings.get(actKey) ?? null}
+                    onFlokkIt={() => handlePickSave(act)}
+                    onClickCard={() => setSelectedActivity(act)}
+                    onShareToast={(msg) => { setShareToast(msg); setTimeout(() => setShareToast(null), 3000); }}
+                    showAddToItinerary={!actStatus || actStatus.showAffordance}
+                  />
                 );
               })}
             </div>
