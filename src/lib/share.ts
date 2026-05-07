@@ -14,7 +14,7 @@ export interface ShareResult {
 
 // Clipboard API fails silently on iOS after any await (user gesture consumed by async).
 // Use execCommand as fallback so copy always works.
-async function copyToClipboard(text: string): Promise<boolean> {
+export async function copyToClipboard(text: string): Promise<boolean> {
   if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(text);
