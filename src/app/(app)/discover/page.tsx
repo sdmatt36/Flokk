@@ -80,7 +80,7 @@ export default async function DiscoverPage() {
         browseAllHref="/itineraries"
       >
         {trips.length ? (
-          <div className="grid grid-cols-2 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {trips.map((trip) => (
               <CommunityTripCard key={trip.id} trip={trip} />
             ))}
@@ -100,7 +100,7 @@ export default async function DiscoverPage() {
         browseAllHref="/tours"
       >
         {tours.length ? (
-          <div className="grid grid-cols-2 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {tours.map((tour) => (
               <TourCard key={tour.id} tour={tour} />
             ))}
@@ -147,14 +147,14 @@ async function fetchTrips(): Promise<CommunityTripCardTrip[]> {
       familyProfile: { select: { familyName: true } },
     },
   });
-  // Dedupe by destinationCity, cap at 6
+  // Dedupe by destinationCity, cap at 9 (3 rows × 3 cols)
   const seen = new Set<string>();
   return rows.filter((r) => {
     const key = r.destinationCity ?? r.id;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
-  }).slice(0, 6) as CommunityTripCardTrip[];
+  }).slice(0, 9) as CommunityTripCardTrip[];
 }
 
 async function fetchTours(): Promise<TourCardItem[]> {
@@ -176,13 +176,13 @@ async function fetchTours(): Promise<TourCardItem[]> {
       },
     },
   });
-  // Dedupe by destinationCity, cap at 6
+  // Dedupe by destinationCity, cap at 9 (3 rows × 3 cols)
   const seen = new Set<string>();
   return rows.filter((r) => {
     if (seen.has(r.destinationCity)) return false;
     seen.add(r.destinationCity);
     return true;
-  }).slice(0, 6);
+  }).slice(0, 9);
 }
 
 async function fetchPicks(): Promise<PickSpot[]> {
@@ -194,7 +194,7 @@ async function fetchPicks(): Promise<PickSpot[]> {
       ],
     },
     orderBy: { createdAt: "desc" },
-    take: 8,
+    take: 9,
     select: {
       id: true,
       name: true,
