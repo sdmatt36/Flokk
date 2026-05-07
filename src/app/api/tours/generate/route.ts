@@ -3,7 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import Anthropic from "@anthropic-ai/sdk";
-import { haversineMeters } from "@/lib/geo";
+import { haversineMeters, haversineKm } from "@/lib/geo";
 import { optimizeRouteOrder } from "@/lib/tour-route-optimization";
 import { resolveCanonicalUrl } from "@/lib/url-resolver";
 import { aggregateTripContext, flatChildAges, describePace, topInterests } from "@/lib/trip-context-multi";
@@ -151,7 +151,31 @@ function maxWalkMinutes(youngestChildAge: number | null): number {
   return 15;
 }
 
-async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, transport: string): Promise<ResolvedStop | null> {
+function getMaxStopRadiusKm(transport: string): number {
+  const t = transport.toLowerCase();
+  if (t === "walking") return 8;
+  if (t.includes("transit") || t.includes("metro")) return 25;
+  if (t.includes("car") || t.includes("driving")) return 50;
+  return 15;
+}
+
+async function getDestinationCenter(destinationCity: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const res = await fetch(
+      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(destinationCity)}&language=en&key=${process.env.GOOGLE_MAPS_API_KEY}`
+    );
+    const data = await res.json() as { results?: Array<{ geometry?: { location?: { lat: number; lng: number } } }> };
+    const loc = data.results?.[0]?.geometry?.location;
+    if (!loc) { console.log(`[tour-resolve] geocode failed: ${destinationCity} no results`); return null; }
+    console.log(`[tour-resolve] geocode ${destinationCity} → ${loc.lat},${loc.lng}`);
+    return { lat: loc.lat, lng: loc.lng };
+  } catch (e) {
+    console.log(`[tour-resolve] geocode failed: ${destinationCity} ${String(e)}`);
+    return null;
+  }
+}
+
+async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, transport: string, destinationCenter: { lat: number; lng: number } | null): Promise<ResolvedStop | null> {
   try {
     const cityNorm = destinationCity.toLowerCase().split(",")[0].trim();
     const query = encodeURIComponent(`${stop.name} ${stop.address || ""} ${destinationCity}`);
@@ -210,11 +234,22 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
              longNorm.includes(cityNorm) ||
              shortNorm.includes(cityNorm);
     });
-    if (!cityMatch) {
+    const venueLocation = firstResult.geometry.location;
+    let distanceMatch = false;
+    let distKm: number | null = null;
+    if (destinationCenter && venueLocation) {
+      distKm = haversineKm(destinationCenter, venueLocation);
+      distanceMatch = distKm <= getMaxStopRadiusKm(transport);
+    }
+
+    if (!cityMatch && !distanceMatch) {
       const componentList = cityComponents.map(c => c.long_name).join(", ") || "none";
-      console.log(`[tour-resolve] REJECTED "${stop.name}" — city components ${componentList} do not match "${cityNorm}" (mode: ${transport}, allowed: ${allowedTypes.join("|")})`);
+      const distInfo = distKm !== null ? `distance ${distKm.toFixed(1)}km > ${getMaxStopRadiusKm(transport)}km` : "no distance data";
+      console.log(`[tour-resolve] REJECTED "${stop.name}" — city ${componentList}, ${distInfo} (mode: ${transport})`);
       return null;
     }
+    const acceptedVia = cityMatch ? "cityName" : `distance ${distKm!.toFixed(1)}km`;
+    console.log(`[tour-resolve] ACCEPTED "${stop.name}" via ${acceptedVia}`);
 
     const photoRef = detailsData.result?.photos?.[0]?.photo_reference;
     let imageUrl: string | null = null;
@@ -444,6 +479,11 @@ export async function POST(req: NextRequest) {
       console.error("[tours/generate] canonical persist failed, proceeding:", err);
     }
 
+    const destinationCenter = await getDestinationCenter(destinationCity);
+    if (!destinationCenter) {
+      console.log(`[tour-resolve] no destination center for ${destinationCity}; cityName-match only`);
+    }
+
     const emitTourStopTool: Anthropic.Tool = {
       name: "emit_tour_stop",
       description: `Emit one stop for the tour. Call this tool exactly ${targetStops} times, once per stop, in order.`,
@@ -523,7 +563,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
         } else if (event.type === "content_block_stop" && currentToolName === "emit_tour_stop") {
           try {
             const rawStop = JSON.parse(currentToolJson) as RawStop;
-            const resolved = await resolveAgainstPlaces(rawStop, destinationCity, transport);
+            const resolved = await resolveAgainstPlaces(rawStop, destinationCity, transport, destinationCenter);
             if (!resolved) {
               rejectedCount++;
             } else {
@@ -709,7 +749,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
             if (isDuplicate) {
               console.log(`[tour-underemission-retry] duplicate skipped: "${rawStop.name}"`);
             } else {
-              const resolved = await resolveAgainstPlaces(rawStop, destinationCity, transport);
+              const resolved = await resolveAgainstPlaces(rawStop, destinationCity, transport, destinationCenter);
               if (resolved && !hasWeakThemeRelevance(rawStop.themeRelevance)) {
                 const stopId = crypto.randomUUID();
                 const idx = fillOrderIndex++;

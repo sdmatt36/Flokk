@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { findBestInsertionIndex } from "@/lib/tour-route-optimization";
+import { haversineKm } from "@/lib/geo";
 
 // Note: helpers duplicated from generate/route.ts (refactor to shared lib deferred)
 
@@ -78,12 +79,36 @@ function maxWalkMinutes(youngestChildAge: number | null): number {
   return 15;
 }
 
-async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, transport: string): Promise<ResolvedStop | null> {
+function getMaxStopRadiusKm(transport: string): number {
+  const t = transport.toLowerCase();
+  if (t === "walking") return 8;
+  if (t.includes("transit") || t.includes("metro")) return 25;
+  if (t.includes("car") || t.includes("driving")) return 50;
+  return 15;
+}
+
+async function getDestinationCenter(destinationCity: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const res = await fetch(
+      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(destinationCity)}&language=en&key=${process.env.GOOGLE_MAPS_API_KEY}`
+    );
+    const data = await res.json() as { results?: Array<{ geometry?: { location?: { lat: number; lng: number } } }> };
+    const loc = data.results?.[0]?.geometry?.location;
+    if (!loc) { console.log(`[regen-resolve] geocode failed: ${destinationCity} no results`); return null; }
+    console.log(`[regen-resolve] geocode ${destinationCity} → ${loc.lat},${loc.lng}`);
+    return { lat: loc.lat, lng: loc.lng };
+  } catch (e) {
+    console.log(`[regen-resolve] geocode failed: ${destinationCity} ${String(e)}`);
+    return null;
+  }
+}
+
+async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, transport: string, destinationCenter: { lat: number; lng: number } | null): Promise<ResolvedStop | null> {
   try {
     const cityNorm = destinationCity.toLowerCase().split(",")[0].trim();
     const query = encodeURIComponent(`${stop.name} ${stop.address || ""} ${destinationCity}`);
     const searchRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&key=${process.env.GOOGLE_MAPS_API_KEY}`
+      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&language=en&key=${process.env.GOOGLE_MAPS_API_KEY}`
     );
     const searchData = await searchRes.json() as {
       results?: Array<{ place_id: string; geometry?: { location?: { lat: number; lng: number } } }>;
@@ -92,7 +117,7 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     if (!firstResult?.geometry?.location) return null;
 
     const detailsRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${firstResult.place_id}&fields=name,formatted_address,geometry,photos,address_components,website&key=${process.env.GOOGLE_MAPS_API_KEY}`
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${firstResult.place_id}&fields=name,formatted_address,geometry,photos,address_components,website&language=en&key=${process.env.GOOGLE_MAPS_API_KEY}`
     );
     const detailsData = await detailsRes.json() as {
       result?: {
@@ -125,7 +150,22 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
              longNorm.includes(cityNorm) ||
              shortNorm.includes(cityNorm);
     });
-    if (!cityMatch) return null;
+    const venueLocation = firstResult.geometry.location;
+    let distanceMatch = false;
+    let distKm: number | null = null;
+    if (destinationCenter && venueLocation) {
+      distKm = haversineKm(destinationCenter, venueLocation);
+      distanceMatch = distKm <= getMaxStopRadiusKm(transport);
+    }
+
+    if (!cityMatch && !distanceMatch) {
+      const componentList = cityComponents.map(c => c.long_name).join(", ") || "none";
+      const distInfo = distKm !== null ? `distance ${distKm.toFixed(1)}km > ${getMaxStopRadiusKm(transport)}km` : "no distance data";
+      console.log(`[regen-resolve] REJECTED "${stop.name}" — city ${componentList}, ${distInfo} (mode: ${transport})`);
+      return null;
+    }
+    const acceptedVia = cityMatch ? "cityName" : `distance ${distKm!.toFixed(1)}km`;
+    console.log(`[regen-resolve] ACCEPTED "${stop.name}" via ${acceptedVia}`);
 
     const photoRef = detailsData.result?.photos?.[0]?.photo_reference;
     let imageUrl: string | null = null;
@@ -201,6 +241,11 @@ export async function POST(
   const transport = tour.transport;
   const destinationCity = tour.destinationCity;
 
+  const destinationCenter = await getDestinationCenter(destinationCity);
+  if (!destinationCenter) {
+    console.log(`[regen-resolve] no destination center for ${destinationCity}; cityName-match only`);
+  }
+
   const systemPrompt = `You are a family travel expert adding replacement stops to an existing themed tour. Call emit_tour_stop exactly ${count} time(s) — once per stop.
 
 ABSOLUTE RULES — violating any of these means the tour fails:
@@ -259,7 +304,7 @@ Generate stops that complement the accepted set thematically. They must fit the 
       } else if (event.type === "content_block_stop" && currentToolName === "emit_tour_stop") {
         try {
           const rawStop = JSON.parse(currentToolJson) as RawStop;
-          const resolved = await resolveAgainstPlaces(rawStop, destinationCity, transport);
+          const resolved = await resolveAgainstPlaces(rawStop, destinationCity, transport, destinationCenter);
           if (resolved) {
             const weak = hasWeakThemeRelevance(rawStop.themeRelevance);
             if (!weak) {
