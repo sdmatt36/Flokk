@@ -9,7 +9,6 @@ import { CityHero } from "./_components/CityHero";
 import { SectionNav } from "./_components/SectionNav";
 import { CitySection } from "./_components/CitySection";
 import { SpotSection } from "./_components/SpotSection";
-import { SubmitContentCTA } from "./_components/SubmitContentCTA";
 import { CommunityTripCard } from "@/components/shared/cards/CommunityTripCard";
 import { TourCard } from "./_components/TourCard";
 
@@ -354,7 +353,6 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
           filterField="lodgingType"
         />
 
-        <SubmitContentCTA cityName={city.name} />
       </div>
     </>
   );
