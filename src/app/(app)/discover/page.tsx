@@ -5,6 +5,7 @@ import { ContinentGrid } from "./_components/ContinentGrid";
 import { ItinerariesRail } from "./_components/ItinerariesRail";
 import { ToursRail } from "./_components/ToursRail";
 import { SpotRail } from "./_components/SpotsRail";
+import { UnderConstructionBanner } from "./_components/UnderConstructionBanner";
 import type { CommunityTripCardTrip } from "@/components/shared/cards/CommunityTripCard";
 import type { TourRailItem } from "./_components/ToursRail";
 import type { SpotRailItem } from "./_components/SpotsRail";
@@ -38,6 +39,7 @@ export default async function DiscoverPage() {
 
   return (
     <main>
+      <UnderConstructionBanner />
       {/* Tagline band */}
       <div
         className="flex flex-col items-center justify-center h-24 md:h-36 gap-2 text-center px-4"
