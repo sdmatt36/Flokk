@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import { Playfair_Display } from "next/font/google";
 import { db } from "@/lib/db";
 import { ContinentGrid } from "./_components/ContinentGrid";
-import { ItinerariesRail } from "./_components/ItinerariesRail";
-import { ToursRail } from "./_components/ToursRail";
-import { SpotRail } from "./_components/SpotsRail";
 import { UnderConstructionBanner } from "./_components/UnderConstructionBanner";
+import { DiscoverSection } from "./_components/DiscoverSection";
+import { TourCard } from "./_components/TourCard";
+import { PicksGrid } from "./_components/PicksGrid";
+import { CommunityTripCard } from "@/components/shared/cards/CommunityTripCard";
 import type { CommunityTripCardTrip } from "@/components/shared/cards/CommunityTripCard";
-import type { TourRailItem } from "./_components/ToursRail";
-import type { SpotRailItem } from "./_components/SpotsRail";
+import type { TourCardItem } from "./_components/TourCard";
+import type { PickSpot } from "./_components/PicksGrid";
 
 const playfair = Playfair_Display({ subsets: ["latin"], display: "swap" });
 
@@ -17,29 +18,27 @@ export const metadata: Metadata = {
   description: "Steal a trip. Find a tour. Flokk it.",
 };
 
-// Transport/system categories excluded from discovery rails
-const EXCLUDED_CATEGORIES = ["train", "flight", "airline", "transport", "transit", "lodging"];
+const TRANSPORT_CATEGORIES = ["train", "flight", "airline", "transport", "transit"];
 
 export default async function DiscoverPage() {
-  let recentTrips: CommunityTripCardTrip[] = [];
-  let recentTours: TourRailItem[] = [];
-  let activities: SpotRailItem[] = [];
-  let food: SpotRailItem[] = [];
+  let trips: CommunityTripCardTrip[] = [];
+  let tours: TourCardItem[] = [];
+  let picks: PickSpot[] = [];
 
   try {
-    [recentTrips, recentTours, activities, food] = await Promise.all([
-      fetchRecentTrips(),
-      fetchRecentTours(),
-      fetchRecentActivities(),
-      fetchRecentFood(),
+    [trips, tours, picks] = await Promise.all([
+      fetchTrips(),
+      fetchTours(),
+      fetchPicks(),
     ]);
   } catch {
-    // non-fatal — rails render empty states
+    // non-fatal — sections render empty states
   }
 
   return (
     <main>
       <UnderConstructionBanner />
+
       {/* Tagline band */}
       <div
         className="flex flex-col items-center justify-center h-24 md:h-36 gap-2 text-center px-4"
@@ -59,61 +58,82 @@ export default async function DiscoverPage() {
         </p>
       </div>
 
+      {/* Page-level intro */}
+      <section className="max-w-3xl mx-auto px-6 py-8 md:py-10 text-center">
+        <p className="text-base md:text-lg text-[#1B3A5C]/85 leading-relaxed">
+          Discover is where Flokkers leave breadcrumbs. Real itineraries, real tours, real places,
+          all from families who&apos;ve already been. Pick a continent below to dive in, or scroll
+          for inspiration.
+        </p>
+      </section>
+
       {/* Continent grid */}
       <ContinentGrid playfairClassName={playfair.className} />
 
-      {/* Itineraries rail */}
-      <section className="max-w-7xl mx-auto px-6 py-10 md:py-12">
-        <h2 className={`${playfair.className} text-2xl md:text-3xl text-[#1B3A5C] mb-2`}>
-          Itineraries
-        </h2>
-        <p className="text-sm md:text-base italic text-[#1B3A5C]/70 mb-6">
-          Real trips from real Flokkers.
-        </p>
-        <ItinerariesRail trips={recentTrips} />
-      </section>
+      {/* Itineraries section */}
+      <DiscoverSection
+        title="Itineraries"
+        description="Real day-by-day plans from real Flokkers. Steal a few days from a family who's been there, or share your own."
+        addLabel="+ Itinerary"
+        addHref="/trips"
+        browseAllLabel="Browse all itineraries"
+        browseAllHref="/itineraries"
+      >
+        {trips.length ? (
+          <div className="grid grid-cols-2 gap-4 md:gap-6">
+            {trips.map((trip) => (
+              <CommunityTripCard key={trip.id} trip={trip} />
+            ))}
+          </div>
+        ) : (
+          <p className="italic text-[#1B3A5C]/60">Be the first Flokker.</p>
+        )}
+      </DiscoverSection>
 
-      {/* Tours rail */}
-      <section className="max-w-7xl mx-auto px-6 py-10 md:py-12 border-t border-[#E8DDC8]">
-        <h2 className={`${playfair.className} text-2xl md:text-3xl text-[#1B3A5C] mb-2`}>
-          Tours
-        </h2>
-        <p className="text-sm md:text-base italic text-[#1B3A5C]/70 mb-6">
-          Tours built by Flokkers and Flokk&apos;s AI.
-        </p>
-        <ToursRail tours={recentTours} />
-      </section>
+      {/* Tours section */}
+      <DiscoverSection
+        title="Tours"
+        description="Stop-by-stop walks, drives, and rides through cities. Built by Flokkers, by Flokk's AI, or both. Save one for your next trip, or build your own."
+        addLabel="+ Tour"
+        addHref="/tour"
+        browseAllLabel="Browse all tours"
+        browseAllHref="/tours"
+      >
+        {tours.length ? (
+          <div className="grid grid-cols-2 gap-4 md:gap-6">
+            {tours.map((tour) => (
+              <TourCard key={tour.id} tour={tour} />
+            ))}
+          </div>
+        ) : (
+          <p className="italic text-[#1B3A5C]/60">Be the first Flokker.</p>
+        )}
+      </DiscoverSection>
 
-      {/* Activities rail */}
-      <section className="max-w-7xl mx-auto px-6 py-10 md:py-12 border-t border-[#E8DDC8]">
-        <h2 className={`${playfair.className} text-2xl md:text-3xl text-[#1B3A5C] mb-2`}>
-          Activities
-        </h2>
-        <p className="text-sm md:text-base italic text-[#1B3A5C]/70 mb-6">
-          Things flokkers do, rated by families.
-        </p>
-        <SpotRail spots={activities} />
-      </section>
-
-      {/* Food rail */}
-      <section className="max-w-7xl mx-auto px-6 py-10 md:py-12 border-t border-[#E8DDC8]">
-        <h2 className={`${playfair.className} text-2xl md:text-3xl text-[#1B3A5C] mb-2`}>
-          Food
-        </h2>
-        <p className="text-sm md:text-base italic text-[#1B3A5C]/70 mb-6">
-          Where flokkers eat, drink, and bring the kids.
-        </p>
-        <SpotRail spots={food} />
-      </section>
+      {/* Picks section */}
+      <DiscoverSection
+        title="Picks"
+        description="Places, food, lodging, and activities. Everywhere Flokkers have eaten, slept, played, or rated. Save what catches your eye."
+        addLabel="+ Pick"
+        addHref="/saves"
+        browseAllLabel="Browse all picks"
+        browseAllHref="/picks"
+      >
+        {picks.length ? (
+          <PicksGrid spots={picks} />
+        ) : (
+          <p className="italic text-[#1B3A5C]/60">Be the first Flokker.</p>
+        )}
+      </DiscoverSection>
     </main>
   );
 }
 
-async function fetchRecentTrips(): Promise<CommunityTripCardTrip[]> {
+async function fetchTrips(): Promise<CommunityTripCardTrip[]> {
   const rows = await db.trip.findMany({
     where: { isPublic: true, shareToken: { not: null } },
     orderBy: { updatedAt: "desc" },
-    take: 40,
+    take: 24,
     select: {
       id: true,
       title: true,
@@ -127,20 +147,21 @@ async function fetchRecentTrips(): Promise<CommunityTripCardTrip[]> {
       familyProfile: { select: { familyName: true } },
     },
   });
+  // Dedupe by destinationCity, cap at 6
   const seen = new Set<string>();
   return rows.filter((r) => {
     const key = r.destinationCity ?? r.id;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
-  }).slice(0, 12) as CommunityTripCardTrip[];
+  }).slice(0, 6) as CommunityTripCardTrip[];
 }
 
-async function fetchRecentTours(): Promise<TourRailItem[]> {
+async function fetchTours(): Promise<TourCardItem[]> {
   const rows = await db.generatedTour.findMany({
     where: { isPublic: true, deletedAt: null },
     orderBy: { createdAt: "desc" },
-    take: 40,
+    take: 24,
     select: {
       id: true,
       title: true,
@@ -155,46 +176,25 @@ async function fetchRecentTours(): Promise<TourRailItem[]> {
       },
     },
   });
+  // Dedupe by destinationCity, cap at 6
   const seen = new Set<string>();
   return rows.filter((r) => {
     if (seen.has(r.destinationCity)) return false;
     seen.add(r.destinationCity);
     return true;
-  }).slice(0, 12);
+  }).slice(0, 6);
 }
 
-async function fetchRecentActivities(): Promise<SpotRailItem[]> {
+async function fetchPicks(): Promise<PickSpot[]> {
   return db.communitySpot.findMany({
     where: {
       OR: [
         { category: null },
-        { category: { notIn: ["food_and_drink", ...EXCLUDED_CATEGORIES] } },
+        { category: { notIn: TRANSPORT_CATEGORIES } },
       ],
     },
     orderBy: { createdAt: "desc" },
-    take: 12,
-    select: {
-      id: true,
-      name: true,
-      city: true,
-      country: true,
-      category: true,
-      photoUrl: true,
-      averageRating: true,
-      ratingCount: true,
-      websiteUrl: true,
-      lat: true,
-      lng: true,
-      googlePlaceId: true,
-    },
-  });
-}
-
-async function fetchRecentFood(): Promise<SpotRailItem[]> {
-  return db.communitySpot.findMany({
-    where: { category: "food_and_drink" },
-    orderBy: { createdAt: "desc" },
-    take: 12,
+    take: 8,
     select: {
       id: true,
       name: true,

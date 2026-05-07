@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { PlaceActionRow } from "@/components/features/places/PlaceActionRow";
 
-export type SpotRailItem = {
+export type PickSpot = {
   id: string;
   name: string;
   city: string;
@@ -18,7 +18,7 @@ export type SpotRailItem = {
   googlePlaceId: string | null;
 };
 
-function SpotCard({ spot }: { spot: SpotRailItem }) {
+function PickCard({ spot }: { spot: PickSpot }) {
   const [isSaved, setIsSaved] = useState(false);
 
   const handleFlokkIt = async () => {
@@ -41,9 +41,13 @@ function SpotCard({ spot }: { spot: SpotRailItem }) {
   return (
     <div
       style={{
-        backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden",
-        border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)",
-        display: "flex", flexDirection: "column",
+        backgroundColor: "#fff",
+        borderRadius: "16px",
+        overflow: "hidden",
+        border: "1px solid #EEEEEE",
+        boxShadow: "0 1px 8px rgba(0,0,0,0.06)",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <div style={{ height: "144px", backgroundColor: "#1B3A5C1A", overflow: "hidden", flexShrink: 0 }}>
@@ -62,7 +66,9 @@ function SpotCard({ spot }: { spot: SpotRailItem }) {
       </div>
       <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", flex: 1 }}>
         <p style={{ fontSize: 11, color: "#AAAAAA", marginBottom: 2 }}>{spot.city}</p>
-        <p style={{ fontSize: 14, fontWeight: 600, color: "#1B3A5C", lineHeight: 1.3, marginBottom: 10 }}>{spot.name}</p>
+        <p style={{ fontSize: 14, fontWeight: 600, color: "#1B3A5C", lineHeight: 1.3, marginBottom: 10 }}>
+          {spot.name}
+        </p>
         <div style={{ marginTop: "auto" }} onClick={(e) => e.stopPropagation()}>
           <PlaceActionRow
             place={{
@@ -86,19 +92,11 @@ function SpotCard({ spot }: { spot: SpotRailItem }) {
   );
 }
 
-export function SpotRail({ spots }: { spots: SpotRailItem[] }) {
-  if (spots.length === 0) {
-    return (
-      <p className="text-sm italic text-[#1B3A5C]/60">Be the first Flokker.</p>
-    );
-  }
-
+export function PicksGrid({ spots }: { spots: PickSpot[] }) {
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4 snap-x scroll-smooth [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+    <div className="grid grid-cols-2 gap-4 md:gap-6">
       {spots.map((spot) => (
-        <div key={spot.id} className="snap-start shrink-0 w-52 md:w-60">
-          <SpotCard spot={spot} />
-        </div>
+        <PickCard key={spot.id} spot={spot} />
       ))}
     </div>
   );
