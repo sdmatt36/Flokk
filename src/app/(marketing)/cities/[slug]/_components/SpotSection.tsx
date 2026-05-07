@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Playfair_Display } from "next/font/google";
 import { SpotCard, type CompactSpotCardProps } from "./cards";
+import { SpotDetailModal } from "./SpotDetailModal";
 import { CATEGORIES } from "@/lib/categories";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700"] });
@@ -46,7 +47,7 @@ export function SpotSection({
   id,
   title,
   spots,
-  cityName: _cityName,
+  cityName,
   addHref = "/discover/spots",
   emptyText,
   filterField = "category",
@@ -54,6 +55,7 @@ export function SpotSection({
   const [sort, setSort] = useState<SortKey>("top-rated");
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [openSpot, setOpenSpot] = useState<CompactSpotCardProps | null>(null);
 
   // Unique filter values sorted by count descending — dominant value surfaces first
   const uniqueValues = useMemo(() => {
@@ -176,7 +178,7 @@ export function SpotSection({
           {/* Grid */}
           <div className="spot-section-grid">
             {visible.map((spot) => (
-              <SpotCard key={spot.id} spot={spot} />
+              <SpotCard key={spot.id} spot={spot} onClick={() => setOpenSpot(spot)} />
             ))}
           </div>
 
@@ -196,6 +198,14 @@ export function SpotSection({
             </div>
           )}
         </>
+      )}
+
+      {openSpot && (
+        <SpotDetailModal
+          spot={openSpot}
+          cityName={cityName}
+          onClose={() => setOpenSpot(null)}
+        />
       )}
     </section>
   );

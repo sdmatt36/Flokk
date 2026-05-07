@@ -159,13 +159,16 @@ export function TourCard({ tour }: { tour: CompactTourCardProps }) {
 
 // ── SpotCard ──────────────────────────────────────────────────────────────────
 
-export function SpotCard({ spot }: { spot: CompactSpotCardProps }) {
+export function SpotCard({ spot, onClick }: { spot: CompactSpotCardProps; onClick?: () => void }) {
   return (
-    <div style={{
-      backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden",
-      border: "1.5px solid #EEEEEE", boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-      width: "100%",
-    }}>
+    <div
+      onClick={onClick}
+      style={{
+        backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden",
+        border: "1.5px solid #EEEEEE", boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+        width: "100%", cursor: onClick ? "pointer" : "default",
+      }}
+    >
       <div style={{ height: "140px", overflow: "hidden", backgroundColor: "#f3f4f6" }}>
         <SpotImage
           spotId={spot.id}

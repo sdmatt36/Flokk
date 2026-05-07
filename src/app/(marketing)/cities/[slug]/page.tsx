@@ -77,6 +77,7 @@ async function loadCity(slug: string) {
       db.trip.findMany({
         where: {
           isPublic: true,
+          shareToken: { not: null },
           destinationCity: { contains: city.name, mode: "insensitive" },
         },
         select: {
@@ -90,6 +91,7 @@ async function loadCity(slug: string) {
         where: {
           isPublic: true,
           deletedAt: null,
+          shareToken: { not: null },
           destinationCity: { contains: city.name, mode: "insensitive" },
         },
         select: {
