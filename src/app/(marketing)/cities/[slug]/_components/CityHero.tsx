@@ -90,18 +90,7 @@ export function CityHero({
               {countryName}
             </span>
 
-            {latitude !== null && longitude !== null && (
-              <span style={{
-                fontSize: "12px", color: "rgba(255,255,255,0.6)",
-                backgroundColor: "rgba(255,255,255,0.08)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                borderRadius: "20px", padding: "4px 12px", fontVariantNumeric: "tabular-nums",
-              }}>
-                {latitude.toFixed(2)}°, {longitude.toFixed(2)}°
-              </span>
-            )}
-
-            {tags.slice(0, 4).map((tag) => (
+{tags.slice(0, 4).map((tag) => (
               <span key={tag} style={{
                 fontSize: "12px", color: "rgba(255,255,255,0.6)",
                 backgroundColor: "rgba(255,255,255,0.07)",

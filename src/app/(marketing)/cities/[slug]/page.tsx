@@ -5,6 +5,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 
 import { normalizeCategorySlug } from "@/lib/categories";
+import { getHeroQuery } from "@/lib/city-hero-queries";
 import { CityHero } from "./_components/CityHero";
 import { SectionNav } from "./_components/SectionNav";
 import { CitySection } from "./_components/CitySection";
@@ -34,12 +35,13 @@ function slugForDedup(s: string): string {
     .replace(/^-|-$/g, "");
 }
 
-async function fetchCityPhoto(cityName: string, countryName: string): Promise<string | null> {
+async function fetchCityPhoto(citySlug: string, cityName: string, countryName: string): Promise<string | null> {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) return null;
   try {
+    const query = getHeroQuery(citySlug, cityName, countryName);
     const searchRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(`${cityName}, ${countryName}`)}&type=locality&key=${apiKey}`,
+      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}`,
       { cache: "no-store" }
     );
     if (!searchRes.ok) return null;
@@ -194,7 +196,7 @@ async function loadCity(slug: string) {
     // Fetch and cache city photo on first visit
     let photoUrl = city.photoUrl;
     if (!photoUrl) {
-      photoUrl = await fetchCityPhoto(city.name, city.country.name);
+      photoUrl = await fetchCityPhoto(city.slug, city.name, city.country.name);
       if (photoUrl) {
         await db.city.update({ where: { id: city.id }, data: { photoUrl } });
       }
