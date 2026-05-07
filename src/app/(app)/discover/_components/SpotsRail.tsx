@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { PlaceActionRow } from "@/components/features/places/PlaceActionRow";
+
 export type SpotRailItem = {
   id: string;
   name: string;
@@ -9,51 +12,91 @@ export type SpotRailItem = {
   photoUrl: string | null;
   averageRating: number | null;
   ratingCount: number;
+  websiteUrl: string | null;
+  lat: number | null;
+  lng: number | null;
+  googlePlaceId: string | null;
 };
 
 function SpotCard({ spot }: { spot: SpotRailItem }) {
+  const [isSaved, setIsSaved] = useState(false);
+
+  const handleFlokkIt = async () => {
+    await fetch("/api/saves/from-share", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: spot.name,
+        city: spot.city,
+        lat: spot.lat ?? undefined,
+        lng: spot.lng ?? undefined,
+        placePhotoUrl: spot.photoUrl ?? undefined,
+        websiteUrl: spot.websiteUrl ?? undefined,
+        category: spot.category ?? undefined,
+      }),
+    });
+    setIsSaved(true);
+  };
+
   return (
-    <div className="rounded-xl overflow-hidden border border-[#E8DDC8] bg-[#FBF6EC]">
-      <div className="h-36 w-full overflow-hidden bg-[#E8DDC8]">
+    <div
+      style={{
+        backgroundColor: "#fff", borderRadius: "16px", overflow: "hidden",
+        border: "1px solid #EEEEEE", boxShadow: "0 1px 8px rgba(0,0,0,0.06)",
+        display: "flex", flexDirection: "column",
+      }}
+    >
+      <div style={{ height: "144px", backgroundColor: "#1B3A5C1A", overflow: "hidden", flexShrink: 0 }}>
         {spot.photoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={spot.photoUrl}
             alt={spot.name}
-            className="w-full h-full object-cover"
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <span className="text-[#1B3A5C]/30 text-xs italic">{spot.city}</span>
+          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 11, color: "#1B3A5C", opacity: 0.3, fontStyle: "italic" }}>{spot.city}</span>
           </div>
         )}
       </div>
-      <div className="p-3">
-        <p className="text-sm font-medium text-[#1B3A5C] line-clamp-1">{spot.name}</p>
-        <p className="text-xs text-[#1B3A5C]/60 mt-0.5">
-          {spot.city}{spot.category ? ` · ${spot.category}` : ""}
-        </p>
-        {spot.averageRating !== null && spot.ratingCount > 0 && (
-          <p className="text-xs text-[#1B3A5C]/50 mt-0.5">
-            {spot.averageRating.toFixed(1)} · {spot.ratingCount} rating{spot.ratingCount !== 1 ? "s" : ""}
-          </p>
-        )}
+      <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", flex: 1 }}>
+        <p style={{ fontSize: 11, color: "#AAAAAA", marginBottom: 2 }}>{spot.city}</p>
+        <p style={{ fontSize: 14, fontWeight: 600, color: "#1B3A5C", lineHeight: 1.3, marginBottom: 10 }}>{spot.name}</p>
+        <div style={{ marginTop: "auto" }} onClick={(e) => e.stopPropagation()}>
+          <PlaceActionRow
+            place={{
+              name: spot.name,
+              city: spot.city,
+              websiteUrl: spot.websiteUrl ?? undefined,
+              lat: spot.lat ?? undefined,
+              lng: spot.lng ?? undefined,
+              googlePlaceId: spot.googlePlaceId ?? undefined,
+              photoUrl: spot.photoUrl ?? undefined,
+              category: spot.category ?? undefined,
+            }}
+            isSaved={isSaved}
+            onFlokkIt={handleFlokkIt}
+            showAddToItinerary={true}
+            variant="card-compact"
+          />
+        </div>
       </div>
     </div>
   );
 }
 
-export function SpotsRail({ spots }: { spots: SpotRailItem[] }) {
+export function SpotRail({ spots }: { spots: SpotRailItem[] }) {
   if (spots.length === 0) {
     return (
-      <p className="text-sm italic text-[#1B3A5C]/60">No spots yet — save a place to get started.</p>
+      <p className="text-sm italic text-[#1B3A5C]/60">Be the first Flokker.</p>
     );
   }
 
   return (
     <div className="flex gap-4 overflow-x-auto pb-4 snap-x scroll-smooth [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
       {spots.map((spot) => (
-        <div key={spot.id} className="snap-start shrink-0 w-48 md:w-56">
+        <div key={spot.id} className="snap-start shrink-0 w-52 md:w-60">
           <SpotCard spot={spot} />
         </div>
       ))}

@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { ContinentGrid } from "./_components/ContinentGrid";
 import { ItinerariesRail } from "./_components/ItinerariesRail";
 import { ToursRail } from "./_components/ToursRail";
-import { SpotsRail } from "./_components/SpotsRail";
+import { SpotRail } from "./_components/SpotsRail";
 import type { CommunityTripCardTrip } from "@/components/shared/cards/CommunityTripCard";
 import type { TourRailItem } from "./_components/ToursRail";
 import type { SpotRailItem } from "./_components/SpotsRail";
@@ -13,19 +13,24 @@ const playfair = Playfair_Display({ subsets: ["latin"], display: "swap" });
 
 export const metadata: Metadata = {
   title: "Discover · Flokk",
-  description: "Steal a trip. Save a spot. Find a tour.",
+  description: "Steal a trip. Find a tour. Flokk it.",
 };
+
+// Transport/system categories excluded from discovery rails
+const EXCLUDED_CATEGORIES = ["train", "flight", "airline", "transport", "transit", "lodging"];
 
 export default async function DiscoverPage() {
   let recentTrips: CommunityTripCardTrip[] = [];
   let recentTours: TourRailItem[] = [];
-  let recentSpots: SpotRailItem[] = [];
+  let activities: SpotRailItem[] = [];
+  let food: SpotRailItem[] = [];
 
   try {
-    [recentTrips, recentTours, recentSpots] = await Promise.all([
+    [recentTrips, recentTours, activities, food] = await Promise.all([
       fetchRecentTrips(),
       fetchRecentTours(),
-      fetchRecentSpots(),
+      fetchRecentActivities(),
+      fetchRecentFood(),
     ]);
   } catch {
     // non-fatal — rails render empty states
@@ -48,7 +53,7 @@ export default async function DiscoverPage() {
           className="text-sm md:text-base italic"
           style={{ color: "rgba(250, 247, 242, 0.8)" }}
         >
-          Steal a trip. Save a spot. Find a tour.
+          Steal a trip. Find a tour. Flokk it.
         </p>
       </div>
 
@@ -61,7 +66,7 @@ export default async function DiscoverPage() {
           Itineraries
         </h2>
         <p className="text-sm md:text-base italic text-[#1B3A5C]/70 mb-6">
-          Real trips from real flokks.
+          Real trips from real Flokkers.
         </p>
         <ItinerariesRail trips={recentTrips} />
       </section>
@@ -72,20 +77,31 @@ export default async function DiscoverPage() {
           Tours
         </h2>
         <p className="text-sm md:text-base italic text-[#1B3A5C]/70 mb-6">
-          AI-built tours you can steal and make your own.
+          Tours built by Flokkers and Flokk&apos;s AI.
         </p>
         <ToursRail tours={recentTours} />
       </section>
 
-      {/* Spots rail */}
+      {/* Activities rail */}
       <section className="max-w-7xl mx-auto px-6 py-10 md:py-12 border-t border-[#E8DDC8]">
         <h2 className={`${playfair.className} text-2xl md:text-3xl text-[#1B3A5C] mb-2`}>
-          Spots
+          Activities
         </h2>
         <p className="text-sm md:text-base italic text-[#1B3A5C]/70 mb-6">
-          Places flokks are saving and rating right now.
+          Things flokkers do, rated by families.
         </p>
-        <SpotsRail spots={recentSpots} />
+        <SpotRail spots={activities} />
+      </section>
+
+      {/* Food rail */}
+      <section className="max-w-7xl mx-auto px-6 py-10 md:py-12 border-t border-[#E8DDC8]">
+        <h2 className={`${playfair.className} text-2xl md:text-3xl text-[#1B3A5C] mb-2`}>
+          Food
+        </h2>
+        <p className="text-sm md:text-base italic text-[#1B3A5C]/70 mb-6">
+          Where flokkers eat, drink, and bring the kids.
+        </p>
+        <SpotRail spots={food} />
       </section>
     </main>
   );
@@ -145,8 +161,14 @@ async function fetchRecentTours(): Promise<TourRailItem[]> {
   }).slice(0, 12);
 }
 
-async function fetchRecentSpots(): Promise<SpotRailItem[]> {
+async function fetchRecentActivities(): Promise<SpotRailItem[]> {
   return db.communitySpot.findMany({
+    where: {
+      OR: [
+        { category: null },
+        { category: { notIn: ["food_and_drink", ...EXCLUDED_CATEGORIES] } },
+      ],
+    },
     orderBy: { createdAt: "desc" },
     take: 12,
     select: {
@@ -158,6 +180,32 @@ async function fetchRecentSpots(): Promise<SpotRailItem[]> {
       photoUrl: true,
       averageRating: true,
       ratingCount: true,
+      websiteUrl: true,
+      lat: true,
+      lng: true,
+      googlePlaceId: true,
+    },
+  });
+}
+
+async function fetchRecentFood(): Promise<SpotRailItem[]> {
+  return db.communitySpot.findMany({
+    where: { category: "food_and_drink" },
+    orderBy: { createdAt: "desc" },
+    take: 12,
+    select: {
+      id: true,
+      name: true,
+      city: true,
+      country: true,
+      category: true,
+      photoUrl: true,
+      averageRating: true,
+      ratingCount: true,
+      websiteUrl: true,
+      lat: true,
+      lng: true,
+      googlePlaceId: true,
     },
   });
 }

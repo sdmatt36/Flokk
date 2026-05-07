@@ -49,7 +49,7 @@ function TourCard({ tour }: { tour: TourRailItem }) {
 export function ToursRail({ tours }: { tours: TourRailItem[] }) {
   if (tours.length === 0) {
     return (
-      <p className="text-sm italic text-[#1B3A5C]/60">No tours published yet.</p>
+      <p className="text-sm italic text-[#1B3A5C]/60">Be the first Flokker.</p>
     );
   }
 

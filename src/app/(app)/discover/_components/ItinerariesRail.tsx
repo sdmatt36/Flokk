@@ -6,7 +6,7 @@ import type { CommunityTripCardTrip } from "@/components/shared/cards/CommunityT
 export function ItinerariesRail({ trips }: { trips: CommunityTripCardTrip[] }) {
   if (trips.length === 0) {
     return (
-      <p className="text-sm italic text-[#1B3A5C]/60">No itineraries yet — be the first flokk.</p>
+      <p className="text-sm italic text-[#1B3A5C]/60">Be the first Flokker.</p>
     );
   }
 

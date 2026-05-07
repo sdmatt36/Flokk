@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { ExternalLink, Share2, Pencil, Plus, BookmarkCheck, CalendarPlus, Star } from "lucide-react";
-import { useAddToItinerary } from "./AddToItineraryProvider";
+import { AddToItineraryContext } from "./AddToItineraryProvider";
 import { shareEntity } from "@/lib/share";
 import type { ShareEntityType } from "@/lib/share-token";
 import type { AddToItineraryPlace } from "@/lib/add-to-itinerary";
@@ -43,7 +43,10 @@ export function PlaceActionRow({
   variant = "card-expanded",
   showAddToItinerary = true,
 }: PlaceActionRowProps) {
-  const { open: openAddToItinerary } = useAddToItinerary();
+  // Use context directly so PlaceActionRow is safe outside AddToItineraryProvider
+  // (e.g. on /cities/[slug] marketing pages where trip cards have no provider wrapper)
+  const addToItineraryCtx = useContext(AddToItineraryContext);
+  const openAddToItinerary = addToItineraryCtx?.open ?? null;
   const [flokking, setFlokking] = useState(false);
   const [sharing, setSharing] = useState(false);
 
@@ -58,7 +61,7 @@ export function PlaceActionRow({
   };
 
   const handleAddToItinerary = () => {
-    openAddToItinerary(place);
+    openAddToItinerary?.(place);
   };
 
   const handleShare = async () => {
@@ -158,7 +161,7 @@ export function PlaceActionRow({
 
           {/* Row 2: Secondary actions, equal-flex */}
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-            {showAddToItinerary && (
+            {showAddToItinerary && openAddToItinerary && (
               <button
                 type="button"
                 onClick={handleAddToItinerary}
@@ -247,7 +250,7 @@ export function PlaceActionRow({
             </button>
           ) : null}
 
-          {showAddToItinerary && (
+          {showAddToItinerary && openAddToItinerary && (
             <button
               type="button"
               style={btnBase}

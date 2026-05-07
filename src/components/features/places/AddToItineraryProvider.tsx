@@ -8,7 +8,7 @@ interface AddToItineraryContextValue {
   open: (place: AddToItineraryPlace) => void;
 }
 
-const AddToItineraryContext = createContext<AddToItineraryContextValue | null>(null);
+export const AddToItineraryContext = createContext<AddToItineraryContextValue | null>(null);
 
 export function useAddToItinerary(): AddToItineraryContextValue {
   const ctx = useContext(AddToItineraryContext);
