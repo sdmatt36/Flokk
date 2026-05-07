@@ -5,7 +5,6 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 
 import { normalizeCategorySlug } from "@/lib/categories";
-import { getHeroQuery } from "@/lib/city-hero-queries";
 import { CityHero } from "./_components/CityHero";
 import { SectionNav } from "./_components/SectionNav";
 import { CitySection } from "./_components/CitySection";
@@ -33,30 +32,6 @@ function slugForDedup(s: string): string {
     .replace(/[̀-ͯ]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
-}
-
-async function fetchCityPhoto(citySlug: string, cityName: string, countryName: string): Promise<string | null> {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
-  if (!apiKey) return null;
-  try {
-    const query = getHeroQuery(citySlug, cityName, countryName);
-    const searchRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}`,
-      { cache: "no-store" }
-    );
-    if (!searchRes.ok) return null;
-    const searchData = await searchRes.json() as { results?: Array<{ photos?: Array<{ photo_reference: string }> }> };
-    const photoRef = searchData.results?.[0]?.photos?.[0]?.photo_reference;
-    if (!photoRef) return null;
-    const photoRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/photo?maxwidth=1200&photo_reference=${photoRef}&key=${apiKey}`,
-      { redirect: "follow", cache: "no-store" }
-    );
-    const finalUrl = photoRes.url;
-    return finalUrl.startsWith("https://lh3.googleusercontent.com") ? finalUrl : null;
-  } catch {
-    return null;
-  }
 }
 
 // ── Data loading ──────────────────────────────────────────────────────────────
@@ -193,16 +168,7 @@ async function loadCity(slug: string) {
 
     const allSpots: SpotItem[] = [...spotMap.values(), ...prOnlyMap.values()];
 
-    // Fetch and cache city photo on first visit
-    let photoUrl = city.photoUrl;
-    if (!photoUrl) {
-      photoUrl = await fetchCityPhoto(city.slug, city.name, city.country.name);
-      if (photoUrl) {
-        await db.city.update({ where: { id: city.id }, data: { photoUrl } });
-      }
-    }
-
-    return { city: { ...city, photoUrl }, spots: allSpots, trips, tours };
+    return { city, spots: allSpots, trips, tours };
   } finally {
     await db.$disconnect();
   }
@@ -293,7 +259,6 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
         latitude={city.latitude}
         longitude={city.longitude}
         tags={city.tags}
-        photoUrl={city.photoUrl}
       />
 
       <SectionNav />
