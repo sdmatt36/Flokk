@@ -70,6 +70,16 @@ export default async function DiscoverPage() {
       {/* Continent grid */}
       <ContinentGrid playfairClassName={playfair.className} />
 
+      {/* Bridge */}
+      <section className="py-12 md:py-16 text-center px-4">
+        <h2 className={`${playfair.className} text-3xl md:text-4xl text-[#1B3A5C] mb-3`}>
+          Be Inspired
+        </h2>
+        <p className="text-base md:text-lg italic text-[#1B3A5C]/70">
+          Trips, tours, and picks from real Flokk families.
+        </p>
+      </section>
+
       {/* Itineraries section */}
       <DiscoverSection
         title="Itineraries"

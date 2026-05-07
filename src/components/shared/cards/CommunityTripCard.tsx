@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { getTripCoverImage } from "@/lib/destination-images";
+import { invokeNativeShare, copyToClipboard } from "@/lib/share";
 
 export interface CommunityTripCardTrip {
   id: string;
@@ -22,6 +24,7 @@ const NAVY = "#1B3A5C";
 const GRAY_200 = "#E5E7EB";
 
 export function CommunityTripCard({ trip }: { trip: CommunityTripCardTrip }) {
+  const [copied, setCopied] = useState(false);
   const coverImage = getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl ?? null);
   const nights = trip.startDate && trip.endDate
     ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24))
@@ -35,11 +38,11 @@ export function CommunityTripCard({ trip }: { trip: CommunityTripCardTrip }) {
   const handleShare = async () => {
     if (!trip.shareToken) return;
     const url = `${window.location.origin}/share/${trip.shareToken}`;
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      // fallback: open the share URL in a new tab
-      window.open(url, "_blank");
+    const { fallback } = await invokeNativeShare(url, trip.title);
+    if (fallback) {
+      await copyToClipboard(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -103,7 +106,7 @@ export function CommunityTripCard({ trip }: { trip: CommunityTripCardTrip }) {
               cursor: "pointer", fontFamily: "inherit",
             }}
           >
-            Share
+            {copied ? "Copied!" : "Share"}
           </button>
         )}
       </div>
