@@ -3,6 +3,10 @@
 // mobile viewports, logs console errors and HTTP failures, saves PNGs to
 // /tmp/flokk-screenshots/. Run before declaring visual work complete.
 //
+// Pages here must be publicly accessible. Authenticated routes (the (app) route group)
+// require Playwright storageState setup with a captured Clerk session — deferred to a
+// future prompt. Do not add (app) routes to PAGES until that work lands.
+//
 // Usage:
 //   node scripts/visual-check.mjs                              # localhost
 //   PREVIEW_URL=https://flokktravel.com node scripts/visual-check.mjs
@@ -11,14 +15,17 @@ import { chromium } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
 
+// Top-7 cities by communitySpots count (queried 2026-05-08):
+//   tokyo(25), seoul(20), kyoto(18), chiang-mai(17), kamakura(13), bangkok(12), busan(11)
 const PAGES = [
-  { name: "discover",         path: "/discover" },
-  { name: "continent-asia",   path: "/continents/asia" },
-  { name: "continent-europe", path: "/continents/europe" },
-  { name: "continent-africa", path: "/continents/africa" },
-  { name: "country-japan",    path: "/countries/japan" },
-  { name: "country-france",   path: "/countries/france" },
-  { name: "country-uae",      path: "/countries/united-arab-emirates" },
+  { name: "marketing-home", path: "/" },
+  { name: "city-tokyo",     path: "/cities/tokyo" },
+  { name: "city-seoul",     path: "/cities/seoul" },
+  { name: "city-kyoto",     path: "/cities/kyoto" },
+  { name: "city-chiang-mai",path: "/cities/chiang-mai" },
+  { name: "city-kamakura",  path: "/cities/kamakura" },
+  { name: "city-bangkok",   path: "/cities/bangkok" },
+  { name: "city-busan",     path: "/cities/busan" },
 ];
 
 const VIEWPORTS = [
@@ -52,6 +59,15 @@ for (const vp of VIEWPORTS) {
     try {
       await page.goto(url, { waitUntil: "networkidle", timeout: 20000 });
       await page.waitForTimeout(500);
+
+      const isAuthWall = await page.evaluate(() => {
+        const t = (document.body.innerText || "").toLowerCase();
+        const hasClerkMarkers = !!document.querySelector("[class*='cl-'], [data-clerk-element], iframe[src*='clerk']");
+        const hasSignInText = /(sign in|continue with|create account|log in to)/i.test(t);
+        return hasClerkMarkers && hasSignInText;
+      });
+      if (isAuthWall) issues.push("AUTH WALL — captured sign-in modal, not page content");
+
       await page.screenshot({ path: out, fullPage: false });
       const status = issues.length === 0 ? "OK" : `WARN(${issues.length})`;
       console.log(`  ${status.padEnd(10)} ${p.name}-${vp.suffix}`);
