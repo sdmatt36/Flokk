@@ -44,6 +44,7 @@ export default async function ContinentPage(
           cities: {
             select: {
               name: true,
+              photoUrl: true,
               _count: { select: { communitySpots: true } },
             },
           },
@@ -64,7 +65,7 @@ export default async function ContinentPage(
       .sort((a, b) => b._count.communitySpots - a._count.communitySpots)
       .filter((city) => city._count.communitySpots > 0)
       .slice(0, 3)
-      .map((city) => ({ name: city.name })),
+      .map((city) => ({ name: city.name, photoUrl: city.photoUrl ?? null })),
   }));
 
   return (
@@ -128,6 +129,7 @@ export default async function ContinentPage(
         <CountryGrid
           countries={countries}
           continentColor={config.color}
+          continentLabel={config.label}
           playfairClassName={playfair.className}
         />
       </section>

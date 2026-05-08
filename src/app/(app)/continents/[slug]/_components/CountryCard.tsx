@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
-import { Playfair_Display, DM_Sans } from "next/font/google";
+import { DM_Sans, Playfair_Display } from "next/font/google";
+import { getTripCoverImage, DEFAULT_COVER } from "@/lib/destination-images";
 
-const playfair = Playfair_Display({ subsets: ["latin"], display: "swap" });
 const dmsans = DM_Sans({ subsets: ["latin"], display: "swap" });
+const playfair = Playfair_Display({ subsets: ["latin"], display: "swap" });
 
 type Props = {
   country: {
@@ -13,13 +13,16 @@ type Props = {
     name: string;
     _count: { cities: number };
     spotCount: number;
-    topCities: Array<{ name: string }>;
+    topCities: Array<{ name: string; photoUrl: string | null }>;
   };
   continentColor: string;
+  continentLabel: string;
 };
 
-export function CountryCard({ country, continentColor }: Props) {
-  const [hovered, setHovered] = useState(false);
+export function CountryCard({ country, continentColor, continentLabel }: Props) {
+  const cityPhoto = country.topCities[0]?.photoUrl ?? null;
+  const coverImage = cityPhoto ?? getTripCoverImage(null, country.name, null);
+  const isColorFallback = coverImage === DEFAULT_COVER;
 
   const statsparts: string[] = [];
   if (country._count.cities > 0)
@@ -28,66 +31,60 @@ export function CountryCard({ country, continentColor }: Props) {
     statsparts.push(`${country.spotCount} spots`);
 
   return (
-    <Link
-      href={`/countries/${country.slug}`}
-      className="flex flex-col rounded-2xl overflow-hidden relative"
-      style={{
-        backgroundColor: "#FBF6EC",
-        aspectRatio: "4/3",
-        border: `1px solid ${hovered ? continentColor : "#E8DDC8"}`,
-        textDecoration: "none",
-        transition: "border-color 0.3s ease, transform 0.3s ease",
-        transform: hovered ? "scale(1.02)" : "scale(1)",
-      }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+    <div
+      className="hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+      style={{ backgroundColor: "#FBF6EC", borderRadius: "16px", overflow: "hidden", border: "1px solid #E8DDC8", boxShadow: "0 1px 8px rgba(0,0,0,0.06)" }}
     >
-      {/* Accent strip */}
-      <div className="flex-none h-1 w-full" style={{ backgroundColor: continentColor }} />
+      <Link href={`/countries/${country.slug}`} style={{ textDecoration: "none", display: "block" }}>
+        {/* Hero — image or continent color fallback */}
+        {isColorFallback ? (
+          <div style={{ height: "160px", backgroundColor: continentColor, position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span className={`${playfair.className} text-xl`} style={{ color: "rgba(255,255,255,0.9)" }}>
+              {country.name}
+            </span>
+            <div style={{ position: "absolute", top: "10px", left: "10px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: "rgba(255,255,255,0.25)", color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>
+                {continentLabel}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div style={{ height: "160px", backgroundImage: `url(${coverImage})`, backgroundSize: "cover", backgroundPosition: "center", position: "relative" }}>
+            <div style={{ position: "absolute", top: "10px", left: "10px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: continentColor, color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>
+                {continentLabel}
+              </span>
+            </div>
+          </div>
+        )}
 
-      {/* Silhouette watermark — right-aligned background decoration */}
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundColor: continentColor,
-          opacity: 0.18,
-          WebkitMaskImage: `url(/svg/countries/${country.slug}.svg)`,
-          WebkitMaskRepeat: "no-repeat",
-          WebkitMaskPosition: "right center",
-          WebkitMaskSize: "contain",
-          maskImage: `url(/svg/countries/${country.slug}.svg)`,
-          maskRepeat: "no-repeat",
-          maskPosition: "right center",
-          maskSize: "contain",
-        }}
-      />
-
-      {/* Content */}
-      <div className="relative z-10 flex-1 p-6 flex flex-col justify-between">
-        <div>
-          <span className={`${playfair.className} text-2xl md:text-3xl text-[#1B3A5C] leading-tight`}>
+        {/* Meta */}
+        <div style={{ padding: "14px 16px 10px" }}>
+          <p style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: statsparts.length > 0 ? "4px" : 0 }}>
             {country.name}
-          </span>
+          </p>
           {statsparts.length > 0 && (
-            <p className={`${dmsans.className} text-sm text-slate-600 mt-1`}>
+            <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5 }}>
               {statsparts.join(" · ")}
             </p>
           )}
         </div>
 
+        {/* Top-city chips */}
         {country.topCities.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-auto pt-3">
+          <div style={{ padding: "0 16px 14px", display: "flex", flexWrap: "wrap", gap: "6px" }}>
             {country.topCities.map((city) => (
               <span
                 key={city.name}
-                className={`${dmsans.className} text-xs text-slate-600 bg-white border border-slate-200 rounded-full px-3 py-1`}
+                className={dmsans.className}
+                style={{ fontSize: "11px", color: "#64748B", backgroundColor: "#fff", border: "1px solid #E2E8F0", borderRadius: "9999px", padding: "3px 10px" }}
               >
                 {city.name}
               </span>
             ))}
           </div>
         )}
-      </div>
-    </Link>
+      </Link>
+    </div>
   );
 }

@@ -9,16 +9,17 @@ type Country = {
   name: string;
   _count: { cities: number };
   spotCount: number;
-  topCities: Array<{ name: string }>;
+  topCities: Array<{ name: string; photoUrl: string | null }>;
 };
 
 type Props = {
   countries: Country[];
   continentColor: string;
+  continentLabel: string;
   playfairClassName: string;
 };
 
-export function CountryGrid({ countries, continentColor, playfairClassName }: Props) {
+export function CountryGrid({ countries, continentColor, continentLabel, playfairClassName }: Props) {
   const [query, setQuery] = useState("");
 
   const filtered = query.trim()
@@ -75,6 +76,7 @@ export function CountryGrid({ countries, continentColor, playfairClassName }: Pr
               key={country.slug}
               country={country}
               continentColor={continentColor}
+              continentLabel={continentLabel}
             />
           ))}
         </div>
