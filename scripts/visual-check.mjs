@@ -15,17 +15,15 @@ import { chromium } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
 
-// Top-7 cities by communitySpots count (queried 2026-05-08):
-//   tokyo(25), seoul(20), kyoto(18), chiang-mai(17), kamakura(13), bangkok(12), busan(11)
 const PAGES = [
-  { name: "marketing-home", path: "/" },
-  { name: "city-tokyo",     path: "/cities/tokyo" },
-  { name: "city-seoul",     path: "/cities/seoul" },
-  { name: "city-kyoto",     path: "/cities/kyoto" },
-  { name: "city-chiang-mai",path: "/cities/chiang-mai" },
-  { name: "city-kamakura",  path: "/cities/kamakura" },
-  { name: "city-bangkok",   path: "/cities/bangkok" },
-  { name: "city-busan",     path: "/cities/busan" },
+  { name: "marketing-home",   path: "/" },
+  { name: "continent-asia",   path: "/continents/asia" },
+  { name: "continent-europe", path: "/continents/europe" },
+  { name: "continent-africa", path: "/continents/africa" },
+  { name: "country-japan",    path: "/countries/japan" },
+  { name: "country-france",   path: "/countries/france" },
+  { name: "city-tokyo",       path: "/cities/tokyo" },
+  { name: "city-paris",       path: "/cities/paris" },
 ];
 
 const VIEWPORTS = [

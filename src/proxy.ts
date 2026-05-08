@@ -19,6 +19,10 @@ const isPublicRoute = createRouteMatcher([
   "/cookies(.*)",
   "/accessibility(.*)",
   "/changelog(.*)",
+  // Public browse surfaces
+  "/cities(.*)",
+  "/continents(.*)",
+  "/countries(.*)",
   // Legacy public routes
   "/explore(.*)",
   "/destination(.*)",
