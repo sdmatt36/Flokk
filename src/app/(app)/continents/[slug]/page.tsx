@@ -62,8 +62,14 @@ export default async function ContinentPage(
     _count: c._count,
     spotCount: c.cities.reduce((sum, city) => sum + city._count.communitySpots, 0),
     topCities: [...c.cities]
-      .sort((a, b) => b._count.communitySpots - a._count.communitySpots)
-      .filter((city) => city._count.communitySpots > 0)
+      .sort((a, b) => {
+        const aPhoto = a.photoUrl != null ? 1 : 0;
+        const bPhoto = b.photoUrl != null ? 1 : 0;
+        if (bPhoto !== aPhoto) return bPhoto - aPhoto;
+        if (b._count.communitySpots !== a._count.communitySpots)
+          return b._count.communitySpots - a._count.communitySpots;
+        return a.name.localeCompare(b.name);
+      })
       .slice(0, 3)
       .map((city) => ({ name: city.name, photoUrl: city.photoUrl ?? null })),
   }));
