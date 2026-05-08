@@ -396,6 +396,14 @@ The Flokk thesis is that travel content rescued from anywhere becomes actionable
 
 This rule applies to chat-side Claude (strategic partner), Claude Code (execution agent), and the prompts that pass between them. Both are responsible for surfacing AI opportunities. Neither defers to the other.
 
+## Visual Verification (required on visual changes)
+
+When a prompt edits any UI component, page layout, or styling, Code MUST run scripts/visual-check.mjs and view the resulting screenshots before declaring the work complete. "Build clean" does not equal "ships correctly."
+
+  PREVIEW_URL=https://flokktravel.com node scripts/visual-check.mjs
+
+Screenshots write to /tmp/flokk-screenshots/. View the relevant ones with the view tool. If visual is wrong, iterate before commit. Include visual confirmation in the post-deploy report.
+
 ## Pre-Resolved Field Principle (Operating Discipline 4.18)
 
 - Pre-Resolved Field Principle (4.18) — every renderable field is a column on the entity's own row. Write-time resolution. Render code reads entity.field directly. When a field is missing, fix the write path, not the render. Render-layer priority chains and sister-record traversals are forbidden as primary resolution paths.
