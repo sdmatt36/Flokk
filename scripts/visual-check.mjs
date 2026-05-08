@@ -55,8 +55,8 @@ for (const vp of VIEWPORTS) {
     const url = baseUrl + p.path;
     const out = path.join(outDir, `${p.name}-${vp.suffix}.png`);
     try {
-      await page.goto(url, { waitUntil: "networkidle", timeout: 20000 });
-      await page.waitForTimeout(500);
+      await page.goto(url, { waitUntil: "load", timeout: 30000 });
+      await page.waitForTimeout(800);
 
       const isAuthWall = await page.evaluate(() => {
         const t = (document.body.innerText || "").toLowerCase();
