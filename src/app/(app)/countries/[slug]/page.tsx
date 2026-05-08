@@ -1,11 +1,11 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Playfair_Display } from "next/font/google";
+import { Playfair_Display, DM_Sans } from "next/font/google";
 import { db } from "@/lib/db";
-import { CONTINENT_CONFIGS } from "@/lib/continents";
 
 const playfair = Playfair_Display({ subsets: ["latin"], display: "swap" });
+const dmsans = DM_Sans({ subsets: ["latin"], display: "swap" });
 
 export async function generateStaticParams() {
   const countries = await db.country.findMany({ select: { slug: true } });
@@ -35,12 +35,12 @@ export default async function CountryPage(
     where: { slug },
     select: {
       name: true,
+      blurb: true,
+      _count: { select: { cities: true } },
       continent: { select: { slug: true, name: true } },
     },
   });
   if (!country) notFound();
-
-  const continentConfig = CONTINENT_CONFIGS.find((c) => c.slug === country.continent.slug);
 
   return (
     <main>
@@ -55,12 +55,27 @@ export default async function CountryPage(
         >
           {country.name}
         </p>
-        {continentConfig && (
+
+        {country.blurb ? (
           <p
-            className="text-sm md:text-base italic"
+            className={`${dmsans.className} text-sm md:text-base italic`}
             style={{ color: "rgba(250, 247, 242, 0.8)" }}
           >
-            {continentConfig.tagline}
+            {country.blurb}
+          </p>
+        ) : country._count.cities > 0 ? (
+          <p
+            className={`${dmsans.className} text-sm md:text-base`}
+            style={{ color: "rgba(250, 247, 242, 0.8)" }}
+          >
+            {country._count.cities} {country._count.cities === 1 ? "city" : "cities"}
+          </p>
+        ) : (
+          <p
+            className={`${dmsans.className} text-sm md:text-base italic`}
+            style={{ color: "rgba(250, 247, 242, 0.6)" }}
+          >
+            Coming soon
           </p>
         )}
       </div>
@@ -70,16 +85,13 @@ export default async function CountryPage(
         <h2 className={`${playfair.className} text-3xl text-[#1B3A5C]`}>
           Coming soon to {country.name}.
         </h2>
-        <p className="text-sm md:text-base italic text-[#1B3A5C]/70 mt-3">
-          We&apos;re flokking up something special. Browse{" "}
-          <Link
-            href={`/continents/${country.continent.slug}`}
-            className="underline underline-offset-2"
-          >
-            {country.continent.name}
-          </Link>{" "}
-          in the meantime.
-        </p>
+        <Link
+          href={`/continents/${country.continent.slug}`}
+          className={`${dmsans.className} text-sm md:text-base mt-4 inline-block hover:underline underline-offset-2`}
+          style={{ color: "#C4664A" }}
+        >
+          Browse cities in {country.continent.name} →
+        </Link>
       </section>
     </main>
   );

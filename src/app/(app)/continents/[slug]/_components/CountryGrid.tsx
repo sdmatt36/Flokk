@@ -4,7 +4,13 @@ import { useState } from "react";
 import { Search } from "lucide-react";
 import { CountryCard } from "./CountryCard";
 
-type Country = { slug: string; name: string; _count: { cities: number } };
+type Country = {
+  slug: string;
+  name: string;
+  _count: { cities: number };
+  spotCount: number;
+  topCities: Array<{ name: string }>;
+};
 
 type Props = {
   countries: Country[];

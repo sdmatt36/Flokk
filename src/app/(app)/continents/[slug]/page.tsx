@@ -41,12 +41,31 @@ export default async function ContinentPage(
           slug: true,
           name: true,
           _count: { select: { cities: true } },
+          cities: {
+            select: {
+              name: true,
+              _count: { select: { communitySpots: true } },
+            },
+          },
         },
       },
     },
   });
 
   if (!continent) notFound();
+
+  // Server-side: compute spot totals and top-3 cities per country
+  const countries = continent.countries.map((c) => ({
+    slug: c.slug,
+    name: c.name,
+    _count: c._count,
+    spotCount: c.cities.reduce((sum, city) => sum + city._count.communitySpots, 0),
+    topCities: [...c.cities]
+      .sort((a, b) => b._count.communitySpots - a._count.communitySpots)
+      .filter((city) => city._count.communitySpots > 0)
+      .slice(0, 3)
+      .map((city) => ({ name: city.name })),
+  }));
 
   return (
     <main>
@@ -107,7 +126,7 @@ export default async function ContinentPage(
       {/* Countries grid */}
       <section className="max-w-7xl mx-auto px-6 pb-16">
         <CountryGrid
-          countries={continent.countries}
+          countries={countries}
           continentColor={config.color}
           playfairClassName={playfair.className}
         />
