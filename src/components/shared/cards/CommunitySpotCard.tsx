@@ -25,10 +25,11 @@ export interface CommunitySpotCardSpot {
 
 export interface CommunitySpotCardProps {
   spot: CommunitySpotCardSpot;
-  isSaved: boolean;
-  saveStatus: EntityStatusResult | null;
-  userRating: number | null;
-  onFlokkIt: () => Promise<void> | void;
+  isSaved?: boolean;
+  saveStatus?: EntityStatusResult | null;
+  userRating?: number | null;
+  /** When omitted, the card renders in view-only mode: no PlaceActionRow. */
+  onFlokkIt?: () => Promise<void> | void;
   onClickCard?: () => void;
   onShareToast?: (msg: string) => void;
   showAddToItinerary?: boolean;
@@ -38,9 +39,9 @@ export interface CommunitySpotCardProps {
 
 export function CommunitySpotCard({
   spot,
-  isSaved,
-  saveStatus,
-  userRating,
+  isSaved = false,
+  saveStatus = null,
+  userRating = null,
   onFlokkIt,
   onClickCard,
   onShareToast,
@@ -118,7 +119,8 @@ export function CommunitySpotCard({
           ) : null}
         </div>
       </CardWrapper>
-      <div style={{ padding: "0 16px 14px", marginTop: "auto" }} onClick={(e) => e.stopPropagation()}>
+      {onFlokkIt && (
+        <div style={{ padding: "0 16px 14px", marginTop: "auto" }} onClick={(e) => e.stopPropagation()}>
           <PlaceActionRow
             place={{
               name: spot.title,
@@ -135,6 +137,7 @@ export function CommunitySpotCard({
             variant="card-compact"
           />
         </div>
+      )}
     </div>
   );
 }

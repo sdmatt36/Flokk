@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { CountrySectionNav } from "./_components/CountrySectionNav";
 import { CountrySection } from "./_components/CountrySection";
 import { CountryCityCard } from "./_components/CountryCityCard";
-import { CountrySpotCard } from "./_components/CountrySpotCard";
+import { CommunitySpotCard } from "@/components/shared/cards/CommunitySpotCard";
 import { CommunityTripCard } from "@/components/shared/cards/CommunityTripCard";
 import { TourCard } from "@/components/shared/cards/TourCard";
 
@@ -312,17 +312,19 @@ export default async function CountryPage(
           isEmpty={spots.length === 0}
         >
           {spots.map((spot) => (
-            <CountrySpotCard
+            <CommunitySpotCard
               key={spot.id}
-              id={spot.id}
-              name={spot.name}
-              city={spot.city}
-              category={spot.category}
-              photoUrl={spot.photoUrl}
-              shareToken={spot.shareToken!}
-              averageRating={spot.averageRating}
-              ratingCount={spot.ratingCount}
-              description={spot.description}
+              spot={{
+                id: spot.id,
+                title: spot.name,
+                city: spot.city,
+                photoUrl: spot.photoUrl,
+                category: spot.category,
+                rating: spot.averageRating ? Math.round(spot.averageRating) : null,
+                ratingCount: spot.ratingCount,
+                description: spot.description,
+              }}
+              href={`/spots/${spot.shareToken!}`}
             />
           ))}
         </CountrySection>
