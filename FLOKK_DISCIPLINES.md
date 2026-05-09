@@ -40,5 +40,52 @@ closes the gap between "compiles" and "looks right."
   rendered output after SSR, not just local dev artifacts.
 
 **Tool:**
-`scripts/visual-check.mjs` — captures 7 key pages at desktop (1440×900) and mobile (390×844).
-Logs console errors and HTTP 4xx/5xx. Writes 14 PNGs to `/tmp/flokk-screenshots/`.
+`scripts/visual-check.mjs` — captures 8 canonical surfaces at desktop (1440×900) and mobile (390×844).
+Logs console errors and HTTP 4xx/5xx. Writes 16 PNGs to `/tmp/flokk-screenshots/`.
+
+---
+
+## Discipline 4.65 — Cross-Surface Visual Verification for Shared Components
+
+When a prompt modifies any shared component (`src/components/shared/`, `src/components/cards/`,
+`SpotImage`, gradient utilities, render helpers), the visual check phase MUST capture and judge
+**all 8 canonical surfaces** in `scripts/visual-check.mjs`. Visual judgment must explicitly call
+out any cross-surface drift on a non-target surface. A regression on a non-target surface is a
+**hard stop** — no commit until resolved.
+
+**Why this discipline was added:**
+During the 17.9.3 / 17.9.4 / 17.9.4.1 series, changes to `CommunitySpotCard` and `SpotImage`
+caused image regressions on `/discover` and `/saves` that went unnoticed because visual checks
+were scoped to the prompt's primary surface (the country page or city page being built). The
+shared card rendered correctly on the target surface but drifted on every other surface that
+consumed it. The regression was caught only by human review of the live site, not by any automated
+check.
+
+**The 8 canonical surfaces (matches `PAGES` in `scripts/visual-check.mjs`):**
+
+| Name | Path | Notes |
+|---|---|---|
+| discover | /discover | CommunitySpotCard + TourCard in grid |
+| continent-asia | /continents/asia | CountryCard grid |
+| country-japan | /countries/japan | CommunitySpotCard + CommunityTripCard + TourCard |
+| country-france | /countries/france | Same as above, different data |
+| city-tokyo | /cities/tokyo | SpotSection cards, TourCard |
+| saves | /saves | SaveCard, auth-gated (AUTH WALL until storageState) |
+| spot-detail | /spots/4dZcax0d4ct0 | Public CommunitySpot detail (Sky Cab, Seoul) |
+| trip-detail | /trips/cmmycshfj000004jpyadzdp8y | Auth-gated (AUTH WALL until storageState) |
+
+**Scope:**
+- Triggered by changes to anything under `src/components/shared/`, `src/components/cards/`,
+  `src/components/ui/`, `src/components/features/places/`, or any utility that transforms
+  data before render (e.g. `normalizeCategorySlug`, `resolveSaveLink`, `SpotImage`).
+- Also triggered by any change to `CommunitySpotCard`, `TourCard`, `CommunityTripCard`,
+  `SaveCard`, `SpotImage` — even if the change appears isolated to one prop.
+- Not triggered by: API routes with no UI output, Prisma schema changes, scripts, config.
+
+**Judgment standard:**
+Screenshots are judged by Claude Code before commit. Pass criteria:
+1. No layout collapse (cards render expected shape)
+2. No missing images where images were present before
+3. No missing text content (titles, ratings, descriptions)
+4. No unexpected empty states on surfaces that should have data
+5. No AUTH WALL on public surfaces (private surfaces flagged but not blocking)

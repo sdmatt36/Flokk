@@ -1,11 +1,12 @@
 // scripts/visual-check.mjs
-// Visual regression screenshot tool. Captures key pages at desktop and
+// Visual regression screenshot tool. Captures 8 canonical surfaces at desktop and
 // mobile viewports, logs console errors and HTTP failures, saves PNGs to
 // /tmp/flokk-screenshots/. Run before declaring visual work complete.
 //
-// Pages here must be publicly accessible. Authenticated routes (the (app) route group)
-// require Playwright storageState setup with a captured Clerk session — deferred to a
-// future prompt. Do not add (app) routes to PAGES until that work lands.
+// Public routes render full content. Auth-gated routes (/saves, /trips/...) will
+// trigger the AUTH WALL warning until Playwright storageState is wired with a
+// captured Clerk session. Include them anyway — cross-surface discipline requires
+// all 8 surfaces captured even if some show auth walls today.
 //
 // Usage:
 //   node scripts/visual-check.mjs                              # localhost
@@ -15,15 +16,17 @@ import { chromium } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
 
+// Canonical 8-surface set — Discipline 4.65.
+// Do NOT remove surfaces from this list. Add new ones as new shared components ship.
 const PAGES = [
-  { name: "marketing-home",   path: "/" },
-  { name: "continent-asia",   path: "/continents/asia" },
-  { name: "continent-europe", path: "/continents/europe" },
-  { name: "continent-africa", path: "/continents/africa" },
-  { name: "country-japan",    path: "/countries/japan" },
-  { name: "country-france",   path: "/countries/france" },
-  { name: "city-tokyo",       path: "/cities/tokyo" },
-  { name: "city-paris",       path: "/cities/paris" },
+  { name: "discover",       path: "/discover" },
+  { name: "continent-asia", path: "/continents/asia" },
+  { name: "country-japan",  path: "/countries/japan" },
+  { name: "country-france", path: "/countries/france" },
+  { name: "city-tokyo",     path: "/cities/tokyo" },
+  { name: "saves",          path: "/saves" },
+  { name: "spot-detail",    path: "/spots/4dZcax0d4ct0" },    // Sky Cab, Seoul
+  { name: "trip-detail",    path: "/trips/cmmycshfj000004jpyadzdp8y" }, // Greene Tokyo
 ];
 
 const VIEWPORTS = [
@@ -81,5 +84,5 @@ for (const vp of VIEWPORTS) {
 }
 await browser.close();
 
-console.log(`\nDone. ${PAGES.length * VIEWPORTS.length} screenshots in ${outDir}`);
+console.log(`\nDone. ${PAGES.length * VIEWPORTS.length} screenshots (${PAGES.length} surfaces × ${VIEWPORTS.length} viewports) in ${outDir}`);
 if (allIssues.length > 0) console.log(`Issues found: ${allIssues.length}. Review before commit.`);

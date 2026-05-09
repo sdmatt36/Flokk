@@ -404,6 +404,14 @@ When a prompt edits any UI component, page layout, or styling, Code MUST run scr
 
 Screenshots write to /tmp/flokk-screenshots/. View the relevant ones with the view tool. If visual is wrong, iterate before commit. Include visual confirmation in the post-deploy report.
 
+## Cross-Surface Visual Verification — Discipline 4.65 (shared components)
+
+When a prompt modifies any shared component (src/components/shared/, src/components/cards/, SpotImage, gradient utilities, render helpers), the visual check MUST capture and judge ALL 8 canonical surfaces in scripts/visual-check.mjs — not just the target surface. A regression on any non-target surface is a hard stop. No commit until resolved.
+
+The 8 canonical surfaces are defined in scripts/visual-check.mjs (PAGES array). Full discipline body in FLOKK_DISCIPLINES.md § 4.65.
+
+Originated: 17.9.5 series — CommunitySpotCard / SpotImage changes caused /discover and /saves regressions that were not caught because checks were scoped to the country/city page being built.
+
 ## Pre-Resolved Field Principle (Operating Discipline 4.18)
 
 - Pre-Resolved Field Principle (4.18) — every renderable field is a column on the entity's own row. Write-time resolution. Render code reads entity.field directly. When a field is missing, fix the write path, not the render. Render-layer priority chains and sister-record traversals are forbidden as primary resolution paths.
