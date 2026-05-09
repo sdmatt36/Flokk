@@ -996,11 +996,14 @@ model Country {
   code        String?
   continentId String
   continent   Continent @relation(fields: [continentId], references: [id])
-  blurb       String?   @db.Text
-  photoUrl    String?
-  cities      City[]
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  blurb            String?   @db.Text
+  photoUrl         String?
+  photoCredit      String?
+  photoSearchQuery String?
+  photoSourceUrl   String?
+  cities           City[]
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@index([continentId])
 }

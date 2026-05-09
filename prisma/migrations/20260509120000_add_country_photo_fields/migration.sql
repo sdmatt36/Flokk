@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Country" ADD COLUMN IF NOT EXISTS "photoCredit" TEXT;
+ALTER TABLE "Country" ADD COLUMN IF NOT EXISTS "photoSearchQuery" TEXT;
+ALTER TABLE "Country" ADD COLUMN IF NOT EXISTS "photoSourceUrl" TEXT;

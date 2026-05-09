@@ -40,6 +40,7 @@ export default async function ContinentPage(
         select: {
           slug: true,
           name: true,
+          photoUrl: true,
           _count: { select: { cities: true } },
           cities: {
             select: {
@@ -61,17 +62,24 @@ export default async function ContinentPage(
     name: c.name,
     _count: c._count,
     spotCount: c.cities.reduce((sum, city) => sum + city._count.communitySpots, 0),
-    topCities: [...c.cities]
-      .sort((a, b) => {
-        const aPhoto = a.photoUrl != null ? 1 : 0;
-        const bPhoto = b.photoUrl != null ? 1 : 0;
-        if (bPhoto !== aPhoto) return bPhoto - aPhoto;
-        if (b._count.communitySpots !== a._count.communitySpots)
-          return b._count.communitySpots - a._count.communitySpots;
-        return a.name.localeCompare(b.name);
-      })
-      .slice(0, 3)
-      .map((city) => ({ name: city.name, photoUrl: city.photoUrl ?? null })),
+    topCities: (() => {
+      const sorted = [...c.cities]
+        .sort((a, b) => {
+          const aPhoto = a.photoUrl != null ? 1 : 0;
+          const bPhoto = b.photoUrl != null ? 1 : 0;
+          if (bPhoto !== aPhoto) return bPhoto - aPhoto;
+          if (b._count.communitySpots !== a._count.communitySpots)
+            return b._count.communitySpots - a._count.communitySpots;
+          return a.name.localeCompare(b.name);
+        })
+        .slice(0, 3)
+        .map((city) => ({ name: city.name, photoUrl: city.photoUrl ?? null }));
+      // country.photoUrl takes priority over topCity photo as hero image
+      if (c.photoUrl != null && sorted.length > 0) {
+        return [{ ...sorted[0], photoUrl: c.photoUrl }, ...sorted.slice(1)];
+      }
+      return sorted;
+    })(),
   }));
 
   return (
