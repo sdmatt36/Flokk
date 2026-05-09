@@ -111,6 +111,7 @@ async function loadCity(slug: string) {
             take: 1,
             select: { imageUrl: true },
           },
+          _count: { select: { stops: true } },
         },
         orderBy: { createdAt: "desc" },
         take: 12,
@@ -320,7 +321,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
                   destinationCity: tour.destinationCity,
                   destinationCountry: tour.destinationCountry,
                   shareToken: tour.shareToken,
-                  stopCount: tour.stops.length,
+                  stopCount: tour._count.stops,
                   transport: tour.transport,
                   firstStopImageUrl: tour.stops[0]?.imageUrl ?? null,
                 }}

@@ -293,7 +293,7 @@ export default async function CountryPage(
         {/* Itineraries */}
         <CountrySection
           id="itineraries"
-          title="Family Itineraries"
+          title="Itineraries"
           count={trips.length}
           emptyText={`No public itineraries yet for ${country.name}. Be the first to share one.`}
           isEmpty={trips.length === 0}
@@ -306,7 +306,7 @@ export default async function CountryPage(
         {/* Picks */}
         <CountrySection
           id="picks"
-          title="Family Picks"
+          title="Flokk Picks"
           count={spots.length}
           emptyText={`No community spots linked to cities in ${country.name} yet.`}
           isEmpty={spots.length === 0}
@@ -332,7 +332,7 @@ export default async function CountryPage(
         {/* Tours */}
         <CountrySection
           id="tours"
-          title="AI Tours"
+          title="Tours"
           count={tours.length}
           emptyText={`No public tours yet for ${country.name}.`}
           isEmpty={tours.length === 0}

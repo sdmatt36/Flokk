@@ -2,8 +2,8 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
-import { normalizePlaceName } from "@/lib/google-places";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
+import { writeThroughCommunitySpot } from "@/lib/community-write-through";
 
 export const dynamic = "force-dynamic";
 
@@ -120,82 +120,24 @@ export async function PATCH(
     const triggersCommunity = updateData.userRating !== undefined || updateData.notes !== undefined;
     if (triggersCommunity) {
       try {
-        const city = updated.destinationCity;
-        if (!city) {
-          // No destinationCity — not eligible for community layer
-        } else if (updated.userRating == null && !updated.notes) {
-          // Nothing to contribute yet — wait for an actual rating or note
-        } else {
-          const rawName = updated.rawTitle ?? "";
-          const cleanedName = normalizePlaceName(rawName);
-
-          await db.$transaction(async (tx) => {
-            // Find or create CommunitySpot by normalized name+city (insensitive)
-            let spot = await tx.communitySpot.findFirst({
-              where: {
-                name: { equals: cleanedName, mode: "insensitive" },
-                city: { equals: city, mode: "insensitive" },
-              },
-              select: { id: true },
-            });
-
-            if (!spot) {
-              // TODO: enrich lat/lng via Google Places in a future background job for spots with null coords
-              spot = await tx.communitySpot.create({
-                data: {
-                  name: cleanedName,
-                  city,
-                  country: updated.destinationCountry ?? null,
-                  lat: updated.lat ?? null,
-                  lng: updated.lng ?? null,
-                  photoUrl: updated.placePhotoUrl ?? updated.mediaThumbnailUrl ?? null,
-                  websiteUrl: updated.websiteUrl ?? null,
-                  description: updated.notes ?? null,
-                  category: updated.categoryTags[0] ?? null,
-                  authorProfileId: updated.familyProfileId,
-                },
-                select: { id: true },
-              });
-            }
-
-            // Upsert this family's SpotContribution
-            await tx.spotContribution.upsert({
-              where: {
-                communitySpotId_familyProfileId: {
-                  communitySpotId: spot.id,
-                  familyProfileId: updated.familyProfileId,
-                },
-              },
-              create: {
-                communitySpotId: spot.id,
-                familyProfileId: updated.familyProfileId,
-                rating: updated.userRating ?? null,
-                note: updated.notes ?? null,
-              },
-              update: {
-                rating: updated.userRating ?? null,
-                note: updated.notes ?? null,
-              },
-            });
-
-            // Recompute aggregates from all contributions for this spot
-            const contributions = await tx.spotContribution.findMany({
-              where: { communitySpotId: spot.id },
-              select: { rating: true },
-            });
-            const ratedContribs = contributions.filter(c => c.rating != null);
-            const ratingCount = ratedContribs.length;
-            const contributionCount = contributions.length;
-            const averageRating = ratingCount > 0
-              ? ratedContribs.reduce((sum, c) => sum + c.rating!, 0) / ratingCount
-              : null;
-
-            await tx.communitySpot.update({
-              where: { id: spot.id },
-              data: { averageRating, ratingCount, contributionCount },
-            });
-          }, { timeout: 10000 });
-        }
+        await db.$transaction(async (tx) => {
+          await writeThroughCommunitySpot(tx, {
+            name: updated.rawTitle ?? "",
+            city: updated.destinationCity ?? "",
+            country: updated.destinationCountry ?? null,
+            lat: updated.lat ?? null,
+            lng: updated.lng ?? null,
+            photoUrl: updated.placePhotoUrl ?? updated.mediaThumbnailUrl ?? null,
+            websiteUrl: updated.websiteUrl ?? null,
+            description: updated.notes ?? null,
+            category: updated.categoryTags[0] ?? null,
+            googlePlaceId: null,
+            authorProfileId: updated.familyProfileId,
+            familyProfileId: updated.familyProfileId,
+            rating: updated.userRating ?? null,
+            note: updated.notes ?? null,
+          });
+        }, { timeout: 10000 });
       } catch (e) {
         console.error("[community-write-through] failed for save:", id, e);
       }

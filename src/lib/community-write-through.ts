@@ -3,6 +3,15 @@ import { normalizePlaceName, resolvePlaceUrl, deservesUrl } from "./google-place
 
 type Tx = Prisma.TransactionClient;
 
+function toCitySlug(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 export interface CommunityWriteThroughContext {
   name: string;
   city: string;
@@ -73,6 +82,22 @@ export async function writeThroughCommunitySpot(
       if (!resolvedUrl) needsUrlReview = true;
     }
 
+    // Resolve cityId: slug match first, then name ILIKE fallback.
+    let cityId: string | null = null;
+    const citySlug = toCitySlug(ctx.city);
+    const geoCity = await tx.city.findFirst({
+      where: { slug: citySlug },
+      select: { id: true },
+    }) ?? await tx.city.findFirst({
+      where: { name: { equals: ctx.city, mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (geoCity) {
+      cityId = geoCity.id;
+    } else {
+      console.warn(`[community-write-through] no City found for "${ctx.city}" (slug: ${citySlug})`);
+    }
+
     spot = await tx.communitySpot.create({
       data: {
         name: cleanedName,
@@ -87,6 +112,7 @@ export async function writeThroughCommunitySpot(
         category: ctx.category ?? null,
         googlePlaceId: ctx.googlePlaceId ?? null,
         authorProfileId: ctx.authorProfileId,
+        ...(cityId ? { cityId } : {}),
       },
       select: { id: true },
     });
