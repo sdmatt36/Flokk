@@ -408,7 +408,7 @@ Screenshots write to /tmp/flokk-screenshots/. View the relevant ones with the vi
 
 When a prompt modifies any shared component (src/components/shared/, src/components/cards/, SpotImage, gradient utilities, render helpers), the visual check MUST capture and judge ALL 8 canonical surfaces in scripts/visual-check.mjs — not just the target surface. A regression on any non-target surface is a hard stop. No commit until resolved.
 
-The 8 canonical surfaces are defined in scripts/visual-check.mjs (PAGES array). Full discipline body in FLOKK_DISCIPLINES.md § 4.65.
+The 9 canonical surfaces are defined in scripts/visual-check.mjs (PAGES array). Full discipline body in FLOKK_DISCIPLINES.md § 4.65.
 
 Originated: 17.9.5 series — CommunitySpotCard / SpotImage changes caused /discover and /saves regressions that were not caught because checks were scoped to the country/city page being built.
 

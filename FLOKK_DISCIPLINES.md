@@ -40,8 +40,8 @@ closes the gap between "compiles" and "looks right."
   rendered output after SSR, not just local dev artifacts.
 
 **Tool:**
-`scripts/visual-check.mjs` — captures 8 canonical surfaces at desktop (1440×900) and mobile (390×844).
-Logs console errors and HTTP 4xx/5xx. Writes 16 PNGs to `/tmp/flokk-screenshots/`.
+`scripts/visual-check.mjs` — captures 9 canonical surfaces at desktop (1440×900) and mobile (390×844).
+Logs console errors and HTTP 4xx/5xx. Writes 18 PNGs to `/tmp/flokk-screenshots/`.
 
 ---
 
@@ -61,18 +61,19 @@ shared card rendered correctly on the target surface but drifted on every other 
 consumed it. The regression was caught only by human review of the live site, not by any automated
 check.
 
-**The 8 canonical surfaces (matches `PAGES` in `scripts/visual-check.mjs`):**
+**The 9 canonical surfaces (matches `PAGES` in `scripts/visual-check.mjs`):**
 
 | Name | Path | Notes |
 |---|---|---|
-| discover | /discover | CommunitySpotCard + TourCard in grid |
-| continent-asia | /continents/asia | CountryCard grid |
+| discover | /discover | CommunitySpotCard + TourCard in grid, auth-gated |
+| continents-index | /continents | 7-continent grid, public |
+| continent-asia | /continents/asia | CountryCard grid, public |
 | country-japan | /countries/japan | CommunitySpotCard + CommunityTripCard + TourCard |
 | country-france | /countries/france | Same as above, different data |
 | city-tokyo | /cities/tokyo | SpotSection cards, TourCard |
-| saves | /saves | SaveCard, auth-gated (AUTH WALL until storageState) |
+| saves | /saves | SaveCard, auth-gated (AUTH WALL until FLOKK_TEST_USER_TOKEN set) |
 | spot-detail | /spots/4dZcax0d4ct0 | Public CommunitySpot detail (Sky Cab, Seoul) |
-| trip-detail | /trips/cmmycshfj000004jpyadzdp8y | Auth-gated (AUTH WALL until storageState) |
+| trip-detail | /trips/cmmycshfj000004jpyadzdp8y | Auth-gated (AUTH WALL until FLOKK_TEST_USER_TOKEN set) |
 
 **Scope:**
 - Triggered by changes to anything under `src/components/shared/`, `src/components/cards/`,

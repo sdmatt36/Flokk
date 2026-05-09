@@ -1,32 +1,44 @@
 // scripts/visual-check.mjs
-// Visual regression screenshot tool. Captures 8 canonical surfaces at desktop and
+// Visual regression screenshot tool. Captures 9 canonical surfaces at desktop and
 // mobile viewports, logs console errors and HTTP failures, saves PNGs to
 // /tmp/flokk-screenshots/. Run before declaring visual work complete.
 //
-// Public routes render full content. Auth-gated routes (/saves, /trips/...) will
-// trigger the AUTH WALL warning until Playwright storageState is wired with a
-// captured Clerk session. Include them anyway — cross-surface discipline requires
-// all 8 surfaces captured even if some show auth walls today.
+// Public routes render full content. Auth-gated routes (/discover, /saves, /trips/...)
+// will show AUTH WALL unless FLOKK_TEST_USER_TOKEN is set (see below).
+//
+// To capture an authenticated session for visual checks:
+//   1. Log into https://flokktravel.com as the Greene profile
+//   2. Open DevTools → Application → Cookies → flokktravel.com
+//   3. Copy the value of the __session cookie
+//   4. Export it before running this script:
+//        export FLOKK_TEST_USER_TOKEN="<paste-value>"
+//        node scripts/visual-check.mjs
 //
 // Usage:
-//   node scripts/visual-check.mjs                              # localhost
+//   node scripts/visual-check.mjs                              # localhost (no auth)
 //   PREVIEW_URL=https://flokktravel.com node scripts/visual-check.mjs
 
 import { chromium } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
 
-// Canonical 8-surface set — Discipline 4.65.
+const authToken = process.env.FLOKK_TEST_USER_TOKEN ?? null;
+if (!authToken) {
+  console.log("FLOKK_TEST_USER_TOKEN not set — auth-gated surfaces will show AUTH WALL");
+}
+
+// Canonical 9-surface set — Discipline 4.65.
 // Do NOT remove surfaces from this list. Add new ones as new shared components ship.
 const PAGES = [
-  { name: "discover",       path: "/discover" },
-  { name: "continent-asia", path: "/continents/asia" },
-  { name: "country-japan",  path: "/countries/japan" },
-  { name: "country-france", path: "/countries/france" },
-  { name: "city-tokyo",     path: "/cities/tokyo" },
-  { name: "saves",          path: "/saves" },
-  { name: "spot-detail",    path: "/spots/4dZcax0d4ct0" },    // Sky Cab, Seoul
-  { name: "trip-detail",    path: "/trips/cmmycshfj000004jpyadzdp8y" }, // Greene Tokyo
+  { name: "discover",           path: "/discover" },
+  { name: "continents-index",   path: "/continents" },
+  { name: "continent-asia",     path: "/continents/asia" },
+  { name: "country-japan",      path: "/countries/japan" },
+  { name: "country-france",     path: "/countries/france" },
+  { name: "city-tokyo",         path: "/cities/tokyo" },
+  { name: "saves",              path: "/saves" },
+  { name: "spot-detail",        path: "/spots/4dZcax0d4ct0" },    // Sky Cab, Seoul
+  { name: "trip-detail",        path: "/trips/cmmycshfj000004jpyadzdp8y" }, // Greene Tokyo
 ];
 
 const VIEWPORTS = [
@@ -46,6 +58,20 @@ const allIssues = [];
 
 for (const vp of VIEWPORTS) {
   const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
+
+  // Inject Clerk session cookie for auth-gated surfaces when token is available.
+  if (authToken) {
+    await ctx.addCookies([{
+      name: "__session",
+      value: authToken,
+      domain: ".flokktravel.com",
+      path: "/",
+      httpOnly: true,
+      secure: true,
+      sameSite: "Lax",
+    }]);
+  }
+
   const page = await ctx.newPage();
 
   for (const p of PAGES) {
