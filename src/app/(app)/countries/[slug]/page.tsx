@@ -150,12 +150,31 @@ export default async function CountryPage(
           backgroundPosition: "center",
         }}
       >
+        {/* Top scrim — breadcrumb legibility */}
         <div
           style={{
             position: "absolute",
-            inset: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            height: "40%",
+            zIndex: 1,
             background: country.photoUrl
-              ? "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.72) 100%)"
+              ? "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.2) 30%, transparent 60%)"
+              : "none",
+          }}
+        />
+        {/* Bottom scrim — country name / blurb / stats legibility */}
+        <div
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: "70%",
+            zIndex: 1,
+            background: country.photoUrl
+              ? "linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.45) 25%, rgba(0,0,0,0.15) 50%, transparent 70%)"
               : "linear-gradient(135deg, #1B3A5C 0%, #1B3A5C 50%, #0d2438 100%)",
           }}
         />
@@ -170,17 +189,17 @@ export default async function CountryPage(
           }}
         >
           {/* Breadcrumb */}
-          <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.7)", marginBottom: "8px" }}>
+          <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.95)", marginBottom: "8px", textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
             <Link
               href="/continents"
-              style={{ color: "rgba(255,255,255,0.7)", textDecoration: "none" }}
+              style={{ color: "rgba(255,255,255,0.95)", textDecoration: "none" }}
             >
               Destinations
             </Link>
             {" › "}
             <Link
               href={`/continents/${country.continent.slug}`}
-              style={{ color: "rgba(255,255,255,0.8)", textDecoration: "none" }}
+              style={{ color: "rgba(255,255,255,0.95)", textDecoration: "none" }}
             >
               {country.continent.name}
             </Link>
@@ -194,7 +213,7 @@ export default async function CountryPage(
               color: "#fff",
               lineHeight: 1.15,
               marginBottom: "8px",
-              textShadow: country.photoUrl ? "0 2px 16px rgba(0,0,0,0.5)" : "none",
+              textShadow: country.photoUrl ? "0 2px 16px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.6)" : "none",
             }}
           >
             {country.name}
@@ -204,10 +223,11 @@ export default async function CountryPage(
             <p
               style={{
                 fontSize: "14px",
-                color: "rgba(255,255,255,0.85)",
+                color: "rgba(255,255,255,0.92)",
                 lineHeight: 1.5,
                 maxWidth: "560px",
                 marginBottom: "12px",
+                textShadow: "0 1px 6px rgba(0,0,0,0.75)",
               }}
             >
               {country.blurb}

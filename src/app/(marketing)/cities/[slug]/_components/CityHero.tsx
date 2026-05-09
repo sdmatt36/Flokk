@@ -98,13 +98,28 @@ export function CityHero({
         <div style={{ position: "absolute", inset: 0, backgroundColor: "#1B3A5C" }} />
       )}
 
-      {/* Gradient overlay */}
+      {/* Top scrim — darkens breadcrumb zone */}
       <div
         style={{
           position: "absolute",
-          inset: 0,
-          background:
-            "linear-gradient(to bottom, rgba(27,58,92,0.6) 0%, rgba(27,58,92,0.2) 60%, transparent 100%)",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "40%",
+          zIndex: 1,
+          background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.2) 30%, transparent 60%)",
+        }}
+      />
+      {/* Bottom scrim — darkens city name / blurb / stats zone */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: "70%",
+          zIndex: 1,
+          background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.45) 25%, rgba(0,0,0,0.15) 50%, transparent 70%)",
         }}
       />
 
@@ -117,12 +132,13 @@ export function CityHero({
           top: 24,
           left: 24,
           zIndex: 2,
-          color: "rgba(255,255,255,0.85)",
+          color: "rgba(255,255,255,0.95)",
           display: "flex",
           alignItems: "center",
           flexWrap: "wrap",
           gap: "2px",
           lineHeight: 1.4,
+          textShadow: "0 1px 4px rgba(0,0,0,0.7)",
         }}
       >
         <Link href="/continents" style={{ color: "inherit", textDecoration: "none" }}>
@@ -157,7 +173,7 @@ export function CityHero({
             color: "#FFFFFF",
             lineHeight: 1.1,
             margin: "0 0 8px",
-            textShadow: "0 2px 8px rgba(0,0,0,0.4)",
+            textShadow: "0 2px 16px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.6)",
           }}
         >
           {cityName}
@@ -172,7 +188,7 @@ export function CityHero({
               color: "#FFFFFF",
               margin: "0 0 10px",
               lineHeight: 1.5,
-              textShadow: "0 1px 3px rgba(0,0,0,0.5)",
+              textShadow: "0 1px 6px rgba(0,0,0,0.75)",
             }}
           >
             {blurb}
@@ -183,9 +199,10 @@ export function CityHero({
           <p
             className={`city-hero-stats ${dmSans.className}`}
             style={{
-              color: "rgba(255,255,255,0.8)",
+              color: "rgba(255,255,255,0.92)",
               margin: 0,
               lineHeight: 1.4,
+              textShadow: "0 1px 4px rgba(0,0,0,0.7)",
             }}
           >
             {statsLine}
