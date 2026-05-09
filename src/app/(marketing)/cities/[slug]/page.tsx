@@ -347,6 +347,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
           cityName={city.name}
           emptyText="No food picks yet. Got a favorite? Share it."
           filterField="cuisine"
+          addHref={`/saves?city=${encodeURIComponent(city.name)}&category=food_and_drink`}
         />
 
         {/* Activities */}
@@ -357,6 +358,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
           cityName={city.name}
           emptyText={`No activities yet. Help us build ${city.name}.`}
           filterField="category"
+          addHref={`/saves?city=${encodeURIComponent(city.name)}&category=experiences`}
         />
 
         {/* Lodging */}
@@ -367,6 +369,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
           cityName={city.name}
           emptyText="No lodging picks yet."
           filterField="lodgingType"
+          addHref={`/saves?city=${encodeURIComponent(city.name)}&category=lodging`}
         />
 
       </div>

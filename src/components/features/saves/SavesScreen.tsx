@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
 import { getItemImage } from "@/lib/destination-images";
@@ -1174,6 +1174,7 @@ function ToursTabContent({ tours, search, activeCountry, selectedCity, onDelete 
 
 export function SavesScreen() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
   const [dietaryFilter, setDietaryFilter] = useState<string | null>(null);
@@ -1266,6 +1267,18 @@ export function SavesScreen() {
     const openId = new URLSearchParams(window.location.search).get("open");
     if (openId) setModalItemId(openId);
   }, []);
+
+  // Pre-fill and auto-open manual Add modal when ?city= AND ?category= are both present.
+  // Only fires on deep-link arrival from city page CTAs — bare /saves visits are unaffected.
+  useEffect(() => {
+    const city = searchParams.get("city");
+    const category = searchParams.get("category");
+    if (!city || !category) return;
+    setManualCityQuery(city);
+    setManualCity(city);
+    setManualCategory(category);
+    setShowManualModal(true);
+  }, [searchParams]);
 
   // Dismiss city dropdown on outside click
   useEffect(() => {
