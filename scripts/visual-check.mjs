@@ -27,6 +27,20 @@ if (!authToken) {
   console.log("FLOKK_TEST_USER_TOKEN not set — auth-gated surfaces will show AUTH WALL");
 }
 
+// Clerk v7 middleware requires __client_uat (Unix timestamp) alongside __session.
+// Without it the middleware triggers a handshake that dumps headless browsers to sign-in.
+// Derive it from the JWT's iat claim so no extra env var is needed.
+function jwtIat(jwt) {
+  try {
+    const payload = jwt.split(".")[1];
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString());
+    return String(decoded.iat ?? Math.floor(Date.now() / 1000));
+  } catch {
+    return String(Math.floor(Date.now() / 1000));
+  }
+}
+const clientUat = authToken ? jwtIat(authToken) : null;
+
 // Canonical 9-surface set — Discipline 4.65.
 // Do NOT remove surfaces from this list. Add new ones as new shared components ship.
 const PAGES = [
@@ -50,7 +64,11 @@ const outDir = "/tmp/flokk-screenshots";
 fs.mkdirSync(outDir, { recursive: true });
 for (const f of fs.readdirSync(outDir)) fs.unlinkSync(path.join(outDir, f));
 
-const baseUrl = (process.env.PREVIEW_URL || "http://localhost:3000").replace(/\/$/, "");
+// flokktravel.com (root) 307-redirects to www.flokktravel.com for every route.
+// Navigate directly to www to avoid the redirect so cookies are sent to the right origin.
+const rawUrl = (process.env.PREVIEW_URL || "http://localhost:3000").replace(/\/$/, "");
+const baseUrl = rawUrl.replace("https://flokktravel.com", "https://www.flokktravel.com");
+if (rawUrl !== baseUrl) console.log(`Resolved ${rawUrl} → ${baseUrl} (www redirect)`);
 console.log(`Screenshotting against: ${baseUrl}`);
 
 const browser = await chromium.launch();
@@ -59,17 +77,18 @@ const allIssues = [];
 for (const vp of VIEWPORTS) {
   const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
 
-  // Inject Clerk session cookie for auth-gated surfaces when token is available.
-  if (authToken) {
-    await ctx.addCookies([{
-      name: "__session",
-      value: authToken,
-      domain: ".flokktravel.com",
-      path: "/",
-      httpOnly: true,
-      secure: true,
-      sameSite: "Lax",
-    }]);
+  // Inject Clerk v7 session cookies for auth-gated surfaces when token is available.
+  // Clerk v7 requires both __session (JWT) and __client_uat (iat timestamp) or the
+  // middleware triggers a handshake that redirects headless browsers to the sign-in page.
+  // Inject for both www and root domains; we navigate to www directly to skip the 307.
+  if (authToken && clientUat) {
+    const cookieBase = { path: "/", httpOnly: true, secure: true, sameSite: "Lax" };
+    await ctx.addCookies([
+      { name: "__session",    value: authToken,  domain: "www.flokktravel.com", ...cookieBase },
+      { name: "__client_uat", value: clientUat,  domain: "www.flokktravel.com", ...cookieBase },
+      { name: "__session",    value: authToken,  domain: "flokktravel.com",     ...cookieBase },
+      { name: "__client_uat", value: clientUat,  domain: "flokktravel.com",     ...cookieBase },
+    ]);
   }
 
   const page = await ctx.newPage();

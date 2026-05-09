@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { normalizePlaceName, resolvePlaceUrl, deservesUrl } from "./google-places";
+import { normalizePlaceName, resolvePlaceUrl, deservesUrl, findPlaceByNameCity } from "./google-places";
 
 type Tx = Prisma.TransactionClient;
 
@@ -82,6 +82,28 @@ export async function writeThroughCommunitySpot(
       if (!resolvedUrl) needsUrlReview = true;
     }
 
+    // Best-effort Google Places enrichment when both photoUrl and googlePlaceId are absent.
+    // Runs before insert so new spots land with a real photo from day one.
+    // Failure here is non-blocking: spot still creates with null photo.
+    let resolvedPhotoUrl: string | null = ctx.photoUrl ?? null;
+    let resolvedPlaceId: string | null = ctx.googlePlaceId ?? null;
+
+    if (!resolvedPhotoUrl && !resolvedPlaceId && ctx.name && ctx.city) {
+      try {
+        const placeResult = await findPlaceByNameCity(cleanedName, ctx.city);
+        if (placeResult) {
+          resolvedPlaceId = placeResult.placeId ?? null;
+          resolvedPhotoUrl = placeResult.photoUrl ?? null;
+          if (!resolvedUrl && placeResult.websiteUrl) {
+            resolvedUrl = placeResult.websiteUrl;
+            needsUrlReview = false;
+          }
+        }
+      } catch (e) {
+        console.warn(`[community-write-through] Google Places enrichment failed for "${cleanedName}":`, e);
+      }
+    }
+
     // Resolve cityId: slug match first, then name ILIKE fallback.
     let cityId: string | null = null;
     const citySlug = toCitySlug(ctx.city);
@@ -105,12 +127,12 @@ export async function writeThroughCommunitySpot(
         country: ctx.country ?? null,
         lat: ctx.lat ?? null,
         lng: ctx.lng ?? null,
-        photoUrl: ctx.photoUrl ?? null,
+        photoUrl: resolvedPhotoUrl,
         websiteUrl: resolvedUrl,
         needsUrlReview,
         description: ctx.description ?? null,
         category: ctx.category ?? null,
-        googlePlaceId: ctx.googlePlaceId ?? null,
+        googlePlaceId: resolvedPlaceId,
         authorProfileId: ctx.authorProfileId,
         ...(cityId ? { cityId } : {}),
       },
