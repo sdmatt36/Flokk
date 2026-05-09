@@ -23,6 +23,7 @@ const isPublicRoute = createRouteMatcher([
   "/cities(.*)",
   "/continents(.*)",
   "/countries(.*)",
+  "/spots(.*)",
   // Legacy public routes
   "/explore(.*)",
   "/destination(.*)",

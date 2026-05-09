@@ -1054,6 +1054,8 @@ model CommunitySpot {
   cityId            String?
   geoCity           City?                @relation(fields: [cityId], references: [id])
   isAiGenerated     Boolean              @default(false)
+  shareToken        String?              @unique
+  isPublic          Boolean              @default(true)
   createdAt         DateTime             @default(now())
   updatedAt         DateTime             @updatedAt
 
