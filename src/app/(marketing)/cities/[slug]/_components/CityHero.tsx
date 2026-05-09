@@ -122,6 +122,19 @@ export function CityHero({
           background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.45) 25%, rgba(0,0,0,0.15) 50%, transparent 70%)",
         }}
       />
+      {/* Localized text backdrop — elliptical darkening under bottom-left content only */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          width: "min(720px, 100%)",
+          height: "60%",
+          zIndex: 1,
+          pointerEvents: "none",
+          background: "radial-gradient(ellipse 70% 55% at 22% 75%, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.3) 45%, rgba(0,0,0,0.1) 70%, transparent 85%)",
+        }}
+      />
 
       {/* Breadcrumb — top-left */}
       <nav

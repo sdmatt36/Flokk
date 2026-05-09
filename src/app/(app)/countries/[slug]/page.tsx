@@ -178,6 +178,21 @@ export default async function CountryPage(
               : "linear-gradient(135deg, #1B3A5C 0%, #1B3A5C 50%, #0d2438 100%)",
           }}
         />
+        {/* Localized text backdrop — elliptical darkening under bottom-left content only */}
+        {country.photoUrl && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              width: "min(720px, 100%)",
+              height: "60%",
+              zIndex: 1,
+              pointerEvents: "none",
+              background: "radial-gradient(ellipse 70% 55% at 22% 75%, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.3) 45%, rgba(0,0,0,0.1) 70%, transparent 85%)",
+            }}
+          />
+        )}
 
         <div
           style={{
