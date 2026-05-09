@@ -69,7 +69,7 @@ async function loadCity(slug: string) {
       ratingCount: bigint | number;
     }
 
-    const [spots, trips, tours, ratingRows] = await Promise.all([
+    const [spots, trips, tours, ratingRows, spotCount, tripCount, tourCount, ratingCount] = await Promise.all([
       db.communitySpot.findMany({
         where: { cityId: city.id },
         select: {
@@ -126,6 +126,10 @@ async function loadCity(slug: string) {
         WHERE LOWER("destinationCity") = LOWER(${city.name})
         GROUP BY "placeName", "placeType"
       `,
+      db.communitySpot.count({ where: { cityId: city.id } }),
+      db.trip.count({ where: { isPublic: true, shareToken: { not: null }, destinationCity: { contains: city.name, mode: "insensitive" } } }),
+      db.generatedTour.count({ where: { isPublic: true, deletedAt: null, shareToken: { not: null }, destinationCity: { contains: city.name, mode: "insensitive" } } }),
+      db.spotContribution.count({ where: { spot: { cityId: city.id }, rating: { not: null } } }),
     ]);
 
     // Build dedup map from CommunitySpot — key by slug(name) only.
@@ -189,7 +193,7 @@ async function loadCity(slug: string) {
 
     const allSpots: SpotItem[] = [...spotMap.values(), ...prOnlyMap.values()];
 
-    return { city, spots: allSpots, trips, tours };
+    return { city, spots: allSpots, trips, tours, spotCount, tripCount, tourCount, ratingCount };
   } finally {
     await db.$disconnect();
   }
@@ -239,7 +243,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
   const data = await loadCity(slug);
   if (!data) notFound();
 
-  const { city, spots, trips, tours } = data;
+  const { city, spots, trips, tours, spotCount, tripCount, tourCount, ratingCount } = data;
   const country = city.country;
   const continent = country.continent;
 
@@ -279,7 +283,12 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
         continentSlug={continentSlug}
         latitude={city.latitude}
         longitude={city.longitude}
-        tags={city.tags}
+        photoUrl={city.photoUrl}
+        blurb={city.blurb}
+        spotCount={spotCount}
+        tripCount={tripCount}
+        tourCount={tourCount}
+        ratingCount={ratingCount}
       />
 
       <SectionNav />

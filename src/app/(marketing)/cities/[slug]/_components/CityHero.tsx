@@ -1,7 +1,16 @@
 import Link from "next/link";
-import { Playfair_Display } from "next/font/google";
+import { DM_Sans, Playfair_Display } from "next/font/google";
 
-const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700", "900"] });
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  style: ["normal", "italic"],
+});
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  weight: ["400"],
+});
 
 interface CityHeroProps {
   cityName: string;
@@ -9,10 +18,18 @@ interface CityHeroProps {
   countrySlug: string;
   continentName: string;
   continentSlug: string;
-  latitude: number | null;   // kept for schema.org JSON-LD — not rendered
-  longitude: number | null;  // kept for schema.org JSON-LD — not rendered
-  tags: string[];
-  photoUrl?: string | null;  // accepted but ignored — design is brand-only
+  latitude: number | null;
+  longitude: number | null;
+  photoUrl?: string | null;
+  blurb?: string | null;
+  spotCount: number;
+  tripCount: number;
+  tourCount: number;
+  ratingCount: number;
+}
+
+function pluralize(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
 }
 
 export function CityHero({
@@ -23,125 +40,177 @@ export function CityHero({
   continentSlug,
   latitude: _latitude,
   longitude: _longitude,
-  tags,
-  photoUrl: _photoUrl,
+  photoUrl,
+  blurb,
+  spotCount,
+  tripCount,
+  tourCount,
+  ratingCount,
 }: CityHeroProps) {
+  const isUnsplash = !!photoUrl && /unsplash\.com/i.test(photoUrl);
+
+  const statsParts = [
+    spotCount > 0 ? pluralize(spotCount, "spot", "spots") : null,
+    tripCount > 0 ? pluralize(tripCount, "itinerary", "itineraries") : null,
+    tourCount > 0 ? pluralize(tourCount, "tour", "tours") : null,
+    ratingCount > 0 ? pluralize(ratingCount, "rating", "ratings") : null,
+  ].filter((x): x is string => x !== null);
+
+  const statsLine = statsParts.join(" · ");
+
   return (
     <section
       className="city-hero"
-      style={{
-        position: "relative",
-        background: "linear-gradient(135deg, #1B3A5C 0%, #1B3A5C 40%, #C4664A 100%)",
-        overflow: "hidden",
-      }}
+      style={{ position: "relative", overflow: "hidden" }}
     >
       <style>{`
-        .city-hero { min-height: 280px; padding: 56px 0 48px; }
-        @media (max-width: 640px) { .city-hero { min-height: 200px; padding: 40px 0 32px; } }
+        .city-hero { height: 480px; }
+        .city-hero-name { font-size: 64px; }
+        .city-hero-blurb { font-size: 18px; }
+        .city-hero-breadcrumb { font-size: 14px; }
+        .city-hero-stats { font-size: 14px; }
+        .city-hero-breadcrumb a:hover { text-decoration: underline; }
+        @media (max-width: 767px) {
+          .city-hero { height: 360px; }
+          .city-hero-name { font-size: 40px; }
+          .city-hero-blurb { font-size: 16px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+          .city-hero-breadcrumb { font-size: 12px; }
+          .city-hero-stats { font-size: 12px; }
+        }
       `}</style>
 
-      {/* Topographic contour pattern + compass rose */}
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 1440 400"
-        preserveAspectRatio="xMidYMid slice"
+      {/* Background: photo or solid navy fallback */}
+      {photoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={photoUrl}
+          alt=""
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            objectPosition: "center",
+          }}
+        />
+      ) : (
+        <div style={{ position: "absolute", inset: 0, backgroundColor: "#1B3A5C" }} />
+      )}
+
+      {/* Gradient overlay */}
+      <div
         style={{
           position: "absolute",
           inset: 0,
-          width: "100%",
-          height: "100%",
-          opacity: 0.08,
-          pointerEvents: "none",
+          background:
+            "linear-gradient(to bottom, rgba(27,58,92,0.6) 0%, rgba(27,58,92,0.2) 60%, transparent 100%)",
+        }}
+      />
+
+      {/* Breadcrumb — top-left */}
+      <nav
+        className={`city-hero-breadcrumb ${dmSans.className}`}
+        aria-label="Breadcrumb"
+        style={{
+          position: "absolute",
+          top: 24,
+          left: 24,
+          zIndex: 2,
+          color: "rgba(255,255,255,0.85)",
+          display: "flex",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "2px",
+          lineHeight: 1.4,
         }}
       >
-        <g fill="none" stroke="#ffffff" strokeWidth="1.5">
-          <path d="M0,80 Q300,50 600,90 T1200,70 T1440,85" />
-          <path d="M0,140 Q280,110 580,160 T1180,130 T1440,150" />
-          <path d="M0,200 Q320,170 640,220 T1240,200 T1440,210" />
-          <path d="M0,260 Q300,230 620,280 T1200,260 T1440,270" />
-          <path d="M0,320 Q280,290 600,340 T1180,320 T1440,330" />
-          <path d="M0,380 Q320,350 640,400 T1240,380 T1440,390" />
-        </g>
-        <g fill="none" stroke="#ffffff" strokeWidth="2" opacity="0.5" transform="translate(1280,80)">
-          <circle cx="0" cy="0" r="40" />
-          <circle cx="0" cy="0" r="30" />
-          <line x1="0" y1="-40" x2="0" y2="40" />
-          <line x1="-40" y1="0" x2="40" y2="0" />
-          <line x1="-28" y1="-28" x2="28" y2="28" strokeOpacity="0.6" />
-          <line x1="-28" y1="28" x2="28" y2="-28" strokeOpacity="0.6" />
-        </g>
-      </svg>
+        <Link href="/continents" style={{ color: "inherit", textDecoration: "none" }}>
+          Continents
+        </Link>
+        <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
+        <Link href={`/continents/${continentSlug}`} style={{ color: "inherit", textDecoration: "none" }}>
+          {continentName}
+        </Link>
+        <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
+        <Link href={`/countries/${countrySlug}`} style={{ color: "inherit", textDecoration: "none" }}>
+          {countryName}
+        </Link>
+        <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
+        <span style={{ opacity: 0.75 }}>{cityName}</span>
+      </nav>
 
-      {/* Foreground content */}
-      <div style={{ position: "relative", zIndex: 1, maxWidth: "1080px", margin: "0 auto", padding: "0 24px" }}>
-        {/* Breadcrumb */}
-        <nav style={{ marginBottom: "20px" }}>
-          <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.6)" }}>
-            <Link href={`/continents/${continentSlug}`} style={{ color: "rgba(255,255,255,0.6)", textDecoration: "none" }}>
-              {continentName}
-            </Link>
-            {" › "}
-            <Link href={`/countries/${countrySlug}`} style={{ color: "rgba(255,255,255,0.6)", textDecoration: "none" }}>
-              {countryName}
-            </Link>
-            {" › "}
-            <span style={{ color: "rgba(255,255,255,0.9)" }}>{cityName}</span>
-          </span>
-        </nav>
-
-        {/* City name — the visual hero of the page */}
+      {/* Bottom-left content: city name + blurb + stats */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 24,
+          left: 24,
+          zIndex: 2,
+          maxWidth: 600,
+        }}
+      >
         <h1
-          className={playfair.className}
+          className={`city-hero-name ${playfair.className}`}
           style={{
-            fontSize: "clamp(48px, 9vw, 120px)",
-            fontWeight: 900,
+            fontWeight: 700,
             color: "#FFFFFF",
-            lineHeight: 1.0,
-            margin: 0,
-            letterSpacing: "-0.02em",
+            lineHeight: 1.1,
+            margin: "0 0 8px",
+            textShadow: "0 2px 8px rgba(0,0,0,0.4)",
           }}
         >
           {cityName}
         </h1>
 
-        {/* Terracotta divider */}
-        <div style={{
-          width: "64px",
-          height: "4px",
-          backgroundColor: "#C4664A",
-          margin: "20px 0",
-          borderRadius: "2px",
-        }} />
+        {blurb && (
+          <p
+            className={`city-hero-blurb ${playfair.className}`}
+            style={{
+              fontStyle: "italic",
+              fontWeight: 400,
+              color: "#FFFFFF",
+              margin: "0 0 10px",
+              lineHeight: 1.5,
+              textShadow: "0 1px 3px rgba(0,0,0,0.5)",
+            }}
+          >
+            {blurb}
+          </p>
+        )}
 
-        {/* Chips row — country + tags */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
-          <span style={{
-            fontSize: "13px",
-            color: "rgba(255,255,255,0.92)",
-            backgroundColor: "rgba(255,255,255,0.16)",
-            border: "1px solid rgba(255,255,255,0.22)",
-            borderRadius: "20px",
-            padding: "5px 14px",
-            fontWeight: 500,
-          }}>
-            {countryName}
-          </span>
-
-          {tags.slice(0, 4).map((tag) => (
-            <span key={tag} style={{
-              fontSize: "12px",
-              color: "rgba(255,255,255,0.75)",
-              backgroundColor: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.14)",
-              borderRadius: "20px",
-              padding: "5px 12px",
-              textTransform: "capitalize",
-            }}>
-              {tag.replace(/-/g, " ")}
-            </span>
-          ))}
-        </div>
+        {statsLine && (
+          <p
+            className={`city-hero-stats ${dmSans.className}`}
+            style={{
+              color: "rgba(255,255,255,0.8)",
+              margin: 0,
+              lineHeight: 1.4,
+            }}
+          >
+            {statsLine}
+          </p>
+        )}
       </div>
+
+      {/* Photo credit — bottom-right, Unsplash only */}
+      {isUnsplash && (
+        <p
+          className={dmSans.className}
+          style={{
+            position: "absolute",
+            bottom: 24,
+            right: 24,
+            zIndex: 2,
+            fontSize: 11,
+            color: "rgba(255,255,255,0.6)",
+            margin: 0,
+            lineHeight: 1.4,
+          }}
+        >
+          Photo: Unsplash
+        </p>
+      )}
     </section>
   );
 }
