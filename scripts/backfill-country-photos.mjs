@@ -76,17 +76,17 @@ const CURATED_QUERIES = {
   "serbia": "Belgrade skyline",
   "slovakia": "High Tatras Slovakia",
   "slovenia": "Lake Bled Slovenia",
-  "spain": "Sagrada Familia Barcelona",
+  "spain": "Barcelona Park Guell Gaudi",
   "sweden": "Stockholm Sweden archipelago",
   "switzerland": "Swiss Alps Matterhorn",
   "turkey": "Hagia Sophia Istanbul",
-  "united-kingdom": "Big Ben London",
+  "united-kingdom": "London Tower Bridge sunset",
   "scotland": "Edinburgh skyline castle",
   "wales": "Wales castle countryside",
   "northern-ireland": "Giants Causeway Northern Ireland",
   // Africa
   "botswana": "Okavango Delta Botswana",
-  "burkina-faso": "Burkina Faso landscape",
+  "burkina-faso": "Ouagadougou Burkina Faso",
   "burundi": "Burundi landscape",
   "cabo-verde": "Cape Verde beach",   // DB slug is "cabo-verde", not "cape-verde"
   "cameroon": "Cameroon landscape",
@@ -140,7 +140,7 @@ const CURATED_QUERIES = {
   "united-states": "Grand Canyon Arizona",
   // South America
   "argentina": "Buenos Aires Argentina",
-  "brazil": "Christ the Redeemer Rio de Janeiro",
+  "brazil": "Rio de Janeiro Christ Redeemer aerial",
   "chile": "Patagonia Chile Torres del Paine",
   "colombia": "Medellin Colombia",
   "ecuador": "Galapagos Islands",
@@ -150,7 +150,7 @@ const CURATED_QUERIES = {
   "peru": "Machu Picchu Peru",
   "suriname": "Suriname rainforest",
   "uruguay": "Punta del Este Uruguay",
-  "venezuela": "Angel Falls Venezuela",
+  "venezuela": "Salto Angel waterfall Venezuela",
   // Oceania
   "australia": "Sydney Opera House",
   "fiji": "Fiji islands beach",
