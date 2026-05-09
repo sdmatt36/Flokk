@@ -4,11 +4,11 @@ import { db } from "@/lib/db";
 import { ContinentGrid } from "./_components/ContinentGrid";
 import { UnderConstructionBanner } from "./_components/UnderConstructionBanner";
 import { DiscoverSection } from "./_components/DiscoverSection";
-import { TourCard } from "./_components/TourCard";
 import { PicksGrid } from "./_components/PicksGrid";
 import { CommunityTripCard } from "@/components/shared/cards/CommunityTripCard";
 import type { CommunityTripCardTrip } from "@/components/shared/cards/CommunityTripCard";
-import type { TourCardItem } from "./_components/TourCard";
+import { TourCard } from "@/components/shared/cards/TourCard";
+import type { TourCardItem } from "@/components/shared/cards/TourCard";
 import type { PickSpot } from "./_components/PicksGrid";
 
 const playfair = Playfair_Display({ subsets: ["latin"], display: "swap" });
@@ -176,7 +176,9 @@ async function fetchTours(): Promise<TourCardItem[]> {
       id: true,
       title: true,
       destinationCity: true,
+      destinationCountry: true,
       shareToken: true,
+      transport: true,
       _count: { select: { stops: { where: { deletedAt: null } } } },
       stops: {
         where: { deletedAt: null },
@@ -188,11 +190,23 @@ async function fetchTours(): Promise<TourCardItem[]> {
   });
   // Dedupe by destinationCity, cap at 9 (3 rows × 3 cols)
   const seen = new Set<string>();
-  return rows.filter((r) => {
-    if (seen.has(r.destinationCity)) return false;
-    seen.add(r.destinationCity);
-    return true;
-  }).slice(0, 9);
+  return rows
+    .filter((r) => {
+      if (seen.has(r.destinationCity)) return false;
+      seen.add(r.destinationCity);
+      return true;
+    })
+    .slice(0, 9)
+    .map((r) => ({
+      id: r.id,
+      title: r.title,
+      destinationCity: r.destinationCity,
+      destinationCountry: r.destinationCountry,
+      shareToken: r.shareToken,
+      transport: r.transport,
+      stopCount: r._count.stops,
+      firstStopImageUrl: r.stops[0]?.imageUrl ?? null,
+    }));
 }
 
 async function fetchPicks(): Promise<PickSpot[]> {

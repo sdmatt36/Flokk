@@ -10,7 +10,7 @@ import { SectionNav } from "./_components/SectionNav";
 import { CitySection } from "./_components/CitySection";
 import { SpotSection } from "./_components/SpotSection";
 import { CommunityTripCard } from "@/components/shared/cards/CommunityTripCard";
-import { TourCard } from "./_components/TourCard";
+import { TourCard } from "@/components/shared/cards/TourCard";
 
 // ── DB ────────────────────────────────────────────────────────────────────────
 
@@ -105,7 +105,12 @@ async function loadCity(slug: string) {
         select: {
           id: true, title: true, destinationCity: true, destinationCountry: true,
           shareToken: true, transport: true,
-          stops: { select: { id: true }, where: { deletedAt: null } },
+          stops: {
+            where: { deletedAt: null },
+            orderBy: { orderIndex: "asc" },
+            take: 1,
+            select: { imageUrl: true },
+          },
         },
         orderBy: { createdAt: "desc" },
         take: 12,
@@ -317,6 +322,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
                   shareToken: tour.shareToken,
                   stopCount: tour.stops.length,
                   transport: tour.transport,
+                  firstStopImageUrl: tour.stops[0]?.imageUrl ?? null,
                 }}
               />
             </div>

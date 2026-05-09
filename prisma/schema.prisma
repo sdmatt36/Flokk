@@ -1018,6 +1018,7 @@ model City {
   blurb          String?         @db.Text
   tags           String[]        @default([])
   communitySpots CommunitySpot[]
+  tours          GeneratedTour[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -1131,11 +1132,14 @@ model GeneratedTour {
   tourViewportNE        Json?
   tourViewportSW        Json?
   stops                 TourStop[]
+  cityId                String?       @db.Text
+  city                  City?         @relation(fields: [cityId], references: [id], onDelete: SetNull)
 
   @@index([familyProfileId])
   @@index([destinationCity])
   @@index([isPublic, destinationCity])
   @@index([deletedAt])
+  @@index([cityId])
 }
 
 model TourStop {
