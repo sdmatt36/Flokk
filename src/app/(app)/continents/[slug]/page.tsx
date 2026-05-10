@@ -80,7 +80,7 @@ export default async function ContinentPage(
       }
       return sorted;
     })(),
-  }));
+  })).filter((c) => c._count.cities > 0);
 
   return (
     <main>
