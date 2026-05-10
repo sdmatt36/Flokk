@@ -293,7 +293,13 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
         ratingCount={ratingCount}
       />
 
-      <SectionNav />
+      <SectionNav
+        cityName={city.name}
+        countryName={country.name}
+        countrySlug={countrySlug}
+        continentName={continent.name}
+        continentSlug={continentSlug}
+      />
 
       <div style={{ maxWidth: "1080px", margin: "0 auto", padding: "0 24px 80px" }}>
         {/* Itineraries */}

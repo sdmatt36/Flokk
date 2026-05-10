@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 const SECTIONS = [
   { id: "cities", label: "Cities" },
@@ -9,7 +10,13 @@ const SECTIONS = [
   { id: "tours", label: "Tours" },
 ];
 
-export function CountrySectionNav() {
+interface Props {
+  continentName: string;
+  continentSlug: string;
+  countryName: string;
+}
+
+export function CountrySectionNav({ continentName, continentSlug, countryName }: Props) {
   const [active, setActive] = useState<string | null>(null);
 
   useEffect(() => {
@@ -36,9 +43,37 @@ export function CountrySectionNav() {
         zIndex: 50,
         backgroundColor: "#fff",
         borderBottom: "1px solid #EEEEEE",
-        overflowX: "auto",
       }}
     >
+      {/* Breadcrumb row */}
+      <div
+        style={{
+          maxWidth: "1080px",
+          margin: "0 auto",
+          padding: "6px 24px 0",
+          display: "flex",
+          alignItems: "center",
+          gap: "4px",
+          fontSize: "11px",
+          color: "#AAAAAA",
+          flexWrap: "wrap",
+        }}
+      >
+        <Link href="/continents" style={{ color: "#AAAAAA", textDecoration: "none" }}>
+          Destinations
+        </Link>
+        <span>›</span>
+        <Link
+          href={`/continents/${continentSlug}`}
+          style={{ color: "#AAAAAA", textDecoration: "none" }}
+        >
+          {continentName}
+        </Link>
+        <span>›</span>
+        <span style={{ color: "#1B3A5C", fontWeight: 600 }}>{countryName}</span>
+      </div>
+
+      {/* Section pills */}
       <div
         style={{
           maxWidth: "1080px",
@@ -47,7 +82,8 @@ export function CountrySectionNav() {
           display: "flex",
           gap: "4px",
           alignItems: "center",
-          height: "48px",
+          height: "44px",
+          overflowX: "auto",
         }}
       >
         {SECTIONS.map(({ id, label }) => (

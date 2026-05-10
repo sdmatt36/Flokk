@@ -112,6 +112,15 @@ export default async function ContinentPage(
 
         {/* Text — above watermark */}
         <div className="relative z-10">
+          {/* Breadcrumb */}
+          <p className={`${dmsans.className} text-xs mb-3`} style={{ color: "rgba(250,247,242,0.6)" }}>
+            <Link href="/continents" style={{ color: "rgba(250,247,242,0.8)", textDecoration: "none" }}>
+              Destinations
+            </Link>
+            {" › "}
+            <span style={{ color: "rgba(250,247,242,0.95)" }}>{config.label}</span>
+          </p>
+
           <h1
             className={`${playfair.className} text-5xl md:text-6xl font-normal tracking-tight`}
             style={{ color: "#FAF7F2" }}

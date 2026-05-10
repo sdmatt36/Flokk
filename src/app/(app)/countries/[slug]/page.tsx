@@ -318,7 +318,11 @@ export default async function CountryPage(
       </div>
 
       {/* Sticky section nav */}
-      <CountrySectionNav />
+      <CountrySectionNav
+        continentName={country.continent.name}
+        continentSlug={country.continent.slug}
+        countryName={country.name}
+      />
 
       {/* Content */}
       <div style={{ maxWidth: "1080px", margin: "0 auto", padding: "0 24px 64px" }}>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 const SECTIONS = [
   { id: "itineraries", label: "Itineraries" },
@@ -10,7 +11,15 @@ const SECTIONS = [
   { id: "lodging", label: "Lodging" },
 ];
 
-export function SectionNav() {
+interface Props {
+  cityName: string;
+  countryName: string;
+  countrySlug: string;
+  continentName: string;
+  continentSlug: string;
+}
+
+export function SectionNav({ cityName, countryName, countrySlug, continentName, continentSlug }: Props) {
   const [active, setActive] = useState<string | null>(null);
 
   useEffect(() => {
@@ -32,12 +41,61 @@ export function SectionNav() {
   return (
     <div
       style={{
-        position: "sticky", top: "60px", zIndex: 50,
-        backgroundColor: "#fff", borderBottom: "1px solid #EEEEEE",
-        overflowX: "auto",
+        position: "sticky",
+        top: "60px",
+        zIndex: 50,
+        backgroundColor: "#fff",
+        borderBottom: "1px solid #EEEEEE",
       }}
     >
-      <div style={{ maxWidth: "1080px", margin: "0 auto", padding: "0 24px", display: "flex", gap: "4px", alignItems: "center", height: "48px" }}>
+      {/* Breadcrumb row */}
+      <div
+        style={{
+          maxWidth: "1080px",
+          margin: "0 auto",
+          padding: "6px 24px 0",
+          display: "flex",
+          alignItems: "center",
+          gap: "4px",
+          fontSize: "11px",
+          color: "#AAAAAA",
+          flexWrap: "wrap",
+        }}
+      >
+        <Link href="/continents" style={{ color: "#AAAAAA", textDecoration: "none" }}>
+          Destinations
+        </Link>
+        <span>›</span>
+        <Link
+          href={`/continents/${continentSlug}`}
+          style={{ color: "#AAAAAA", textDecoration: "none" }}
+        >
+          {continentName}
+        </Link>
+        <span>›</span>
+        <Link
+          href={`/countries/${countrySlug}`}
+          style={{ color: "#AAAAAA", textDecoration: "none" }}
+        >
+          {countryName}
+        </Link>
+        <span>›</span>
+        <span style={{ color: "#1B3A5C", fontWeight: 600 }}>{cityName}</span>
+      </div>
+
+      {/* Section pills */}
+      <div
+        style={{
+          maxWidth: "1080px",
+          margin: "0 auto",
+          padding: "0 24px",
+          display: "flex",
+          gap: "4px",
+          alignItems: "center",
+          height: "44px",
+          overflowX: "auto",
+        }}
+      >
         {SECTIONS.map(({ id, label }) => (
           <button
             key={id}

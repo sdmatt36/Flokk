@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { X } from "lucide-react";
+import { CATEGORIES } from "@/lib/categories";
 
 type Tab = "pick" | "itinerary" | "tour";
 
@@ -50,6 +51,8 @@ export function QuickAddModal({ isOpen, defaultTab = "pick", prefillCity = "", o
   // Pick state
   const [pickTitle, setPickTitle] = useState("");
   const [pickCity, setPickCity] = useState(prefillCity);
+  const [pickCategory, setPickCategory] = useState("");
+  const [pickWebsite, setPickWebsite] = useState("");
   const [pickSubmitting, setPickSubmitting] = useState(false);
   const [pickDone, setPickDone] = useState(false);
   const [pickError, setPickError] = useState("");
@@ -72,6 +75,8 @@ export function QuickAddModal({ isOpen, defaultTab = "pick", prefillCity = "", o
     setActiveTab(tab);
     setPickDone(false);
     setPickError("");
+    setPickCategory("");
+    setPickWebsite("");
   }
 
   // Sync prefillCity when it changes
@@ -96,12 +101,20 @@ export function QuickAddModal({ isOpen, defaultTab = "pick", prefillCity = "", o
       const res = await fetch("/api/saves", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceMethod: "URL_PASTE", title: pickTitle.trim(), city: pickCity.trim() || null }),
+        body: JSON.stringify({
+          sourceMethod: "URL_PASTE",
+          title: pickTitle.trim(),
+          city: pickCity.trim() || null,
+          category: pickCategory || null,
+          websiteUrl: pickWebsite.trim() || null,
+        }),
       });
       if (!res.ok) throw new Error("Failed");
       setPickDone(true);
       setPickTitle("");
       setPickCity(prefillCity);
+      setPickCategory("");
+      setPickWebsite("");
     } catch {
       setPickError("Something went wrong. Try again.");
     } finally {
@@ -218,6 +231,29 @@ export function QuickAddModal({ isOpen, defaultTab = "pick", prefillCity = "", o
                   placeholder="e.g. Kyoto, Reykjavik..."
                   value={pickCity}
                   onChange={e => setPickCity(e.target.value)}
+                  style={{ width: "100%", padding: "11px 14px", borderRadius: "10px", border: "1px solid #E5E7EB", fontSize: "14px", color: "#1a1a1a", marginBottom: "14px", boxSizing: "border-box", outline: "none", fontFamily: "inherit" }}
+                />
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#1B3A5C", marginBottom: "6px" }}>
+                  Category
+                </label>
+                <select
+                  value={pickCategory}
+                  onChange={e => setPickCategory(e.target.value)}
+                  style={{ width: "100%", padding: "11px 14px", borderRadius: "10px", border: "1px solid #E5E7EB", fontSize: "14px", color: pickCategory ? "#1a1a1a" : "#888", marginBottom: "14px", boxSizing: "border-box", outline: "none", fontFamily: "inherit", background: "#fff" }}
+                >
+                  <option value="">Select a category...</option>
+                  {CATEGORIES.map(c => (
+                    <option key={c.slug} value={c.slug}>{c.label}</option>
+                  ))}
+                </select>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#1B3A5C", marginBottom: "6px" }}>
+                  Website
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://..."
+                  value={pickWebsite}
+                  onChange={e => setPickWebsite(e.target.value)}
                   style={{ width: "100%", padding: "11px 14px", borderRadius: "10px", border: "1px solid #E5E7EB", fontSize: "14px", color: "#1a1a1a", marginBottom: "20px", boxSizing: "border-box", outline: "none", fontFamily: "inherit" }}
                 />
                 {pickError && <p style={{ fontSize: "13px", color: "#e53e3e", marginBottom: "12px" }}>{pickError}</p>}

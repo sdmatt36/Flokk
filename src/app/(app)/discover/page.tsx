@@ -167,37 +167,130 @@ async function fetchTours(): Promise<TourCardItem[]> {
 }
 
 async function fetchPicks(): Promise<PickSpot[]> {
-  const rows = await db.communitySpot.findMany({
-    where: {
-      OR: [
-        { category: null },
-        { category: { notIn: TRANSPORT_CATEGORIES } },
-      ],
-    },
-    orderBy: { createdAt: "asc" },
-    take: 300,
-    select: {
-      id: true,
-      name: true,
-      city: true,
-      country: true,
-      category: true,
-      photoUrl: true,
-      averageRating: true,
-      ratingCount: true,
-      websiteUrl: true,
-      lat: true,
-      lng: true,
-      googlePlaceId: true,
-    },
-  });
+  const [spots, tourStops] = await Promise.all([
+    db.communitySpot.findMany({
+      where: {
+        isPublic: true,
+        OR: [
+          { category: null },
+          { category: { notIn: TRANSPORT_CATEGORIES } },
+        ],
+      },
+      orderBy: [{ averageRating: "desc" }, { ratingCount: "desc" }],
+      take: 1000,
+      select: {
+        id: true,
+        name: true,
+        city: true,
+        country: true,
+        category: true,
+        photoUrl: true,
+        averageRating: true,
+        ratingCount: true,
+        websiteUrl: true,
+        lat: true,
+        lng: true,
+        googlePlaceId: true,
+        description: true,
+      },
+    }),
+    db.tourStop.findMany({
+      where: {
+        deletedAt: null,
+        imageUrl: { not: null },
+        tour: { isPublic: true, deletedAt: null },
+      },
+      select: {
+        id: true,
+        name: true,
+        lat: true,
+        lng: true,
+        imageUrl: true,
+        websiteUrl: true,
+        why: true,
+        placeId: true,
+        placeTypes: true,
+        tour: {
+          select: { destinationCity: true, destinationCountry: true },
+        },
+      },
+      take: 300,
+    }),
+  ]);
 
-  // Fisher-Yates shuffle
-  for (let i = rows.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [rows[i], rows[j]] = [rows[j], rows[i]];
+  // Map tour stops into PickSpot format
+  const stopPicks: PickSpot[] = tourStops
+    .filter((s) => s.name.trim() && s.tour.destinationCity)
+    .map((s) => ({
+      id: `stop_${s.id}`,
+      name: s.name,
+      city: s.tour.destinationCity,
+      country: s.tour.destinationCountry ?? null,
+      category: inferCategoryFromTypes(s.placeTypes),
+      photoUrl: s.imageUrl!,
+      averageRating: null,
+      ratingCount: 0,
+      websiteUrl: s.websiteUrl ?? null,
+      lat: s.lat ?? null,
+      lng: s.lng ?? null,
+      googlePlaceId: s.placeId ?? null,
+      description: s.why ?? null,
+    }));
+
+  // Combine: rated community spots first, then tour stop picks
+  const allSpots: PickSpot[] = [
+    ...spots.map((s) => ({ ...s, description: s.description ?? null })),
+    ...stopPicks,
+  ];
+
+  // Geographic distribution: group by country, interleave for variety
+  // Rated spots are already sorted by rating within each country group
+  const byCountry = new Map<string, PickSpot[]>();
+  for (const s of allSpots) {
+    const key = s.country ?? "Other";
+    if (!byCountry.has(key)) byCountry.set(key, []);
+    byCountry.get(key)!.push(s);
   }
 
-  // Cap at 60 for client payload (enough for meaningful filtering)
-  return rows.slice(0, 60);
+  const MAX_PER_COUNTRY = 25;
+  const MAX_TOTAL = 250;
+  const result: PickSpot[] = [];
+  const buckets = [...byCountry.values()];
+
+  // Round-robin: take one from each country per round
+  for (let round = 0; round < MAX_PER_COUNTRY && result.length < MAX_TOTAL; round++) {
+    for (const bucket of buckets) {
+      if (result.length >= MAX_TOTAL) break;
+      const spot = bucket[round];
+      if (spot) result.push(spot);
+    }
+  }
+
+  return result;
+}
+
+function inferCategoryFromTypes(placeTypes: string[]): string | null {
+  const types = placeTypes.map((t) => t.toLowerCase());
+  if (
+    types.some((t) =>
+      [
+        "restaurant",
+        "food",
+        "bakery",
+        "bar",
+        "cafe",
+        "meal_takeaway",
+        "meal_delivery",
+        "fast_food_restaurant",
+      ].includes(t)
+    )
+  )
+    return "food_and_drink";
+  if (
+    types.some((t) =>
+      ["lodging", "hotel", "motel", "resort_hotel", "bed_and_breakfast"].includes(t)
+    )
+  )
+    return "lodging";
+  return "activities";
 }
