@@ -45,9 +45,8 @@ export default async function CountryPage(
       photoUrl: true,
       photoCredit: true,
       continent: { select: { name: true, slug: true } },
-      _count: { select: { cities: true } },
       cities: {
-        where: { featured: true },
+        where: { featured: true, type: "CITY" },
         select: {
           id: true,
           slug: true,
@@ -258,7 +257,7 @@ export default async function CountryPage(
 
           {/* Stat chips */}
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            {country._count.cities > 0 && (
+            {allCities.length > 0 && (
               <span
                 style={{
                   fontSize: "11px",
@@ -270,7 +269,7 @@ export default async function CountryPage(
                   backdropFilter: "blur(4px)",
                 }}
               >
-                {country._count.cities} {country._count.cities === 1 ? "city" : "cities"}
+                {allCities.length} {allCities.length === 1 ? "city" : "cities"}
               </span>
             )}
             {totalSpots > 0 && (
@@ -322,7 +321,7 @@ export default async function CountryPage(
             >
               Cities
             </h2>
-            {country._count.cities > 0 && (
+            {allCities.length > 0 && (
               <span
                 style={{
                   fontSize: "12px",
@@ -333,7 +332,7 @@ export default async function CountryPage(
                   padding: "2px 10px",
                 }}
               >
-                {country._count.cities}
+                {allCities.length}
               </span>
             )}
           </div>
