@@ -47,6 +47,7 @@ export default async function CountryPage(
       continent: { select: { name: true, slug: true } },
       _count: { select: { cities: true } },
       cities: {
+        where: { featured: true },
         select: {
           id: true,
           slug: true,

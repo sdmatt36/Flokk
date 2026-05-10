@@ -41,8 +41,8 @@ export default async function ContinentPage(
           slug: true,
           name: true,
           photoUrl: true,
-          _count: { select: { cities: true } },
           cities: {
+            where: { featured: true },
             select: {
               name: true,
               photoUrl: true,
@@ -60,7 +60,7 @@ export default async function ContinentPage(
   const countries = continent.countries.map((c) => ({
     slug: c.slug,
     name: c.name,
-    _count: c._count,
+    _count: { cities: c.cities.length },
     spotCount: c.cities.reduce((sum, city) => sum + city._count.communitySpots, 0),
     topCities: (() => {
       const sorted = [...c.cities]
