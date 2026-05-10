@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { canViewTrip, canEditTripContent } from "@/lib/trip-permissions";
+import { inferLodgingType } from "@/lib/infer-lodging-type";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,7 @@ export async function GET(
       managementUrl: true,
       imageUrl: true,
       status: true,
+      lodgingType: true,
     },
   });
 
@@ -146,6 +148,11 @@ export async function POST(
   const finalCurrency = body.currency || "USD";
   const name = propertyName.trim();
 
+  const manualLodgingType = inferLodgingType({
+    url: body.venueUrl?.trim() || null,
+    name,
+  });
+
   const result = await db.$transaction(async (tx) => {
     const checkIn = await tx.itineraryItem.create({
       data: {
@@ -167,6 +174,7 @@ export async function POST(
         status: finalStatus,
         sortOrder: 0,
         needsVerification: false,
+        lodgingType: manualLodgingType,
       },
     });
 
@@ -190,6 +198,7 @@ export async function POST(
         status: finalStatus,
         sortOrder: 0,
         needsVerification: false,
+        lodgingType: manualLodgingType,
       },
     });
 

@@ -18,6 +18,7 @@ import { buildTripFromExtraction } from "@/lib/trip-builder";
 import { inferPlatformFromUrl } from "@/lib/saved-item-types";
 import { isSaveableBooking, createBookingSavedItem } from "@/lib/booking-saved-item";
 import { detectBookingSource, isManageUrl } from "@/lib/lodging/detect-source";
+import { inferLodgingType } from "@/lib/infer-lodging-type";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -1687,11 +1688,12 @@ Field notes:
         contactEmail: (extracted.contactEmail as string | null) ?? null,
         vendorName: hotelName,
       });
+      const inferredLodgingType = inferLodgingType({ bookingSource: detectedSource, name: hotelName });
       const lodgingIds = [checkInItem.id, ...(checkOutDate ? [] : [])];
       // Update check-in item
       await db.itineraryItem.update({
         where: { id: checkInItem.id },
-        data: { bookingSource: detectedSource, managementUrl: detectedManagementUrl },
+        data: { bookingSource: detectedSource, managementUrl: detectedManagementUrl, lodgingType: inferredLodgingType },
       });
       // Update check-out item if it exists (re-find by conf code + title prefix)
       if (hotelConf) {
@@ -1702,7 +1704,7 @@ Field notes:
         if (co) {
           await db.itineraryItem.update({
             where: { id: co.id },
-            data: { bookingSource: detectedSource, managementUrl: detectedManagementUrl },
+            data: { bookingSource: detectedSource, managementUrl: detectedManagementUrl, lodgingType: inferredLodgingType },
           });
         }
       }

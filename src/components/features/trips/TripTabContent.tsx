@@ -91,6 +91,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { TripMap } from "@/components/features/trips/TripMap";
+import { LODGING_TYPE_LABELS, LODGING_TYPE_OPTIONS } from "@/lib/infer-lodging-type";
 import { DropLinkModal } from "@/components/features/home/DropLinkModal";
 import { RecommendationDrawer, type DrawerRec } from "@/components/features/trips/RecommendationDrawer";
 import { AddFlightModal } from "@/components/flights/AddFlightModal";
@@ -1906,6 +1907,7 @@ type ItineraryItemLocal = {
   imageUrl?: string | null;
   additionalConfirmations?: string[];
   status?: string | null;
+  lodgingType?: string | null;
 };
 
 type UnifiedDayItem = {
@@ -4177,6 +4179,28 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                         const SRC_LABEL: Record<string, string> = { "booking.com": "Booking.com", airbnb: "Airbnb", "hotels.com": "Hotels.com", expedia: "Expedia", marriott: "Marriott", hilton: "Hilton", hyatt: "Hyatt", vrbo: "VRBO", direct: "Direct" };
                         return <><span style={lblStyle}>Booked via</span><span style={rowStyle}>{SRC_LABEL[sit.bookingSource] ?? sit.bookingSource}</span></>;
                       })()}
+                      <span style={lblStyle}>Type</span>
+                      <span style={rowStyle}>
+                        <select
+                          value={sit.lodgingType ?? ""}
+                          onChange={async (e) => {
+                            const val = e.target.value || null;
+                            setSelectedItineraryItem(prev => prev ? { ...prev, lodgingType: val } : null);
+                            setLocalItineraryItems(prev => prev.map(it => it.id === sit.id ? { ...it, lodgingType: val } : it));
+                            await fetch(`/api/trips/${tripId}/itinerary/${sit.id}`, {
+                              method: "PATCH",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ lodgingType: val }),
+                            });
+                          }}
+                          style={{ fontSize: "13px", color: sit.lodgingType ? "#1B3A5C" : "#888", border: "none", background: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", outline: "none" }}
+                        >
+                          <option value="">Select type…</option>
+                          {LODGING_TYPE_OPTIONS.map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
+                        </select>
+                      </span>
                       {sit.status && sit.status.toUpperCase() !== "BOOKED" && (() => {
                         const s = sit.status.toUpperCase();
                         const c = s === "INTERESTED" ? "#1B3A5C" : "#C4664A";

@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { X, MapPin, Sparkles, ExternalLink, ChevronDown, Check } from "lucide-react";
+import { LODGING_TYPE_LABELS, LODGING_TYPE_OPTIONS } from "@/lib/infer-lodging-type";
 import { bucketTrips } from "@/lib/trip-phase";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { shareEntity } from "@/lib/share";
@@ -29,6 +30,7 @@ type SaveItem = {
   startTime: string | null;
   trip: { id: string; title: string } | null;
   userRating: number | null;
+  lodgingType: string | null;
 };
 
 type Trip = { id: string; title: string; startDate: string | null; endDate: string | null; status?: string };
@@ -126,6 +128,7 @@ export function SaveDetailModal({
   const [userRating, setUserRating] = useState<number | null>(null);
   const [localWebsiteUrl, setLocalWebsiteUrl] = useState<string | null>(null);
   const [editingUrl, setEditingUrl] = useState(false);
+  const [lodgingType, setLodgingType] = useState<string | null>(null);
   const [urlInput, setUrlInput] = useState("");
   const [urlError, setUrlError] = useState("");
   const [showPastTrips, setShowPastTrips] = useState(false);
@@ -151,6 +154,7 @@ export function SaveDetailModal({
         setStartTime(data.item?.startTime ?? "");
         setLocalWebsiteUrl(data.item?.websiteUrl ?? null);
         setUserRating(data.item?.userRating ?? null);
+        setLodgingType(data.item?.lodgingType ?? null);
         initialNotes.current = data.item?.notes ?? "";
         const tags = data.item?.categoryTags ?? [];
         setLocalTags(tags);
@@ -607,6 +611,37 @@ export function SaveDetailModal({
                 ))}
               </div>
             </div>
+
+            {/* Lodging type — visible only for lodging-tagged saves */}
+            {localTags.some(t => /lodg/i.test(t)) && (
+              <div style={{ marginBottom: "16px" }}>
+                <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a", marginBottom: "8px" }}>Lodging type</p>
+                <select
+                  value={lodgingType ?? ""}
+                  onChange={async (e) => {
+                    const val = e.target.value || null;
+                    setLodgingType(val);
+                    await fetch(`/api/saves/${itemId}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ lodgingType: val }),
+                    });
+                  }}
+                  style={{
+                    width: "100%", padding: "10px 12px", borderRadius: "10px",
+                    border: "1px solid rgba(0,0,0,0.12)", fontSize: "13px",
+                    color: lodgingType ? "#1B3A5C" : "#888", backgroundColor: "#fff",
+                    appearance: "none", outline: "none", cursor: "pointer",
+                    fontFamily: "-apple-system,BlinkMacSystemFont,sans-serif",
+                  }}
+                >
+                  <option value="">Select type…</option>
+                  {LODGING_TYPE_OPTIONS.map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Notes */}
             <div style={{ marginBottom: "8px" }}>

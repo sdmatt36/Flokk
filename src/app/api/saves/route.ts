@@ -38,6 +38,7 @@ import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
 import { writeThroughCommunitySpot } from "@/lib/community-write-through";
+import { inferLodgingType } from "@/lib/infer-lodging-type";
 
 const ManualSaveSchema = z.object({
   sourceMethod: z.literal("URL_PASTE"),
@@ -97,6 +98,7 @@ export async function POST(request: Request) {
           websiteUrl: parsed.website?.trim() || null,
           placePhotoUrl: parsed.placePhotoUrl ?? null,
           tripId: parsed.tripId ?? null,
+          lodgingType: inferLodgingType({ url: parsed.website, name: parsed.title }) ?? null,
           extractionStatus: "ENRICHED",
           status: parsed.tripId ? "TRIP_ASSIGNED" : "UNORGANIZED",
         },
@@ -233,6 +235,7 @@ export async function POST(request: Request) {
           status: tripId ? "TRIP_ASSIGNED" : "UNORGANIZED",
           userRating: userRating ?? null,
           notes: notes ?? null,
+          lodgingType: inferLodgingType({ url }) ?? null,
         },
       });
 

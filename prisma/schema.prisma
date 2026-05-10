@@ -410,6 +410,7 @@ model SavedItem {
   eventSourceProvider      String?
   eventSourceEventId       String?
   shareToken               String?   @unique
+  lodgingType              String?   // hotel | vacation_rental | bnb | cruise_ship | campsite | motel | resort | other
 
   @@index([communitySpotId])
   @@index([tourId])
@@ -934,6 +935,7 @@ model ItineraryItem {
   venueUrl          String?  // resolved venue/property URL per Universal URL Rule
   imageUrl          String?  // resolved venue photo per Discipline 4.18; populated from SavedItem.placePhotoUrl at write time
   status            String?  @default("BOOKED") // INTERESTED | CONFIRMED | BOOKED — manual entries explicit; email-imported defaults to BOOKED
+  lodgingType       String?  // hotel | vacation_rental | bnb | cruise_ship | campsite | motel | resort | other
   createdAt         DateTime @default(now())
   shareToken        String?  @unique
 }
