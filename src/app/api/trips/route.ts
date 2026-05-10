@@ -77,6 +77,19 @@ export async function POST(req: Request) {
     countries = [country];
   }
 
+  // Legacy comma-split may leave country null (e.g. "Edinburgh" with no ", Scotland").
+  // Attempt a City-table lookup to fill it in before building the trip.
+  if (!country && cities.length > 0) {
+    const cityRow = await db.city.findFirst({
+      where: { name: { contains: cities[0], mode: "insensitive" } },
+      select: { country: { select: { name: true } } },
+    });
+    if (cityRow?.country?.name) {
+      country = cityRow.country.name;
+      if (countries.length === 0) countries = [country];
+    }
+  }
+
   const startDate: string | null = typeof body.startDate === "string" && body.startDate.length > 0
     ? body.startDate : null;
   const endDate: string | null = typeof body.endDate === "string" && body.endDate.length > 0
