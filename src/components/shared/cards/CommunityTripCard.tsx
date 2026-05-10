@@ -53,7 +53,7 @@ export function CommunityTripCard({ trip }: { trip: CommunityTripCardTrip }) {
     >
       {/* Clickable header: image + meta */}
       <Link href={cardHref} style={{ textDecoration: "none", display: "block" }}>
-        <div style={{ height: "160px", backgroundImage: `url(${coverImage})`, backgroundSize: "cover", backgroundPosition: "center", position: "relative" }}>
+        <div style={{ height: "160px", backgroundImage: `url('${coverImage}')`, backgroundSize: "cover", backgroundPosition: "center", position: "relative" }}>
           <div style={{ position: "absolute", top: "10px", left: "10px" }}>
             <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: TERRA, color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>
               {trip.destinationCity ?? destination}

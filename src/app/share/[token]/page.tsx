@@ -113,7 +113,7 @@ export default async function SharePage({
       where: { clerkId: userId },
       select: { familyProfile: { select: { id: true } } },
     });
-    isOwner = !previewMode && viewer?.familyProfile?.id === trip.familyProfileId;
+    isOwner = !previewMode && !trip.isFlokkerExample && viewer?.familyProfile?.id === trip.familyProfileId;
   }
   const isLoggedIn = !!userId;
 
