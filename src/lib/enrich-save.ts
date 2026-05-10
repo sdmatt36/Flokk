@@ -7,6 +7,7 @@ import he from "he";
 import { getVenueImage } from "@/lib/destination-images";
 import { verifyWebsiteUrl } from "@/lib/activity-intelligence";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
+import { mapPlaceTypesToCanonicalSlugs, normalizeCategorySlug } from "@/lib/categories";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
@@ -39,20 +40,6 @@ function extractOgImageFromHtml(html: string): string | null {
 const SOCIAL_PLATFORMS = ["instagram", "tiktok", "youtube", "pinterest", "threads"] as const;
 type SocialPlatform = typeof SOCIAL_PLATFORMS[number];
 
-const PLACE_TYPE_MAP: Record<string, string> = {
-  restaurant: "food",
-  cafe: "food",
-  bar: "food",
-  food: "food",
-  lodging: "lodging",
-  tourist_attraction: "culture",
-  museum: "culture",
-  art_gallery: "culture",
-  park: "outdoor",
-  natural_feature: "outdoor",
-  shopping_mall: "shopping",
-  store: "shopping",
-};
 
 async function resolveRedirect(url: string): Promise<string> {
   try {
@@ -130,8 +117,8 @@ async function lookupGoogleMapsPlace(
         `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&` +
         `photo_reference=${c.photos[0].photo_reference}&key=${GOOGLE_MAPS_API_KEY}`;
     }
-    const matchedType = c.types?.find((t) => PLACE_TYPE_MAP[t]);
-    result.category = matchedType ? PLACE_TYPE_MAP[matchedType] : "culture";
+    const slugs = mapPlaceTypesToCanonicalSlugs(c.types);
+    result.category = slugs[0] ?? "experiences";
     return result;
   } catch {
     return null;
@@ -188,8 +175,9 @@ return the region or nearest major city. Return null if no location context at a
 DESTINATIONCOUNTRY — the country if mentioned, inferred from city, or inferred from hashtags
 like #livinginjapan, #lifeinspain, #visittokyo.
 
-CATEGORY — one of: food, culture, outdoor, lodging, sports, shopping, nightlife, wellness,
-kids_and_family, experiences, other. Pick the best fit based on the caption's subject matter.
+CATEGORY — one of: food_and_drink, culture, nature_and_outdoors, adventure, experiences,
+sports_and_entertainment, shopping, kids_and_family, lodging, nightlife, wellness, other.
+Pick the best fit based on the caption's subject matter.
 
 Return ONLY a JSON object. No other text.
 {
@@ -594,11 +582,15 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   if (sbThumbnail) updateData.mediaThumbnailUrl = sbThumbnail;
   if (typeof place.rating === "number") updateData.relevanceScore = place.rating;
   if (description && !workingDescription) updateData.rawDescription = description;
-  if (mapsCategory) updateData.categoryTags = normalizeAndDedupeCategoryTags([mapsCategory]);
+  if (mapsCategory) {
+    const slug = normalizeCategorySlug(mapsCategory) ?? mapsCategory;
+    updateData.categoryTags = normalizeAndDedupeCategoryTags([slug]);
+  }
   if (!item.destinationCity && socialCity) updateData.destinationCity = socialCity;
   if (!item.destinationCountry && socialCountry) updateData.destinationCountry = socialCountry;
   if (socialCategory && (!item.categoryTags || item.categoryTags.length === 0) && !mapsCategory) {
-    updateData.categoryTags = normalizeAndDedupeCategoryTags([socialCategory]);
+    const slug = normalizeCategorySlug(socialCategory) ?? socialCategory;
+    updateData.categoryTags = normalizeAndDedupeCategoryTags([slug]);
   }
   // Flag social saves where Claude couldn't identify a specific place — prompt user to identify
   if (((SOCIAL_PLATFORMS as readonly string[]).includes(item.sourcePlatform ?? "") || isInstagramCaption(cleanTitle)) && !socialPlaceFound && !skipNormalEnrichment) {

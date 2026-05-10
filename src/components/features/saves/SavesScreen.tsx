@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
 import { getItemImage } from "@/lib/destination-images";
-import { CATEGORIES, categoryLabel } from "@/lib/categories";
+import { CATEGORIES, categoryLabel, normalizeCategorySlug } from "@/lib/categories";
 import {
   Search,
   MapPin,
@@ -1585,13 +1585,15 @@ export function SavesScreen() {
   const matchesFilter = (s: Save): boolean => {
     const searchLower = search.toLowerCase();
     const matchesSearch =
+      !searchLower ||
       s.title.toLowerCase().includes(searchLower) ||
       s.location.toLowerCase().includes(searchLower) ||
-      (s.assigned?.toLowerCase().includes(searchLower) ?? false);
+      (s.assigned?.toLowerCase().includes(searchLower) ?? false) ||
+      s.tags.some(tag => categoryLabel(tag).toLowerCase().includes(searchLower));
     const matchesCategory =
       activeFilter === "All"
         ? true
-        : s.tags.some(t => t === activeFilter);
+        : s.tags.some(t => t === activeFilter || normalizeCategorySlug(t) === activeFilter);
     const matchesDietary =
       dietaryFilter === "Vegetarian"
         ? s.tags.includes("VG") || s.tags.includes("VGN")

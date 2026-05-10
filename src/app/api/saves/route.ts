@@ -36,6 +36,7 @@ import { sendTransactional, sendSaveMilestoneEvent } from "@/lib/loops";
 import { enrichSavedItem } from "@/lib/enrich-save";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
+import { normalizeCategorySlug } from "@/lib/categories";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
 import { writeThroughCommunitySpot } from "@/lib/community-write-through";
 import { inferLodgingType } from "@/lib/infer-lodging-type";
@@ -93,7 +94,7 @@ export async function POST(request: Request) {
           sourcePlatform: inferPlatformFromUrl(parsed.website ?? null),
           rawTitle: parsed.title,
           destinationCity: parsed.city?.trim() || null,
-          categoryTags: normalizeAndDedupeCategoryTags(parsed.category ? [parsed.category] : []),
+          categoryTags: normalizeAndDedupeCategoryTags(parsed.category ? [normalizeCategorySlug(parsed.category) ?? parsed.category] : []),
           notes: parsed.notes?.trim() || null,
           websiteUrl: parsed.website?.trim() || null,
           placePhotoUrl: parsed.placePhotoUrl ?? null,
@@ -225,7 +226,7 @@ export async function POST(request: Request) {
           mediaThumbnailUrl,
           destinationCity: destinationCity ?? null,
           placePhotoUrl: rawTitle ? (getVenueImage(rawTitle) ?? null) : null,
-          categoryTags: normalizeAndDedupeCategoryTags(tags ?? []),
+          categoryTags: normalizeAndDedupeCategoryTags((tags ?? []).map(t => normalizeCategorySlug(t) ?? t)),
           lat: lat ?? null,
           lng: lng ?? null,
           dayIndex: dayIndex ?? null,
