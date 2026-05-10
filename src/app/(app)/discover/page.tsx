@@ -13,6 +13,8 @@ import type { PickSpot } from "./_components/PicksGrid";
 
 const playfair = Playfair_Display({ subsets: ["latin"], display: "swap" });
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Discover · Flokk",
   description: "Steal a trip. Find a tour. Flokk it.",
@@ -210,15 +212,15 @@ async function fetchTours(): Promise<TourCardItem[]> {
 }
 
 async function fetchPicks(): Promise<PickSpot[]> {
-  return db.communitySpot.findMany({
+  const rows = await db.communitySpot.findMany({
     where: {
       OR: [
         { category: null },
         { category: { notIn: TRANSPORT_CATEGORIES } },
       ],
     },
-    orderBy: { createdAt: "desc" },
-    take: 9,
+    orderBy: { createdAt: "asc" },
+    take: 300,
     select: {
       id: true,
       name: true,
@@ -234,4 +236,19 @@ async function fetchPicks(): Promise<PickSpot[]> {
       googlePlaceId: true,
     },
   });
+
+  // Fisher-Yates shuffle for true randomness each request
+  for (let i = rows.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [rows[i], rows[j]] = [rows[j], rows[i]];
+  }
+
+  // One spot per city for geographic diversity, then cap at 9
+  const seen = new Set<string>();
+  return rows.filter((s) => {
+    const key = s.city ?? s.id;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 9);
 }
