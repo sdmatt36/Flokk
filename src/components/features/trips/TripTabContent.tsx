@@ -4601,6 +4601,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           </div>
         );
       })()}
+
     </div>
   );
 }
@@ -7676,10 +7677,18 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   type VaultContact = { id: string; name: string; role?: string | null; phone?: string | null; whatsapp?: string | null; email?: string | null; notes?: string | null };
   type VaultDocument = { id: string; label: string; type: string; url?: string | null; content?: string | null };
   type VaultKeyInfo = { id: string; label: string; value: string };
+  type VaultCancelTarget = {
+    docId: string; label: string; bookingType: string;
+    confirmationCode: string | null; managementUrl: string | null;
+    platformName: string | null; checkIn: string | null; checkOut: string | null;
+    guests: string[];
+  };
 
   const [contacts, setContacts] = useState<VaultContact[]>([]);
   const [documents, setDocuments] = useState<VaultDocument[]>([]);
   const [keyInfo, setKeyInfo] = useState<VaultKeyInfo[]>([]);
+  const [vaultCancelTarget, setVaultCancelTarget] = useState<VaultCancelTarget | null>(null);
+  const [vaultCancelling, setVaultCancelling] = useState(false);
   const [showAddContact, setShowAddContact] = useState(false);
   const [showAddDoc, setShowAddDoc] = useState(false);
   const [showAddKeyInfo, setShowAddKeyInfo] = useState(false);
@@ -8371,7 +8380,25 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                       <button onClick={e => { e.stopPropagation(); handleVaultEdit(); }} style={{ position: "absolute", top: "12px", right: "36px", background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px" }} title="Edit">
                         <Pencil size={14} />
                       </button>
-                      <button onClick={async (e) => { e.stopPropagation(); if (!window.confirm("Remove this booking? This cannot be undone.")) return; const res = await fetch(`/api/trips/${tripId}/vault/documents/${d.id}`, { method: "DELETE" }); if (res.ok) { setDocuments(p => p.filter(x => x.id !== d.id)); setItineraryVersion(v => v + 1); } }} style={{ position: "absolute", top: "12px", right: "12px", background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px" }} title="Delete">
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          const anyMgmtUrl = (booking.managementUrl as string | null | undefined) ?? hotelManagementUrl ?? null;
+                          setVaultCancelTarget({
+                            docId: d.id,
+                            label: d.label,
+                            bookingType: (booking.type as string) ?? "booking",
+                            confirmationCode: (booking.confirmationCode as string | null) ?? null,
+                            managementUrl: anyMgmtUrl,
+                            platformName: hotelSourceLabel ?? null,
+                            checkIn: (booking.checkIn as string | null) ?? (booking.departureDate as string | null) ?? null,
+                            checkOut: (booking.checkOut as string | null) ?? (booking.arrivalDate as string | null) ?? null,
+                            guests: Array.isArray(booking.guestNames) ? (booking.guestNames as string[]) : [],
+                          });
+                        }}
+                        style={{ position: "absolute", top: "12px", right: "12px", background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px" }}
+                        title="Cancel booking"
+                      >
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -9112,6 +9139,89 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         </div>,
         document.body
       )}
+
+      {vaultCancelTarget && (() => {
+        const vc = vaultCancelTarget;
+        const bt = vc.bookingType.toLowerCase();
+        const typeDisplay = bt === "hotel" ? "Hotel" : bt === "flight" ? "Flight" : bt === "activity" ? "Activity" : bt === "train" ? "Train" : bt === "car_rental" ? "Car Rental" : "Booking";
+        const hasMgmtUrl = !!vc.managementUrl;
+        const mailtoSubject = encodeURIComponent(`Cancellation Request — ${vc.label}${vc.confirmationCode ? ` (${vc.confirmationCode})` : ""}`);
+        const mailtoBody = encodeURIComponent(
+          `Dear ${vc.label} team,\n\nI would like to cancel my reservation` +
+          (vc.confirmationCode ? ` (Confirmation: ${vc.confirmationCode})` : "") + ".\n\n" +
+          (vc.checkIn ? `Date: ${vc.checkIn}\n` : "") +
+          (vc.checkOut ? `Check-out: ${vc.checkOut}\n` : "") +
+          (vc.guests.length ? `Guests: ${vc.guests.join(", ")}\n` : "") +
+          "\nPlease confirm the cancellation at your earliest convenience.\n\nThank you"
+        );
+        return (
+          <div className={MODAL_OVERLAY_CLASSES} onClick={() => !vaultCancelling && setVaultCancelTarget(null)}>
+            <div className={MODAL_PANEL_CLASSES} style={{ padding: "28px 24px 40px" }} onClick={e => e.stopPropagation()}>
+              <p style={{ fontSize: "18px", fontWeight: 700, color: "#1B3A5C", fontFamily: "var(--font-playfair, serif)", margin: "0 0 6px" }}>
+                Cancel {typeDisplay}
+              </p>
+              <p style={{ fontSize: "14px", color: "#4B5563", margin: "0 0 20px" }}>
+                {vc.label}{vc.confirmationCode ? ` · ${vc.confirmationCode}` : ""}
+              </p>
+              {hasMgmtUrl ? (
+                <>
+                  <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>
+                    Step 1 — cancel on {vc.platformName ?? "the booking platform"}:
+                  </p>
+                  <a
+                    href={vc.managementUrl!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: "block", textAlign: "center", padding: "12px", backgroundColor: "#F9FAFB", border: "1.5px solid #E5E7EB", borderRadius: "10px", fontSize: "14px", fontWeight: 600, color: "#1B3A5C", textDecoration: "none", marginBottom: "20px" }}
+                  >
+                    Open {vc.platformName ?? "Booking Platform"}
+                  </a>
+                  <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>Step 2 — once cancelled, remove from vault:</p>
+                </>
+              ) : (
+                <>
+                  <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>
+                    Step 1 — contact the provider to cancel:
+                  </p>
+                  <a
+                    href={`mailto:?subject=${mailtoSubject}&body=${mailtoBody}`}
+                    style={{ display: "block", textAlign: "center", padding: "12px", backgroundColor: "#F9FAFB", border: "1.5px solid #E5E7EB", borderRadius: "10px", fontSize: "14px", fontWeight: 600, color: "#1B3A5C", textDecoration: "none", marginBottom: "20px" }}
+                  >
+                    Compose cancellation email
+                  </a>
+                  <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>Step 2 — once sent, remove from vault:</p>
+                </>
+              )}
+              <button
+                onClick={async () => {
+                  setVaultCancelling(true);
+                  try {
+                    const res = await fetch(`/api/trips/${tripId}/vault/documents/${vc.docId}`, { method: "DELETE" });
+                    if (res.ok) {
+                      setDocuments(p => p.filter(x => x.id !== vc.docId));
+                      setItineraryVersion(v => v + 1);
+                    }
+                    setVaultCancelTarget(null);
+                  } catch { /* non-fatal */ } finally {
+                    setVaultCancelling(false);
+                  }
+                }}
+                disabled={vaultCancelling}
+                style={{ width: "100%", backgroundColor: "#C4664A", color: "#fff", border: "none", borderRadius: "12px", padding: "14px", fontSize: "15px", fontWeight: 700, cursor: vaultCancelling ? "not-allowed" : "pointer", marginBottom: "10px", opacity: vaultCancelling ? 0.6 : 1, fontFamily: "inherit" }}
+              >
+                {vaultCancelling ? "Removing..." : "Remove from vault"}
+              </button>
+              <button
+                onClick={() => setVaultCancelTarget(null)}
+                disabled={vaultCancelling}
+                style={{ width: "100%", backgroundColor: "transparent", color: "#6B7280", border: "1px solid #E5E7EB", borderRadius: "12px", padding: "14px", fontSize: "15px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Keep booking
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
