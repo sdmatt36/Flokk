@@ -5,7 +5,7 @@ import { Playfair_Display, DM_Sans } from "next/font/google";
 import { db } from "@/lib/db";
 import { CountrySectionNav } from "./_components/CountrySectionNav";
 import { CountrySection } from "./_components/CountrySection";
-import { CountryCityCard } from "./_components/CountryCityCard";
+import { CountryCityGrid } from "./_components/CountryCityGrid";
 import { CommunitySpotCard } from "@/components/shared/cards/CommunitySpotCard";
 import { CommunityTripCard } from "@/components/shared/cards/CommunityTripCard";
 import { TourCard } from "@/components/shared/cards/TourCard";
@@ -52,18 +52,24 @@ export default async function CountryPage(
           slug: true,
           name: true,
           photoUrl: true,
+          heroPhotoUrl: true,
           _count: { select: { communitySpots: true } },
         },
+        orderBy: [{ priorityRank: "asc" }, { name: "asc" }],
       },
     },
   });
 
   if (!country) notFound();
 
-  // Sort cities by spotCount descending, take top 6
-  const topCities = [...country.cities]
-    .sort((a, b) => b._count.communitySpots - a._count.communitySpots)
-    .slice(0, 6);
+  const allCities = country.cities.map((c) => ({
+    id: c.id,
+    slug: c.slug,
+    name: c.name,
+    photoUrl: c.photoUrl,
+    heroPhotoUrl: c.heroPhotoUrl,
+    spotCount: c._count.communitySpots,
+  }));
 
   // Step 2: content sections in parallel
   const [trips, spots, tours] = await Promise.all([
@@ -307,23 +313,47 @@ export default async function CountryPage(
       <div style={{ maxWidth: "1080px", margin: "0 auto", padding: "0 24px 64px" }}>
 
         {/* Cities */}
-        <CountrySection
-          id="cities"
-          title="Cities"
-          count={topCities.length}
-          emptyText={`No cities listed yet for ${country.name}.`}
-          isEmpty={topCities.length === 0}
-        >
-          {topCities.map((city) => (
-            <CountryCityCard
-              key={city.id}
-              slug={city.slug}
-              name={city.name}
-              photoUrl={city.photoUrl}
-              spotCount={city._count.communitySpots}
-            />
-          ))}
-        </CountrySection>
+        <section id="cities" style={{ paddingTop: "48px", paddingBottom: "8px", scrollMarginTop: "108px" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "10px", marginBottom: "16px", flexWrap: "wrap" }}>
+            <h2
+              className={playfair.className}
+              style={{ fontSize: "22px", fontWeight: 700, color: "#1B3A5C", margin: 0 }}
+            >
+              Cities
+            </h2>
+            {country._count.cities > 0 && (
+              <span
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "#C4664A",
+                  backgroundColor: "#FFF3EE",
+                  borderRadius: "20px",
+                  padding: "2px 10px",
+                }}
+              >
+                {country._count.cities}
+              </span>
+            )}
+          </div>
+          {allCities.length === 0 ? (
+            <div
+              style={{
+                padding: "32px 24px",
+                backgroundColor: "#FAFAFA",
+                borderRadius: "12px",
+                border: "1px dashed #E5E7EB",
+                textAlign: "center",
+              }}
+            >
+              <p style={{ fontSize: "14px", color: "#9CA3AF", margin: 0 }}>
+                No cities listed yet for {country.name}.
+              </p>
+            </div>
+          ) : (
+            <CountryCityGrid cities={allCities} countryName={country.name} />
+          )}
+        </section>
 
         {/* Itineraries */}
         <CountrySection
