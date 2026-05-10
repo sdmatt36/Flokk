@@ -1733,7 +1733,7 @@ Field notes:
       if (matchedTrip) {
         const hotelSavedItemId = await createBookingSavedItem(db, {
           familyProfileId: familyProfile.id,
-          tripId: resolvedTripId!,
+          tripId: matchedTrip.id,
           vendorName: hotelName,
           city: (extracted.city as string | null) ?? null,
           country: (extracted.country as string | null) ?? null,
@@ -1936,7 +1936,7 @@ Field notes:
         if (isSaveableBooking(extracted.type as string | null, itemTitle)) {
           catchAllSavedItemId = await createBookingSavedItem(db, {
             familyProfileId: familyProfile.id,
-            tripId: resolvedTripId!,
+            tripId: matchedTrip.id,
             vendorName: itemTitle,
             city: (extracted.city as string | null) ?? null,
             country: (extracted.country as string | null) ?? null,
