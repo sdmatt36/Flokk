@@ -284,6 +284,8 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
         latitude={city.latitude}
         longitude={city.longitude}
         photoUrl={city.photoUrl}
+        heroPhotoUrl={city.heroPhotoUrl}
+        heroPhotoAttribution={city.heroPhotoAttribution}
         blurb={city.blurb}
         spotCount={spotCount}
         tripCount={tripCount}

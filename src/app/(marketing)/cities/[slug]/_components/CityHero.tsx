@@ -12,6 +12,13 @@ const dmSans = DM_Sans({
   weight: ["400"],
 });
 
+interface UnsplashAttribution {
+  photographerName: string;
+  photographerUrl: string;
+  photoUrl: string;
+  source: "unsplash";
+}
+
 interface CityHeroProps {
   cityName: string;
   countryName: string;
@@ -21,6 +28,8 @@ interface CityHeroProps {
   latitude: number | null;
   longitude: number | null;
   photoUrl?: string | null;
+  heroPhotoUrl?: string | null;
+  heroPhotoAttribution?: string | null;
   blurb?: string | null;
   spotCount: number;
   tripCount: number;
@@ -32,6 +41,19 @@ function pluralize(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
+function parseAttribution(raw: string | null | undefined): UnsplashAttribution | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed?.source === "unsplash" && parsed.photographerName && parsed.photographerUrl) {
+      return parsed as UnsplashAttribution;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function CityHero({
   cityName,
   countryName,
@@ -41,13 +63,22 @@ export function CityHero({
   latitude: _latitude,
   longitude: _longitude,
   photoUrl,
+  heroPhotoUrl,
+  heroPhotoAttribution,
   blurb,
   spotCount,
   tripCount,
   tourCount,
   ratingCount,
 }: CityHeroProps) {
-  const isUnsplash = !!photoUrl && /unsplash\.com/i.test(photoUrl);
+  // heroPhotoUrl takes priority over legacy photoUrl
+  const renderPhotoUrl = heroPhotoUrl ?? photoUrl;
+
+  // Attribution: structured if heroPhotoUrl is set, generic fallback for legacy Unsplash URLs
+  const attribution = heroPhotoUrl
+    ? parseAttribution(heroPhotoAttribution)
+    : null;
+  const isLegacyUnsplash = !heroPhotoUrl && !!photoUrl && /unsplash\.com/i.test(photoUrl);
 
   const statsParts = [
     spotCount > 0 ? pluralize(spotCount, "spot", "spots") : null,
@@ -80,10 +111,10 @@ export function CityHero({
       `}</style>
 
       {/* Background: photo or solid navy fallback */}
-      {photoUrl ? (
+      {renderPhotoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={photoUrl}
+          src={renderPhotoUrl}
           alt=""
           style={{
             position: "absolute",
@@ -223,8 +254,41 @@ export function CityHero({
         )}
       </div>
 
-      {/* Photo credit — bottom-right, Unsplash only */}
-      {isUnsplash && (
+      {/* Photo credit — bottom-right */}
+      {attribution ? (
+        <p
+          className={dmSans.className}
+          style={{
+            position: "absolute",
+            bottom: 24,
+            right: 24,
+            zIndex: 2,
+            fontSize: 11,
+            color: "rgba(255,255,255,0.6)",
+            margin: 0,
+            lineHeight: 1.4,
+          }}
+        >
+          Photo by{" "}
+          <a
+            href={attribution.photographerUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "inherit", textDecoration: "underline" }}
+          >
+            {attribution.photographerName}
+          </a>
+          {" "}on{" "}
+          <a
+            href="https://unsplash.com?utm_source=flokk&utm_medium=referral"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "inherit", textDecoration: "underline" }}
+          >
+            Unsplash
+          </a>
+        </p>
+      ) : isLegacyUnsplash ? (
         <p
           className={dmSans.className}
           style={{
@@ -240,7 +304,7 @@ export function CityHero({
         >
           Photo: Unsplash
         </p>
-      )}
+      ) : null}
     </section>
   );
 }
