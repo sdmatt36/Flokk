@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import type { Metadata } from "next";
 import { Playfair_Display, DM_Sans } from "next/font/google";
 import { db } from "@/lib/db";
@@ -35,6 +36,7 @@ export default async function ContinentPage(
     where: { slug },
     select: {
       blurb: true,
+      name: true,
       countries: {
         orderBy: { name: "asc" },
         select: {
@@ -82,6 +84,8 @@ export default async function ContinentPage(
     })(),
   })).filter((c) => c._count.cities > 0);
 
+  const allCountriesAZ = [...continent.countries].sort((a, b) => a.name.localeCompare(b.name));
+
   return (
     <main>
       {/* Hero band */}
@@ -124,7 +128,7 @@ export default async function ContinentPage(
             className={`${dmsans.className} text-sm mt-4`}
             style={{ color: "rgba(250, 247, 242, 0.6)" }}
           >
-            {continent.countries.length} countries
+            {countries.length} featured countries
           </p>
         </div>
       </div>
@@ -147,6 +151,20 @@ export default async function ContinentPage(
           playfairClassName={playfair.className}
         />
       </section>
+
+      {/* A-Z all countries */}
+      <details className="mt-12 mx-auto max-w-5xl px-6 pb-16">
+        <summary className="cursor-pointer font-medium text-[#1B3A5C] hover:underline">
+          Show all {allCountriesAZ.length} countries in {continent.name}
+        </summary>
+        <ul className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2">
+          {allCountriesAZ.map((c) => (
+            <li key={c.slug}>
+              <Link href={`/countries/${c.slug}`} className="text-[#1B3A5C] hover:underline">{c.name}</Link>
+            </li>
+          ))}
+        </ul>
+      </details>
     </main>
   );
 }

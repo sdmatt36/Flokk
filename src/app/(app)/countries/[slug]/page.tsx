@@ -338,18 +338,16 @@ export default async function CountryPage(
             )}
           </div>
           {allCities.length === 0 ? (
-            <div
-              style={{
-                padding: "32px 24px",
-                backgroundColor: "#FAFAFA",
-                borderRadius: "12px",
-                border: "1px dashed #E5E7EB",
-                textAlign: "center",
-              }}
-            >
-              <p style={{ fontSize: "14px", color: "#9CA3AF", margin: 0 }}>
-                No cities listed yet for {country.name}.
+            <div className="mt-12 mx-auto max-w-xl text-center px-6">
+              <p className="text-lg italic text-[#1B3A5C]">
+                &ldquo;We&rsquo;re still curating featured destinations for {country.name}. Have a recommendation?&rdquo;
               </p>
+              <a
+                href={`mailto:hello@flokktravel.com?subject=${encodeURIComponent(`Featured destination request: ${country.name}`)}`}
+                className="mt-4 inline-block font-medium text-[#C4664A] hover:underline"
+              >
+                Tell us
+              </a>
             </div>
           ) : (
             <CountryCityGrid cities={allCities} countryName={country.name} />
