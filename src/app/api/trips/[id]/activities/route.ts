@@ -72,6 +72,7 @@ export async function POST(
     lat: clientLat,
     lng: clientLng,
     type: clientType,
+    imageUrl: clientImageUrl,
   } = body;
 
   if (!title || !date) {
@@ -119,6 +120,9 @@ export async function POST(
 
   const resolvedType = normalizeCategorySlug(clientType) ?? null;
 
+  const sanitizedImageUrl =
+    typeof clientImageUrl === "string" && clientImageUrl.startsWith("http") ? clientImageUrl : null;
+
   const activity = await db.manualActivity.create({
     data: {
       tripId,
@@ -137,6 +141,7 @@ export async function POST(
       status: status ?? "interested",
       confirmationCode: confirmationCode ?? null,
       dayIndex,
+      imageUrl: sanitizedImageUrl,
       ...(resolvedType && { type: resolvedType }),
     },
   });

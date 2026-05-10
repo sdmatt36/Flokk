@@ -5624,7 +5624,7 @@ function RecommendedContent({
                           const res = await fetch("/api/saves", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ sourceMethod: "URL_PASTE", title: rec.name, category: rec.category, city: destinationCity ?? undefined, tripId, source: "AI_RECOMMENDATION" }),
+                            body: JSON.stringify({ sourceMethod: "URL_PASTE", title: rec.name, category: rec.category, city: rec.segmentCity ?? destinationCity ?? undefined, tripId, placePhotoUrl: rec.photoUrl ?? rec.imageUrl ?? undefined }),
                           });
                           if (!res.ok) throw new Error();
                           setSaveStates(prev => ({ ...prev, [rec.name]: "done" }));
@@ -5649,7 +5649,7 @@ function RecommendedContent({
                           const res = await fetch(`/api/trips/${tripId}/activities`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ title: rec.name, notes: rec.whyThisFamily, date: tripStartDate.slice(0, 10) }),
+                            body: JSON.stringify({ title: rec.name, notes: rec.whyThisFamily, date: tripStartDate.slice(0, 10), imageUrl: rec.photoUrl ?? rec.imageUrl ?? undefined, lat: rec.lat ?? undefined, lng: rec.lng ?? undefined, website: rec.websiteUrl ?? undefined, type: rec.category }),
                           });
                           if (!res.ok) throw new Error();
                           setItinStates(prev => ({ ...prev, [rec.name]: "done" }));

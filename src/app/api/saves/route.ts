@@ -48,6 +48,8 @@ const ManualSaveSchema = z.object({
   country: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   website: z.string().optional().nullable(),
+  tripId: z.string().optional().nullable(),
+  placePhotoUrl: z.string().optional().nullable(),
 });
 
 const SaveSchema = z.object({
@@ -93,8 +95,10 @@ export async function POST(request: Request) {
           categoryTags: normalizeAndDedupeCategoryTags(parsed.category ? [parsed.category] : []),
           notes: parsed.notes?.trim() || null,
           websiteUrl: parsed.website?.trim() || null,
+          placePhotoUrl: parsed.placePhotoUrl ?? null,
+          tripId: parsed.tripId ?? null,
           extractionStatus: "ENRICHED",
-          status: "UNORGANIZED",
+          status: parsed.tripId ? "TRIP_ASSIGNED" : "UNORGANIZED",
         },
       });
       // Enrich with Google Places photo at save time (synchronous — result in same response)
@@ -111,25 +115,27 @@ export async function POST(request: Request) {
         }
       }
 
-      // Auto-assign to matching trip: exact city match first, then country fallback
+      // Auto-assign to matching trip only when no explicit tripId was supplied
       let matchedTrip: { id: string; title: string; destinationCity: string | null } | null = null;
-      try {
-        matchedTrip = await findMatchingTrip(saveProfile.id, parsed.city ?? null, parsed.country ?? null);
-        if (matchedTrip) {
-          await db.savedItem.update({
-            where: { id: savedItem.id },
-            data: { tripId: matchedTrip.id, status: "TRIP_ASSIGNED" },
-          });
+      if (!parsed.tripId) {
+        try {
+          matchedTrip = await findMatchingTrip(saveProfile.id, parsed.city ?? null, parsed.country ?? null);
+          if (matchedTrip) {
+            await db.savedItem.update({
+              where: { id: savedItem.id },
+              data: { tripId: matchedTrip.id, status: "TRIP_ASSIGNED" },
+            });
+          }
+        } catch (e) {
+          console.error("[saves] manual trip match failed:", e);
         }
-      } catch (e) {
-        console.error("[saves] manual trip match failed:", e);
       }
       return NextResponse.json({
         savedItem: {
           ...savedItem,
           placePhotoUrl: manualEnrichedPhotoUrl ?? savedItem.placePhotoUrl,
           websiteUrl: manualEnrichedWebsite ?? savedItem.websiteUrl,
-          tripId: matchedTrip?.id ?? null,
+          tripId: parsed.tripId ?? matchedTrip?.id ?? null,
         },
         matchedTrip: matchedTrip ?? null,
       });
