@@ -2224,7 +2224,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   // Untimed activities default to 720 (noon) as a stable midday position.
   //
   //  FLIGHT arrival  →  arrivalTime or 0  (always first)
-  //  LODGING check-out → 50   (fixed day-anchor; clock time is not used for sort)
+  //  LODGING check-out → departureTime (if set) or 50 (default anchor)
   //  timed activity   →  actual HH:MM in minutes
   //  untimed activity → 720  (noon)
   //  TRAIN            →  departureTime or 660  (11:00 default)
@@ -2256,7 +2256,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         // the actual departureTime clock value. Previously read departureTime ("11:00" -> 660),
         // which sorted between early-morning tour stops (e.g. 540) and midday ones (720),
         // fragmenting tour clusters. Applies to EMAIL_IMPORT and MANUAL rows equally.
-        if (it.title.toLowerCase().includes("check-out")) return 50;
+        if (it.title.toLowerCase().includes("check-out")) return timeToMin(it.departureTime) ?? 50;
         return timeToMin(it.departureTime) ?? 900;
       }
       if (it.type === "TRAIN") return timeToMin(it.departureTime) ?? 660;
@@ -2379,7 +2379,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         if ((item.itineraryItem.sortOrder ?? 0) !== 0) return 50; // user reordered — let it ride
         const title = item.itineraryItem.title.toLowerCase();
         if (title.startsWith("check-in:")) return 1000; // force to end
-        if (title.startsWith("check-out:")) return -1000; // force to start
+        if (title.startsWith("check-out:")) {
+          return item.itineraryItem?.departureTime ? 50 : -1000; // timed: sort by clock; untimed: anchor to top
+        }
         return 50;
       };
       const aw = anchorWeight(a) - anchorWeight(b);
@@ -2649,7 +2651,6 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         setLocalFlights(prev => prev.map(f => f.id === item.rawId ? { ...f, sortOrder: i } : f));
         fetch(`/api/trips/${tripId}/flights/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
       } else if (item.itemType === "itinerary" && item.rawId) {
-        if (item.itineraryItem?.type === "LODGING") return;
         setLocalItineraryItems(prev => prev.map(it => it.id === item.rawId ? { ...it, sortOrder: i } : it));
         fetch(`/api/trips/${tripId}/itinerary/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
       }
