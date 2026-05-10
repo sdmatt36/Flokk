@@ -59,7 +59,7 @@ export function TourCard({ tour }: { tour: TourCardItem }) {
         <div
           style={{
             height: "160px",
-            backgroundImage: `url(${coverImage})`,
+            backgroundImage: `url('${coverImage}')`,
             backgroundSize: "cover",
             backgroundPosition: "center",
             position: "relative",

@@ -4,11 +4,10 @@ import type { Metadata } from "next";
 import { Playfair_Display, DM_Sans } from "next/font/google";
 import { db } from "@/lib/db";
 import { CountrySectionNav } from "./_components/CountrySectionNav";
-import { CountrySection } from "./_components/CountrySection";
 import { CountryCityGrid } from "./_components/CountryCityGrid";
-import { CommunitySpotCard } from "@/components/shared/cards/CommunitySpotCard";
-import { CommunityTripCard } from "@/components/shared/cards/CommunityTripCard";
-import { TourCard } from "@/components/shared/cards/TourCard";
+import { FilteredItinerariesSection } from "@/app/(app)/discover/_components/FilteredItinerariesSection";
+import { FilteredToursSection } from "@/app/(app)/discover/_components/FilteredToursSection";
+import { FilteredCountrySpotsSection } from "./_components/FilteredCountrySpotsSection";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +34,7 @@ export default async function CountryPage(
 ) {
   const { slug } = await params;
 
-  // Step 1: country + cities (cities needed for spotCount sort and city section)
+  // Step 1: country + cities
   const country = await db.country.findUnique({
     where: { slug },
     select: {
@@ -92,7 +91,7 @@ export default async function CountryPage(
         familyProfile: { select: { familyName: true } },
       },
       orderBy: { viewCount: "desc" },
-      take: 8,
+      take: 20,
     }),
     db.communitySpot.findMany({
       where: {
@@ -112,7 +111,7 @@ export default async function CountryPage(
         description: true,
       },
       orderBy: [{ averageRating: "desc" }, { ratingCount: "desc" }],
-      take: 12,
+      take: 24,
     }),
     db.generatedTour.findMany({
       where: {
@@ -135,11 +134,23 @@ export default async function CountryPage(
           take: 1,
         },
       },
-      take: 8,
+      take: 20,
     }),
   ]);
 
   const totalSpots = country.cities.reduce((sum, c) => sum + c._count.communitySpots, 0);
+
+  // Shape tours into TourCardItem
+  const tourItems = tours.map((t) => ({
+    id: t.id,
+    title: t.title,
+    destinationCity: t.destinationCity,
+    destinationCountry: t.destinationCountry,
+    shareToken: t.shareToken,
+    transport: t.transport,
+    stopCount: t._count.stops,
+    firstStopImageUrl: t.stops[0]?.imageUrl ?? null,
+  }));
 
   return (
     <main className={dmsans.className} style={{ minHeight: "100vh", backgroundColor: "#FAF7F2" }}>
@@ -170,7 +181,7 @@ export default async function CountryPage(
               : "none",
           }}
         />
-        {/* Bottom scrim — country name / blurb / stats legibility */}
+        {/* Bottom scrim */}
         <div
           style={{
             position: "absolute",
@@ -184,7 +195,7 @@ export default async function CountryPage(
               : "linear-gradient(135deg, #1B3A5C 0%, #1B3A5C 50%, #0d2438 100%)",
           }}
         />
-        {/* Localized text backdrop — elliptical darkening under bottom-left content only */}
+        {/* Localized text backdrop */}
         {country.photoUrl && (
           <div
             style={{
@@ -354,68 +365,25 @@ export default async function CountryPage(
         </section>
 
         {/* Itineraries */}
-        <CountrySection
+        <FilteredItinerariesSection
           id="itineraries"
-          title="Itineraries"
-          count={trips.length}
+          trips={trips}
           emptyText={`No public itineraries yet for ${country.name}. Be the first to share one.`}
-          isEmpty={trips.length === 0}
-        >
-          {trips.map((trip) => (
-            <CommunityTripCard key={trip.id} trip={trip} />
-          ))}
-        </CountrySection>
+        />
 
-        {/* Picks */}
-        <CountrySection
+        {/* Flokk Picks */}
+        <FilteredCountrySpotsSection
           id="picks"
-          title="Flokk Picks"
-          count={spots.length}
+          spots={spots}
           emptyText={`No community spots linked to cities in ${country.name} yet.`}
-          isEmpty={spots.length === 0}
-        >
-          {spots.map((spot) => (
-            <CommunitySpotCard
-              key={spot.id}
-              spot={{
-                id: spot.id,
-                title: spot.name,
-                city: spot.city,
-                photoUrl: spot.photoUrl,
-                category: spot.category,
-                rating: spot.averageRating ? Math.round(spot.averageRating) : null,
-                ratingCount: spot.ratingCount,
-                description: spot.description,
-              }}
-              href={`/spots/${spot.shareToken!}`}
-            />
-          ))}
-        </CountrySection>
+        />
 
         {/* Tours */}
-        <CountrySection
+        <FilteredToursSection
           id="tours"
-          title="Tours"
-          count={tours.length}
+          tours={tourItems}
           emptyText={`No public tours yet for ${country.name}.`}
-          isEmpty={tours.length === 0}
-        >
-          {tours.map((tour) => (
-            <TourCard
-              key={tour.id}
-              tour={{
-                id: tour.id,
-                title: tour.title,
-                destinationCity: tour.destinationCity,
-                destinationCountry: tour.destinationCountry,
-                shareToken: tour.shareToken,
-                stopCount: tour._count.stops,
-                transport: tour.transport,
-                firstStopImageUrl: tour.stops[0]?.imageUrl ?? null,
-              }}
-            />
-          ))}
-        </CountrySection>
+        />
 
       </div>
     </main>

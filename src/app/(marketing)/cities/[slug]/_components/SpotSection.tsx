@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import Link from "next/link";
 import { Playfair_Display } from "next/font/google";
+import { QuickAddModal } from "@/components/shared/QuickAddModal";
 import { useUser } from "@clerk/nextjs";
 import { CommunitySpotCard } from "@/components/shared/cards/CommunitySpotCard";
 import { CommunitySpotDetailPanel } from "@/components/shared/cards/CommunitySpotDetailPanel";
@@ -74,10 +74,12 @@ export function SpotSection({
   filterField = "category",
 }: SpotSectionProps) {
   const { isSignedIn } = useUser();
+  const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortKey>("top-rated");
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [openSpot, setOpenSpot] = useState<CitySpot | null>(null);
+  const [addModalOpen, setAddModalOpen] = useState(false);
   const [userSaveStatusMap, setUserSaveStatusMap] = useState<Map<string, EntityStatusResult>>(new Map());
   const [userSpotRatings, setUserSpotRatings] = useState<Map<string, number>>(new Map());
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
@@ -122,11 +124,13 @@ export function SpotSection({
   const showChips = uniqueValues.length >= 2;
 
   const filtered = useMemo(() => {
-    if (selectedFilter === null) return spots;
-    return spots.filter(
-      (s) => (s as unknown as Record<string, unknown>)[filterField] === selectedFilter
-    );
-  }, [spots, selectedFilter, filterField]);
+    const q = search.toLowerCase().trim();
+    return spots.filter((s) => {
+      if (q && !s.name.toLowerCase().includes(q)) return false;
+      if (selectedFilter !== null && (s as unknown as Record<string, unknown>)[filterField] !== selectedFilter) return false;
+      return true;
+    });
+  }, [spots, selectedFilter, filterField, search]);
 
   const sorted = useMemo(() => {
     return [...filtered].sort((a, b) =>
@@ -177,11 +181,32 @@ export function SpotSection({
                 <option value="most-rated">Most rated</option>
               </select>
             )}
-            <Link href={addHref} style={{ fontSize: "13px", color: "#888", textDecoration: "none", flexShrink: 0 }}>
-              Add →
-            </Link>
+            <button
+              onClick={() => setAddModalOpen(true)}
+              style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}
+            >
+              + Pick
+            </button>
           </div>
         </div>
+
+        {/* Search input */}
+        {spots.length > 0 && (
+          <div style={{ marginBottom: "10px" }}>
+            <input
+              type="text"
+              placeholder={`Search ${title.toLowerCase()}...`}
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setExpanded(false); }}
+              style={{
+                width: "100%", padding: "8px 12px", borderRadius: "8px",
+                border: "1px solid #E5E7EB", fontSize: "13px", color: "#1a1a1a",
+                outline: "none", fontFamily: "inherit", backgroundColor: "#fff",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+        )}
 
         {spots.length === 0 ? (
           <div style={{
@@ -227,6 +252,11 @@ export function SpotSection({
               </div>
             )}
 
+            {visible.length === 0 && (
+              <div style={{ padding: "24px", textAlign: "center", color: "#9CA3AF", fontSize: "14px" }}>
+                No spots match your search.
+              </div>
+            )}
             <div className="spot-section-grid">
               {visible.map((spot) => {
                 const spotKey = `${spot.name.toLowerCase().trim()}|${cityName.toLowerCase().trim()}`;
@@ -354,6 +384,13 @@ export function SpotSection({
           </div>
         )}
       </section>
+
+      <QuickAddModal
+        isOpen={addModalOpen}
+        defaultTab="pick"
+        prefillCity={cityName}
+        onClose={() => setAddModalOpen(false)}
+      />
     </AddToItineraryProvider>
   );
 }

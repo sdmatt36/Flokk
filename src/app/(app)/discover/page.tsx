@@ -3,11 +3,10 @@ import { Playfair_Display } from "next/font/google";
 import { db } from "@/lib/db";
 import { ContinentGrid } from "./_components/ContinentGrid";
 import { UnderConstructionBanner } from "./_components/UnderConstructionBanner";
-import { DiscoverSection } from "./_components/DiscoverSection";
-import { PicksGrid } from "./_components/PicksGrid";
-import { CommunityTripCard } from "@/components/shared/cards/CommunityTripCard";
+import { FilteredItinerariesSection } from "./_components/FilteredItinerariesSection";
+import { FilteredToursSection } from "./_components/FilteredToursSection";
+import { FilteredPicksSection } from "./_components/FilteredPicksSection";
 import type { CommunityTripCardTrip } from "@/components/shared/cards/CommunityTripCard";
-import { TourCard } from "@/components/shared/cards/TourCard";
 import type { TourCardItem } from "@/components/shared/cards/TourCard";
 import type { PickSpot } from "./_components/PicksGrid";
 
@@ -82,61 +81,33 @@ export default async function DiscoverPage() {
         </p>
       </section>
 
-      {/* Itineraries section */}
-      <DiscoverSection
-        title="Itineraries"
-        description="Real day-by-day plans from real Flokkers. Steal a few days from a family who's been there, or share your own."
-        addLabel="+ Itinerary"
-        addHref="/trips"
-        browseAllLabel="Browse all itineraries"
-        browseAllHref="/itineraries"
-      >
-        {trips.length ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {trips.map((trip) => (
-              <CommunityTripCard key={trip.id} trip={trip} />
-            ))}
-          </div>
-        ) : (
-          <p className="italic text-[#1B3A5C]/60">Be the first Flokker.</p>
-        )}
-      </DiscoverSection>
+      {/* Itineraries */}
+      <div className="max-w-7xl mx-auto px-6">
+        <FilteredItinerariesSection
+          trips={trips}
+          description="Real day-by-day plans from real Flokkers. Steal a few days from a family who's been there, or share your own."
+          browseAllHref="/itineraries"
+        />
+      </div>
 
-      {/* Tours section */}
-      <DiscoverSection
-        title="Tours"
-        description="Stop-by-stop walks, drives, and rides through cities. Built by Flokkers, by Flokk's AI, or both. Save one for your next trip, or build your own."
-        addLabel="+ Tour"
-        addHref="/tour"
-        browseAllLabel="Browse all tours"
-        browseAllHref="/tours"
-      >
-        {tours.length ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {tours.map((tour) => (
-              <TourCard key={tour.id} tour={tour} />
-            ))}
-          </div>
-        ) : (
-          <p className="italic text-[#1B3A5C]/60">Be the first Flokker.</p>
-        )}
-      </DiscoverSection>
+      {/* Tours */}
+      <div className="max-w-7xl mx-auto px-6">
+        <FilteredToursSection
+          tours={tours}
+          description="Stop-by-stop walks, drives, and rides through cities. Built by Flokkers, by Flokk's AI, or both."
+          browseAllHref="/tours"
+        />
+      </div>
 
-      {/* Picks section */}
-      <DiscoverSection
-        title="Picks"
-        description="Places, food, lodging, and activities. Everywhere Flokkers have eaten, slept, played, or rated. Save what catches your eye."
-        addLabel="+ Pick"
-        addHref="/saves"
-        browseAllLabel="Browse all picks"
-        browseAllHref="/picks"
-      >
-        {picks.length ? (
-          <PicksGrid spots={picks} />
-        ) : (
-          <p className="italic text-[#1B3A5C]/60">Be the first Flokker.</p>
-        )}
-      </DiscoverSection>
+      {/* Picks */}
+      <div className="max-w-7xl mx-auto px-6 pb-16">
+        <FilteredPicksSection
+          spots={picks}
+          title="Flokk Picks"
+          description="Places, food, lodging, and activities. Everywhere Flokkers have eaten, slept, played, or rated."
+          browseAllHref="/picks"
+        />
+      </div>
     </main>
   );
 }
@@ -145,7 +116,7 @@ async function fetchTrips(): Promise<CommunityTripCardTrip[]> {
   const rows = await db.trip.findMany({
     where: { isPublic: true, shareToken: { not: null } },
     orderBy: { updatedAt: "desc" },
-    take: 24,
+    take: 50,
     select: {
       id: true,
       title: true,
@@ -159,21 +130,14 @@ async function fetchTrips(): Promise<CommunityTripCardTrip[]> {
       familyProfile: { select: { familyName: true } },
     },
   });
-  // Dedupe by destinationCity, cap at 9 (3 rows × 3 cols)
-  const seen = new Set<string>();
-  return rows.filter((r) => {
-    const key = r.destinationCity ?? r.id;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  }).slice(0, 9) as CommunityTripCardTrip[];
+  return rows as CommunityTripCardTrip[];
 }
 
 async function fetchTours(): Promise<TourCardItem[]> {
   const rows = await db.generatedTour.findMany({
     where: { isPublic: true, deletedAt: null },
     orderBy: { createdAt: "desc" },
-    take: 24,
+    take: 50,
     select: {
       id: true,
       title: true,
@@ -190,25 +154,16 @@ async function fetchTours(): Promise<TourCardItem[]> {
       },
     },
   });
-  // Dedupe by destinationCity, cap at 9 (3 rows × 3 cols)
-  const seen = new Set<string>();
-  return rows
-    .filter((r) => {
-      if (seen.has(r.destinationCity)) return false;
-      seen.add(r.destinationCity);
-      return true;
-    })
-    .slice(0, 9)
-    .map((r) => ({
-      id: r.id,
-      title: r.title,
-      destinationCity: r.destinationCity,
-      destinationCountry: r.destinationCountry,
-      shareToken: r.shareToken,
-      transport: r.transport,
-      stopCount: r._count.stops,
-      firstStopImageUrl: r.stops[0]?.imageUrl ?? null,
-    }));
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    destinationCity: r.destinationCity,
+    destinationCountry: r.destinationCountry,
+    shareToken: r.shareToken,
+    transport: r.transport,
+    stopCount: r._count.stops,
+    firstStopImageUrl: r.stops[0]?.imageUrl ?? null,
+  }));
 }
 
 async function fetchPicks(): Promise<PickSpot[]> {
@@ -237,18 +192,12 @@ async function fetchPicks(): Promise<PickSpot[]> {
     },
   });
 
-  // Fisher-Yates shuffle for true randomness each request
+  // Fisher-Yates shuffle
   for (let i = rows.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [rows[i], rows[j]] = [rows[j], rows[i]];
   }
 
-  // One spot per city for geographic diversity, then cap at 9
-  const seen = new Set<string>();
-  return rows.filter((s) => {
-    const key = s.city ?? s.id;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  }).slice(0, 9);
+  // Cap at 60 for client payload (enough for meaningful filtering)
+  return rows.slice(0, 60);
 }
