@@ -2115,6 +2115,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const geocodingInProgressRef = useRef<Set<string>>(new Set());
   const [tourCancelTarget, setTourCancelTarget] = useState<{ tourId: string; title: string; stopCount: number; days: number[] } | null>(null);
   const [tourCancelling, setTourCancelling] = useState(false);
+  const [bookingCancelTarget, setBookingCancelTarget] = useState<ItineraryItemLocal | null>(null);
+  const [bookingCancelling, setBookingCancelling] = useState(false);
 
   // ── Per-day notes state ──────────────────────────────────────────────────
   type DayNote = { id: string; content: TiptapDoc; checked: boolean; dayIndex: number | null; createdAt: string };
@@ -4243,6 +4245,12 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                     >
                       Share
                     </button>
+                    <button
+                      onClick={() => setBookingCancelTarget(sit)}
+                      style={{ display: "block", width: "100%", marginTop: "8px", padding: "12px", backgroundColor: "transparent", color: "#9CA3AF", border: "1px solid #E5E7EB", borderRadius: "10px", fontSize: "13px", fontWeight: 500, cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      Cancel Booking
+                    </button>
                   </div>
                 );
               })()}
@@ -4499,6 +4507,100 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           </div>
         </div>
       )}
+
+      {bookingCancelTarget && (() => {
+        const bc = bookingCancelTarget;
+        const hotelName = bc.title.replace(/^check-(?:in|out):\s*/i, "").trim();
+        const SRC_LABEL: Record<string, string> = {
+          "booking.com": "Booking.com", airbnb: "Airbnb", hilton: "Hilton", hyatt: "Hyatt",
+          marriott: "Marriott", "hotels.com": "Hotels.com", expedia: "Expedia", vrbo: "VRBO",
+        };
+        const platformName = bc.bookingSource ? (SRC_LABEL[bc.bookingSource] ?? null) : null;
+        const hasMgmtUrl = !!bc.managementUrl;
+        const mailtoSubject = encodeURIComponent(
+          `Cancellation Request — ${hotelName}${bc.confirmationCode ? ` (${bc.confirmationCode})` : ""}`
+        );
+        const mailtoBody = encodeURIComponent(
+          `Dear ${hotelName} team,\n\nI would like to cancel my reservation` +
+          (bc.confirmationCode ? ` (Confirmation: ${bc.confirmationCode})` : "") + ".\n\n" +
+          (bc.scheduledDate ? `Date: ${bc.scheduledDate}\n` : "") +
+          (bc.passengers?.length ? `Guests: ${bc.passengers.join(", ")}\n` : "") +
+          "\nPlease confirm the cancellation at your earliest convenience.\n\nThank you"
+        );
+        return (
+          <div className={MODAL_OVERLAY_CLASSES} onClick={() => !bookingCancelling && setBookingCancelTarget(null)}>
+            <div className={MODAL_PANEL_CLASSES} style={{ padding: "28px 24px 40px" }} onClick={e => e.stopPropagation()}>
+              <p style={{ fontSize: "18px", fontWeight: 700, color: "#1B3A5C", fontFamily: "var(--font-playfair, serif)", margin: "0 0 6px" }}>
+                Cancel Booking
+              </p>
+              <p style={{ fontSize: "14px", color: "#4B5563", margin: "0 0 20px" }}>
+                {hotelName}{bc.confirmationCode ? ` · ${bc.confirmationCode}` : ""}
+              </p>
+              {hasMgmtUrl ? (
+                <>
+                  <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>
+                    Step 1 — cancel on {platformName ?? "the booking platform"}:
+                  </p>
+                  <a
+                    href={bc.managementUrl!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: "block", textAlign: "center", padding: "12px", backgroundColor: "#F9FAFB", border: "1.5px solid #E5E7EB", borderRadius: "10px", fontSize: "14px", fontWeight: 600, color: "#1B3A5C", textDecoration: "none", marginBottom: "20px" }}
+                  >
+                    Open {platformName ?? "Booking Platform"}
+                  </a>
+                  <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>
+                    Step 2 — once cancelled, remove from your trip:
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>
+                    Step 1 — email the property to cancel:
+                  </p>
+                  <a
+                    href={`mailto:?subject=${mailtoSubject}&body=${mailtoBody}`}
+                    style={{ display: "block", textAlign: "center", padding: "12px", backgroundColor: "#F9FAFB", border: "1.5px solid #E5E7EB", borderRadius: "10px", fontSize: "14px", fontWeight: 600, color: "#1B3A5C", textDecoration: "none", marginBottom: "20px" }}
+                  >
+                    Compose cancellation email
+                  </a>
+                  <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>
+                    Step 2 — once sent, remove from your trip:
+                  </p>
+                </>
+              )}
+              <button
+                onClick={async () => {
+                  setBookingCancelling(true);
+                  try {
+                    await fetch(`/api/trips/${tripId}/lodging/${bc.id}`, { method: "DELETE" });
+                    const propName = bc.title.replace(/^check-(?:in|out):\s*/i, "").trim().toLowerCase();
+                    setLocalItineraryItems(prev => prev.filter(it =>
+                      it.id !== bc.id &&
+                      !(it.type === "LODGING" && it.title.replace(/^check-(?:in|out):\s*/i, "").trim().toLowerCase() === propName)
+                    ));
+                    setBookingCancelTarget(null);
+                    setSelectedItineraryItem(null);
+                  } catch { /* non-fatal */ } finally {
+                    setBookingCancelling(false);
+                  }
+                }}
+                disabled={bookingCancelling}
+                style={{ width: "100%", backgroundColor: "#C4664A", color: "#fff", border: "none", borderRadius: "12px", padding: "14px", fontSize: "15px", fontWeight: 700, cursor: bookingCancelling ? "not-allowed" : "pointer", marginBottom: "10px", opacity: bookingCancelling ? 0.6 : 1, fontFamily: "inherit" }}
+              >
+                {bookingCancelling ? "Removing..." : "Remove from trip"}
+              </button>
+              <button
+                onClick={() => setBookingCancelTarget(null)}
+                disabled={bookingCancelling}
+                style={{ width: "100%", backgroundColor: "transparent", color: "#6B7280", border: "1px solid #E5E7EB", borderRadius: "12px", padding: "14px", fontSize: "15px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+              >
+                Keep booking
+              </button>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
