@@ -2143,6 +2143,67 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [bookingCancelTarget, setBookingCancelTarget] = useState<ItineraryItemLocal | null>(null);
   const [bookingCancelling, setBookingCancelling] = useState(false);
 
+  // ── Itinerary item modal rating state ────────────────────────────────────
+  const [itinModalRating, setItinModalRating] = useState(0);
+  const [itinModalNotes, setItinModalNotes] = useState("");
+  const [itinModalRatingId, setItinModalRatingId] = useState<string | undefined>(undefined);
+  const [itinModalRatingSaving, setItinModalRatingSaving] = useState(false);
+
+  useEffect(() => {
+    if (!selectedItineraryItem || !tripId) {
+      setItinModalRating(0);
+      setItinModalNotes("");
+      setItinModalRatingId(undefined);
+      return;
+    }
+    const itemId = selectedItineraryItem.id;
+    fetch(`/api/trips/${tripId}/ratings`)
+      .then(r => r.json())
+      .then((d: { ratings: Array<{ id: string; rating: number; notes: string | null; itineraryItemId: string | null }> }) => {
+        const match = (d.ratings ?? []).find(r => r.itineraryItemId === itemId);
+        if (match) {
+          setItinModalRating(match.rating);
+          setItinModalNotes(match.notes ?? "");
+          setItinModalRatingId(match.id);
+        } else {
+          setItinModalRating(0);
+          setItinModalNotes("");
+          setItinModalRatingId(undefined);
+        }
+      })
+      .catch(console.error);
+  }, [selectedItineraryItem?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleItinRatingSave(sit: ItineraryItemLocal) {
+    if (!tripId || itinModalRating === 0) return;
+    setItinModalRatingSaving(true);
+    try {
+      if (itinModalRatingId) {
+        await fetch(`/api/trips/${tripId}/ratings/${itinModalRatingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rating: itinModalRating, notes: itinModalNotes || null }),
+        });
+      } else {
+        const res = await fetch(`/api/trips/${tripId}/ratings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            itineraryItemId: sit.id,
+            placeName: sit.title,
+            placeType: sit.type === "LODGING" ? "lodging" : "activity",
+            rating: itinModalRating,
+            notes: itinModalNotes || null,
+          }),
+        });
+        if (res.ok) {
+          const d = await res.json() as { rating?: { id: string } };
+          if (d.rating?.id) setItinModalRatingId(d.rating.id);
+        }
+      }
+    } catch (e) { console.error("[itinRatingSave]", e); } finally { setItinModalRatingSaving(false); }
+  }
+
   // ── Per-day notes state ──────────────────────────────────────────────────
   type DayNote = { id: string; content: TiptapDoc; checked: boolean; dayIndex: number | null; createdAt: string };
   const [dayNotesList, setDayNotesList] = useState<DayNote[]>([]);
@@ -4262,6 +4323,32 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                         Manage booking
                       </a>
                     )}
+                    {!isCheckOut && (
+                      <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #F0F0F0" }}>
+                        <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#999", marginBottom: "8px" }}>
+                          {itinModalRatingId ? "Your rating" : "Rate this stay"}
+                        </p>
+                        <StarRating value={itinModalRating} onChange={setItinModalRating} />
+                        {itinModalRating > 0 && (
+                          <>
+                            <textarea
+                              value={itinModalNotes}
+                              onChange={e => setItinModalNotes(e.target.value)}
+                              placeholder="Notes (optional)"
+                              rows={2}
+                              style={{ width: "100%", border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "10px 12px", fontSize: "13px", color: "#1a1a1a", outline: "none", fontFamily: "inherit", boxSizing: "border-box", resize: "none", marginBottom: "8px" }}
+                            />
+                            <button
+                              onClick={() => handleItinRatingSave(sit)}
+                              disabled={itinModalRatingSaving}
+                              style={{ display: "block", width: "100%", padding: "10px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "10px", fontSize: "13px", fontWeight: 600, cursor: itinModalRatingSaving ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: itinModalRatingSaving ? 0.7 : 1 }}
+                            >
+                              {itinModalRatingSaving ? "Saving..." : itinModalRatingId ? "Update rating" : "Save rating"}
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
                     <button
                       onClick={() => { setEditItTime(isCheckOut ? (sit.departureTime ?? "") : (sit.arrivalTime ?? "")); setEditItDate(sit.scheduledDate ?? ""); setEditItNotes(sit.notes ?? ""); setEditingItinFields(true); }}
                       style={{ display: "block", width: "100%", marginTop: "8px", padding: "12px", backgroundColor: "transparent", color: "#C4664A", border: "1.5px solid #C4664A", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
@@ -4401,6 +4488,30 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                         Open in Maps
                       </a>
                     )}
+                    <div style={{ marginTop: "20px", paddingTop: "16px", borderTop: "1px solid #F0F0F0" }}>
+                      <p style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#999", marginBottom: "8px" }}>
+                        {itinModalRatingId ? "Your rating" : "Rate this experience"}
+                      </p>
+                      <StarRating value={itinModalRating} onChange={setItinModalRating} />
+                      {itinModalRating > 0 && (
+                        <>
+                          <textarea
+                            value={itinModalNotes}
+                            onChange={e => setItinModalNotes(e.target.value)}
+                            placeholder="Notes (optional)"
+                            rows={2}
+                            style={{ width: "100%", border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "10px 12px", fontSize: "13px", color: "#1a1a1a", outline: "none", fontFamily: "inherit", boxSizing: "border-box", resize: "none", marginBottom: "8px" }}
+                          />
+                          <button
+                            onClick={() => handleItinRatingSave(sit)}
+                            disabled={itinModalRatingSaving}
+                            style={{ display: "block", width: "100%", padding: "10px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "10px", fontSize: "13px", fontWeight: 600, cursor: itinModalRatingSaving ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: itinModalRatingSaving ? 0.7 : 1, marginBottom: "8px" }}
+                          >
+                            {itinModalRatingSaving ? "Saving..." : itinModalRatingId ? "Update rating" : "Save rating"}
+                          </button>
+                        </>
+                      )}
+                    </div>
                     <button
                       onClick={async () => {
                         const newTitle = editActivityTitle.trim();
