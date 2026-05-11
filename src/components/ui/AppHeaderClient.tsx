@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Menu, X, LogOut } from "lucide-react";
+import { Menu, X, LogOut, Search } from "lucide-react";
 import { useClerk, UserButton } from "@clerk/nextjs";
+import { UniversalSearchBar } from "@/components/shared/UniversalSearchBar";
+import { UniversalSearchOverlay } from "@/components/shared/UniversalSearchOverlay";
 
 function useIsDesktop() {
   const [isDesktop, setIsDesktop] = useState(false);
@@ -27,26 +29,17 @@ const NAV_ITEMS = [
   { label: "Profile", href: "/profile" },
 ];
 
-function getGreeting() {
-  const hour = (new Date().getUTCHours() + 9) % 24;
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
-}
-
 export function AppHeaderClient({
-  firstName,
   fullName,
   email,
 }: {
-  firstName: string;
   fullName: string;
   email: string;
 }) {
   const pathname = usePathname();
   const isDesktop = useIsDesktop();
   const [menuOpen, setMenuOpen] = useState(false);
-  const greeting = getGreeting();
+  const [searchOpen, setSearchOpen] = useState(false);
   const { signOut } = useClerk();
 
   function isActive(href: string) {
@@ -74,12 +67,15 @@ export function AppHeaderClient({
           justifyContent: "space-between",
         }}>
 
-          {/* Left: wordmark */}
-          <Link href="/home" style={{ textDecoration: "none" }}>
-            <span style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", letterSpacing: "-0.02em" }}>
-              Flokk
-            </span>
-          </Link>
+          {/* Left: wordmark + desktop search bar */}
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <Link href="/home" style={{ textDecoration: "none" }}>
+              <span style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", letterSpacing: "-0.02em" }}>
+                Flokk
+              </span>
+            </Link>
+            {isDesktop && <UniversalSearchBar />}
+          </div>
 
           {/* Center: desktop nav */}
           <nav style={{ display: isDesktop ? "flex" : "none", gap: "4px", alignItems: "center" }}>
@@ -105,17 +101,10 @@ export function AppHeaderClient({
             })}
           </nav>
 
-          {/* Right: greeting + UserButton (desktop) + hamburger (mobile) */}
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          {/* Right: UserButton (desktop) / search icon + hamburger (mobile) */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
 
-            {/* Greeting — desktop only */}
-            {isDesktop && (
-              <span style={{ fontSize: "13px", color: "#999" }}>
-                {greeting}, {firstName}
-              </span>
-            )}
-
-            {/* Clerk UserButton — handles avatar, photo, profile modal, sign out */}
+            {/* Clerk UserButton — desktop only */}
             {isDesktop && (
               <UserButton
                 appearance={{
@@ -124,6 +113,17 @@ export function AppHeaderClient({
                   },
                 }}
               />
+            )}
+
+            {/* Search icon — mobile only */}
+            {!isDesktop && (
+              <button
+                onClick={() => setSearchOpen(true)}
+                style={{ display: "flex", background: "none", border: "none", padding: "4px", cursor: "pointer", color: "#1a1a1a" }}
+                aria-label="Search"
+              >
+                <Search size={22} />
+              </button>
             )}
 
             {/* Hamburger — mobile only */}
@@ -213,6 +213,9 @@ export function AppHeaderClient({
           </div>
         </div>
       )}
+
+      {/* Mobile full-screen search overlay */}
+      <UniversalSearchOverlay isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
     </>
   );
 }
