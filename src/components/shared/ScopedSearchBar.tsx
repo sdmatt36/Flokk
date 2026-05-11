@@ -79,7 +79,7 @@ export function ScopedSearchBar({ scope, scopeId, scopeName, placeholder }: Prop
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (query.length < 2) { setResults(null); return; }
+    if (query.length < 1) { setResults(null); return; }
     const params = new URLSearchParams({
       q: query,
       scope,
@@ -95,7 +95,7 @@ export function ScopedSearchBar({ scope, scopeId, scopeName, placeholder }: Prop
           setHighlightIndex(-1);
         }
       } catch {}
-    }, 300);
+    }, 150);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query, scope, scopeId, scopeName]);
 
@@ -127,7 +127,7 @@ export function ScopedSearchBar({ scope, scopeId, scopeName, placeholder }: Prop
     }
   }
 
-  const showDropdown = isOpen && (query.length >= 2 ? !!results : recentSearches.length > 0);
+  const showDropdown = isOpen && (query.length >= 1 ? !!results : recentSearches.length > 0);
 
   return (
     <div ref={containerRef} style={{ position: "relative", flex: 1, maxWidth: "480px" }}>

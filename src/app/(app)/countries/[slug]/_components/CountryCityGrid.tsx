@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { DM_Sans } from "next/font/google";
 import { CountryCityCard } from "./CountryCityCard";
 
@@ -36,81 +36,19 @@ interface CountryCityGridProps {
   countryName: string;
 }
 
-export function CountryCityGrid({ cities, countryName }: CountryCityGridProps) {
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+export function CountryCityGrid({ cities }: CountryCityGridProps) {
   const [expanded, setExpanded] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function handleQueryChange(val: string) {
-    setQuery(val);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setDebouncedQuery(val), 150);
-  }
-
-  const trimmed = debouncedQuery.trim();
-  const isSearching = trimmed.length > 0;
-
-  const filtered = isSearching
-    ? cities.filter((c) => c.name.toLowerCase().includes(trimmed.toLowerCase()))
-    : cities;
-
-  const visible = isSearching || expanded ? filtered : filtered.slice(0, PAGE_SIZE);
   const totalCount = cities.length;
-  const showExpandBtn = !isSearching && !expanded && totalCount > PAGE_SIZE;
-  const showCollapseBtn = !isSearching && expanded && totalCount > PAGE_SIZE;
+  const visible = expanded ? cities : cities.slice(0, PAGE_SIZE);
+  const showExpandBtn = !expanded && totalCount > PAGE_SIZE;
+  const showCollapseBtn = expanded && totalCount > PAGE_SIZE;
 
   return (
     <div>
       <style>{GRID_CSS}</style>
 
-      {/* Search — only shown when there are more cities than the default page */}
-      {totalCount > PAGE_SIZE && (
-        <div style={{ marginBottom: 20, position: "relative", maxWidth: 360 }}>
-          <input
-            className={dmSans.className}
-            type="text"
-            placeholder={`Search cities in ${countryName}…`}
-            value={query}
-            onChange={(e) => handleQueryChange(e.target.value)}
-            style={{
-              width: "100%",
-              fontSize: 16,
-              padding: "10px 36px 10px 12px",
-              border: "1px solid #1B3A5C",
-              borderRadius: 8,
-              outline: "none",
-              backgroundColor: "#fff",
-              color: "#0A1628",
-              boxSizing: "border-box",
-            }}
-          />
-          {query && (
-            <button
-              onClick={() => handleQueryChange("")}
-              aria-label="Clear search"
-              style={{
-                position: "absolute",
-                right: 10,
-                top: "50%",
-                transform: "translateY(-50%)",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                fontSize: 18,
-                color: "#999",
-                padding: 4,
-                lineHeight: 1,
-              }}
-            >
-              ×
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Grid */}
-      {visible.length > 0 ? (
+      {visible.length > 0 && (
         <div className="ccg-grid">
           {visible.map((city) => (
             <CountryCityCard
@@ -122,23 +60,8 @@ export function CountryCityGrid({ cities, countryName }: CountryCityGridProps) {
             />
           ))}
         </div>
-      ) : isSearching ? (
-        <div
-          style={{
-            padding: "32px 24px",
-            backgroundColor: "#FAFAFA",
-            borderRadius: "12px",
-            border: "1px dashed #E5E7EB",
-            textAlign: "center",
-          }}
-        >
-          <p className={dmSans.className} style={{ fontSize: 14, color: "#9CA3AF", margin: 0 }}>
-            No cities matching &ldquo;{debouncedQuery}&rdquo; in {countryName}.
-          </p>
-        </div>
-      ) : null}
+      )}
 
-      {/* Expand / collapse */}
       {(showExpandBtn || showCollapseBtn) && (
         <div style={{ textAlign: "center", marginTop: 16 }}>
           {showExpandBtn ? (

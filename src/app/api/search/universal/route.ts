@@ -12,7 +12,7 @@ export async function GET(req: Request) {
   const scopeId = searchParams.get("scopeId") ?? "";
   const scopeName = searchParams.get("scopeName") ?? "";
 
-  if (q.length < 2) {
+  if (!q) {
     return NextResponse.json(
       { cities: [], countries: [], continents: [], picks: [], itineraries: [], tours: [] },
       { headers: { "Cache-Control": "no-store" } }

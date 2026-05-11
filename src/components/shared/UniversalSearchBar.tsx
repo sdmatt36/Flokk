@@ -126,7 +126,7 @@ export function SearchDropdownPanel({
 
   return (
     <div style={{ ...containerStyle }}>
-      {query.length < 2 && recentSearches.length > 0 && (
+      {query.length < 1 && recentSearches.length > 0 && (
         <div style={{ padding: "12px 0" }}>
           <p style={{ fontSize: "11px", fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", padding: "0 16px 6px" }}>
             Recent searches
@@ -255,7 +255,7 @@ export function UniversalSearchBar() {
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (query.length < 2) {
+    if (query.length < 1) {
       setResults(null);
       return;
     }
@@ -268,7 +268,7 @@ export function UniversalSearchBar() {
           setHighlightIndex(-1);
         }
       } catch {}
-    }, 300);
+    }, 150);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query]);
 
@@ -300,7 +300,7 @@ export function UniversalSearchBar() {
     }
   }
 
-  const showDropdown = isOpen && (query.length >= 2 ? !!results : recentSearches.length > 0);
+  const showDropdown = isOpen && (query.length >= 1 ? !!results : recentSearches.length > 0);
 
   return (
     <div ref={containerRef} style={{ position: "relative" }}>

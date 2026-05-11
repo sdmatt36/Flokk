@@ -109,6 +109,11 @@ function PeerDropdown({ peers, currentSlug, routeFormatter, label, router }: {
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter…"
+              autoComplete="off"
+              name="peer-filter-nondescript"
+              data-1p-ignore
+              data-lpignore="true"
+              spellCheck={false}
               style={{
                 width: "100%",
                 border: "1px solid #E2E8F0",

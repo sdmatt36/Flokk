@@ -54,12 +54,20 @@ async function CountryAlsoLove({ entityId }: { entityId: string }) {
   });
   if (!current) return null;
 
-  const countries = await db.country.findMany({
+  const all = await db.country.findMany({
     where: { continentId: current.continentId, id: { not: entityId } },
-    orderBy: { name: "asc" },
-    take: 6,
-    select: { slug: true, name: true, photoUrl: true, continent: { select: { name: true } } },
+    select: {
+      slug: true,
+      name: true,
+      photoUrl: true,
+      continent: { select: { name: true } },
+      _count: { select: { cities: { where: { featured: true } } } },
+    },
   });
+
+  const countries = [...all]
+    .sort((a, b) => b._count.cities - a._count.cities || a.name.localeCompare(b.name))
+    .slice(0, 6);
 
   if (countries.length === 0) return null;
 
@@ -83,17 +91,41 @@ async function CountryAlsoLove({ entityId }: { entityId: string }) {
 async function CityAlsoLove({ entityId }: { entityId: string }) {
   const current = await db.city.findUnique({
     where: { id: entityId },
-    select: { countryId: true, country: { select: { name: true } } },
+    select: { countryId: true, country: { select: { name: true, continentId: true } } },
   });
   if (!current) return null;
 
-  const cities = await db.city.findMany({
+  const citySelect = {
+    slug: true,
+    name: true,
+    photoUrl: true,
+    country: { select: { name: true } },
+  };
+
+  // Step 1: up to 4 from same country
+  const sameCountry = await db.city.findMany({
     where: { countryId: current.countryId, id: { not: entityId }, featured: true },
     orderBy: { priorityRank: "asc" },
-    take: 6,
-    select: { slug: true, name: true, photoUrl: true },
+    take: 4,
+    select: citySelect,
   });
 
+  // Step 2: fill remainder from same continent, different country
+  const needed = 6 - sameCountry.length;
+  const continentFill = needed > 0
+    ? await db.city.findMany({
+        where: {
+          featured: true,
+          id: { not: entityId },
+          country: { continentId: current.country.continentId, id: { not: current.countryId } },
+        },
+        orderBy: { priorityRank: "asc" },
+        take: needed,
+        select: citySelect,
+      })
+    : [];
+
+  const cities = [...sameCountry, ...continentFill];
   if (cities.length === 0) return null;
 
   return (
@@ -103,7 +135,7 @@ async function CityAlsoLove({ entityId }: { entityId: string }) {
           key={city.slug}
           href={`/cities/${city.slug}`}
           name={city.name}
-          subtitle={current.country.name}
+          subtitle={city.country.name}
           photoUrl={city.photoUrl}
         />
       ))}
