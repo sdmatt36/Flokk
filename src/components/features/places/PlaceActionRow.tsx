@@ -10,6 +10,7 @@ import type { AddToItineraryPlace } from "@/lib/add-to-itinerary";
 export interface PlaceActionRowPlace extends AddToItineraryPlace {
   shareEntityType?: ShareEntityType;
   shareEntityId?: string;
+  shareUrl?: string | null;
 }
 
 export interface PlaceActionRowProps {
@@ -66,6 +67,18 @@ export function PlaceActionRow({
 
   const handleShare = async () => {
     if (sharing) return;
+    if (place.shareUrl) {
+      try {
+        const url = place.shareUrl.startsWith("http")
+          ? place.shareUrl
+          : `${window.location.origin}${place.shareUrl}`;
+        await navigator.clipboard.writeText(url);
+        onShareToast?.("Link copied to clipboard");
+      } catch {
+        onShareToast?.("Could not copy link");
+      }
+      return;
+    }
     if (!place.shareEntityType || !place.shareEntityId) {
       onShareToast?.("Share not available for this item");
       return;
@@ -196,7 +209,7 @@ export function PlaceActionRow({
               </button>
             ) : null}
 
-            {place.shareEntityId && (
+            {(place.shareEntityId || place.shareUrl) && (
               <button
                 type="button"
                 onClick={handleShare}
@@ -285,7 +298,7 @@ export function PlaceActionRow({
             </button>
           )}
 
-          {place.shareEntityId && (
+          {(place.shareEntityId || place.shareUrl) && (
             <button
               type="button"
               style={btnBase}

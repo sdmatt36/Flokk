@@ -198,6 +198,7 @@ async function fetchPicks(): Promise<PickSpot[]> {
         lng: true,
         googlePlaceId: true,
         description: true,
+        shareToken: true,
         author: { select: { familyName: true } },
       },
     }),
@@ -270,6 +271,7 @@ async function fetchPicks(): Promise<PickSpot[]> {
       ...s,
       description: s.description ?? null,
       contributorName: s.author?.familyName ?? null,
+      shareToken: s.shareToken ?? null,
     };
     if (!pr) return base;
     const totalCount = base.ratingCount + pr.count;

@@ -3,16 +3,18 @@
 import { useState, useEffect } from "react";
 
 const CATEGORY_FALLBACK: Record<string, string> = {
-  Food: "/images/fallbacks/food.svg",
-  food_and_drink: "/images/fallbacks/food.svg",
-  Culture: "/images/fallbacks/culture.svg",
-  Outdoor: "/images/fallbacks/outdoor.svg",
-  Shopping: "/images/fallbacks/shopping.svg",
-  shopping: "/images/fallbacks/shopping.svg",
-  Lodging: "/images/fallbacks/lodging.svg",
-  Activity: "/images/fallbacks/activity.svg",
-  experiences: "/images/fallbacks/activity.svg",
-  Other: "/images/fallbacks/other.svg",
+  food_and_drink:           "/images/fallbacks/food.svg",
+  culture:                  "/images/fallbacks/culture.svg",
+  nature_and_outdoors:      "/images/fallbacks/outdoor.svg",
+  shopping:                 "/images/fallbacks/shopping.svg",
+  lodging:                  "/images/fallbacks/lodging.svg",
+  experiences:              "/images/fallbacks/activity.svg",
+  adventure:                "/images/fallbacks/activity.svg",
+  kids_and_family:          "/images/fallbacks/activity.svg",
+  sports_and_entertainment: "/images/fallbacks/activity.svg",
+  nightlife:                "/images/fallbacks/activity.svg",
+  wellness:                 "/images/fallbacks/activity.svg",
+  other:                    "/images/fallbacks/other.svg",
 };
 
 interface SpotImageProps {

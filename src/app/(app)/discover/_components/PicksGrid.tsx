@@ -19,6 +19,7 @@ export type PickSpot = {
   googlePlaceId: string | null;
   description: string | null;
   contributorName?: string | null;
+  shareToken?: string | null;
 };
 
 export function PicksGrid({ spots }: { spots: PickSpot[] }) {
@@ -61,6 +62,7 @@ export function PicksGrid({ spots }: { spots: PickSpot[] }) {
               lat: spot.lat,
               lng: spot.lng,
               contributorName: spot.contributorName,
+              shareToken: spot.shareToken,
             }}
             isSaved={savedIds.has(spot.id)}
             onClickCard={() => setOpenSpot(spot)}
@@ -84,6 +86,7 @@ export function PicksGrid({ spots }: { spots: PickSpot[] }) {
             lat: openSpot.lat,
             lng: openSpot.lng,
             contributorName: openSpot.contributorName ?? null,
+            shareToken: openSpot.shareToken,
           }}
           isSaved={savedIds.has(openSpot.id)}
           saveStatus={null}

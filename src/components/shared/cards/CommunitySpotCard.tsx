@@ -22,6 +22,7 @@ export interface CommunitySpotCardSpot {
   lat?: number | null;
   lng?: number | null;
   contributorName?: string | null;
+  shareToken?: string | null;
 }
 
 export interface CommunitySpotCardProps {
@@ -86,7 +87,7 @@ export function CommunitySpotCard({
             src={spot.photoUrl}
             category={spot.category}
             alt={spot.title}
-            allowResolve={false}
+            allowResolve={true}
             style={{ width: "100%", height: "100%", objectFit: "cover" }}
           />
           {spot.rating !== null && spot.rating >= 3 && (
@@ -129,6 +130,7 @@ export function CommunitySpotCard({
               websiteUrl: resolvedWebsiteUrl,
               photoUrl: spot.photoUrl,
               category: spot.category,
+              shareUrl: spot.shareToken ? `/spots/${spot.shareToken}` : undefined,
             }}
             isSaved={isSaved}
             showAddToItinerary={showAddToItinerary && (!saveStatus || saveStatus.showAffordance)}
