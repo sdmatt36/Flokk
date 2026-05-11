@@ -53,10 +53,10 @@ export async function POST(req: Request) {
   let cities: string[] = [];
   let country: string | null = null;
 
-  if (Array.isArray(body.cities) && body.cities.length > 0 && typeof body.country === "string" && body.country.trim().length > 0) {
-    // New chip-based submission
+  if (Array.isArray(body.cities) && body.cities.length > 0) {
+    // New chip-based submission — country may be empty when lookup detail call fails
     cities = (body.cities as string[]).map((c) => c.trim()).filter(Boolean);
-    country = body.country.trim();
+    country = (typeof body.country === "string" && body.country.trim().length > 0) ? body.country.trim() : null;
   } else if (typeof body.destination === "string" && body.destination.trim().length > 0) {
     // Legacy fallback: comma-parse for old callers (past-trip import, steal-to-new, etc.)
     const parts = body.destination.split(",").map((s: string) => s.trim());

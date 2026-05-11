@@ -125,6 +125,55 @@ async function lookupGoogleMapsPlace(
   }
 }
 
+function extractPlaceIdFromMapsUrl(url: string): string | null {
+  try {
+    const match = url.match(/!1s(ChIJ[A-Za-z0-9_-]+)/);
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function lookupByPlaceId(placeId: string): Promise<GoogleMapsLookupResult | null> {
+  try {
+    const url =
+      `https://maps.googleapis.com/maps/api/place/details/json?` +
+      `place_id=${encodeURIComponent(placeId)}&` +
+      `fields=name,geometry,photos,rating,types&` +
+      `language=en&key=${GOOGLE_MAPS_API_KEY}`;
+    const res = await fetch(url);
+    const data = (await res.json()) as {
+      status: string;
+      result?: {
+        name?: string;
+        geometry?: { location: { lat: number; lng: number } };
+        photos?: { photo_reference: string }[];
+        rating?: number;
+        types?: string[];
+      };
+    };
+    if (data.status !== "OK" || !data.result) return null;
+    const r = data.result;
+    if (!r.name || !r.geometry) return null;
+    const result: GoogleMapsLookupResult = {
+      title: r.name,
+      lat: r.geometry.location.lat,
+      lng: r.geometry.location.lng,
+    };
+    if (typeof r.rating === "number") result.rating = r.rating;
+    if (r.photos?.[0]?.photo_reference) {
+      result.photoUrl =
+        `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&` +
+        `photo_reference=${r.photos[0].photo_reference}&key=${GOOGLE_MAPS_API_KEY}`;
+    }
+    const slugs = mapPlaceTypesToCanonicalSlugs(r.types);
+    result.category = slugs[0] ?? "experiences";
+    return result;
+  } catch {
+    return null;
+  }
+}
+
 function isInstagramCaption(title: string): boolean {
   return /on Instagram/i.test(title) || /^[^:]+:\s*[""]/.test(title);
 }
@@ -436,24 +485,32 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
         console.log(`[enrich] resolved redirect: ${resolvedUrl}`);
       }
       const parsedName = extractGoogleMapsPlace(resolvedUrl);
+      let mapsPlace: GoogleMapsLookupResult | null = null;
       if (parsedName) {
-        const mapsPlace = await lookupGoogleMapsPlace(parsedName);
-        if (mapsPlace) {
-          workingTitle = mapsPlace.title;
-          coords = { lat: mapsPlace.lat, lng: mapsPlace.lng };
-          if (mapsPlace.photoUrl) place.photoUrl = mapsPlace.photoUrl;
-          if (typeof mapsPlace.rating === "number") place.rating = mapsPlace.rating;
-          if (mapsPlace.category) mapsCategory = mapsPlace.category;
-          // Reverse-geocode lat/lng to pull destinationCity and destinationCountry
-          if (!item.destinationCity || !item.destinationCountry) {
-            const rev = await reverseGeocodeCity(mapsPlace.lat, mapsPlace.lng);
-            if (rev.city) socialCity = rev.city;
-            if (rev.country) socialCountry = rev.country;
-            console.log(`[enrich] Google Maps reverse-geocode: city=${rev.city} country=${rev.country}`);
-          }
-          skipNormalEnrichment = true;
-          console.log(`[enrich] Google Maps fast-path: "${workingTitle}" (${coords.lat}, ${coords.lng})`);
+        mapsPlace = await lookupGoogleMapsPlace(parsedName);
+      }
+      if (!mapsPlace) {
+        const placeId = extractPlaceIdFromMapsUrl(resolvedUrl);
+        if (placeId) {
+          console.log(`[enrich] Google Maps place_id fallback: ${placeId}`);
+          mapsPlace = await lookupByPlaceId(placeId);
         }
+      }
+      if (mapsPlace) {
+        workingTitle = mapsPlace.title;
+        coords = { lat: mapsPlace.lat, lng: mapsPlace.lng };
+        if (mapsPlace.photoUrl) place.photoUrl = mapsPlace.photoUrl;
+        if (typeof mapsPlace.rating === "number") place.rating = mapsPlace.rating;
+        if (mapsPlace.category) mapsCategory = mapsPlace.category;
+        // Reverse-geocode lat/lng to pull destinationCity and destinationCountry
+        if (!item.destinationCity || !item.destinationCountry) {
+          const rev = await reverseGeocodeCity(mapsPlace.lat, mapsPlace.lng);
+          if (rev.city) socialCity = rev.city;
+          if (rev.country) socialCountry = rev.country;
+          console.log(`[enrich] Google Maps reverse-geocode: city=${rev.city} country=${rev.country}`);
+        }
+        skipNormalEnrichment = true;
+        console.log(`[enrich] Google Maps fast-path: "${workingTitle}" (${coords.lat}, ${coords.lng})`);
       }
     } catch (err) {
       console.error(`[enrich] Google Maps fast-path failed for ${item.id}:`, err);
@@ -556,9 +613,18 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
     }
   }
 
+  // Token guard: workingTitle that matches a URL share-token pattern means extraction failed
+  const SHARE_TOKEN_RE = /^[A-Za-z0-9_-]{12,30}$/;
+  let mapsTokenGuard = false;
+  if (workingTitle && SHARE_TOKEN_RE.test(workingTitle)) {
+    console.log(`[enrich] token guard: "${workingTitle}" looks like a share token — clearing`);
+    workingTitle = "";
+    mapsTokenGuard = true;
+  }
+
   // Step 4: Claude description if still missing
   let description: string | null = null;
-  if (!workingDescription) {
+  if (!workingDescription && workingTitle) {
     description = await generateDescription(workingTitle, item.destinationCity, item.destinationCountry);
   }
 
@@ -592,8 +658,11 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
     const slug = normalizeCategorySlug(socialCategory) ?? socialCategory;
     updateData.categoryTags = normalizeAndDedupeCategoryTags([slug]);
   }
-  // Flag social saves where Claude couldn't identify a specific place — prompt user to identify
-  if (((SOCIAL_PLATFORMS as readonly string[]).includes(item.sourcePlatform ?? "") || isInstagramCaption(cleanTitle)) && !socialPlaceFound && !skipNormalEnrichment) {
+  // Flag saves where place identification failed — prompt user to identify
+  if (
+    mapsTokenGuard ||
+    (((SOCIAL_PLATFORMS as readonly string[]).includes(item.sourcePlatform ?? "") || isInstagramCaption(cleanTitle)) && !socialPlaceFound && !skipNormalEnrichment)
+  ) {
     updateData.needsPlaceConfirmation = true;
   }
   updateData.extractionStatus = "ENRICHED";
