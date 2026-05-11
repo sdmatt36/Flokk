@@ -173,7 +173,12 @@ export async function writeThroughCommunitySpot(
 
   await tx.communitySpot.update({
     where: { id: spot.id },
-    data: { averageRating, ratingCount, contributionCount },
+    data: {
+      averageRating,
+      ratingCount,
+      contributionCount,
+      ...(ctx.category ? { category: ctx.category } : {}),
+    },
   });
 
   return spot.id;

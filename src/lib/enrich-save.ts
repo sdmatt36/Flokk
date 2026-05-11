@@ -648,7 +648,7 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   if (sbThumbnail) updateData.mediaThumbnailUrl = sbThumbnail;
   if (typeof place.rating === "number") updateData.relevanceScore = place.rating;
   if (description && !workingDescription) updateData.rawDescription = description;
-  if (mapsCategory) {
+  if (mapsCategory && (!item.categoryTags || item.categoryTags.length === 0)) {
     const slug = normalizeCategorySlug(mapsCategory) ?? mapsCategory;
     updateData.categoryTags = normalizeAndDedupeCategoryTags([slug]);
   }

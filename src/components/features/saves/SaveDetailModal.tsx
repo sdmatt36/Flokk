@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { X, MapPin, Sparkles, ExternalLink, ChevronDown, Check } from "lucide-react";
 import { LODGING_TYPE_LABELS, LODGING_TYPE_OPTIONS } from "@/lib/infer-lodging-type";
+import { CATEGORIES, categoryLabel } from "@/lib/categories";
 import { bucketTrips } from "@/lib/trip-phase";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { shareEntity } from "@/lib/share";
@@ -76,13 +77,13 @@ function cleanDisplayDescription(raw: string | null | undefined): string {
 }
 
 function buildMatchReason(tags: string[], interestKeys: string[]): string {
-  if (tags.some(t => ["Kids","Activity","Educational"].includes(t)) || interestKeys.some(k => ["theme_parks","zoos","educational","hands_on","playgrounds"].includes(k)))
+  if (tags.some(t => ["kids_and_family","experiences"].includes(t)) || interestKeys.some(k => ["theme_parks","zoos","educational","hands_on","playgrounds"].includes(k)))
     return "A great pick for the whole family — built for kids but enjoyable for adults too.";
-  if (tags.some(t => ["Food","Street Food"].includes(t)) || interestKeys.some(k => ["street_food","local_markets","food_tours","cafes"].includes(k)))
+  if (tags.some(t => t === "food_and_drink") || interestKeys.some(k => ["street_food","local_markets","food_tours","cafes"].includes(k)))
     return "Matches your family's love of local food — a must-try for food explorers.";
-  if (tags.some(t => ["Culture","History","Museum"].includes(t)) || interestKeys.some(k => ["museums","history","art","architecture"].includes(k)))
+  if (tags.some(t => t === "culture") || interestKeys.some(k => ["museums","history","art","architecture"].includes(k)))
     return "Lines up with your interest in culture and history — a rich local experience.";
-  if (tags.some(t => ["Beach","Outdoor","Hiking","Water"].includes(t)) || interestKeys.some(k => ["beaches","hiking","national_parks","water_sports","wildlife"].includes(k)))
+  if (tags.some(t => ["nature_and_outdoors","adventure"].includes(t)) || interestKeys.some(k => ["beaches","hiking","national_parks","water_sports","wildlife"].includes(k)))
     return "Fits your family's taste for outdoor adventures and nature.";
   return "Saved based on your family's travel interests and upcoming trip.";
 }
@@ -91,7 +92,6 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-const ALL_CATEGORY_TAGS = ["Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Kids Camps", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other"];
 
 export function SaveDetailModal({
   itemId,
@@ -216,7 +216,7 @@ export function SaveDetailModal({
 
   const tags = localTags;
   const gradient = getGradient(tags);
-  const isFoodItem = tags.some(t => ["food", "food & drink"].includes(t.toLowerCase()));
+  const isFoodItem = tags.some(t => t === "food_and_drink");
   const location = [item?.destinationCity, item?.destinationCountry].filter(Boolean).join(", ");
 
   function cleanDesc(desc: string): string {
@@ -322,7 +322,7 @@ export function SaveDetailModal({
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "6px", alignItems: "center" }}>
               {tags.length > 0 ? tags.map(tag => (
                 <button key={tag} onClick={() => toggleTag(tag)} style={{ fontSize: "11px", fontWeight: 600, background: "#C4664A", color: "#fff", borderRadius: "999px", padding: "3px 10px", border: "none", cursor: "pointer" }}>
-                  {tag}
+                  {categoryLabel(tag) || tag}
                 </button>
               )) : (
                 <span style={{ fontSize: "12px", color: "#aaa" }}>No tags yet</span>
@@ -340,12 +340,12 @@ export function SaveDetailModal({
               <div style={{ marginBottom: "12px", padding: "12px", backgroundColor: "#FAFAFA", borderRadius: "10px", border: "1px solid rgba(0,0,0,0.08)" }}>
                 <p style={{ fontSize: "11px", color: "#999", marginBottom: "8px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Tap to toggle</p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {ALL_CATEGORY_TAGS.map(tag => {
-                    const active = tags.includes(tag);
+                  {CATEGORIES.map(({ slug, label }) => {
+                    const active = tags.includes(slug);
                     return (
                       <button
-                        key={tag}
-                        onClick={() => toggleTag(tag)}
+                        key={slug}
+                        onClick={() => toggleTag(slug)}
                         style={{
                           fontSize: "12px",
                           fontWeight: 600,
@@ -359,7 +359,7 @@ export function SaveDetailModal({
                           transition: "all 0.12s ease",
                         }}
                       >
-                        {tag}
+                        {label}
                       </button>
                     );
                   })}

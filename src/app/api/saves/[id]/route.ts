@@ -118,7 +118,7 @@ export async function PATCH(
 
     // Community layer write-through — fires when userRating or notes updated.
     // Errors are logged but do not fail the PATCH response.
-    const triggersCommunity = updateData.userRating !== undefined || updateData.notes !== undefined;
+    const triggersCommunity = updateData.userRating !== undefined || updateData.notes !== undefined || updateData.categoryTags !== undefined;
     if (triggersCommunity) {
       try {
         await db.$transaction(async (tx) => {
