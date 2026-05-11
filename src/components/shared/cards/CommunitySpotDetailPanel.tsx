@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { X } from "lucide-react";
 import { SpotImage } from "@/components/shared/SpotImage";
 import { PlaceActionRow } from "@/components/features/places/PlaceActionRow";
+import { CATEGORIES } from "@/lib/categories";
 import type { EntityStatusResult } from "@/lib/entity-status";
 import type { CommunitySpotCardSpot } from "./CommunitySpotCard";
 
@@ -68,17 +69,32 @@ export function CommunitySpotDetailPanel({
             <X size={20} />
           </button>
           <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "4px" }}>{spot.city ?? ""}</p>
-          <p style={{ fontSize: "18px", fontWeight: 700, color: "#1B3A5C", marginBottom: "10px", lineHeight: 1.3, paddingRight: "32px" }}>{spot.title}</p>
+          <p style={{ fontSize: "18px", fontWeight: 700, color: "#1B3A5C", marginBottom: "8px", lineHeight: 1.3, paddingRight: "32px" }}>{spot.title}</p>
+          {spot.category && (() => {
+            const catLabel = CATEGORIES.find((c) => c.slug === spot.category)?.label ?? spot.category;
+            return (
+              <span style={{ display: "inline-block", fontSize: "11px", fontWeight: 700, backgroundColor: "#C4664A", color: "#fff", borderRadius: "20px", padding: "2px 10px", marginBottom: "10px" }}>
+                {catLabel}
+              </span>
+            );
+          })()}
           {spot.description && (
             <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.6, marginBottom: "12px" }}>{spot.description}</p>
           )}
-          {spot.rating !== null && spot.ratingCount >= 2 && (
+          {spot.rating !== null && spot.ratingCount >= 2 ? (
             <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
               <span style={{ color: "#f59e0b", fontSize: "16px", letterSpacing: "1px" }}>
                 {"★".repeat(spot.rating)}{"☆".repeat(5 - spot.rating)}
               </span>
               <span style={{ fontSize: "12px", color: "#AAAAAA" }}>{spot.ratingCount} families rated this</span>
             </div>
+          ) : spot.ratingCount === 1 ? (
+            <p style={{ fontSize: "12px", color: "#CCCCCC", marginBottom: "10px" }}>1 family rated this</p>
+          ) : null}
+          {spot.contributorName && (
+            <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "10px" }}>
+              Saved by <span style={{ fontWeight: 600 }}>{spot.contributorName}</span>
+            </p>
           )}
           <PlaceActionRow
             place={{

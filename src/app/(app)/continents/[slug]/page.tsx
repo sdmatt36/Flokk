@@ -277,7 +277,6 @@ export default async function ContinentPage(
           scope="continent"
           scopeId={continent.id}
           scopeName={continent.name}
-          placeholder={`Search ${continent.name}…`}
         />
       </div>
 

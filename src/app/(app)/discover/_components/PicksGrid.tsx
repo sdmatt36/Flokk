@@ -19,6 +19,7 @@ export type PickSpot = {
   lng: number | null;
   googlePlaceId: string | null;
   description: string | null;
+  contributorName?: string | null;
 };
 
 const TERRA = "#C4664A";
@@ -37,6 +38,7 @@ interface PickCardProps {
 
 function PickCard({ spot, isSaved, onOpenDetail, onFlokkIt }: PickCardProps) {
   const label = categoryLabel(spot.category);
+  const rating = spot.averageRating !== null ? Math.round(spot.averageRating) : null;
 
   return (
     <div
@@ -111,6 +113,24 @@ function PickCard({ spot, isSaved, onOpenDetail, onFlokkIt }: PickCardProps) {
             {label}
           </span>
         )}
+        {/* Flokk Approved ribbon */}
+        {rating !== null && rating >= 3 && (
+          <span
+            style={{
+              position: "absolute",
+              bottom: "8px",
+              left: "8px",
+              fontSize: "10px",
+              fontWeight: 700,
+              backgroundColor: TERRA,
+              color: "#fff",
+              borderRadius: "20px",
+              padding: "3px 8px",
+            }}
+          >
+            Flokk Approved
+          </span>
+        )}
       </div>
 
       {/* Body */}
@@ -138,7 +158,7 @@ function PickCard({ spot, isSaved, onOpenDetail, onFlokkIt }: PickCardProps) {
               fontSize: 12,
               color: "#888",
               lineHeight: 1.4,
-              marginBottom: 10,
+              marginBottom: 6,
               display: "-webkit-box",
               WebkitLineClamp: 2,
               WebkitBoxOrient: "vertical",
@@ -148,6 +168,18 @@ function PickCard({ spot, isSaved, onOpenDetail, onFlokkIt }: PickCardProps) {
             {spot.description}
           </p>
         )}
+        {rating !== null && spot.ratingCount >= 2 ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+            <span style={{ color: "#f59e0b", fontSize: "13px", letterSpacing: "1px" }}>
+              {"★".repeat(rating)}{"☆".repeat(5 - rating)}
+            </span>
+            <span style={{ fontSize: "11px", color: "#AAAAAA" }}>
+              {spot.ratingCount} families rated this
+            </span>
+          </div>
+        ) : spot.ratingCount === 1 ? (
+          <p style={{ fontSize: "11px", color: "#CCCCCC", marginBottom: "4px" }}>1 family rated this</p>
+        ) : null}
         <div style={{ marginTop: "auto" }} onClick={(e) => e.stopPropagation()}>
           <PlaceActionRow
             place={{
@@ -221,6 +253,7 @@ export function PicksGrid({ spots }: { spots: PickSpot[] }) {
             websiteUrl: openSpot.websiteUrl,
             lat: openSpot.lat,
             lng: openSpot.lng,
+            contributorName: openSpot.contributorName ?? null,
           }}
           isSaved={savedIds.has(openSpot.id)}
           saveStatus={null}

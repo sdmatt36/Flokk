@@ -54,6 +54,7 @@ type SpotItem = {
   lat: number | null;
   lng: number | null;
   googlePlaceId: string | null;
+  contributorName?: string | null;
 };
 
 async function loadCity(slug: string) {
@@ -79,6 +80,7 @@ async function loadCity(slug: string) {
           id: true, name: true, category: true, cuisine: true, lodgingType: true,
           photoUrl: true, averageRating: true, ratingCount: true, description: true,
           websiteUrl: true, address: true, lat: true, lng: true, googlePlaceId: true,
+          author: { select: { familyName: true } },
         },
         orderBy: [{ ratingCount: "desc" }, { averageRating: "desc" }],
         take: 50,
@@ -148,7 +150,7 @@ async function loadCity(slug: string) {
       const nameKey = slugForDedup(s.name);
       if (!spotMap.has(nameKey)) {
         const normCat = normalizeCategorySlug(s.category) ?? s.category;
-        spotMap.set(nameKey, { ...s, category: normCat });
+        spotMap.set(nameKey, { ...s, category: normCat, contributorName: s.author?.familyName ?? null });
       }
     }
 

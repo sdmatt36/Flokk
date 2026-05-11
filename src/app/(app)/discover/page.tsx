@@ -192,6 +192,7 @@ async function fetchPicks(): Promise<PickSpot[]> {
         lng: true,
         googlePlaceId: true,
         description: true,
+        author: { select: { familyName: true } },
       },
     }),
     db.tourStop.findMany({
@@ -239,7 +240,7 @@ async function fetchPicks(): Promise<PickSpot[]> {
 
   // Combine: rated community spots first, then tour stop picks
   const allSpots: PickSpot[] = [
-    ...spots.map((s) => ({ ...s, description: s.description ?? null })),
+    ...spots.map((s) => ({ ...s, description: s.description ?? null, contributorName: s.author?.familyName ?? null })),
     ...stopPicks,
   ];
 

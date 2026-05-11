@@ -21,6 +21,7 @@ export interface CommunitySpotCardSpot {
   communitySpotWebsiteUrl?: string | null;
   lat?: number | null;
   lng?: number | null;
+  contributorName?: string | null;
 }
 
 export interface CommunitySpotCardProps {

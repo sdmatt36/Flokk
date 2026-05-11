@@ -45,6 +45,7 @@ export interface CitySpot {
   lat?: number | null;
   lng?: number | null;
   googlePlaceId?: string | null;
+  contributorName?: string | null;
 }
 
 interface SpotSectionProps {
@@ -343,6 +344,7 @@ export function SpotSection({
                 websiteUrl: openSpot.websiteUrl ?? null,
                 lat: openSpot.lat ?? null,
                 lng: openSpot.lng ?? null,
+                contributorName: openSpot.contributorName ?? null,
               }}
               isSaved={panelSaved}
               saveStatus={panelStatus}
