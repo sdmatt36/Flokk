@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import TourMapBlock from "@/components/tours/TourMapBlock";
-import { CATEGORIES, categoryLabel as getCategoryLabel } from "@/lib/categories";
+import { CATEGORIES, categoryLabel as getCategoryLabel, normalizeCategorySlug as normalizeCategorySlugTC } from "@/lib/categories";
 
 function decodeHtmlEntities(str: string | null | undefined): string {
   if (!str) return "";
@@ -781,14 +781,17 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
   onTagsUpdated?: (itemId: string, tags: string[]) => void;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
-  const [localTags, setLocalTags] = useState<string[]>(item.categoryTags ?? []);
+  const normalizeTags = (raw: string[]) =>
+    [...new Set(raw.map(t => normalizeCategorySlugTC(t) ?? t.toLowerCase().trim()).filter(Boolean))];
+  const [localTags, setLocalTags] = useState<string[]>(() => normalizeTags(item.categoryTags ?? []));
   const [editingTags, setEditingTags] = useState(false);
+  const [tagsSaved, setTagsSaved] = useState(false);
   const [localWebsiteUrl, setLocalWebsiteUrl] = useState<string | null>(item.websiteUrl ?? null);
   const [editingUrl, setEditingUrl] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [urlError, setUrlError] = useState<string | null>(null);
   const [justShared, setJustShared] = useState(false);
-  const initialTags = useRef(item.categoryTags ?? []);
+  const initialTags = useRef(normalizeTags(item.categoryTags ?? []));
   const initial = item.title.replace(/^www\./, "").charAt(0).toUpperCase();
   const categoryLabel = localTags.filter(t => !["VG", "VGN"].includes(t)).slice(0, 2).map(t => getCategoryLabel(t) || t).join(" · ");
 
@@ -849,19 +852,20 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
               {localTags.length === 0 && !editingTags && (
                 <span style={{ fontSize: "12px", color: "#aaa" }}>No tags yet</span>
               )}
-              <button onClick={() => {
+              <button onClick={async () => {
                 if (editingTags) {
-                  // Save on Done
                   if (item.id && JSON.stringify(localTags.slice().sort()) !== JSON.stringify(initialTags.current.slice().sort())) {
-                    fetch(`/api/saves/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ categoryTags: localTags }) }).catch(() => {});
+                    await fetch(`/api/saves/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ categoryTags: localTags }) });
                     onTagsUpdated?.(item.id, localTags);
                     initialTags.current = [...localTags];
+                    setTagsSaved(true);
+                    setTimeout(() => setTagsSaved(false), 2000);
                   }
                 }
                 setEditingTags(e => !e);
               }}
-                style={{ fontSize: "11px", fontWeight: 600, color: "#C4664A", border: "1.5px solid #C4664A", borderRadius: "999px", padding: "3px 10px", background: "none", cursor: "pointer" }}>
-                {editingTags ? "Done" : "Edit tags"}
+                style={{ fontSize: "11px", fontWeight: 600, color: tagsSaved ? "#4a7c59" : "#C4664A", border: `1.5px solid ${tagsSaved ? "#4a7c59" : "#C4664A"}`, borderRadius: "999px", padding: "3px 10px", background: "none", cursor: "pointer" }}>
+                {tagsSaved ? "Saved" : editingTags ? "Done" : "Edit tags"}
               </button>
             </div>
             {editingTags && (

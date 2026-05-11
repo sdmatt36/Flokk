@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { X, MapPin, Sparkles, ExternalLink, ChevronDown, Check } from "lucide-react";
 import { LODGING_TYPE_LABELS, LODGING_TYPE_OPTIONS } from "@/lib/infer-lodging-type";
-import { CATEGORIES, categoryLabel } from "@/lib/categories";
+import { CATEGORIES, categoryLabel, normalizeCategorySlug } from "@/lib/categories";
 import { bucketTrips } from "@/lib/trip-phase";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { shareEntity } from "@/lib/share";
@@ -123,6 +123,7 @@ export function SaveDetailModal({
   const [justShared, setJustShared] = useState(false);
   const [localTags, setLocalTags] = useState<string[]>([]);
   const [editingTags, setEditingTags] = useState(false);
+  const [tagsSaved, setTagsSaved] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [bodyDropdownOpen, setBodyDropdownOpen] = useState(false);
   const [userRating, setUserRating] = useState<number | null>(null);
@@ -156,7 +157,8 @@ export function SaveDetailModal({
         setUserRating(data.item?.userRating ?? null);
         setLodgingType(data.item?.lodgingType ?? null);
         initialNotes.current = data.item?.notes ?? "";
-        const tags = data.item?.categoryTags ?? [];
+        const raw: string[] = data.item?.categoryTags ?? [];
+        const tags: string[] = [...new Set(raw.map((t) => normalizeCategorySlug(t) ?? t.toLowerCase().trim()).filter((t): t is string => t.length > 0))];
         setLocalTags(tags);
         initialTags.current = tags;
       });
@@ -328,23 +330,25 @@ export function SaveDetailModal({
                 <span style={{ fontSize: "12px", color: "#aaa" }}>No tags yet</span>
               )}
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (editingTags) {
                     if (item && JSON.stringify(localTags.slice().sort()) !== JSON.stringify(initialTags.current.slice().sort())) {
-                      fetch(`/api/saves/${itemId}`, {
+                      await fetch(`/api/saves/${itemId}`, {
                         method: "PATCH",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ categoryTags: localTags }),
-                      }).catch(() => {});
+                      });
                       onTagsUpdated?.(itemId, localTags);
                       initialTags.current = [...localTags];
+                      setTagsSaved(true);
+                      setTimeout(() => setTagsSaved(false), 2000);
                     }
                   }
                   setEditingTags(e => !e);
                 }}
-                style={{ fontSize: "11px", fontWeight: 600, color: "#C4664A", border: "1.5px solid #C4664A", borderRadius: "999px", padding: "3px 10px", background: "none", cursor: "pointer", flexShrink: 0 }}
+                style={{ fontSize: "11px", fontWeight: 600, color: tagsSaved ? "#4a7c59" : "#C4664A", border: `1.5px solid ${tagsSaved ? "#4a7c59" : "#C4664A"}`, borderRadius: "999px", padding: "3px 10px", background: "none", cursor: "pointer", flexShrink: 0 }}
               >
-                {editingTags ? "Done" : "Edit tags"}
+                {tagsSaved ? "Saved" : editingTags ? "Done" : "Edit tags"}
               </button>
             </div>
 
