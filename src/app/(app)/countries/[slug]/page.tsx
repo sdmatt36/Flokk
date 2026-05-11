@@ -232,7 +232,7 @@ export default async function CountryPage(
           {/* Breadcrumb */}
           <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.95)", marginBottom: "8px", textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
             <Link
-              href="/continents"
+              href="/discover"
               style={{ color: "rgba(255,255,255,0.95)", textDecoration: "none" }}
             >
               Destinations

@@ -185,8 +185,8 @@ export function CityHero({
           textShadow: "0 1px 4px rgba(0,0,0,0.7)",
         }}
       >
-        <Link href="/continents" style={{ color: "inherit", textDecoration: "none" }}>
-          Continents
+        <Link href="/discover" style={{ color: "inherit", textDecoration: "none" }}>
+          Destinations
         </Link>
         <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
         <Link href={`/continents/${continentSlug}`} style={{ color: "inherit", textDecoration: "none" }}>

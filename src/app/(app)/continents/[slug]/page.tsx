@@ -117,7 +117,7 @@ export default async function ContinentPage(
         <div className="relative z-10">
           {/* Breadcrumb */}
           <p className={`${dmsans.className} text-xs mb-3`} style={{ color: "rgba(250,247,242,0.6)" }}>
-            <Link href="/continents" style={{ color: "rgba(250,247,242,0.8)", textDecoration: "none" }}>
+            <Link href="/discover" style={{ color: "rgba(250,247,242,0.8)", textDecoration: "none" }}>
               Destinations
             </Link>
             {" › "}

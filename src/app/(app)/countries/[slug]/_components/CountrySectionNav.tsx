@@ -59,7 +59,7 @@ export function CountrySectionNav({ continentName, continentSlug, countryName }:
           flexWrap: "wrap",
         }}
       >
-        <Link href="/continents" style={{ color: "#AAAAAA", textDecoration: "none" }}>
+        <Link href="/discover" style={{ color: "#AAAAAA", textDecoration: "none" }}>
           Destinations
         </Link>
         <span>›</span>

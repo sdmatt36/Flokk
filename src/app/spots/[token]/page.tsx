@@ -87,7 +87,7 @@ export default async function SpotDetailPage({
           This spot may have been removed or the link is incorrect.
         </p>
         <Link
-          href="/continents"
+          href="/discover"
           style={{ backgroundColor: "#C4664A", color: "#fff", borderRadius: "12px", padding: "12px 28px", fontSize: "14px", fontWeight: 600, textDecoration: "none" }}
         >
           Explore destinations
@@ -110,7 +110,7 @@ export default async function SpotDetailPage({
           The owner has not made this spot public.
         </p>
         <Link
-          href="/continents"
+          href="/discover"
           style={{ backgroundColor: "#C4664A", color: "#fff", borderRadius: "12px", padding: "12px 28px", fontSize: "14px", fontWeight: 600, textDecoration: "none" }}
         >
           View public spots
