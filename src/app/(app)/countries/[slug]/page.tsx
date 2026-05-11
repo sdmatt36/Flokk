@@ -8,6 +8,9 @@ import { CountryCityGrid } from "./_components/CountryCityGrid";
 import { FilteredItinerariesSection } from "@/app/(app)/discover/_components/FilteredItinerariesSection";
 import { FilteredToursSection } from "@/app/(app)/discover/_components/FilteredToursSection";
 import { FilteredCountrySpotsSection } from "./_components/FilteredCountrySpotsSection";
+import { ScopedSearchBar } from "@/components/shared/ScopedSearchBar";
+import { LateralPeerNav } from "@/components/shared/LateralPeerNav";
+import { FlokkersAlsoLove } from "@/components/shared/FlokkersAlsoLove";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +46,7 @@ export default async function CountryPage(
       blurb: true,
       photoUrl: true,
       photoCredit: true,
+      continentId: true,
       continent: { select: { name: true, slug: true } },
       cities: {
         where: { featured: true, type: "CITY" },
@@ -70,8 +74,8 @@ export default async function CountryPage(
     spotCount: c._count.communitySpots,
   }));
 
-  // Step 2: content sections in parallel
-  const [trips, spots, tours] = await Promise.all([
+  // Step 2: content sections + sibling countries in parallel
+  const [trips, spots, tours, siblingCountries] = await Promise.all([
     db.trip.findMany({
       where: {
         isPublic: true,
@@ -135,6 +139,11 @@ export default async function CountryPage(
         },
       },
       take: 20,
+    }),
+    db.country.findMany({
+      where: { continentId: country.continentId, id: { not: country.id } },
+      orderBy: { name: "asc" },
+      select: { slug: true, name: true },
     }),
   ]);
 
@@ -324,6 +333,32 @@ export default async function CountryPage(
         countryName={country.name}
       />
 
+      {/* Search + peer nav bar */}
+      <div
+        style={{
+          maxWidth: "1080px",
+          margin: "0 auto",
+          padding: "16px 24px 0",
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          flexWrap: "wrap",
+        }}
+      >
+        <ScopedSearchBar
+          scope="country"
+          scopeId={country.id}
+          scopeName={country.name}
+        />
+        <LateralPeerNav
+          variant="dropdown"
+          peers={siblingCountries}
+          currentSlug={slug}
+          routePrefix="/countries"
+          label="Switch country"
+        />
+      </div>
+
       {/* Content */}
       <div style={{ maxWidth: "1080px", margin: "0 auto", padding: "0 24px 64px" }}>
 
@@ -388,6 +423,9 @@ export default async function CountryPage(
           tours={tourItems}
           emptyText={`No public tours yet for ${country.name}.`}
         />
+
+        {/* Flokkers also love */}
+        <FlokkersAlsoLove variant="country" entityId={country.id} />
 
       </div>
     </main>

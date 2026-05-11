@@ -5,6 +5,8 @@ import { Playfair_Display, DM_Sans } from "next/font/google";
 import { db } from "@/lib/db";
 import { CONTINENT_CONFIGS } from "@/lib/continents";
 import { CountryGrid } from "./_components/CountryGrid";
+import { ScopedSearchBar } from "@/components/shared/ScopedSearchBar";
+import { FlokkersAlsoLove } from "@/components/shared/FlokkersAlsoLove";
 
 const playfair = Playfair_Display({ subsets: ["latin"], display: "swap" });
 const dmsans = DM_Sans({ subsets: ["latin"], display: "swap" });
@@ -35,6 +37,7 @@ export default async function ContinentPage(
   const continent = await db.continent.findUnique({
     where: { slug },
     select: {
+      id: true,
       blurb: true,
       name: true,
       countries: {
@@ -151,6 +154,16 @@ export default async function ContinentPage(
         </section>
       )}
 
+      {/* Scoped search */}
+      <div className="max-w-7xl mx-auto px-6 pt-6 pb-2">
+        <ScopedSearchBar
+          scope="continent"
+          scopeId={continent.id}
+          scopeName={continent.name}
+          placeholder={`Search ${continent.name}…`}
+        />
+      </div>
+
       {/* Countries grid */}
       <section className="max-w-7xl mx-auto px-6 pb-16">
         <CountryGrid
@@ -161,8 +174,13 @@ export default async function ContinentPage(
         />
       </section>
 
+      {/* Flokkers also love */}
+      <div className="max-w-7xl mx-auto px-6 pb-8">
+        <FlokkersAlsoLove variant="continent" entityId={continent.id} />
+      </div>
+
       {/* A-Z all countries */}
-      <details className="mt-12 mx-auto max-w-5xl px-6 pb-16">
+      <details className="mt-4 mx-auto max-w-5xl px-6 pb-16">
         <summary className="cursor-pointer font-medium text-[#1B3A5C] hover:underline">
           Show all {allCountriesAZ.length} countries in {continent.name}
         </summary>

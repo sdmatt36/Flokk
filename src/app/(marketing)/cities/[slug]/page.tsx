@@ -11,6 +11,9 @@ import { CitySection } from "./_components/CitySection";
 import { SpotSection } from "./_components/SpotSection";
 import { CommunityTripCard } from "@/components/shared/cards/CommunityTripCard";
 import { TourCard } from "@/components/shared/cards/TourCard";
+import { ScopedSearchBar } from "@/components/shared/ScopedSearchBar";
+import { LateralPeerNav } from "@/components/shared/LateralPeerNav";
+import { FlokkersAlsoLove } from "@/components/shared/FlokkersAlsoLove";
 
 // ── DB ────────────────────────────────────────────────────────────────────────
 
@@ -69,7 +72,7 @@ async function loadCity(slug: string) {
       ratingCount: bigint | number;
     }
 
-    const [spots, trips, tours, ratingRows, spotCount, tripCount, tourCount, ratingCount] = await Promise.all([
+    const [spots, trips, tours, ratingRows, spotCount, tripCount, tourCount, ratingCount, siblingCities] = await Promise.all([
       db.communitySpot.findMany({
         where: { cityId: city.id },
         select: {
@@ -130,6 +133,12 @@ async function loadCity(slug: string) {
       db.trip.count({ where: { isPublic: true, shareToken: { not: null }, destinationCity: { contains: city.name, mode: "insensitive" } } }),
       db.generatedTour.count({ where: { isPublic: true, deletedAt: null, shareToken: { not: null }, destinationCity: { contains: city.name, mode: "insensitive" } } }),
       db.spotContribution.count({ where: { spot: { cityId: city.id }, rating: { not: null } } }),
+      db.city.findMany({
+        where: { countryId: city.countryId, id: { not: city.id }, featured: true },
+        orderBy: { priorityRank: "asc" },
+        take: 12,
+        select: { slug: true, name: true },
+      }),
     ]);
 
     // Build dedup map from CommunitySpot — key by slug(name) only.
@@ -193,7 +202,7 @@ async function loadCity(slug: string) {
 
     const allSpots: SpotItem[] = [...spotMap.values(), ...prOnlyMap.values()];
 
-    return { city, spots: allSpots, trips, tours, spotCount, tripCount, tourCount, ratingCount };
+    return { city, spots: allSpots, trips, tours, spotCount, tripCount, tourCount, ratingCount, siblingCities };
   } finally {
     await db.$disconnect();
   }
@@ -243,7 +252,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
   const data = await loadCity(slug);
   if (!data) notFound();
 
-  const { city, spots, trips, tours, spotCount, tripCount, tourCount, ratingCount } = data;
+  const { city, spots, trips, tours, spotCount, tripCount, tourCount, ratingCount, siblingCities } = data;
   const country = city.country;
   const continent = country.continent;
 
@@ -300,6 +309,22 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
         continentName={continent.name}
         continentSlug={continentSlug}
       />
+
+      {/* Scoped search + sibling city pills */}
+      <div style={{ maxWidth: "1080px", margin: "0 auto", padding: "16px 24px 0", display: "flex", flexDirection: "column", gap: "10px" }}>
+        <ScopedSearchBar
+          scope="city"
+          scopeId={city.id}
+          scopeName={city.name}
+        />
+        <LateralPeerNav
+          variant="pills"
+          peers={siblingCities}
+          currentSlug={slug}
+          routePrefix="/cities"
+          label="Also in this country"
+        />
+      </div>
 
       <div style={{ maxWidth: "1080px", margin: "0 auto", padding: "0 24px 80px" }}>
         {/* Itineraries */}
@@ -379,6 +404,9 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
           filterField="lodgingType"
           addHref={`/saves?city=${encodeURIComponent(city.name)}&category=lodging`}
         />
+
+        {/* Flokkers also love */}
+        <FlokkersAlsoLove variant="city" entityId={city.id} />
 
       </div>
     </>
