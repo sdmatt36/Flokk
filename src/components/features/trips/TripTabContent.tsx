@@ -6540,9 +6540,30 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
         ...itinRated.map(i => i.title.toLowerCase()),
         ...saveItems.map(i => i.title.toLowerCase()),
       ]);
-      const manualItems: HowWasItItem[] = ((manualData as { id: string; title: string }[]) ?? [])
+      // Keyed by SavedItem.id — includes items the saveItems filter excluded (e.g. lodging).
+      // Used so ManualActivities with a paired savedItemId can read the canonical userRating.
+      const allSavesById = new Map<string, { userRating?: number | null; notes?: string | null }>(
+        ((savesData.saves ?? []) as { id: string; userRating?: number | null; notes?: string | null }[]).map(s => [s.id, s])
+      );
+      const manualItems: HowWasItItem[] = ((manualData as { id: string; title: string; savedItemId?: string | null }[]) ?? [])
         .filter(m => !existingTitles.has(m.title.toLowerCase()))
         .map(m => {
+          // If this ManualActivity has a paired SavedItem, always use the save-kind path.
+          // This ensures How Was It and SaveDetailModal share the same userRating field.
+          if (m.savedItemId) {
+            const matched = allSavesById.get(m.savedItemId);
+            return {
+              id: m.id,
+              title: m.title,
+              type: "ACTIVITY",
+              itemKind: "save" as const,
+              rating: matched?.userRating ?? 0,
+              notes: matched?.notes ?? "",
+              wouldReturn: null,
+              alreadySaved: matched?.userRating != null,
+              savedItemId: m.savedItemId,
+            };
+          }
           const existing = ratingByManualId.get(m.id);
           return {
             id: m.id,
