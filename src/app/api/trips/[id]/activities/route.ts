@@ -87,7 +87,7 @@ export async function POST(
 
   // Calculate dayIndex (0-indexed, timezone-safe) from trip startDate
   let dayIndex: number | null = null;
-  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, destinationCity: true, destinationCountry: true } });
+  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, destinationCity: true, destinationCountry: true, familyProfileId: true } });
   if (trip?.startDate) {
     const rawStart = new Date(trip.startDate);
     const shiftedStart = new Date(rawStart.getTime() + 12 * 60 * 60 * 1000);
@@ -168,8 +168,8 @@ export async function POST(
   // City resolution for multi-city trip community spot attribution.
   // Populates ManualActivity.city so writeThroughCommunitySpot gets the physical city
   // instead of falling through to trip.destinationCity (which caused Busan→Seoul mis-tagging).
+  let resolvedCity: string | null = null;
   {
-    let resolvedCity: string | null = null;
 
     // Path 1: reverse-geocode from lat/lng — most accurate for multi-city trips
     if (lat !== null && lng !== null) {
@@ -200,11 +200,53 @@ export async function POST(
     }
   }
 
+  // Create paired SavedItem so ManualActivity appears on Saves page and supports categoryTags.
+  // Done after city resolution so destinationCity is accurate for multi-city trips.
+  let pairedSavedItemId: string | null = null;
+  if (trip?.familyProfileId) {
+    const cityForSaved = resolvedCity ?? trip.destinationCity ?? null;
+    const initTags = resolvedType ? [resolvedType] : [];
+    try {
+      const savedItem = await db.savedItem.create({
+        data: {
+          familyProfileId: trip.familyProfileId,
+          tripId,
+          rawTitle: title,
+          dayIndex,
+          lat: lat ?? null,
+          lng: lng ?? null,
+          notes: notes ?? null,
+          websiteUrl: activityEnrichedWebsite ?? (typeof website === "string" ? website : null) ?? null,
+          placePhotoUrl: activityEnrichedImageUrl ?? sanitizedImageUrl ?? null,
+          destinationCity: cityForSaved,
+          destinationCountry: trip.destinationCountry ?? null,
+          categoryTags: initTags,
+          status: "TRIP_ASSIGNED",
+          sourceMethod: "manual_activity",
+        },
+        select: { id: true },
+      });
+      pairedSavedItemId = savedItem.id;
+      await db.manualActivity.update({
+        where: { id: activity.id },
+        data: { savedItemId: pairedSavedItemId },
+      });
+    } catch (e) {
+      console.error("[activities POST] failed to create paired SavedItem:", e);
+    }
+  }
+
   // Classify activity type (fire-and-forget) — skip if user explicitly selected a category
   if (!resolvedType) {
     classifyActivityType(activity.title, activity.venueName, activity.address)
       .then((type) => {
         db.manualActivity.update({ where: { id: activity.id }, data: { type } }).catch(() => {});
+        if (pairedSavedItemId) {
+          db.savedItem.update({
+            where: { id: pairedSavedItemId },
+            data: { categoryTags: { set: [type] } },
+          }).catch(() => {});
+        }
       })
       .catch(() => {});
   }
@@ -231,5 +273,6 @@ export async function POST(
     ...activity,
     imageUrl: activityEnrichedImageUrl ?? activity.imageUrl,
     website: activityEnrichedWebsite ?? activity.website,
+    savedItemId: pairedSavedItemId,
   }, { status: 201 });
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { normalizeCategorySlug } from "@/lib/categories";
+import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 
 async function getCityForDay(tripId: string, dayDate: string): Promise<string> {
   const lodging = await db.itineraryItem.findFirst({
@@ -87,6 +88,8 @@ export async function PATCH(
     }
   }
 
+  const resolvedNewType = clientType !== undefined ? (normalizeCategorySlug(clientType) ?? clientType) : undefined;
+
   const updated = await db.manualActivity.update({
     where: { id: activityId },
     data: {
@@ -104,10 +107,40 @@ export async function PATCH(
       ...(notes !== undefined && { notes: notes ?? null }),
       ...(status !== undefined && { status }),
       ...(confirmationCode !== undefined && { confirmationCode: confirmationCode ?? null }),
-      ...(clientType !== undefined && { type: normalizeCategorySlug(clientType) ?? clientType }),
+      ...(resolvedNewType !== undefined && { type: resolvedNewType }),
       ...(body.sortOrder !== undefined && { sortOrder: body.sortOrder }),
     },
+    select: {
+      id: true, tripId: true, title: true, date: true, time: true, endTime: true,
+      venueName: true, address: true, lat: true, lng: true, website: true, price: true,
+      currency: true, notes: true, status: true, confirmationCode: true, city: true,
+      type: true, imageUrl: true, dayIndex: true, sortOrder: true, tourId: true,
+      deletedAt: true, createdAt: true, shareToken: true, savedItemId: true,
+    },
   });
+
+  // Forward categoryTags and/or type changes to the paired SavedItem.
+  // categoryTags is the canonical multi-category write path.
+  // type change also syncs so both models stay consistent.
+  if (updated.savedItemId) {
+    const savedItemUpdate: Record<string, unknown> = {};
+    if (Array.isArray(body.categoryTags)) {
+      const normalized = normalizeAndDedupeCategoryTags(
+        (body.categoryTags as string[]).map((t) => normalizeCategorySlug(t) ?? t)
+      );
+      savedItemUpdate.categoryTags = { set: normalized };
+    } else if (resolvedNewType !== undefined) {
+      savedItemUpdate.categoryTags = { set: [resolvedNewType] };
+    }
+    if (notes !== undefined) savedItemUpdate.notes = notes ?? null;
+    if (title !== undefined) savedItemUpdate.rawTitle = title;
+    if (Object.keys(savedItemUpdate).length > 0) {
+      db.savedItem.update({
+        where: { id: updated.savedItemId },
+        data: savedItemUpdate,
+      }).catch((e) => console.error("[PATCH activity] SavedItem sync failed:", e));
+    }
+  }
 
   // Increment budgetSpent if a cost was provided and currency matches trip's budgetCurrency
   if (price) {

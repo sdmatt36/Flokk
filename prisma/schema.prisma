@@ -412,6 +412,7 @@ model SavedItem {
   eventSourceEventId       String?
   shareToken               String?   @unique
   lodgingType              String?   // hotel | vacation_rental | bnb | cruise_ship | campsite | motel | resort | other
+  manualActivity           ManualActivity? @relation("ManualActivitySavedItem")
 
   @@index([communitySpotId])
   @@index([tourId])
@@ -777,9 +778,12 @@ model ManualActivity {
   deletedAt        DateTime?
   createdAt        DateTime @default(now())
   shareToken       String?  @unique
+  savedItemId      String?   @unique
+  savedItem        SavedItem? @relation("ManualActivitySavedItem", fields: [savedItemId], references: [id], onDelete: SetNull)
 
   @@index([tourId])
   @@index([deletedAt])
+  @@index([savedItemId])
 }
 
 // =============================================================================

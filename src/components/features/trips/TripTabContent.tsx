@@ -160,6 +160,8 @@ type Activity = {
   lat?: number | null;
   lng?: number | null;
   type?: string | null;
+  savedItemId?: string | null;
+  categoryTags?: string[];
 };
 
 // Disabled until Phase B web-search-Haiku adapter ships. TheSportsDB free tier
@@ -3465,8 +3467,15 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                       {/* Activity card */}
                                       {item.itemType === "activity" && item.activity && (() => {
                                         const a = item.activity;
+                                        const handleActivityClick = () => {
+                                          if (a.savedItemId) {
+                                            setDetailItemId(a.savedItemId);
+                                          } else {
+                                            setDetailActivity(a);
+                                          }
+                                        };
                                         return (
-                                          <div onClick={() => setDetailActivity(a)} style={{ flex: 1, display: "flex", gap: "10px", alignItems: "flex-start", backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: "12px", padding: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", cursor: "pointer" }}>
+                                          <div onClick={handleActivityClick} style={{ flex: 1, display: "flex", gap: "10px", alignItems: "flex-start", backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderRadius: "12px", padding: "12px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)", cursor: "pointer" }}>
                                             <div style={{ width: "26px", height: "26px", borderRadius: "50%", backgroundColor: "rgba(107,143,113,0.1)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                                               <Compass size={12} style={{ color: "#6B8F71" }} />
                                             </div>
