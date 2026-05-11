@@ -5,7 +5,7 @@ import { Playfair_Display } from "next/font/google";
 import { QuickAddModal } from "@/components/shared/QuickAddModal";
 import { useUser } from "@clerk/nextjs";
 import { CommunitySpotCard } from "@/components/shared/cards/CommunitySpotCard";
-import { CommunitySpotDetailPanel } from "@/components/shared/cards/CommunitySpotDetailPanel";
+import { ItemDetailModal } from "@/components/shared/ItemDetailModal";
 import { AddToItineraryProvider } from "@/components/features/places/AddToItineraryProvider";
 import { buildSaveStatusMap } from "@/lib/save-status-map";
 import type { EntityStatusResult } from "@/lib/entity-status";
@@ -310,44 +310,14 @@ export function SpotSection({
           const panelKey = `${openSpot.name.toLowerCase().trim()}|${cityName.toLowerCase().trim()}`;
           const panelStatus = userSaveStatusMap.get(panelKey) ?? null;
           const panelSaved = savedIds.has(openSpot.id) || (!!panelStatus && panelStatus.status !== "saved");
-          const panelRating = openSpot.averageRating !== null ? Math.round(openSpot.averageRating) : null;
           return (
-            <CommunitySpotDetailPanel
-              spot={{
-                id: openSpot.id,
-                title: openSpot.name,
-                city: cityName,
-                photoUrl: openSpot.photoUrl,
-                category: openSpot.category,
-                rating: panelRating,
-                ratingCount: openSpot.ratingCount,
-                description: openSpot.description,
-                websiteUrl: openSpot.websiteUrl ?? null,
-                lat: openSpot.lat ?? null,
-                lng: openSpot.lng ?? null,
-                contributorName: openSpot.contributorName ?? null,
-              }}
-              isSaved={panelSaved}
-              saveStatus={panelStatus}
-              userRating={userSpotRatings.get(panelKey) ?? null}
+            <ItemDetailModal
+              entityType="CommunitySpot"
+              id={openSpot.id}
+              open={true}
               onClose={() => setOpenSpot(null)}
-              onFlokkIt={async () => {
-                try {
-                  await fetch("/api/saves/from-share", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      title: openSpot.name,
-                      city: cityName,
-                      placePhotoUrl: openSpot.photoUrl ?? "",
-                      websiteUrl: openSpot.websiteUrl ?? "",
-                      tripId: null,
-                    }),
-                  });
-                  setSavedIds((prev) => new Set(prev).add(openSpot.id));
-                  setOpenSpot(null);
-                } catch {}
-              }}
+              initialIsSaved={panelSaved}
+              onSaved={(id) => setSavedIds((prev) => new Set(prev).add(id))}
               onShareToast={(msg) => { setShareToast(msg); setTimeout(() => setShareToast(null), 3000); }}
               showAddToItinerary={!!isSignedIn}
             />

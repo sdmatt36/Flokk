@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { CommunitySpotCard } from "@/components/shared/cards/CommunitySpotCard";
-import { CommunitySpotDetailPanel } from "@/components/shared/cards/CommunitySpotDetailPanel";
+import { ItemDetailModal } from "@/components/shared/ItemDetailModal";
 
 export type PickSpot = {
   id: string;
@@ -23,7 +23,7 @@ export type PickSpot = {
 };
 
 export function PicksGrid({ spots }: { spots: PickSpot[] }) {
-  const [openSpot, setOpenSpot] = useState<PickSpot | null>(null);
+  const [openSpotId, setOpenSpotId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
   async function handleFlokkIt(spot: PickSpot) {
@@ -42,6 +42,8 @@ export function PicksGrid({ spots }: { spots: PickSpot[] }) {
     });
     setSavedIds((prev) => new Set(prev).add(spot.id));
   }
+
+  const openSpot = openSpotId ? spots.find((s) => s.id === openSpotId) ?? null : null;
 
   return (
     <>
@@ -65,40 +67,21 @@ export function PicksGrid({ spots }: { spots: PickSpot[] }) {
               shareToken: spot.shareToken,
             }}
             isSaved={savedIds.has(spot.id)}
-            onClickCard={() => setOpenSpot(spot)}
+            onClickCard={() => setOpenSpotId(spot.id)}
             onFlokkIt={() => handleFlokkIt(spot)}
           />
         ))}
       </div>
 
-      {openSpot && (
-        <CommunitySpotDetailPanel
-          spot={{
-            id: openSpot.id,
-            title: openSpot.name,
-            city: openSpot.city,
-            photoUrl: openSpot.photoUrl,
-            category: openSpot.category,
-            rating: openSpot.averageRating !== null ? Math.round(openSpot.averageRating) : null,
-            ratingCount: openSpot.ratingCount,
-            description: openSpot.description,
-            websiteUrl: openSpot.websiteUrl,
-            lat: openSpot.lat,
-            lng: openSpot.lng,
-            contributorName: openSpot.contributorName ?? null,
-            shareToken: openSpot.shareToken,
-          }}
-          isSaved={savedIds.has(openSpot.id)}
-          saveStatus={null}
-          userRating={null}
-          onClose={() => setOpenSpot(null)}
-          onFlokkIt={async () => {
-            await handleFlokkIt(openSpot);
-            setOpenSpot(null);
-          }}
-          showAddToItinerary={true}
-        />
-      )}
+      <ItemDetailModal
+        entityType="CommunitySpot"
+        id={openSpotId ?? ""}
+        open={!!openSpotId}
+        onClose={() => setOpenSpotId(null)}
+        initialIsSaved={openSpot ? savedIds.has(openSpot.id) : false}
+        onSaved={(id) => setSavedIds((prev) => new Set(prev).add(id))}
+        showAddToItinerary={true}
+      />
     </>
   );
 }

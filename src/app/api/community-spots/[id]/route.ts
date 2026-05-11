@@ -5,6 +5,38 @@ import { resolveProfileId } from "@/lib/profile-access";
 import { isAdmin } from "@/lib/admin";
 import { normalizeCategorySlug } from "@/lib/categories";
 
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const spot = await db.communitySpot.findUnique({
+    where: { id },
+    include: { author: { select: { familyName: true } } },
+  });
+  if (!spot || !spot.isPublic) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+  return NextResponse.json({
+    spot: {
+      id: spot.id,
+      name: spot.name,
+      city: spot.city,
+      country: spot.country ?? null,
+      photoUrl: spot.photoUrl ?? null,
+      category: spot.category ?? null,
+      description: spot.description ?? null,
+      averageRating: spot.averageRating ?? null,
+      ratingCount: spot.ratingCount,
+      websiteUrl: spot.websiteUrl ?? null,
+      lat: spot.lat ?? null,
+      lng: spot.lng ?? null,
+      shareToken: spot.shareToken ?? null,
+      contributorName: spot.author?.familyName ?? null,
+    },
+  });
+}
+
 export const dynamic = "force-dynamic";
 
 const EDITABLE_FIELDS = ["name", "city", "category", "description", "photoUrl", "websiteUrl"] as const;
