@@ -1514,6 +1514,24 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
     if (result.ok) { if (shareToastTimer.current) clearTimeout(shareToastTimer.current); setShareToast(true); shareToastTimer.current = setTimeout(() => setShareToast(false), 2000); }
   }
 
+  const allSaveItems = useMemo(
+    () => [...leftSections, ...rightSections].flatMap((s) => s.items),
+    [leftSections, rightSections]
+  );
+
+  const categoryFilterChips = useMemo(() => {
+    const chips: Array<{ slug: string; label: string; count: number }> = CATEGORIES
+      .map((c) => ({
+        slug: c.slug as string,
+        label: c.label,
+        count: allSaveItems.filter((itm) => matchesCategory(itm.categoryTags ?? [], c.slug)).length,
+      }))
+      .filter((c) => c.count > 0);
+    const unorganizedCount = allSaveItems.filter((itm) => !itm.categoryTags || itm.categoryTags.length === 0).length;
+    if (unorganizedCount > 0) chips.push({ slug: "Unorganized", label: "Unorganized", count: unorganizedCount });
+    return chips;
+  }, [allSaveItems]);
+
   function renderSection(section: { category: string; items: SavedDisplayItem[] }) {
     return (
       <div key={section.category} style={{ marginBottom: "20px" }}>
@@ -1604,24 +1622,6 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
       </>
     );
   }
-
-  const allSaveItems = useMemo(
-    () => [...leftSections, ...rightSections].flatMap((s) => s.items),
-    [leftSections, rightSections]
-  );
-
-  const categoryFilterChips = useMemo(() => {
-    const chips: Array<{ slug: string; label: string; count: number }> = CATEGORIES
-      .map((c) => ({
-        slug: c.slug as string,
-        label: c.label,
-        count: allSaveItems.filter((itm) => matchesCategory(itm.categoryTags ?? [], c.slug)).length,
-      }))
-      .filter((c) => c.count > 0);
-    const unorganizedCount = allSaveItems.filter((itm) => !itm.categoryTags || itm.categoryTags.length === 0).length;
-    if (unorganizedCount > 0) chips.push({ slug: "Unorganized", label: "Unorganized", count: unorganizedCount });
-    return chips;
-  }, [allSaveItems]);
 
   const filterSaveItem = (itm: SavedDisplayItem): boolean => {
     if (activeFilter === null) return true;
