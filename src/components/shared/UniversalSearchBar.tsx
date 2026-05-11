@@ -21,23 +21,23 @@ type FlatResult = { key: string; url: string; label: string; subtitle: string; p
 function buildFlatResults(results: SearchResults | null): FlatResult[] {
   if (!results) return [];
   const flat: FlatResult[] = [];
-  for (const c of results.cities) {
+  for (const c of (results.cities ?? [])) {
     flat.push({ key: `city-${c.id}`, url: `/cities/${c.slug}`, label: c.name, subtitle: c.countryName, photoUrl: c.photoUrl });
   }
-  for (const c of results.countries) {
+  for (const c of (results.countries ?? [])) {
     flat.push({ key: `country-${c.id}`, url: `/countries/${c.slug}`, label: c.name, subtitle: c.continentName, photoUrl: c.photoUrl });
   }
-  for (const c of results.continents) {
+  for (const c of (results.continents ?? [])) {
     flat.push({ key: `continent-${c.id}`, url: `/continents/${c.slug}`, label: c.name, subtitle: "Continent", photoUrl: null });
   }
-  for (const p of results.picks) {
+  for (const p of (results.picks ?? [])) {
     const catLabel = CATEGORIES.find((cat) => cat.slug === p.category)?.label ?? p.category ?? "";
     flat.push({ key: `pick-${p.id}`, url: p.shareToken ? `/spots/${p.shareToken}` : "#", label: p.name, subtitle: [p.city, catLabel].filter(Boolean).join(" · "), photoUrl: p.photoUrl });
   }
-  for (const t of results.itineraries) {
+  for (const t of (results.itineraries ?? [])) {
     flat.push({ key: `itin-${t.id}`, url: t.shareToken ? `/share/${t.shareToken}` : "#", label: t.title, subtitle: t.destinationCity ?? "", photoUrl: t.heroImageUrl });
   }
-  for (const t of results.tours) {
+  for (const t of (results.tours ?? [])) {
     flat.push({ key: `tour-${t.id}`, url: t.shareToken ? `/s/${t.shareToken}` : "#", label: t.title, subtitle: t.destinationCity, photoUrl: t.photoUrl });
   }
   return flat;
@@ -164,18 +164,18 @@ export function SearchDropdownPanel({
 function buildSections(results: SearchResults | null): { heading: string; items: FlatResult[] }[] {
   if (!results) return [];
   const sections: { heading: string; items: FlatResult[] }[] = [];
-  if (results.cities.length > 0)
-    sections.push({ heading: "Cities", items: results.cities.map((c) => ({ key: `city-${c.id}`, url: `/cities/${c.slug}`, label: c.name, subtitle: c.countryName, photoUrl: c.photoUrl })) });
-  if (results.countries.length > 0)
-    sections.push({ heading: "Countries", items: results.countries.map((c) => ({ key: `country-${c.id}`, url: `/countries/${c.slug}`, label: c.name, subtitle: c.continentName, photoUrl: c.photoUrl })) });
-  if ("continents" in results && (results as SearchResults & { continents?: { id: string; slug: string; name: string }[] }).continents?.length)
-    sections.push({ heading: "Continents", items: ((results as SearchResults & { continents: { id: string; slug: string; name: string }[] }).continents).map((c) => ({ key: `continent-${c.id}`, url: `/continents/${c.slug}`, label: c.name, subtitle: "Continent", photoUrl: null })) });
-  if (results.picks.length > 0)
-    sections.push({ heading: "Picks", items: results.picks.map((p) => ({ key: `pick-${p.id}`, url: p.shareToken ? `/spots/${p.shareToken}` : "#", label: p.name, subtitle: [p.city, categoryLabel(p.category)].filter(Boolean).join(" · "), photoUrl: p.photoUrl })) });
-  if (results.itineraries.length > 0)
-    sections.push({ heading: "Itineraries", items: results.itineraries.map((t) => ({ key: `itin-${t.id}`, url: t.shareToken ? `/share/${t.shareToken}` : "#", label: t.title, subtitle: t.destinationCity ?? "", photoUrl: t.heroImageUrl })) });
-  if (results.tours.length > 0)
-    sections.push({ heading: "Tours", items: results.tours.map((t) => ({ key: `tour-${t.id}`, url: t.shareToken ? `/s/${t.shareToken}` : "#", label: t.title, subtitle: t.destinationCity, photoUrl: t.photoUrl })) });
+  if ((results.cities ?? []).length > 0)
+    sections.push({ heading: "Cities", items: (results.cities ?? []).map((c) => ({ key: `city-${c.id}`, url: `/cities/${c.slug}`, label: c.name, subtitle: c.countryName, photoUrl: c.photoUrl })) });
+  if ((results.countries ?? []).length > 0)
+    sections.push({ heading: "Countries", items: (results.countries ?? []).map((c) => ({ key: `country-${c.id}`, url: `/countries/${c.slug}`, label: c.name, subtitle: c.continentName, photoUrl: c.photoUrl })) });
+  if ((results.continents ?? []).length > 0)
+    sections.push({ heading: "Continents", items: (results.continents ?? []).map((c) => ({ key: `continent-${c.id}`, url: `/continents/${c.slug}`, label: c.name, subtitle: "Continent", photoUrl: null })) });
+  if ((results.picks ?? []).length > 0)
+    sections.push({ heading: "Picks", items: (results.picks ?? []).map((p) => ({ key: `pick-${p.id}`, url: p.shareToken ? `/spots/${p.shareToken}` : "#", label: p.name, subtitle: [p.city, categoryLabel(p.category)].filter(Boolean).join(" · "), photoUrl: p.photoUrl })) });
+  if ((results.itineraries ?? []).length > 0)
+    sections.push({ heading: "Itineraries", items: (results.itineraries ?? []).map((t) => ({ key: `itin-${t.id}`, url: t.shareToken ? `/share/${t.shareToken}` : "#", label: t.title, subtitle: t.destinationCity ?? "", photoUrl: t.heroImageUrl })) });
+  if ((results.tours ?? []).length > 0)
+    sections.push({ heading: "Tours", items: (results.tours ?? []).map((t) => ({ key: `tour-${t.id}`, url: t.shareToken ? `/s/${t.shareToken}` : "#", label: t.title, subtitle: t.destinationCity, photoUrl: t.photoUrl })) });
   return sections;
 }
 
@@ -317,6 +317,12 @@ export function UniversalSearchBar() {
         <Search size={14} style={{ color: "#94A3B8", flexShrink: 0 }} />
         <input
           ref={inputRef}
+          type="search"
+          name="flokk-search-universal"
+          autoComplete="off"
+          data-1p-ignore
+          data-lpignore="true"
+          spellCheck={false}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => { setIsFocused(true); setIsOpen(true); }}

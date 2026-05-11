@@ -269,6 +269,7 @@ export async function GET(req: Request) {
         ? {
             cities: shapeCities(fallback.cities),
             countries: shapeCountries(fallback.countries),
+            continents: [],
             picks: shapePicks(fallback.picks),
             itineraries: shapeItins(fallback.itineraries),
             tours: shapeTours(fallback.tours),

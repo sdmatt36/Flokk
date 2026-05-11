@@ -23,17 +23,17 @@ function buildFlatResults(results: SearchResults | null): FlatResult[] {
   const catLabel = (slug: string | null | undefined) =>
     CATEGORIES.find((c) => c.slug === slug)?.label ?? slug ?? "";
 
-  for (const c of results.cities)
+  for (const c of (results.cities ?? []))
     flat.push({ key: `city-${c.id}`, url: `/cities/${c.slug}`, label: c.name, subtitle: c.countryName, photoUrl: c.photoUrl });
-  for (const c of results.countries)
+  for (const c of (results.countries ?? []))
     flat.push({ key: `country-${c.id}`, url: `/countries/${c.slug}`, label: c.name, subtitle: c.continentName, photoUrl: c.photoUrl });
-  for (const c of results.continents)
+  for (const c of (results.continents ?? []))
     flat.push({ key: `continent-${c.id}`, url: `/continents/${c.slug}`, label: c.name, subtitle: "Continent", photoUrl: null });
-  for (const p of results.picks)
+  for (const p of (results.picks ?? []))
     flat.push({ key: `pick-${p.id}`, url: p.shareToken ? `/spots/${p.shareToken}` : "#", label: p.name, subtitle: [p.city, catLabel(p.category)].filter(Boolean).join(" · "), photoUrl: p.photoUrl });
-  for (const t of results.itineraries)
+  for (const t of (results.itineraries ?? []))
     flat.push({ key: `itin-${t.id}`, url: t.shareToken ? `/share/${t.shareToken}` : "#", label: t.title, subtitle: t.destinationCity ?? "", photoUrl: t.heroImageUrl });
-  for (const t of results.tours)
+  for (const t of (results.tours ?? []))
     flat.push({ key: `tour-${t.id}`, url: t.shareToken ? `/s/${t.shareToken}` : "#", label: t.title, subtitle: t.destinationCity, photoUrl: t.photoUrl });
   return flat;
 }
@@ -153,6 +153,12 @@ export function ScopedSearchBar({ scope, scopeId, scopeName, placeholder }: Prop
         <Search size={14} style={{ color: "#94A3B8", flexShrink: 0 }} />
         <input
           ref={inputRef}
+          type="search"
+          name="flokk-search-scoped"
+          autoComplete="off"
+          data-1p-ignore
+          data-lpignore="true"
+          spellCheck={false}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => { setIsFocused(true); setIsOpen(true); }}
