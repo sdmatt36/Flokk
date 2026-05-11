@@ -10,6 +10,7 @@ import { AddToItineraryProvider } from "@/components/features/places/AddToItiner
 import { buildSaveStatusMap } from "@/lib/save-status-map";
 import type { EntityStatusResult } from "@/lib/entity-status";
 import { CATEGORIES } from "@/lib/categories";
+import { CategoryFilterChips } from "@/components/shared/CategoryFilterChips";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700"] });
 
@@ -220,36 +221,16 @@ export function SpotSection({
         ) : (
           <>
             {showChips && (
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
-                <button
-                  onClick={() => { setSelectedFilter(null); setExpanded(false); }}
-                  style={{
-                    fontSize: "12px", padding: "4px 12px", borderRadius: "20px",
-                    border: `1px solid ${selectedFilter === null ? "#C4664A" : "#E5E7EB"}`,
-                    backgroundColor: selectedFilter === null ? "#FFF3EE" : "#fff",
-                    color: selectedFilter === null ? "#C4664A" : "#666",
-                    fontWeight: selectedFilter === null ? 600 : 400,
-                    cursor: "pointer",
-                  }}
-                >
-                  All
-                </button>
-                {uniqueValues.map(([value, count]) => (
-                  <button
-                    key={value}
-                    onClick={() => { setSelectedFilter(selectedFilter === value ? null : value); setExpanded(false); }}
-                    style={{
-                      fontSize: "12px", padding: "4px 12px", borderRadius: "20px",
-                      border: `1px solid ${selectedFilter === value ? "#C4664A" : "#E5E7EB"}`,
-                      backgroundColor: selectedFilter === value ? "#FFF3EE" : "#fff",
-                      color: selectedFilter === value ? "#C4664A" : "#666",
-                      fontWeight: selectedFilter === value ? 600 : 400,
-                      cursor: "pointer",
-                    }}
-                  >
-                    {formatFilterLabel(value, filterField)} ({count})
-                  </button>
-                ))}
+              <div style={{ marginBottom: "12px" }}>
+                <CategoryFilterChips
+                  selected={selectedFilter}
+                  available={uniqueValues.map(([value, count]) => ({
+                    slug: value,
+                    label: formatFilterLabel(value, filterField),
+                    count,
+                  }))}
+                  onSelect={(s) => { setSelectedFilter(s); setExpanded(false); }}
+                />
               </div>
             )}
 

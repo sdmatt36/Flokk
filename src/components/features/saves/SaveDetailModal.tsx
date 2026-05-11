@@ -5,7 +5,8 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { X, MapPin, Sparkles, ExternalLink, ChevronDown, Check } from "lucide-react";
 import { LODGING_TYPE_LABELS, LODGING_TYPE_OPTIONS } from "@/lib/infer-lodging-type";
-import { CATEGORIES, categoryLabel, normalizeCategorySlug } from "@/lib/categories";
+import { categoryLabel, normalizeCategorySlug } from "@/lib/categories";
+import { CategoryEditor } from "@/components/shared/CategoryEditor";
 import { bucketTrips } from "@/lib/trip-phase";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { shareEntity } from "@/lib/share";
@@ -124,7 +125,6 @@ export function SaveDetailModal({
   const [justShared, setJustShared] = useState(false);
   const [localTags, setLocalTags] = useState<string[]>([]);
   const [editingTags, setEditingTags] = useState(false);
-  const [tagsSaved, setTagsSaved] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [bodyDropdownOpen, setBodyDropdownOpen] = useState(false);
   const [userRating, setUserRating] = useState<number | null>(null);
@@ -135,7 +135,6 @@ export function SaveDetailModal({
   const [urlError, setUrlError] = useState("");
   const [showPastTrips, setShowPastTrips] = useState(false);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const tagSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localTagsRef = useRef<string[]>([]);
   const initialNotes = useRef("");
   const initialTags = useRef<string[]>([]);
@@ -214,27 +213,6 @@ export function SaveDetailModal({
     onClose();
   }
 
-  function toggleTag(tag: string) {
-    const current = localTagsRef.current;
-    const newTags = current.includes(tag) ? current.filter(t => t !== tag) : [...current, tag];
-    localTagsRef.current = newTags;
-    setLocalTags(newTags);
-    // Auto-save: debounce 600ms so rapid multi-select sends one request
-    if (tagSaveTimer.current) clearTimeout(tagSaveTimer.current);
-    tagSaveTimer.current = setTimeout(() => {
-      const toSave = localTagsRef.current;
-      fetch(`/api/saves/${itemId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ categoryTags: toSave }),
-      }).then(() => {
-        initialTags.current = toSave;
-        onTagsUpdated?.(itemId, toSave);
-        setTagsSaved(true);
-        setTimeout(() => setTagsSaved(false), 2000);
-      }).catch(() => {});
-    }, 600);
-  }
 
   const tags = localTags;
   const gradient = getGradient(tags);
@@ -345,17 +323,17 @@ export function SaveDetailModal({
             {/* Tags + source */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "6px", alignItems: "center" }}>
               {tags.length > 0 ? tags.map(tag => (
-                <button key={tag} onClick={() => toggleTag(tag)} style={{ fontSize: "11px", fontWeight: 600, background: "#C4664A", color: "#fff", borderRadius: "999px", padding: "3px 10px", border: "none", cursor: "pointer" }}>
+                <span key={tag} style={{ fontSize: "11px", fontWeight: 600, background: "#C4664A", color: "#fff", borderRadius: "999px", padding: "3px 10px" }}>
                   {categoryLabel(tag) || tag}
-                </button>
+                </span>
               )) : (
                 <span style={{ fontSize: "12px", color: "#aaa" }}>No tags yet</span>
               )}
               <button
                 onClick={() => setEditingTags(e => !e)}
-                style={{ fontSize: "11px", fontWeight: 600, color: tagsSaved ? "#4a7c59" : "#C4664A", border: `1.5px solid ${tagsSaved ? "#4a7c59" : "#C4664A"}`, borderRadius: "999px", padding: "3px 10px", background: "none", cursor: "pointer", flexShrink: 0 }}
+                style={{ fontSize: "11px", fontWeight: 600, color: "#C4664A", border: "1.5px solid #C4664A", borderRadius: "999px", padding: "3px 10px", background: "none", cursor: "pointer", flexShrink: 0 }}
               >
-                {tagsSaved ? "Saved ✓" : editingTags ? "Done" : "Edit tags"}
+                {editingTags ? "Done" : "Edit tags"}
               </button>
             </div>
 
@@ -363,31 +341,19 @@ export function SaveDetailModal({
             {editingTags && (
               <div style={{ marginBottom: "12px", padding: "12px", backgroundColor: "#FAFAFA", borderRadius: "10px", border: "1px solid rgba(0,0,0,0.08)" }}>
                 <p style={{ fontSize: "11px", color: "#999", marginBottom: "8px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Tap to toggle</p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {CATEGORIES.map(({ slug, label }) => {
-                    const active = tags.includes(slug);
-                    return (
-                      <button
-                        key={slug}
-                        onClick={() => toggleTag(slug)}
-                        style={{
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          padding: "5px 12px",
-                          borderRadius: "999px",
-                          border: "1.5px solid",
-                          borderColor: active ? "#C4664A" : "#D0D0D0",
-                          backgroundColor: active ? "#C4664A" : "#fff",
-                          color: active ? "#fff" : "#666",
-                          cursor: "pointer",
-                          transition: "all 0.12s ease",
-                        }}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
+                <CategoryEditor
+                  value={localTags}
+                  onChange={(next) => { localTagsRef.current = next; setLocalTags(next); }}
+                  onSave={async (final) => {
+                    await fetch(`/api/saves/${itemId}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ categoryTags: final }),
+                    });
+                    initialTags.current = final;
+                    onTagsUpdated?.(itemId, final);
+                  }}
+                />
               </div>
             )}
 

@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { X } from "lucide-react";
 import { SpotImage } from "@/components/shared/SpotImage";
 import { PlaceActionRow } from "@/components/features/places/PlaceActionRow";
-import { CATEGORIES } from "@/lib/categories";
+import { CategoryBadges } from "@/components/shared/CategoryBadges";
 import type { EntityStatusResult } from "@/lib/entity-status";
 import type { CommunitySpotCardSpot } from "./CommunitySpotCard";
 
@@ -70,14 +70,11 @@ export function CommunitySpotDetailPanel({
           </button>
           <p style={{ fontSize: "11px", color: "#AAAAAA", marginBottom: "4px" }}>{spot.city ?? ""}</p>
           <p style={{ fontSize: "18px", fontWeight: 700, color: "#1B3A5C", marginBottom: "8px", lineHeight: 1.3, paddingRight: "32px" }}>{spot.title}</p>
-          {spot.category && (() => {
-            const catLabel = CATEGORIES.find((c) => c.slug === spot.category)?.label ?? spot.category;
-            return (
-              <span style={{ display: "inline-block", fontSize: "11px", fontWeight: 700, backgroundColor: "#C4664A", color: "#fff", borderRadius: "20px", padding: "2px 10px", marginBottom: "10px" }}>
-                {catLabel}
-              </span>
-            );
-          })()}
+          {spot.category && (
+            <div style={{ marginBottom: "10px" }}>
+              <CategoryBadges slugs={[spot.category]} />
+            </div>
+          )}
           {spot.description && (
             <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.6, marginBottom: "12px" }}>{spot.description}</p>
           )}

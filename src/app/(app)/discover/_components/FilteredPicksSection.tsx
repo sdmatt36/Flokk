@@ -6,6 +6,7 @@ import { PicksGrid } from "./PicksGrid";
 import type { PickSpot } from "./PicksGrid";
 import { QuickAddModal } from "@/components/shared/QuickAddModal";
 import { CATEGORIES } from "@/lib/categories";
+import { CategoryFilterChips } from "@/components/shared/CategoryFilterChips";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700"], display: "swap" });
 
@@ -38,7 +39,7 @@ export function FilteredPicksSection({
   const [search, setSearch] = useState("");
   const [activeCountry, setActiveCountry] = useState("");
   const [activeCity, setActiveCity] = useState("");
-  const [activeCategory, setActiveCategory] = useState("");
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
@@ -86,7 +87,7 @@ export function FilteredPicksSection({
     setSearch("");
     setActiveCountry("");
     setActiveCity("");
-    setActiveCategory("");
+    setActiveCategory(null);
     setExpanded(false);
   }
 
@@ -268,48 +269,16 @@ export function FilteredPicksSection({
 
           {/* Category chips */}
           {categories.length >= 2 && (
-            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
-              <button
-                onClick={() => {
-                  setActiveCategory("");
-                  setExpanded(false);
-                }}
-                style={{
-                  fontSize: "12px",
-                  padding: "4px 12px",
-                  borderRadius: "20px",
-                  border: `1px solid ${activeCategory === "" ? TERRA : "#E5E7EB"}`,
-                  backgroundColor: activeCategory === "" ? "#FFF3EE" : "#fff",
-                  color: activeCategory === "" ? TERRA : "#666",
-                  fontWeight: activeCategory === "" ? 600 : 400,
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                All
-              </button>
-              {categories.map(([slug, count]) => (
-                <button
-                  key={slug}
-                  onClick={() => {
-                    setActiveCategory(activeCategory === slug ? "" : slug);
-                    setExpanded(false);
-                  }}
-                  style={{
-                    fontSize: "12px",
-                    padding: "4px 12px",
-                    borderRadius: "20px",
-                    border: `1px solid ${activeCategory === slug ? TERRA : "#E5E7EB"}`,
-                    backgroundColor: activeCategory === slug ? "#FFF3EE" : "#fff",
-                    color: activeCategory === slug ? TERRA : "#666",
-                    fontWeight: activeCategory === slug ? 600 : 400,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  {categoryLabel(slug)} ({count})
-                </button>
-              ))}
+            <div style={{ marginBottom: "16px" }}>
+              <CategoryFilterChips
+                selected={activeCategory}
+                available={categories.map(([slug, count]) => ({
+                  slug,
+                  label: categoryLabel(slug),
+                  count,
+                }))}
+                onSelect={(s) => { setActiveCategory(s); setExpanded(false); }}
+              />
             </div>
           )}
         </>

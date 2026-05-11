@@ -6,6 +6,8 @@ import Link from "next/link";
 import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
 import { getItemImage } from "@/lib/destination-images";
 import { CATEGORIES, categoryLabel, normalizeCategorySlug } from "@/lib/categories";
+import { CategoryFilterChips } from "@/components/shared/CategoryFilterChips";
+import { CategoryBadges } from "@/components/shared/CategoryBadges";
 import {
   Search,
   MapPin,
@@ -460,8 +462,6 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
     )) return false;
     return true;
   });
-  const visibleTags = filteredTags.slice(0, 3);
-  const extraTags = filteredTags.length - visibleTags.length;
   const isDropdownOpen = openDropdown === save.id;
   const [deleting, setDeleting] = useState(false);
   const isTransit = save.tags.some(t => ["flight", "flights", "transportation", "transit", "train"].includes(t.toLowerCase()));
@@ -649,13 +649,8 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
         ) : null}
 
         {/* Tags */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "8px" }}>
-          {visibleTags.map((tag) => (
-            <Pill key={tag} variant="category">{categoryLabel(tag)}</Pill>
-          ))}
-          {extraTags > 0 && (
-            <Pill variant="category">+{extraTags} more</Pill>
-          )}
+        <div style={{ marginBottom: "8px" }}>
+          <CategoryBadges slugs={filteredTags} variant="compact" />
         </div>
 
         {/* Trip assignment dropdown (unassigned cards only) */}
@@ -1176,7 +1171,7 @@ export function SavesScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
-  const [activeFilter, setActiveFilter] = useState("All");
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [dietaryFilter, setDietaryFilter] = useState<string | null>(null);
   const [selectedCity, setSelectedCity] = useState<string | null>(null);
   const [activeCountry, setActiveCountry] = useState<string>("all");
@@ -1581,6 +1576,16 @@ export function SavesScreen() {
     return true;
   });
 
+  const categoryCounts = CATEGORIES
+    .map((c) => ({
+      slug: c.slug,
+      label: c.label,
+      count: cityFiltered.filter((s) =>
+        s.tags.some((t) => t === c.slug || normalizeCategorySlug(t) === c.slug)
+      ).length,
+    }))
+    .filter((c) => c.count > 0);
+
   // Card matching: search + category filter (ignores assigned/unassigned axis)
   const matchesFilter = (s: Save): boolean => {
     const searchLower = search.toLowerCase();
@@ -1591,7 +1596,7 @@ export function SavesScreen() {
       (s.assigned?.toLowerCase().includes(searchLower) ?? false) ||
       s.tags.some(tag => categoryLabel(tag).toLowerCase().includes(searchLower));
     const matchesCategory =
-      activeFilter === "All"
+      activeFilter === null
         ? true
         : s.tags.some(t => t === activeFilter || normalizeCategorySlug(t) === activeFilter);
     const matchesDietary =
@@ -1736,18 +1741,15 @@ Your saved places, all in one spot
         </div>
 
         {/* FILTER STRIP */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", rowGap: 8, marginBottom: "24px", paddingBottom: "4px", width: "100%" }}>
-          <Pill variant="filter" active={activeFilter === "All"} onClick={() => setActiveFilter("All")}>All</Pill>
-          {CATEGORIES.map(({ slug, label }) => (
-            <Pill
-              key={slug}
-              variant="filter"
-              active={activeFilter === slug}
-              onClick={() => { setActiveFilter(slug); if (slug !== "food_and_drink") setDietaryFilter(null); }}
-            >
-              {label}
-            </Pill>
-          ))}
+        <div style={{ marginBottom: "24px" }}>
+          <CategoryFilterChips
+            selected={activeFilter}
+            available={categoryCounts}
+            onSelect={(slug) => {
+              setActiveFilter(slug);
+              if (slug !== "food_and_drink") setDietaryFilter(null);
+            }}
+          />
         </div>
 
         {activeFilter === "food_and_drink" && (

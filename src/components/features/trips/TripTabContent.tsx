@@ -8,6 +8,8 @@ import Link from "next/link";
 import TourMapBlock from "@/components/tours/TourMapBlock";
 import { CATEGORIES, categoryLabel as getCategoryLabel, normalizeCategorySlug as normalizeCategorySlugTC } from "@/lib/categories";
 import { matchesCategory } from "@/lib/categoryFilter";
+import { CategoryFilterChips } from "@/components/shared/CategoryFilterChips";
+import { CategoryEditor } from "@/components/shared/CategoryEditor";
 
 function decodeHtmlEntities(str: string | null | undefined): string {
   if (!str) return "";
@@ -1183,11 +1185,6 @@ function EventSavedCard({ item }: { item: SavedDisplayItem }) {
   );
 }
 
-const SAVED_FILTER_PILLS: Array<{ slug: string; label: string }> = [
-  { slug: "All", label: "All" },
-  ...CATEGORIES.map(c => ({ slug: c.slug, label: c.label })),
-  { slug: "Unorganized", label: "Unorganized" },
-];
 
 function cardActionRow({
   shareEntityType,
@@ -1431,7 +1428,7 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
   const [rightSections, setRightSections] = useState<{ category: string; items: SavedDisplayItem[] }[]>([]);
   const [dropLinkOpen, setDropLinkOpen] = useState(false);
   const [allScheduled, setAllScheduled] = useState(false);
-  const [activeFilter, setActiveFilter] = useState("All");
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
   const fetchSaves = useCallback(() => {
     if (!tripIdProp) { setLoading(false); return; }
@@ -1608,8 +1605,26 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
     );
   }
 
+  const allSaveItems = useMemo(
+    () => [...leftSections, ...rightSections].flatMap((s) => s.items),
+    [leftSections, rightSections]
+  );
+
+  const categoryFilterChips = useMemo(() => {
+    const chips: Array<{ slug: string; label: string; count: number }> = CATEGORIES
+      .map((c) => ({
+        slug: c.slug as string,
+        label: c.label,
+        count: allSaveItems.filter((itm) => matchesCategory(itm.categoryTags ?? [], c.slug)).length,
+      }))
+      .filter((c) => c.count > 0);
+    const unorganizedCount = allSaveItems.filter((itm) => !itm.categoryTags || itm.categoryTags.length === 0).length;
+    if (unorganizedCount > 0) chips.push({ slug: "Unorganized", label: "Unorganized", count: unorganizedCount });
+    return chips;
+  }, [allSaveItems]);
+
   const filterSaveItem = (itm: SavedDisplayItem): boolean => {
-    if (activeFilter === "All") return true;
+    if (activeFilter === null) return true;
     if (activeFilter === "Unorganized") return !itm.categoryTags || itm.categoryTags.length === 0;
     return matchesCategory(itm.categoryTags ?? [], activeFilter);
   };
@@ -1619,19 +1634,12 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
   return (
     <div>
       {/* FILTER STRIP */}
-      <div style={{ display: "flex", overflowX: "auto", overscrollBehaviorX: "contain", gap: "8px", marginBottom: "16px", paddingBottom: "4px", scrollbarWidth: "none", width: "100%" }}>
-        {SAVED_FILTER_PILLS.map((pill) => {
-          const isActive = activeFilter === pill.slug;
-          return (
-            <button
-              key={pill.slug}
-              onClick={() => setActiveFilter(pill.slug)}
-              style={{ flexShrink: 0, padding: "7px 16px", borderRadius: "999px", fontSize: "13px", fontWeight: isActive ? 600 : 400, color: isActive ? "#fff" : "#717171", backgroundColor: isActive ? "#C4664A" : "#fff", border: isActive ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease", whiteSpace: "nowrap" }}
-            >
-              {pill.label}
-            </button>
-          );
-        })}
+      <div style={{ marginBottom: "16px" }}>
+        <CategoryFilterChips
+          selected={activeFilter}
+          available={categoryFilterChips}
+          onSelect={setActiveFilter}
+        />
       </div>
 
       {/* SAVES GRID — filtered */}
