@@ -105,7 +105,6 @@ export default async function DiscoverPage() {
           spots={picks}
           title="Flokk Picks"
           description="Places, food, lodging, and activities. Everywhere Flokkers have eaten, slept, played, or rated."
-          browseAllHref="/picks"
         />
       </div>
     </main>
