@@ -794,18 +794,33 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
   const [urlError, setUrlError] = useState<string | null>(null);
   const [justShared, setJustShared] = useState(false);
   const initialTags = useRef(normalizeTags(item.categoryTags ?? []));
+  const localTagsRef = useRef<string[]>(normalizeTags(item.categoryTags ?? []));
+  const tagSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initial = item.title.replace(/^www\./, "").charAt(0).toUpperCase();
   const categoryLabel = localTags.filter(t => !["VG", "VGN"].includes(t)).slice(0, 2).map(t => getCategoryLabel(t) || t).join(" · ");
 
   function toggleTag(tag: string) {
-    setLocalTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
+    const current = localTagsRef.current;
+    const newTags = current.includes(tag) ? current.filter(t => t !== tag) : [...current, tag];
+    localTagsRef.current = newTags;
+    setLocalTags(newTags);
+    if (tagSaveTimer.current) clearTimeout(tagSaveTimer.current);
+    tagSaveTimer.current = setTimeout(() => {
+      const toSave = localTagsRef.current;
+      fetch(`/api/saves/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categoryTags: toSave }),
+      }).then(() => {
+        initialTags.current = toSave;
+        onTagsUpdated?.(item.id, toSave);
+        setTagsSaved(true);
+        setTimeout(() => setTagsSaved(false), 2000);
+      }).catch(() => {});
+    }, 600);
   }
 
   function handleClose() {
-    if (item.id && JSON.stringify(localTags.slice().sort()) !== JSON.stringify(initialTags.current.slice().sort())) {
-      fetch(`/api/saves/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ categoryTags: localTags }) }).catch(() => {});
-      onTagsUpdated?.(item.id, localTags);
-    }
     onClose();
   }
   return createPortal(
@@ -854,20 +869,9 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
               {localTags.length === 0 && !editingTags && (
                 <span style={{ fontSize: "12px", color: "#aaa" }}>No tags yet</span>
               )}
-              <button onClick={async () => {
-                if (editingTags) {
-                  if (item.id && JSON.stringify(localTags.slice().sort()) !== JSON.stringify(initialTags.current.slice().sort())) {
-                    await fetch(`/api/saves/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ categoryTags: localTags }) });
-                    onTagsUpdated?.(item.id, localTags);
-                    initialTags.current = [...localTags];
-                    setTagsSaved(true);
-                    setTimeout(() => setTagsSaved(false), 2000);
-                  }
-                }
-                setEditingTags(e => !e);
-              }}
+              <button onClick={() => setEditingTags(e => !e)}
                 style={{ fontSize: "11px", fontWeight: 600, color: tagsSaved ? "#4a7c59" : "#C4664A", border: `1.5px solid ${tagsSaved ? "#4a7c59" : "#C4664A"}`, borderRadius: "999px", padding: "3px 10px", background: "none", cursor: "pointer" }}>
-                {tagsSaved ? "Saved" : editingTags ? "Done" : "Edit tags"}
+                {tagsSaved ? "Saved ✓" : editingTags ? "Done" : "Edit tags"}
               </button>
             </div>
             {editingTags && (

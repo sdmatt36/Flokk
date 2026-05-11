@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { X, MapPin, Sparkles, ExternalLink, ChevronDown, Check } from "lucide-react";
 import { LODGING_TYPE_LABELS, LODGING_TYPE_OPTIONS } from "@/lib/infer-lodging-type";
@@ -134,6 +135,8 @@ export function SaveDetailModal({
   const [urlError, setUrlError] = useState("");
   const [showPastTrips, setShowPastTrips] = useState(false);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tagSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localTagsRef = useRef<string[]>([]);
   const initialNotes = useRef("");
   const initialTags = useRef<string[]>([]);
 
@@ -159,6 +162,7 @@ export function SaveDetailModal({
         initialNotes.current = data.item?.notes ?? "";
         const raw: string[] = data.item?.categoryTags ?? [];
         const tags: string[] = [...new Set(raw.map((t) => normalizeCategorySlug(t) ?? t.toLowerCase().trim()).filter((t): t is string => t.length > 0))];
+        localTagsRef.current = tags;
         setLocalTags(tags);
         initialTags.current = tags;
       });
@@ -211,9 +215,25 @@ export function SaveDetailModal({
   }
 
   function toggleTag(tag: string) {
-    setLocalTags(prev =>
-      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
-    );
+    const current = localTagsRef.current;
+    const newTags = current.includes(tag) ? current.filter(t => t !== tag) : [...current, tag];
+    localTagsRef.current = newTags;
+    setLocalTags(newTags);
+    // Auto-save: debounce 600ms so rapid multi-select sends one request
+    if (tagSaveTimer.current) clearTimeout(tagSaveTimer.current);
+    tagSaveTimer.current = setTimeout(() => {
+      const toSave = localTagsRef.current;
+      fetch(`/api/saves/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categoryTags: toSave }),
+      }).then(() => {
+        initialTags.current = toSave;
+        onTagsUpdated?.(itemId, toSave);
+        setTagsSaved(true);
+        setTimeout(() => setTagsSaved(false), 2000);
+      }).catch(() => {});
+    }, 600);
   }
 
   const tags = localTags;
@@ -243,7 +263,9 @@ export function SaveDetailModal({
     return "Saved place";
   }
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <>
       <style>{`.directions-link:hover { text-decoration: underline; } @keyframes spin { to { transform: rotate(360deg); } }`}</style>
       {/* Backdrop */}
@@ -330,25 +352,10 @@ export function SaveDetailModal({
                 <span style={{ fontSize: "12px", color: "#aaa" }}>No tags yet</span>
               )}
               <button
-                onClick={async () => {
-                  if (editingTags) {
-                    if (item && JSON.stringify(localTags.slice().sort()) !== JSON.stringify(initialTags.current.slice().sort())) {
-                      await fetch(`/api/saves/${itemId}`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ categoryTags: localTags }),
-                      });
-                      onTagsUpdated?.(itemId, localTags);
-                      initialTags.current = [...localTags];
-                      setTagsSaved(true);
-                      setTimeout(() => setTagsSaved(false), 2000);
-                    }
-                  }
-                  setEditingTags(e => !e);
-                }}
+                onClick={() => setEditingTags(e => !e)}
                 style={{ fontSize: "11px", fontWeight: 600, color: tagsSaved ? "#4a7c59" : "#C4664A", border: `1.5px solid ${tagsSaved ? "#4a7c59" : "#C4664A"}`, borderRadius: "999px", padding: "3px 10px", background: "none", cursor: "pointer", flexShrink: 0 }}
               >
-                {tagsSaved ? "Saved" : editingTags ? "Done" : "Edit tags"}
+                {tagsSaved ? "Saved ✓" : editingTags ? "Done" : "Edit tags"}
               </button>
             </div>
 
@@ -865,6 +872,7 @@ export function SaveDetailModal({
           </div>
         )}
       </div>
-    </>
+    </>,
+    document.body
   );
 }
