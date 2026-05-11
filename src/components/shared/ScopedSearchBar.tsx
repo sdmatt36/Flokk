@@ -48,6 +48,7 @@ interface Props {
 export function ScopedSearchBar({ scope, scopeId, scopeName, placeholder }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResults | null>(null);
+  const [fallback, setFallback] = useState<SearchResults | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
@@ -79,18 +80,21 @@ export function ScopedSearchBar({ scope, scopeId, scopeName, placeholder }: Prop
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (query.length < 1) { setResults(null); return; }
+    if (query.length < 1) { setResults(null); setFallback(null); return; }
     const params = new URLSearchParams({
       q: query,
       scope,
       scopeId,
       scopeName,
+      includeFallback: "true",
     });
     debounceRef.current = setTimeout(async () => {
       try {
         const res = await fetch(`/api/search/universal?${params}`);
         if (res.ok) {
-          setResults(await res.json());
+          const data = await res.json();
+          setResults(data);
+          setFallback(data.fallback ?? null);
           setIsOpen(true);
           setHighlightIndex(-1);
         }
@@ -100,6 +104,8 @@ export function ScopedSearchBar({ scope, scopeId, scopeName, placeholder }: Prop
   }, [query, scope, scopeId, scopeName]);
 
   const flatResults = buildFlatResults(results);
+  const flatFallback = buildFlatResults(fallback);
+  const allFlat = [...flatResults, ...flatFallback];
 
   function navigate(url: string, label: string) {
     setRecentSearches((prev) => {
@@ -116,18 +122,18 @@ export function ScopedSearchBar({ scope, scopeId, scopeName, placeholder }: Prop
     if (e.key === "Escape") { setIsOpen(false); return; }
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setHighlightIndex((i) => Math.min(i + 1, flatResults.length - 1));
+      setHighlightIndex((i) => Math.min(i + 1, allFlat.length - 1));
     }
     if (e.key === "ArrowUp") {
       e.preventDefault();
       setHighlightIndex((i) => Math.max(i - 1, 0));
     }
-    if (e.key === "Enter" && highlightIndex >= 0 && flatResults[highlightIndex]) {
-      navigate(flatResults[highlightIndex].url, flatResults[highlightIndex].label);
+    if (e.key === "Enter" && highlightIndex >= 0 && allFlat[highlightIndex]) {
+      navigate(allFlat[highlightIndex].url, allFlat[highlightIndex].label);
     }
   }
 
-  const showDropdown = isOpen && (query.length >= 1 ? !!results : recentSearches.length > 0);
+  const showDropdown = isOpen && (query.length >= 1 ? (!!results || !!fallback) : recentSearches.length > 0);
 
   return (
     <div ref={containerRef} style={{ position: "relative", flex: 1, maxWidth: "480px" }}>
@@ -185,10 +191,13 @@ export function ScopedSearchBar({ scope, scopeId, scopeName, placeholder }: Prop
             query={query}
             results={results}
             recentSearches={recentSearches}
-            flatResults={flatResults}
+            flatResults={allFlat}
             highlightIndex={highlightIndex}
             onNavigate={navigate}
             onRecentSelect={(label) => { setQuery(label); inputRef.current?.focus(); }}
+            scopeName={scopeName}
+            fallbackResults={fallback}
+            fallbackOffset={flatResults.length}
           />
         </div>
       )}

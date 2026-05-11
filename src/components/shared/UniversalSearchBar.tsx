@@ -59,6 +59,10 @@ type DropdownProps = {
   onNavigate: (url: string, label: string) => void;
   onRecentSelect: (label: string) => void;
   containerStyle?: React.CSSProperties;
+  // Dual-section scoped search support
+  scopeName?: string;
+  fallbackResults?: SearchResults | null;
+  fallbackOffset?: number;
 };
 
 export function SearchDropdownPanel({
@@ -70,62 +74,32 @@ export function SearchDropdownPanel({
   onNavigate,
   onRecentSelect,
   containerStyle,
+  scopeName,
+  fallbackResults,
+  fallbackOffset = 0,
 }: DropdownProps) {
-  const sections: { heading: string; items: FlatResult[] }[] = [];
+  const sections = buildSections(results);
+  const fallbackSections = buildSections(fallbackResults ?? null);
 
-  if (results) {
-    if (results.cities.length > 0)
-      sections.push({
-        heading: "Cities",
-        items: results.cities.map((c) => ({ key: `city-${c.id}`, url: `/cities/${c.slug}`, label: c.name, subtitle: c.countryName, photoUrl: c.photoUrl })),
-      });
-    if (results.countries.length > 0)
-      sections.push({
-        heading: "Countries",
-        items: results.countries.map((c) => ({ key: `country-${c.id}`, url: `/countries/${c.slug}`, label: c.name, subtitle: c.continentName, photoUrl: c.photoUrl })),
-      });
-    if (results.continents.length > 0)
-      sections.push({
-        heading: "Continents",
-        items: results.continents.map((c) => ({ key: `continent-${c.id}`, url: `/continents/${c.slug}`, label: c.name, subtitle: "Continent", photoUrl: null })),
-      });
-    if (results.picks.length > 0)
-      sections.push({
-        heading: "Picks",
-        items: results.picks.map((p) => ({ key: `pick-${p.id}`, url: p.shareToken ? `/spots/${p.shareToken}` : "#", label: p.name, subtitle: [p.city, categoryLabel(p.category)].filter(Boolean).join(" · "), photoUrl: p.photoUrl })),
-      });
-    if (results.itineraries.length > 0)
-      sections.push({
-        heading: "Itineraries",
-        items: results.itineraries.map((t) => ({ key: `itin-${t.id}`, url: t.shareToken ? `/share/${t.shareToken}` : "#", label: t.title, subtitle: t.destinationCity ?? "", photoUrl: t.heroImageUrl })),
-      });
-    if (results.tours.length > 0)
-      sections.push({
-        heading: "Tours",
-        items: results.tours.map((t) => ({ key: `tour-${t.id}`, url: t.shareToken ? `/s/${t.shareToken}` : "#", label: t.title, subtitle: t.destinationCity, photoUrl: t.photoUrl })),
-      });
+  const hasScopedContent = sections.length > 0;
+  const hasFallbackContent = fallbackSections.length > 0;
+  const hasDualSection = !!scopeName && (hasScopedContent || hasFallbackContent);
 
-    if (sections.length === 0) {
-      return (
-        <div
-          style={{
-            padding: "20px 16px",
-            fontSize: "13px",
-            color: "#94A3B8",
-            textAlign: "center",
-            ...containerStyle,
-          }}
-        >
-          No results for &ldquo;{query}&rdquo;
-        </div>
-      );
-    }
+  // Both empty and no recent searches — show "no results"
+  if (query.length >= 1 && !hasScopedContent && !hasFallbackContent && recentSearches.length === 0) {
+    return (
+      <div style={{ padding: "20px 16px", fontSize: "13px", color: "#94A3B8", textAlign: "center", ...containerStyle }}>
+        No results for &ldquo;{query}&rdquo;
+      </div>
+    );
   }
 
   let flatIdx = 0;
+  let fbIdx = fallbackOffset;
 
   return (
     <div style={{ ...containerStyle }}>
+      {/* Recent searches — shown when query is empty */}
       {query.length < 1 && recentSearches.length > 0 && (
         <div style={{ padding: "12px 0" }}>
           <p style={{ fontSize: "11px", fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", padding: "0 16px 6px" }}>
@@ -135,17 +109,7 @@ export function SearchDropdownPanel({
             <button
               key={s}
               onMouseDown={(e) => { e.preventDefault(); onRecentSelect(s); }}
-              style={{
-                display: "block",
-                width: "100%",
-                textAlign: "left",
-                padding: "8px 16px",
-                fontSize: "13px",
-                color: "#1B3A5C",
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-              }}
+              style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 16px", fontSize: "13px", color: "#1B3A5C", background: "none", border: "none", cursor: "pointer" }}
             >
               {s}
             </button>
@@ -153,72 +117,104 @@ export function SearchDropdownPanel({
         </div>
       )}
 
+      {/* "In {scopeName}" group heading — only when dual-section mode and scoped has results */}
+      {hasDualSection && hasScopedContent && (
+        <p style={{ fontSize: "11px", fontWeight: 700, color: "#1B3A5C", textTransform: "uppercase", letterSpacing: "0.06em", padding: "10px 16px 2px" }}>
+          In {scopeName}
+        </p>
+      )}
+
+      {/* Scoped result sections */}
       {sections.map((section) => (
         <div key={section.heading} style={{ paddingBottom: "4px" }}>
-          <p style={{ fontSize: "11px", fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", padding: "10px 16px 4px" }}>
+          <p style={{ fontSize: "11px", fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", padding: "6px 16px 4px" }}>
             {section.heading}
           </p>
           {section.items.map((item) => {
             const idx = flatIdx++;
-            const highlighted = highlightIndex === idx;
-            return (
-              <button
-                key={item.key}
-                onMouseDown={(e) => { e.preventDefault(); onNavigate(item.url, item.label); }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "7px 16px",
-                  background: highlighted ? "#F8FAFC" : "none",
-                  border: "none",
-                  cursor: "pointer",
-                  transition: "background 0.1s",
-                }}
-              >
-                {item.photoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={item.photoUrl}
-                    alt=""
-                    style={{ width: "32px", height: "32px", borderRadius: "6px", objectFit: "cover", flexShrink: 0 }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: "32px",
-                      height: "32px",
-                      borderRadius: "6px",
-                      backgroundColor: "#E2E8F0",
-                      flexShrink: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "11px",
-                      color: "#94A3B8",
-                    }}
-                  >
-                    {item.label.charAt(0)}
-                  </div>
-                )}
-                <div style={{ minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#1B3A5C", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    {item.label}
-                  </p>
-                  {item.subtitle && (
-                    <p style={{ margin: 0, fontSize: "11px", color: "#64748B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {item.subtitle}
-                    </p>
-                  )}
-                </div>
-              </button>
-            );
+            return <ResultRow key={item.key} item={item} highlighted={highlightIndex === idx} onNavigate={onNavigate} />;
           })}
         </div>
       ))}
+
+      {/* Fallback "Elsewhere" section */}
+      {hasDualSection && hasFallbackContent && (
+        <>
+          <div style={{ margin: "6px 16px", borderTop: "1px solid #F1F5F9" }} />
+          <p style={{ fontSize: "11px", fontWeight: 700, color: "#1B3A5C", textTransform: "uppercase", letterSpacing: "0.06em", padding: "6px 16px 2px" }}>
+            Elsewhere
+          </p>
+          {fallbackSections.map((section) => (
+            <div key={`fb-${section.heading}`} style={{ paddingBottom: "4px" }}>
+              <p style={{ fontSize: "11px", fontWeight: 700, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em", padding: "6px 16px 4px" }}>
+                {section.heading}
+              </p>
+              {section.items.map((item) => {
+                const idx = fbIdx++;
+                return <ResultRow key={`fb-${item.key}`} item={item} highlighted={highlightIndex === idx} onNavigate={onNavigate} />;
+              })}
+            </div>
+          ))}
+        </>
+      )}
     </div>
+  );
+}
+
+function buildSections(results: SearchResults | null): { heading: string; items: FlatResult[] }[] {
+  if (!results) return [];
+  const sections: { heading: string; items: FlatResult[] }[] = [];
+  if (results.cities.length > 0)
+    sections.push({ heading: "Cities", items: results.cities.map((c) => ({ key: `city-${c.id}`, url: `/cities/${c.slug}`, label: c.name, subtitle: c.countryName, photoUrl: c.photoUrl })) });
+  if (results.countries.length > 0)
+    sections.push({ heading: "Countries", items: results.countries.map((c) => ({ key: `country-${c.id}`, url: `/countries/${c.slug}`, label: c.name, subtitle: c.continentName, photoUrl: c.photoUrl })) });
+  if ("continents" in results && (results as SearchResults & { continents?: { id: string; slug: string; name: string }[] }).continents?.length)
+    sections.push({ heading: "Continents", items: ((results as SearchResults & { continents: { id: string; slug: string; name: string }[] }).continents).map((c) => ({ key: `continent-${c.id}`, url: `/continents/${c.slug}`, label: c.name, subtitle: "Continent", photoUrl: null })) });
+  if (results.picks.length > 0)
+    sections.push({ heading: "Picks", items: results.picks.map((p) => ({ key: `pick-${p.id}`, url: p.shareToken ? `/spots/${p.shareToken}` : "#", label: p.name, subtitle: [p.city, categoryLabel(p.category)].filter(Boolean).join(" · "), photoUrl: p.photoUrl })) });
+  if (results.itineraries.length > 0)
+    sections.push({ heading: "Itineraries", items: results.itineraries.map((t) => ({ key: `itin-${t.id}`, url: t.shareToken ? `/share/${t.shareToken}` : "#", label: t.title, subtitle: t.destinationCity ?? "", photoUrl: t.heroImageUrl })) });
+  if (results.tours.length > 0)
+    sections.push({ heading: "Tours", items: results.tours.map((t) => ({ key: `tour-${t.id}`, url: t.shareToken ? `/s/${t.shareToken}` : "#", label: t.title, subtitle: t.destinationCity, photoUrl: t.photoUrl })) });
+  return sections;
+}
+
+function ResultRow({ item, highlighted, onNavigate }: { item: FlatResult; highlighted: boolean; onNavigate: (url: string, label: string) => void }) {
+  return (
+    <button
+      onMouseDown={(e) => { e.preventDefault(); onNavigate(item.url, item.label); }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        width: "100%",
+        textAlign: "left",
+        padding: "7px 16px",
+        background: highlighted ? "#F8FAFC" : "none",
+        border: "none",
+        cursor: "pointer",
+        transition: "background 0.1s",
+      }}
+    >
+      {item.photoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={item.photoUrl} alt="" style={{ width: "32px", height: "32px", borderRadius: "6px", objectFit: "cover", flexShrink: 0 }} />
+      ) : (
+        <div style={{ width: "32px", height: "32px", borderRadius: "6px", backgroundColor: "#E2E8F0", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", color: "#94A3B8" }}>
+          {item.label.charAt(0)}
+        </div>
+      )}
+      <div style={{ minWidth: 0 }}>
+        <p style={{ margin: 0, fontSize: "13px", fontWeight: 600, color: "#1B3A5C", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {item.label}
+        </p>
+        {item.subtitle && (
+          <p style={{ margin: 0, fontSize: "11px", color: "#64748B", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {item.subtitle}
+          </p>
+        )}
+      </div>
+    </button>
   );
 }
 

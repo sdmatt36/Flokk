@@ -48,7 +48,7 @@ export default async function ContinentPage(
           name: true,
           photoUrl: true,
           cities: {
-            where: { featured: true },
+            where: { featured: true, type: "CITY" },
             select: {
               name: true,
               photoUrl: true,
