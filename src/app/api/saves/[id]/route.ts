@@ -27,7 +27,19 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ item, interestKeys: item.interestKeys ?? [] });
+  // If SavedItem.userRating is null, hydrate from the most recent PlaceRating.
+  // Backfill-created SavedItems start with userRating=null even when PlaceRating exists.
+  let effectiveRating = item.userRating;
+  if (effectiveRating == null) {
+    const pr = await db.placeRating.findFirst({
+      where: { savedItemId: id },
+      orderBy: { createdAt: "desc" },
+      select: { rating: true },
+    });
+    if (pr?.rating != null) effectiveRating = pr.rating;
+  }
+
+  return NextResponse.json({ item: { ...item, userRating: effectiveRating }, interestKeys: item.interestKeys ?? [] });
 }
 
 export async function PATCH(

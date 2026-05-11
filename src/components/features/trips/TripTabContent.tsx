@@ -3510,7 +3510,6 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                 shareEntityType: "manual_activity",
                                                 shareEntityId: a.id,
                                                 shareTitle: a.title,
-                                                onEdit: onEditActivity ? () => onEditActivity(a) : null,
                                                 onRemove: onDeleteActivity ? () => { if (window.confirm("Delete this activity permanently?")) onDeleteActivity(a.id); } : null,
                                                 removeLabel: "Delete",
                                               })}
