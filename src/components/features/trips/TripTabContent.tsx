@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import TourMapBlock from "@/components/tours/TourMapBlock";
 import { CATEGORIES, categoryLabel as getCategoryLabel, normalizeCategorySlug as normalizeCategorySlugTC } from "@/lib/categories";
+import { matchesCategory } from "@/lib/categoryFilter";
 
 function decodeHtmlEntities(str: string | null | undefined): string {
   if (!str) return "";
@@ -1182,7 +1183,11 @@ function EventSavedCard({ item }: { item: SavedDisplayItem }) {
   );
 }
 
-const SAVED_FILTER_PILLS = ["All", "Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Kids Camps", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other", "Unorganized"];
+const SAVED_FILTER_PILLS: Array<{ slug: string; label: string }> = [
+  { slug: "All", label: "All" },
+  ...CATEGORIES.map(c => ({ slug: c.slug, label: c.label })),
+  { slug: "Unorganized", label: "Unorganized" },
+];
 
 function cardActionRow({
   shareEntityType,
@@ -1606,7 +1611,7 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
   const filterSaveItem = (itm: SavedDisplayItem): boolean => {
     if (activeFilter === "All") return true;
     if (activeFilter === "Unorganized") return !itm.categoryTags || itm.categoryTags.length === 0;
-    return (itm.categoryTags ?? []).some(t => t.toLowerCase().includes(activeFilter.toLowerCase()));
+    return matchesCategory(itm.categoryTags ?? [], activeFilter);
   };
   const displayedLeft = leftSections.map(s => ({ ...s, items: s.items.filter(filterSaveItem) })).filter(s => s.items.length > 0);
   const displayedRight = rightSections.map(s => ({ ...s, items: s.items.filter(filterSaveItem) })).filter(s => s.items.length > 0);
@@ -1616,14 +1621,14 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
       {/* FILTER STRIP */}
       <div style={{ display: "flex", overflowX: "auto", overscrollBehaviorX: "contain", gap: "8px", marginBottom: "16px", paddingBottom: "4px", scrollbarWidth: "none", width: "100%" }}>
         {SAVED_FILTER_PILLS.map((pill) => {
-          const isActive = activeFilter === pill;
+          const isActive = activeFilter === pill.slug;
           return (
             <button
-              key={pill}
-              onClick={() => setActiveFilter(pill)}
+              key={pill.slug}
+              onClick={() => setActiveFilter(pill.slug)}
               style={{ flexShrink: 0, padding: "7px 16px", borderRadius: "999px", fontSize: "13px", fontWeight: isActive ? 600 : 400, color: isActive ? "#fff" : "#717171", backgroundColor: isActive ? "#C4664A" : "#fff", border: isActive ? "none" : "1px solid rgba(0,0,0,0.1)", cursor: "pointer", transition: "all 0.15s ease", whiteSpace: "nowrap" }}
             >
-              {pill}
+              {pill.label}
             </button>
           );
         })}
