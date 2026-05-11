@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { SearchDropdownPanel } from "./UniversalSearchBar";
+import { QuickAddModal } from "./QuickAddModal";
 import { CATEGORIES } from "@/lib/categories";
 
 type SearchResults = {
@@ -53,13 +54,14 @@ export function ScopedSearchBar({ scope, scopeId, scopeName, placeholder }: Prop
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isFocused, setIsFocused] = useState(false);
+  const [showPickModal, setShowPickModal] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
 
   const storageKey = `flokk_recent_${scope}_${scopeId}`;
-  const effectivePlaceholder = placeholder ?? `Search ${scopeName}…`;
+  const effectivePlaceholder = placeholder ?? "Search The Flokkin Planet";
 
   useEffect(() => {
     try {
@@ -81,6 +83,8 @@ export function ScopedSearchBar({ scope, scopeId, scopeName, placeholder }: Prop
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (query.length < 1) { setResults(null); setFallback(null); return; }
+    setResults(null);
+    setFallback(null);
     const params = new URLSearchParams({
       q: query,
       scope,
@@ -201,12 +205,21 @@ export function ScopedSearchBar({ scope, scopeId, scopeName, placeholder }: Prop
             highlightIndex={highlightIndex}
             onNavigate={navigate}
             onRecentSelect={(label) => { setQuery(label); inputRef.current?.focus(); }}
+            onAddPick={() => { setIsOpen(false); setShowPickModal(true); }}
             scopeName={scopeName}
             fallbackResults={fallback}
             fallbackOffset={flatResults.length}
           />
         </div>
       )}
+
+      <QuickAddModal
+        isOpen={showPickModal}
+        defaultTab="pick"
+        prefillName={query}
+        prefillCity={scope === "city" ? scopeName : ""}
+        onClose={() => setShowPickModal(false)}
+      />
     </div>
   );
 }

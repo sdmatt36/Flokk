@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { CATEGORIES } from "@/lib/categories";
+import { QuickAddModal } from "./QuickAddModal";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -58,6 +59,7 @@ type DropdownProps = {
   highlightIndex: number;
   onNavigate: (url: string, label: string) => void;
   onRecentSelect: (label: string) => void;
+  onAddPick?: () => void;
   containerStyle?: React.CSSProperties;
   // Dual-section scoped search support
   scopeName?: string;
@@ -73,6 +75,7 @@ export function SearchDropdownPanel({
   highlightIndex,
   onNavigate,
   onRecentSelect,
+  onAddPick,
   containerStyle,
   scopeName,
   fallbackResults,
@@ -85,11 +88,21 @@ export function SearchDropdownPanel({
   const hasFallbackContent = fallbackSections.length > 0;
   const hasDualSection = !!scopeName && (hasScopedContent || hasFallbackContent);
 
-  // Both empty and no recent searches — show "no results"
+  // Both empty and no recent searches — show "no matches" + optional + Pick CTA
   if (query.length >= 1 && !hasScopedContent && !hasFallbackContent && recentSearches.length === 0) {
     return (
-      <div style={{ padding: "20px 16px", fontSize: "13px", color: "#94A3B8", textAlign: "center", ...containerStyle }}>
-        No results for &ldquo;{query}&rdquo;
+      <div style={{ padding: "20px 16px", textAlign: "center", ...containerStyle }}>
+        <p style={{ fontSize: "13px", color: "#94A3B8", margin: "0 0 12px" }}>
+          No matches for &ldquo;{query}&rdquo; yet
+        </p>
+        {onAddPick && (
+          <button
+            onMouseDown={(e) => { e.preventDefault(); onAddPick(); }}
+            style={{ fontSize: "13px", fontWeight: 700, color: "#fff", backgroundColor: "#C4664A", border: "none", borderRadius: "999px", padding: "8px 18px", cursor: "pointer" }}
+          >
+            + Pick
+          </button>
+        )}
       </div>
     );
   }
@@ -227,6 +240,7 @@ export function UniversalSearchBar() {
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [isFocused, setIsFocused] = useState(false);
+  const [showPickModal, setShowPickModal] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -255,6 +269,7 @@ export function UniversalSearchBar() {
       setResults(null);
       return;
     }
+    setResults(null);
     debounceRef.current = setTimeout(async () => {
       try {
         const res = await fetch(`/api/search/universal?q=${encodeURIComponent(query)}`);
@@ -364,9 +379,17 @@ export function UniversalSearchBar() {
             highlightIndex={highlightIndex}
             onNavigate={navigate}
             onRecentSelect={(label) => { setQuery(label); inputRef.current?.focus(); }}
+            onAddPick={() => { setIsOpen(false); setShowPickModal(true); }}
           />
         </div>
       )}
+
+      <QuickAddModal
+        isOpen={showPickModal}
+        defaultTab="pick"
+        prefillName={query}
+        onClose={() => setShowPickModal(false)}
+      />
     </div>
   );
 }

@@ -11,6 +11,7 @@ interface QuickAddModalProps {
   isOpen: boolean;
   defaultTab?: Tab;
   prefillCity?: string;
+  prefillName?: string;
   onClose: () => void;
 }
 
@@ -44,12 +45,12 @@ function useCitySuggestions(query: string) {
   return suggestions;
 }
 
-export function QuickAddModal({ isOpen, defaultTab = "pick", prefillCity = "", onClose }: QuickAddModalProps) {
+export function QuickAddModal({ isOpen, defaultTab = "pick", prefillCity = "", prefillName = "", onClose }: QuickAddModalProps) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>(defaultTab);
 
   // Pick state
-  const [pickTitle, setPickTitle] = useState("");
+  const [pickTitle, setPickTitle] = useState(prefillName);
   const [pickCity, setPickCity] = useState(prefillCity);
   const [pickCategory, setPickCategory] = useState("");
   const [pickWebsite, setPickWebsite] = useState("");
@@ -79,12 +80,16 @@ export function QuickAddModal({ isOpen, defaultTab = "pick", prefillCity = "", o
     setPickWebsite("");
   }
 
-  // Sync prefillCity when it changes
+  // Sync prefill props when they change
   useEffect(() => {
     setPickCity(prefillCity);
     setItinDest(prefillCity);
     setTourDest(prefillCity);
   }, [prefillCity]);
+
+  useEffect(() => {
+    setPickTitle(prefillName);
+  }, [prefillName]);
 
   useEffect(() => {
     setActiveTab(defaultTab);
