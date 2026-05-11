@@ -40,6 +40,7 @@ export default async function ContinentPage(
       id: true,
       blurb: true,
       name: true,
+      photoUrl: true,
       countries: {
         orderBy: { name: "asc" },
         select: {
@@ -91,59 +92,175 @@ export default async function ContinentPage(
 
   return (
     <main>
-      {/* Hero band */}
-      <div
-        className="relative flex flex-col items-center justify-center py-16 md:py-20 text-center px-4 overflow-hidden"
-        style={{ backgroundColor: "#1B3A5C" }}
-      >
-        {/* Silhouette watermark */}
+      <style>{`
+        .continent-hero { height: 400px; }
+        @media (max-width: 640px) { .continent-hero { height: 320px; } }
+      `}</style>
+
+      {continent.photoUrl ? (
+        /* ── Photo hero ───────────────────────────────────────────────────── */
         <div
-          className="absolute inset-0"
+          className="continent-hero"
           style={{
-            backgroundColor: config.color,
-            opacity: 0.12,
-            WebkitMaskImage: `url(/svg/continents/${slug}.svg)`,
-            WebkitMaskRepeat: "no-repeat",
-            WebkitMaskPosition: "center",
-            WebkitMaskSize: "contain",
-            maskImage: `url(/svg/continents/${slug}.svg)`,
-            maskRepeat: "no-repeat",
-            maskPosition: "center",
-            maskSize: "contain",
+            position: "relative",
+            overflow: "hidden",
+            backgroundColor: "#1B3A5C",
+            backgroundImage: `url('${continent.photoUrl}')`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
           }}
-        />
+        >
+          {/* Top scrim — breadcrumb legibility */}
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: "40%",
+              zIndex: 1,
+              background: "linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.2) 30%, transparent 60%)",
+            }}
+          />
+          {/* Bottom scrim */}
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: "70%",
+              zIndex: 1,
+              background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.45) 25%, rgba(0,0,0,0.15) 50%, transparent 70%)",
+            }}
+          />
+          {/* Localized text backdrop */}
+          <div
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              width: "min(720px, 100%)",
+              height: "60%",
+              zIndex: 1,
+              pointerEvents: "none",
+              background: "radial-gradient(ellipse 70% 55% at 22% 75%, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.3) 45%, rgba(0,0,0,0.1) 70%, transparent 85%)",
+            }}
+          />
 
-        {/* Text — above watermark */}
-        <div className="relative z-10">
-          {/* Breadcrumb */}
-          <p className={`${dmsans.className} text-xs mb-3`} style={{ color: "rgba(250,247,242,0.6)" }}>
-            <Link href="/discover" style={{ color: "rgba(250,247,242,0.8)", textDecoration: "none" }}>
-              Destinations
-            </Link>
-            {" › "}
-            <span style={{ color: "rgba(250,247,242,0.95)" }}>{config.label}</span>
-          </p>
+          <div
+            style={{
+              position: "absolute",
+              bottom: "28px",
+              left: "28px",
+              right: "28px",
+              zIndex: 2,
+            }}
+          >
+            <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.95)", marginBottom: "8px", textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
+              <Link href="/discover" style={{ color: "rgba(255,255,255,0.95)", textDecoration: "none" }}>
+                Destinations
+              </Link>
+              {" › "}
+              <span style={{ color: "rgba(255,255,255,0.95)" }}>{config.label}</span>
+            </p>
 
-          <h1
-            className={`${playfair.className} text-5xl md:text-6xl font-normal tracking-tight`}
-            style={{ color: "#FAF7F2" }}
-          >
-            {config.label}
-          </h1>
-          <p
-            className={`${dmsans.className} text-base md:text-lg italic mt-2`}
-            style={{ color: "rgba(250, 247, 242, 0.8)" }}
-          >
-            {config.tagline}
-          </p>
-          <p
-            className={`${dmsans.className} text-sm mt-4`}
-            style={{ color: "rgba(250, 247, 242, 0.6)" }}
-          >
-            {countries.length} featured countries
-          </p>
+            <h1
+              className={playfair.className}
+              style={{
+                fontSize: "36px",
+                fontWeight: 700,
+                color: "#fff",
+                lineHeight: 1.15,
+                marginBottom: "8px",
+                textShadow: "0 2px 16px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.6)",
+              }}
+            >
+              {config.label}
+            </h1>
+
+            <p
+              className={dmsans.className}
+              style={{
+                fontSize: "14px",
+                fontStyle: "italic",
+                color: "rgba(255,255,255,0.92)",
+                lineHeight: 1.5,
+                maxWidth: "560px",
+                marginBottom: "12px",
+                textShadow: "0 1px 6px rgba(0,0,0,0.75)",
+              }}
+            >
+              {config.tagline}
+            </p>
+
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 600,
+                backgroundColor: "rgba(255,255,255,0.18)",
+                color: "#fff",
+                borderRadius: "999px",
+                padding: "4px 12px",
+                backdropFilter: "blur(4px)",
+              }}
+            >
+              {countries.length} featured countries
+            </span>
+          </div>
         </div>
-      </div>
+      ) : (
+        /* ── Navy fallback with silhouette watermark ──────────────────────── */
+        <div
+          className="relative flex flex-col items-center justify-center py-16 md:py-20 text-center px-4 overflow-hidden"
+          style={{ backgroundColor: "#1B3A5C" }}
+        >
+          <div
+            className="absolute inset-0"
+            style={{
+              backgroundColor: config.color,
+              opacity: 0.12,
+              WebkitMaskImage: `url(/svg/continents/${slug}.svg)`,
+              WebkitMaskRepeat: "no-repeat",
+              WebkitMaskPosition: "center",
+              WebkitMaskSize: "contain",
+              maskImage: `url(/svg/continents/${slug}.svg)`,
+              maskRepeat: "no-repeat",
+              maskPosition: "center",
+              maskSize: "contain",
+            }}
+          />
+
+          <div className="relative z-10">
+            <p className={`${dmsans.className} text-xs mb-3`} style={{ color: "rgba(250,247,242,0.6)" }}>
+              <Link href="/discover" style={{ color: "rgba(250,247,242,0.8)", textDecoration: "none" }}>
+                Destinations
+              </Link>
+              {" › "}
+              <span style={{ color: "rgba(250,247,242,0.95)" }}>{config.label}</span>
+            </p>
+
+            <h1
+              className={`${playfair.className} text-5xl md:text-6xl font-normal tracking-tight`}
+              style={{ color: "#FAF7F2" }}
+            >
+              {config.label}
+            </h1>
+            <p
+              className={`${dmsans.className} text-base md:text-lg italic mt-2`}
+              style={{ color: "rgba(250, 247, 242, 0.8)" }}
+            >
+              {config.tagline}
+            </p>
+            <p
+              className={`${dmsans.className} text-sm mt-4`}
+              style={{ color: "rgba(250, 247, 242, 0.6)" }}
+            >
+              {countries.length} featured countries
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Blurb */}
       {continent.blurb && (
