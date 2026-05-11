@@ -165,8 +165,15 @@ async function fetchTours(): Promise<TourCardItem[]> {
   }));
 }
 
+interface PlaceRatingRow {
+  city_key: string;
+  name_key: string;
+  avg_rating: number;
+  rating_count: number | bigint;
+}
+
 async function fetchPicks(): Promise<PickSpot[]> {
-  const [spots, tourStops] = await Promise.all([
+  const [spots, tourStops, placeRatingRows] = await Promise.all([
     db.communitySpot.findMany({
       where: {
         isPublic: true,
@@ -216,7 +223,25 @@ async function fetchPicks(): Promise<PickSpot[]> {
       },
       take: 300,
     }),
+    db.$queryRaw<PlaceRatingRow[]>`
+      SELECT
+        LOWER("destinationCity") AS city_key,
+        LOWER("placeName") AS name_key,
+        AVG("rating")::float AS avg_rating,
+        COUNT(DISTINCT "familyProfileId")::int AS rating_count
+      FROM "PlaceRating"
+      GROUP BY 1, 2
+    `,
   ]);
+
+  // Build a merge map: "city|name" → PlaceRating aggregate
+  const prMap = new Map<string, { avgRating: number; count: number }>();
+  for (const row of placeRatingRows) {
+    const count = Number(row.rating_count);
+    if (count > 0) {
+      prMap.set(`${row.city_key}|${row.name_key}`, { avgRating: row.avg_rating, count });
+    }
+  }
 
   // Map tour stops into PickSpot format
   const stopPicks: PickSpot[] = tourStops
@@ -237,11 +262,23 @@ async function fetchPicks(): Promise<PickSpot[]> {
       description: s.why ?? null,
     }));
 
+  // Merge PlaceRating aggregates into community spots (same logic as city page)
+  const mergedSpots: PickSpot[] = spots.map((s) => {
+    const key = `${s.city.toLowerCase()}|${s.name.toLowerCase()}`;
+    const pr = prMap.get(key);
+    const base: PickSpot = {
+      ...s,
+      description: s.description ?? null,
+      contributorName: s.author?.familyName ?? null,
+    };
+    if (!pr) return base;
+    const totalCount = base.ratingCount + pr.count;
+    const totalAvg = ((base.averageRating ?? 0) * base.ratingCount + pr.avgRating * pr.count) / totalCount;
+    return { ...base, averageRating: totalAvg, ratingCount: totalCount };
+  });
+
   // Combine: rated community spots first, then tour stop picks
-  const allSpots: PickSpot[] = [
-    ...spots.map((s) => ({ ...s, description: s.description ?? null, contributorName: s.author?.familyName ?? null })),
-    ...stopPicks,
-  ];
+  const allSpots: PickSpot[] = [...mergedSpots, ...stopPicks];
 
   // Geographic distribution: group by country, interleave for variety
   // Rated spots are already sorted by rating within each country group
