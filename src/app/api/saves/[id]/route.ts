@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
+import { normalizeCategorySlug } from "@/lib/categories";
 import { writeThroughCommunitySpot } from "@/lib/community-write-through";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +51,12 @@ export async function PATCH(
   if (typeof body.rawTitle === "string") updateData.rawTitle = body.rawTitle;
   if (typeof body.notes === "string") updateData.notes = body.notes;
   if (typeof body.userRating === "number") updateData.userRating = body.userRating;
-  if (Array.isArray(body.categoryTags)) updateData.categoryTags = { set: normalizeAndDedupeCategoryTags(body.categoryTags) };
+  if (Array.isArray(body.categoryTags)) {
+    const normalized = normalizeAndDedupeCategoryTags(
+      (body.categoryTags as string[]).map(t => normalizeCategorySlug(t) ?? t)
+    );
+    updateData.categoryTags = { set: normalized };
+  }
   if (typeof body.tripId === "string") {
     updateData.tripId = body.tripId;
     updateData.status = "TRIP_ASSIGNED";

@@ -328,7 +328,20 @@ export function SaveDetailModal({
                 <span style={{ fontSize: "12px", color: "#aaa" }}>No tags yet</span>
               )}
               <button
-                onClick={() => setEditingTags(e => !e)}
+                onClick={() => {
+                  if (editingTags) {
+                    if (item && JSON.stringify(localTags.slice().sort()) !== JSON.stringify(initialTags.current.slice().sort())) {
+                      fetch(`/api/saves/${itemId}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ categoryTags: localTags }),
+                      }).catch(() => {});
+                      onTagsUpdated?.(itemId, localTags);
+                      initialTags.current = [...localTags];
+                    }
+                  }
+                  setEditingTags(e => !e);
+                }}
                 style={{ fontSize: "11px", fontWeight: 600, color: "#C4664A", border: "1.5px solid #C4664A", borderRadius: "999px", padding: "3px 10px", background: "none", cursor: "pointer", flexShrink: 0 }}
               >
                 {editingTags ? "Done" : "Edit tags"}

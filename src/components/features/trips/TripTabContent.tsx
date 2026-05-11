@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import TourMapBlock from "@/components/tours/TourMapBlock";
+import { CATEGORIES, categoryLabel as getCategoryLabel } from "@/lib/categories";
 
 function decodeHtmlEntities(str: string | null | undefined): string {
   if (!str) return "";
@@ -769,7 +770,6 @@ function LodgingDateModal({ itemTitle, onConfirm, onClose }: {
   );
 }
 
-const ALL_CATEGORY_TAGS = ["Food & Drink", "Culture", "Experiences", "Lodging", "Adventure", "Kids Camps", "Nature", "Shopping", "Entertainment", "Wellness", "Nightlife", "Other"];
 
 function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDelete, assignedDay, onTagsUpdated }: {
   item: SavedDisplayItem;
@@ -790,7 +790,7 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
   const [justShared, setJustShared] = useState(false);
   const initialTags = useRef(item.categoryTags ?? []);
   const initial = item.title.replace(/^www\./, "").charAt(0).toUpperCase();
-  const categoryLabel = localTags.filter(t => !["VG", "VGN"].includes(t)).slice(0, 2).join(" · ");
+  const categoryLabel = localTags.filter(t => !["VG", "VGN"].includes(t)).slice(0, 2).map(t => getCategoryLabel(t) || t).join(" · ");
 
   function toggleTag(tag: string) {
     setLocalTags(prev => prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]);
@@ -843,13 +843,23 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
               {localTags.filter(t => !["VG", "VGN"].includes(t)).map(tag => (
                 <button key={tag} onClick={() => toggleTag(tag)}
                   style={{ fontSize: "11px", fontWeight: 600, background: "#C4664A", color: "#fff", borderRadius: "999px", padding: "3px 10px", border: "none", cursor: "pointer" }}>
-                  {tag}
+                  {getCategoryLabel(tag) || tag}
                 </button>
               ))}
               {localTags.length === 0 && !editingTags && (
                 <span style={{ fontSize: "12px", color: "#aaa" }}>No tags yet</span>
               )}
-              <button onClick={() => setEditingTags(e => !e)}
+              <button onClick={() => {
+                if (editingTags) {
+                  // Save on Done
+                  if (item.id && JSON.stringify(localTags.slice().sort()) !== JSON.stringify(initialTags.current.slice().sort())) {
+                    fetch(`/api/saves/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ categoryTags: localTags }) }).catch(() => {});
+                    onTagsUpdated?.(item.id, localTags);
+                    initialTags.current = [...localTags];
+                  }
+                }
+                setEditingTags(e => !e);
+              }}
                 style={{ fontSize: "11px", fontWeight: 600, color: "#C4664A", border: "1.5px solid #C4664A", borderRadius: "999px", padding: "3px 10px", background: "none", cursor: "pointer" }}>
                 {editingTags ? "Done" : "Edit tags"}
               </button>
@@ -858,12 +868,12 @@ function SavedDetailModal({ item, onClose, onAddToItinerary, onMarkBooked, onDel
               <div style={{ marginTop: "8px", padding: "12px", backgroundColor: "#FAFAFA", borderRadius: "10px", border: "1px solid rgba(0,0,0,0.08)" }}>
                 <p style={{ fontSize: "11px", color: "#999", marginBottom: "8px", fontWeight: 600, textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Tap to toggle</p>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {ALL_CATEGORY_TAGS.map(tag => {
-                    const active = localTags.includes(tag);
+                  {CATEGORIES.map(({ slug, label }) => {
+                    const active = localTags.includes(slug);
                     return (
-                      <button key={tag} onClick={() => toggleTag(tag)}
+                      <button key={slug} onClick={() => toggleTag(slug)}
                         style={{ fontSize: "12px", fontWeight: 600, padding: "5px 12px", borderRadius: "999px", border: "1.5px solid", borderColor: active ? "#C4664A" : "#D0D0D0", backgroundColor: active ? "#C4664A" : "#fff", color: active ? "#fff" : "#666", cursor: "pointer" }}>
-                        {tag}
+                        {label}
                       </button>
                     );
                   })}
