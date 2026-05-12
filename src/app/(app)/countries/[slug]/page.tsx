@@ -80,7 +80,6 @@ export default async function CountryPage(
       where: {
         destinationCountry: country.name,
         isPublic: true,
-        isAnonymous: true,
       },
       select: {
         id: true,
