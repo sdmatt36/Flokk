@@ -46,8 +46,7 @@ function safeTitle(title: string | null | undefined, description: string | null 
 }
 
 export async function GET(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  await auth(); // optional — available for future per-user personalisation
 
   const city = req.nextUrl.searchParams.get("city") ?? "";
 

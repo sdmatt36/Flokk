@@ -11,8 +11,7 @@ function extractEmbedId(url: string): { platform: string; embedId: string } | nu
 }
 
 export async function GET() {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // No auth required — returns only published:true videos
 
   const videos = await db.travelVideo.findMany({
     where: { published: true },
