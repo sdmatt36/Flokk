@@ -20,6 +20,12 @@ export async function POST(
   }
 
   const { citySlug } = await params;
-  const result = await generateCityItinerary(citySlug);
-  return NextResponse.json(result);
+  try {
+    const result = await generateCityItinerary(citySlug);
+    return NextResponse.json(result);
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(`[generate-city-itinerary] unhandled error for ${citySlug}:`, message);
+    return NextResponse.json({ status: "error", tripId: null, error: message }, { status: 500 });
+  }
 }

@@ -86,11 +86,17 @@ Return strict JSON only, no markdown:
   ]
 }`;
 
-  const res = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 8000,
-    messages: [{ role: "user", content: prompt }],
-  });
+  let res: Awaited<ReturnType<typeof anthropic.messages.create>>;
+  try {
+    res = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 8000,
+      messages: [{ role: "user", content: prompt }],
+    });
+  } catch (e: unknown) {
+    console.error("[callSonnet] Anthropic API error:", e instanceof Error ? e.message : String(e));
+    throw e;
+  }
 
   const text = res.content[0].type === "text" ? res.content[0].text.trim() : "";
   const match = text.match(/\{[\s\S]*\}/);
