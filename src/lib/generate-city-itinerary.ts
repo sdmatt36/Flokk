@@ -52,12 +52,15 @@ export interface GenerateCityItineraryResult {
   error?: string;
 }
 
-async function callSonnet(cityName: string, countryName: string): Promise<GeneratedItinerary | null> {
-  const prompt = `You are writing a 5-day family travel itinerary for ${cityName}, ${countryName}. This will appear publicly on Flokk, a family travel planning platform. The itinerary will be browsed by parents with kids ages 5-14 planning a trip.
+async function callSonnet(cityName: string, countryName: string): Promise<{ itinerary: GeneratedItinerary; numDays: number } | null> {
+  const numDays = ([3, 5, 7] as const)[Math.floor(Math.random() * 3)];
+  const actsPerDay = numDays === 7 ? "2-3" : "3-4";
+
+  const prompt = `You are writing a ${numDays}-day family travel itinerary for ${cityName}, ${countryName}. This will appear publicly on Flokk, a family travel planning platform. The itinerary will be browsed by parents with kids ages 5-14 planning a trip.
 
 Output requirements:
-- 5 days total
-- 3-4 activities per day (mix of: morning anchor, lunch/food, afternoon activity, evening if relevant)
+- ${numDays} days total
+- ${actsPerDay} activities per day (mix of: morning anchor, lunch/food, afternoon activity, evening if relevant)
 - Activities must be REAL places with specific names (not "a local cafe" — give the actual cafe name)
 - Mix categories across the trip: food_and_drink, culture, nature_and_outdoors, kids_and_family, experiences, adventure, shopping
 - Family-appropriate: nothing 21+, nothing requiring extreme fitness, nothing that requires 6+ hour commitment from kids
@@ -102,7 +105,7 @@ Return strict JSON only, no markdown:
         if (!CANONICAL_CATEGORIES.has(act.categorySlug)) act.categorySlug = "experiences";
       }
     }
-    return parsed;
+    return { itinerary: parsed, numDays };
   } catch {
     return null;
   }
@@ -183,10 +186,11 @@ export async function generateCityItinerary(citySlug: string): Promise<GenerateC
   }
 
   // 3. Generate itinerary content via Sonnet
-  const itinerary = await callSonnet(cityName, countryName);
-  if (!itinerary) {
+  const generated = await callSonnet(cityName, countryName);
+  if (!generated) {
     return { status: "error", tripId: null, error: "Sonnet generation failed or returned invalid JSON" };
   }
+  const { itinerary, numDays } = generated;
 
   // 4. Fetch Unsplash hero image
   const hero = await searchUnsplashPhotoWithCredit(
@@ -231,7 +235,8 @@ export async function generateCityItinerary(citySlug: string): Promise<GenerateC
 
   // 6. Persist Trip + SavedItems in a single atomic create
   const startDate = new Date("2025-04-20T12:00:00Z");
-  const endDate = new Date("2025-04-24T12:00:00Z");
+  const endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + numDays - 1);
 
   const trip = await db.trip.create({
     data: {
