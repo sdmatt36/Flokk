@@ -183,7 +183,7 @@ async function fetchPicks(): Promise<PickSpot[]> {
         ],
       },
       orderBy: [{ averageRating: "desc" }, { ratingCount: "desc" }],
-      take: 1000,
+      take: 1500,
       select: {
         id: true,
         name: true,
@@ -291,8 +291,8 @@ async function fetchPicks(): Promise<PickSpot[]> {
     byCountry.get(key)!.push(s);
   }
 
-  const MAX_PER_COUNTRY = 25;
-  const MAX_TOTAL = 250;
+  const MAX_PER_COUNTRY = 75;
+  const MAX_TOTAL = 1500;
   const result: PickSpot[] = [];
   const buckets = [...byCountry.values()];
 
