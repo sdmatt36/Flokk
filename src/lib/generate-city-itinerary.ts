@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
 import { searchUnsplashPhotoWithCredit } from "@/lib/unsplash";
+import { promoteToCommunitySpot } from "@/lib/promote-saved-item-to-pick";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -47,6 +48,7 @@ export interface GenerateCityItineraryResult {
   cityName?: string;
   savedItemCount?: number;
   enrichedCount?: number;
+  promotedCount?: number;
   heroImageUrl?: string | null;
   skipReason?: string;
   error?: string;
@@ -284,6 +286,28 @@ export async function generateCityItinerary(citySlug: string): Promise<GenerateC
     select: { id: true },
   });
 
+  // 7. Promote SavedItems to CommunitySpots — best-effort, errors don't fail trip creation
+  let promotedCount = 0;
+  for (const { act, enrich } of flatActivities) {
+    try {
+      const result = await promoteToCommunitySpot({
+        name: act.title,
+        description: act.description,
+        city: cityName,
+        country: countryName,
+        category: act.categorySlug,
+        lat: enrich.lat,
+        lng: enrich.lng,
+        photoUrl: enrich.placePhotoUrl,
+        websiteUrl: enrich.websiteUrl,
+        cityId: city.id,
+      });
+      if (result.status === "created") promotedCount++;
+    } catch (e) {
+      console.error(`[promote-pick] ${act.title}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
   return {
     status: "success",
     tripId: trip.id,
@@ -291,6 +315,7 @@ export async function generateCityItinerary(citySlug: string): Promise<GenerateC
     cityName,
     savedItemCount: flatActivities.length,
     enrichedCount,
+    promotedCount,
     heroImageUrl,
   };
 }

@@ -42,6 +42,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/search(.*)",
   "/api/travel-intel(.*)",
   "/api/admin/generate-city-itinerary(.*)",
+  "/api/admin/backfill-itinerary-picks(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
