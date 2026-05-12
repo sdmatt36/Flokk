@@ -5,6 +5,7 @@ import { getTripCoverImage } from "@/lib/destination-images";
 import { mergeDuplicateLodging } from "@/lib/itinerary/merge-duplicate-lodging";
 import { SharePageBottomBar } from "./SharePageBottomBar";
 import { ShareItineraryView, type DayData } from "./ShareItineraryView";
+import { AppHeader } from "@/components/ui/AppHeader";
 import { MapPin, Calendar } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -383,16 +384,20 @@ export default async function SharePage({
     <div style={{ minHeight: "100vh", backgroundColor: "#FFFFFF", paddingBottom: "120px" }}>
 
       {/* ── Sticky header ── */}
-      <header style={{ position: "sticky", top: 0, zIndex: 50, backgroundColor: "#fff", borderBottom: "1px solid #F0F0F0" }}>
-        <div style={{ maxWidth: "640px", margin: "0 auto", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <a href="/" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: "#1B3A5C", textDecoration: "none" }}>
-            Flokk
-          </a>
-          <a href="/discover" style={{ fontSize: "13px", color: "#888", textDecoration: "none" }}>
-            ← Browse all trips
-          </a>
-        </div>
-      </header>
+      {isLoggedIn ? (
+        <AppHeader />
+      ) : (
+        <header style={{ position: "sticky", top: 0, zIndex: 50, backgroundColor: "#fff", borderBottom: "1px solid #F0F0F0" }}>
+          <div style={{ maxWidth: "640px", margin: "0 auto", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <a href="/" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: "#1B3A5C", textDecoration: "none" }}>
+              Flokk
+            </a>
+            <a href="/discover" style={{ fontSize: "13px", color: "#888", textDecoration: "none" }}>
+              ← Browse all trips
+            </a>
+          </div>
+        </header>
+      )}
 
       {/* ── Hero ── */}
       <div
