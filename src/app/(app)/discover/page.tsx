@@ -112,7 +112,7 @@ async function fetchTrips(): Promise<CommunityTripCardTrip[]> {
   const rows = await db.trip.findMany({
     where: { isPublic: true, shareToken: { not: null } },
     orderBy: { updatedAt: "desc" },
-    take: 50,
+    take: 200,
     select: {
       id: true,
       title: true,
@@ -133,7 +133,7 @@ async function fetchTours(): Promise<TourCardItem[]> {
   const rows = await db.generatedTour.findMany({
     where: { isPublic: true, deletedAt: null },
     orderBy: { createdAt: "desc" },
-    take: 50,
+    take: 200,
     select: {
       id: true,
       title: true,
