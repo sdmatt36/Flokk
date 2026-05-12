@@ -1,10 +1,8 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ExternalLink, Clock, Footprints } from "lucide-react";
-
-const TourMapBlock = dynamic(() => import("@/components/tours/TourMapBlock"), { ssr: false });
+import TourMapBlock from "@/components/tours/TourMapBlock";
 
 const NAVY = "#1B3A5C";
 const TERRA = "#C4664A";
