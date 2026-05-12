@@ -78,9 +78,9 @@ export default async function CountryPage(
   const [trips, spots, tours, siblingCountries] = await Promise.all([
     db.trip.findMany({
       where: {
+        destinationCountry: country.name,
         isPublic: true,
-        shareToken: { not: null },
-        destinationCountry: { contains: country.name, mode: "insensitive" },
+        isAnonymous: true,
       },
       select: {
         id: true,
@@ -94,13 +94,16 @@ export default async function CountryPage(
         endDate: true,
         familyProfile: { select: { familyName: true } },
       },
-      orderBy: { viewCount: "desc" },
-      take: 20,
+      orderBy: { createdAt: "desc" },
+      take: 50,
     }),
     db.communitySpot.findMany({
       where: {
-        geoCity: { countryId: country.id },
         isPublic: true,
+        OR: [
+          { country: country.name },
+          { geoCity: { countryId: country.id } },
+        ],
       },
       select: {
         id: true,
@@ -114,14 +117,12 @@ export default async function CountryPage(
         description: true,
       },
       orderBy: [{ averageRating: "desc" }, { ratingCount: "desc" }],
-      take: 150,
+      take: 200,
     }),
     db.generatedTour.findMany({
       where: {
+        destinationCountry: country.name,
         isPublic: true,
-        deletedAt: null,
-        shareToken: { not: null },
-        destinationCountry: { contains: country.name, mode: "insensitive" },
       },
       select: {
         id: true,
@@ -137,7 +138,7 @@ export default async function CountryPage(
           take: 1,
         },
       },
-      take: 20,
+      take: 50,
     }),
     db.country.findMany({
       where: { continentId: country.continentId, id: { not: country.id } },
@@ -145,6 +146,8 @@ export default async function CountryPage(
       select: { slug: true, name: true },
     }),
   ]);
+
+  console.log(`[CountryPage] slug=${slug} itineraries=${trips.length} spots=${spots.length} tours=${tours.length}`);
 
   const totalSpots = country.cities.reduce((sum, c) => sum + c._count.communitySpots, 0);
 
