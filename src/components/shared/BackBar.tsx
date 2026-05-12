@@ -36,6 +36,7 @@ export function BackBar({ backLabel, backHref, crumbs = [] }: BackBarProps) {
           fontWeight: 700,
           color: "#C4664A",
           textDecoration: "none",
+          padding: "12px 0",
         }}
       >
         ← {backLabel}
