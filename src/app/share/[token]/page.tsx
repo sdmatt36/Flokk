@@ -146,9 +146,8 @@ export default async function SharePage({
 
   const destination = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ");
   const tripDestination = trip.destinationCity ?? destination ?? "this destination";
-  const totalActivityCount =
-    trip.itineraryItems.filter(i => i.type !== "FLIGHT" && i.type !== "LODGING").length +
-    trip.manualActivities.length;
+  // savedItems is the authoritative count — itineraryItems are email-imported bookings (often 0 on showcase trips)
+  const totalActivityCount = trip.savedItems.length;
 
   // Build day label
   const tripStart = trip.startDate;
@@ -405,6 +404,37 @@ export default async function SharePage({
       {/* ── Sticky header ── */}
       <AppHeader />
 
+      {/* ── Back nav bar ── */}
+      <div
+        style={{
+          backgroundColor: "#fff",
+          borderBottom: "1px solid #EEEEEE",
+          padding: "0 24px",
+          minHeight: "44px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "8px",
+        }}
+      >
+        <Link
+          href={geoCity ? `/cities/${geoCity.slug}` : "/discover"}
+          style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: 700, color: "#C4664A", textDecoration: "none" }}
+        >
+          ← Back to {geoCity ? geoCity.name : "Destinations"}
+        </Link>
+        {geoCity && (
+          <nav aria-label="Breadcrumb" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "2px", fontSize: "12px", color: "#717171" }}>
+            <Link href="/discover" style={{ color: "inherit", textDecoration: "none" }}>Destinations</Link>
+            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
+            <Link href={`/continents/${geoCity.country.continent.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.country.continent.name}</Link>
+            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
+            <Link href={`/countries/${geoCity.country.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.country.name}</Link>
+          </nav>
+        )}
+      </div>
+
       {/* ── Hero ── */}
       <div
         style={{
@@ -418,37 +448,6 @@ export default async function SharePage({
         }}
       >
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.80) 100%)" }} />
-
-        {/* Breadcrumb — top-left */}
-        {geoCity && (
-          <nav
-            aria-label="Breadcrumb"
-            style={{
-              position: "absolute",
-              top: 20,
-              left: 24,
-              zIndex: 3,
-              display: "flex",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: "2px",
-              fontSize: "12px",
-              color: "rgba(255,255,255,0.95)",
-              textShadow: "0 1px 4px rgba(0,0,0,0.7)",
-              lineHeight: 1.4,
-            }}
-          >
-            <Link href="/discover" style={{ color: "inherit", textDecoration: "none" }}>Destinations</Link>
-            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
-            <Link href={`/continents/${geoCity.country.continent.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.country.continent.name}</Link>
-            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
-            <Link href={`/countries/${geoCity.country.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.country.name}</Link>
-            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
-            <Link href={`/cities/${geoCity.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.name}</Link>
-            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
-            <span style={{ opacity: 0.75 }}>{trip.title}</span>
-          </nav>
-        )}
 
         <div style={{ position: "absolute", bottom: "24px", left: "24px", right: "24px", zIndex: 2 }}>
           <h1 style={{ fontSize: "30px", fontWeight: 900, color: "#fff", lineHeight: 1.1, marginBottom: "8px", textShadow: "0 2px 12px rgba(0,0,0,0.4)" }}>

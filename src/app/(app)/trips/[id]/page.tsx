@@ -140,6 +140,39 @@ export default async function TripDetailPage({
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#FFFFFF", paddingBottom: "96px" }}>
 
+      {/* Back nav bar — community trips */}
+      {isCommunity && (
+        <div
+          style={{
+            backgroundColor: "#fff",
+            borderBottom: "1px solid #EEEEEE",
+            padding: "0 24px",
+            minHeight: "44px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "8px",
+          }}
+        >
+          <Link
+            href={geoCity ? `/cities/${geoCity.slug}` : "/discover"}
+            style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: 700, color: "#C4664A", textDecoration: "none" }}
+          >
+            ← Back to {geoCity ? geoCity.name : "Destinations"}
+          </Link>
+          {geoCity && (
+            <nav aria-label="Breadcrumb" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "2px", fontSize: "12px", color: "#717171" }}>
+              <Link href="/discover" style={{ color: "inherit", textDecoration: "none" }}>Destinations</Link>
+              <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
+              <Link href={`/continents/${geoCity.country.continent.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.country.continent.name}</Link>
+              <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
+              <Link href={`/countries/${geoCity.country.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.country.name}</Link>
+            </nav>
+          )}
+        </div>
+      )}
+
       {/* Hero */}
       <div style={{ height: "260px", position: "relative", overflow: "hidden", backgroundColor: "#1a1a1a", backgroundImage: `url('${heroImg}')`, backgroundSize: "cover", backgroundPosition: "center" }}>
         <div
@@ -150,38 +183,10 @@ export default async function TripDetailPage({
           }}
         />
 
-        {/* Breadcrumb (community) or back pill (owner) */}
-        {isCommunity && geoCity ? (
-          <nav
-            aria-label="Breadcrumb"
-            style={{
-              position: "absolute",
-              top: 20,
-              left: 24,
-              zIndex: 2,
-              display: "flex",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: "2px",
-              fontSize: "12px",
-              color: "rgba(255,255,255,0.95)",
-              textShadow: "0 1px 4px rgba(0,0,0,0.7)",
-              lineHeight: 1.4,
-            }}
-          >
-            <Link href="/discover" style={{ color: "inherit", textDecoration: "none" }}>Destinations</Link>
-            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
-            <Link href={`/continents/${geoCity.country.continent.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.country.continent.name}</Link>
-            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
-            <Link href={`/countries/${geoCity.country.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.country.name}</Link>
-            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
-            <Link href={`/cities/${geoCity.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.name}</Link>
-            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
-            <span style={{ opacity: 0.75 }}>{trip.title}</span>
-          </nav>
-        ) : (
+        {/* Back pill — owner trips only */}
+        {!isCommunity && (
           <Link
-            href={isCommunity ? "/discover" : "/trips"}
+            href="/trips"
             style={{
               position: "absolute",
               top: "16px",
@@ -202,7 +207,7 @@ export default async function TripDetailPage({
             }}
           >
             <ChevronLeft size={15} />
-            {isCommunity ? "Explore" : "Trips"}
+            Trips
           </Link>
         )}
 
