@@ -20,6 +20,17 @@ const EMAIL_SOURCE_METHODS = new Set([
 
 const TRANSPORT_SLUGS = new Set(["train", "flight", "airline", "transport", "transit"]);
 
+// Structural flight indicator — real flight emails write ItineraryItems, not SavedItems,
+// but the low-confidence URL-extraction path occasionally creates a SavedItem with a
+// URL as rawTitle, or rare edge cases produce "XX 123" style titles.
+function looksLikeFlight(title: string | null): boolean {
+  if (!title) return false;
+  if (/^[A-Z]{2,3}\s?\d{3,4}(\s|$)/.test(title)) return true;
+  if (title.includes(" → ") && title.length < 30) return true;
+  if (/^flight\s/i.test(title)) return true;
+  return false;
+}
+
 async function classifyViaHaiku(
   title: string | null,
   description: string | null,
@@ -59,10 +70,22 @@ export async function POST() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Count total active vs deleted for gap explanation
+  const [activeCount, totalCount] = await Promise.all([
+    db.savedItem.count({ where: { deletedAt: null } }),
+    db.savedItem.count(),
+  ]);
+  const deletedSkipped = totalCount - activeCount;
+
   let scanned = 0;
   let stripped = 0;
   let reclassified = 0;
   let emptyRemaining = 0;
+
+  // Scope breakdown counters
+  let scopePreviouslyEmpty = 0;
+  let scopePreviouslyMalformed = 0;
+  let scopeFlightSkipped = 0;
 
   let cursor: string | undefined;
 
@@ -88,9 +111,45 @@ export async function POST() {
     scanned += batch.length;
 
     for (const item of batch) {
-      if (item.categoryTags.length === 0) continue;
+      const isEmail = EMAIL_SOURCE_METHODS.has(item.sourceMethod ?? "");
 
-      // Keep only canonical slugs (map legacy values, drop unmappable ones)
+      // ── Path A: item already has empty tags ──────────────────────────────────
+      if (item.categoryTags.length === 0) {
+        scopePreviouslyEmpty++;
+
+        // Structurally known lodging (email-extracted hotel)
+        if (isEmail && item.lodgingType) {
+          await db.savedItem.update({
+            where: { id: item.id },
+            data: { categoryTags: ["lodging"] },
+          });
+          reclassified++;
+          continue;
+        }
+
+        // Structural flight indicator — skip Haiku, leave empty
+        if (looksLikeFlight(item.rawTitle)) {
+          scopeFlightSkipped++;
+          emptyRemaining++;
+          continue;
+        }
+
+        // All other empty-tag items → Haiku classify
+        const suggested = await classifyViaHaiku(
+          item.rawTitle,
+          item.rawDescription,
+          item.destinationCity
+        );
+        await db.savedItem.update({
+          where: { id: item.id },
+          data: { categoryTags: suggested },
+        });
+        if (suggested.length > 0) reclassified++;
+        else emptyRemaining++;
+        continue;
+      }
+
+      // ── Path B: item has existing tags — normalize and dedup ─────────────────
       const mappedTags: string[] = [];
       for (const raw of item.categoryTags) {
         const slug = normalizeCategorySlug(raw);
@@ -106,6 +165,7 @@ export async function POST() {
 
       if (!changed) continue;
 
+      scopePreviouslyMalformed++;
       stripped++;
 
       if (cleaned.length > 0) {
@@ -118,10 +178,7 @@ export async function POST() {
       }
 
       // Tags stripped to empty — decide what to do
-      const isEmail = EMAIL_SOURCE_METHODS.has(item.sourceMethod ?? "");
-
       if (isEmail && item.lodgingType) {
-        // Structurally known as lodging from email extraction
         await db.savedItem.update({
           where: { id: item.id },
           data: { categoryTags: ["lodging"] },
@@ -130,35 +187,58 @@ export async function POST() {
         continue;
       }
 
-      if (isEmail) {
-        // Email-extracted flights/unfamiliar items — leave empty
-        emptyRemaining++;
+      if (looksLikeFlight(item.rawTitle)) {
+        scopeFlightSkipped++;
         await db.savedItem.update({
           where: { id: item.id },
           data: { categoryTags: [] },
         });
+        emptyRemaining++;
         continue;
       }
 
-      // Not email-extracted → ask Haiku
+      if (isEmail) {
+        // Email-extracted item with unrecognized/unfamiliar content — Haiku classify
+        const suggested = await classifyViaHaiku(
+          item.rawTitle,
+          item.rawDescription,
+          item.destinationCity
+        );
+        await db.savedItem.update({
+          where: { id: item.id },
+          data: { categoryTags: suggested },
+        });
+        if (suggested.length > 0) reclassified++;
+        else emptyRemaining++;
+        continue;
+      }
+
+      // Non-email, tags stripped to empty → Haiku classify
       const suggested = await classifyViaHaiku(
         item.rawTitle,
         item.rawDescription,
         item.destinationCity
       );
-
       await db.savedItem.update({
         where: { id: item.id },
         data: { categoryTags: suggested },
       });
-
-      if (suggested.length > 0) {
-        reclassified++;
-      } else {
-        emptyRemaining++;
-      }
+      if (suggested.length > 0) reclassified++;
+      else emptyRemaining++;
     }
   }
 
-  return NextResponse.json({ scanned, stripped, reclassified, emptyRemaining });
+  return NextResponse.json({
+    scanned,
+    activeTotal: activeCount,
+    deletedSkipped,
+    stripped,
+    reclassified,
+    emptyRemaining,
+    scopeBreakdown: {
+      previously_empty: scopePreviouslyEmpty,
+      previously_malformed: scopePreviouslyMalformed,
+      flight_skipped: scopeFlightSkipped,
+    },
+  });
 }
