@@ -43,7 +43,7 @@ export function CountryCard({ country, continentColor, continentLabel }: Props) 
               {country.name}
             </span>
             <div style={{ position: "absolute", top: "10px", left: "10px" }}>
-              <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: "rgba(255,255,255,0.25)", color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: "rgba(255,255,255,0.88)", color: "#1B3A5C", borderRadius: "20px", padding: "3px 10px" }}>
                 {continentLabel}
               </span>
             </div>

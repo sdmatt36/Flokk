@@ -193,11 +193,10 @@ export default async function ContinentPage(
               style={{
                 fontSize: "11px",
                 fontWeight: 600,
-                backgroundColor: "rgba(255,255,255,0.18)",
-                color: "#fff",
+                backgroundColor: "rgba(255,255,255,0.88)",
+                color: "#1B3A5C",
                 borderRadius: "999px",
                 padding: "4px 12px",
-                backdropFilter: "blur(4px)",
               }}
             >
               {countries.length} featured countries
