@@ -24,12 +24,20 @@ const isPublicRoute = createRouteMatcher([
   "/continents(.*)",
   "/countries(.*)",
   "/spots(.*)",
+  "/share(.*)",
+  "/s(.*)",
+  "/discover(.*)",
+  // Marketing pages (additional)
+  "/features(.*)",
+  "/how-it-works(.*)",
+  "/community-info(.*)",
   // Legacy public routes
   "/explore(.*)",
   "/destination(.*)",
   "/trip/(.*)/preview",
   "/api/webhooks(.*)",
   "/api/cron(.*)",
+  "/api/destinations(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {
