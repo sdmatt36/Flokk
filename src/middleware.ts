@@ -27,6 +27,7 @@ const isPublicRoute = createRouteMatcher([
   "/share(.*)",
   "/s(.*)",
   "/discover(.*)",
+  "/travel-intel(.*)",
   // Marketing pages (additional)
   "/features(.*)",
   "/how-it-works(.*)",
@@ -38,6 +39,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/webhooks(.*)",
   "/api/cron(.*)",
   "/api/destinations(.*)",
+  "/api/search(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, request) => {

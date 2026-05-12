@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 
 export async function GET(req: Request) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  void userId; // available for future per-user result scoping
 
   const { searchParams } = new URL(req.url);
   const q = (searchParams.get("q") ?? "").trim();
