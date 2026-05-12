@@ -14,6 +14,7 @@ import { TourCard } from "@/components/shared/cards/TourCard";
 import { ScopedSearchBar } from "@/components/shared/ScopedSearchBar";
 import { LateralPeerNav } from "@/components/shared/LateralPeerNav";
 import { FlokkersAlsoLove } from "@/components/shared/FlokkersAlsoLove";
+import { BackBar } from "@/components/shared/BackBar";
 
 // ── DB ────────────────────────────────────────────────────────────────────────
 
@@ -286,12 +287,17 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
+      <BackBar
+        backLabel={`Back to ${country.name}`}
+        backHref={`/countries/${countrySlug}`}
+        crumbs={[
+          { label: "Destinations", href: "/discover" },
+          { label: continent.name, href: `/continents/${continentSlug}` },
+        ]}
+      />
+
       <CityHero
         cityName={city.name}
-        countryName={country.name}
-        countrySlug={countrySlug}
-        continentName={continent.name}
-        continentSlug={continentSlug}
         latitude={city.latitude}
         longitude={city.longitude}
         photoUrl={city.photoUrl}

@@ -21,10 +21,6 @@ interface UnsplashAttribution {
 
 interface CityHeroProps {
   cityName: string;
-  countryName: string;
-  countrySlug: string;
-  continentName: string;
-  continentSlug: string;
   latitude: number | null;
   longitude: number | null;
   photoUrl?: string | null;
@@ -56,10 +52,6 @@ function parseAttribution(raw: string | null | undefined): UnsplashAttribution |
 
 export function CityHero({
   cityName,
-  countryName,
-  countrySlug,
-  continentName,
-  continentSlug,
   latitude: _latitude,
   longitude: _longitude,
   photoUrl,
@@ -98,14 +90,11 @@ export function CityHero({
         .city-hero { height: 480px; }
         .city-hero-name { font-size: 64px; }
         .city-hero-blurb { font-size: 18px; }
-        .city-hero-breadcrumb { font-size: 14px; }
         .city-hero-stats { font-size: 14px; }
-        .city-hero-breadcrumb a:hover { text-decoration: underline; }
         @media (max-width: 767px) {
           .city-hero { height: 360px; }
           .city-hero-name { font-size: 40px; }
           .city-hero-blurb { font-size: 16px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-          .city-hero-breadcrumb { font-size: 12px; }
           .city-hero-stats { font-size: 12px; }
         }
       `}</style>
@@ -166,39 +155,6 @@ export function CityHero({
           background: "radial-gradient(ellipse 70% 55% at 22% 75%, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.3) 45%, rgba(0,0,0,0.1) 70%, transparent 85%)",
         }}
       />
-
-      {/* Breadcrumb — top-left */}
-      <nav
-        className={`city-hero-breadcrumb ${dmSans.className}`}
-        aria-label="Breadcrumb"
-        style={{
-          position: "absolute",
-          top: 24,
-          left: 24,
-          zIndex: 2,
-          color: "rgba(255,255,255,0.95)",
-          display: "flex",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: "2px",
-          lineHeight: 1.4,
-          textShadow: "0 1px 4px rgba(0,0,0,0.7)",
-        }}
-      >
-        <Link href="/discover" style={{ color: "inherit", textDecoration: "none" }}>
-          Destinations
-        </Link>
-        <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
-        <Link href={`/continents/${continentSlug}`} style={{ color: "inherit", textDecoration: "none" }}>
-          {continentName}
-        </Link>
-        <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
-        <Link href={`/countries/${countrySlug}`} style={{ color: "inherit", textDecoration: "none" }}>
-          {countryName}
-        </Link>
-        <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
-        <span style={{ opacity: 0.75 }}>{cityName}</span>
-      </nav>
 
       {/* Bottom-left content: city name + blurb + stats */}
       <div

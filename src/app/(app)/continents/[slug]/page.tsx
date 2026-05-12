@@ -7,6 +7,7 @@ import { CONTINENT_CONFIGS } from "@/lib/continents";
 import { CountryGrid } from "./_components/CountryGrid";
 import { ScopedSearchBar } from "@/components/shared/ScopedSearchBar";
 import { FlokkersAlsoLove } from "@/components/shared/FlokkersAlsoLove";
+import { BackBar } from "@/components/shared/BackBar";
 
 const playfair = Playfair_Display({ subsets: ["latin"], display: "swap" });
 const dmsans = DM_Sans({ subsets: ["latin"], display: "swap" });
@@ -97,6 +98,8 @@ export default async function ContinentPage(
         @media (max-width: 640px) { .continent-hero { height: 320px; } }
       `}</style>
 
+      <BackBar backLabel="Back to Destinations" backHref="/discover" />
+
       {continent.photoUrl ? (
         /* ── Photo hero ───────────────────────────────────────────────────── */
         <div
@@ -157,14 +160,6 @@ export default async function ContinentPage(
               zIndex: 2,
             }}
           >
-            <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.95)", marginBottom: "8px", textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
-              <Link href="/discover" style={{ color: "rgba(255,255,255,0.95)", textDecoration: "none" }}>
-                Destinations
-              </Link>
-              {" › "}
-              <span style={{ color: "rgba(255,255,255,0.95)" }}>{config.label}</span>
-            </p>
-
             <h1
               className={playfair.className}
               style={{
@@ -232,14 +227,6 @@ export default async function ContinentPage(
           />
 
           <div className="relative z-10">
-            <p className={`${dmsans.className} text-xs mb-3`} style={{ color: "rgba(250,247,242,0.6)" }}>
-              <Link href="/discover" style={{ color: "rgba(250,247,242,0.8)", textDecoration: "none" }}>
-                Destinations
-              </Link>
-              {" › "}
-              <span style={{ color: "rgba(250,247,242,0.95)" }}>{config.label}</span>
-            </p>
-
             <h1
               className={`${playfair.className} text-5xl md:text-6xl font-normal tracking-tight`}
               style={{ color: "#FAF7F2" }}

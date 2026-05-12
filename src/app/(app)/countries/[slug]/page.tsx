@@ -11,6 +11,7 @@ import { FilteredCountrySpotsSection } from "./_components/FilteredCountrySpotsS
 import { ScopedSearchBar } from "@/components/shared/ScopedSearchBar";
 import { LateralPeerNav } from "@/components/shared/LateralPeerNav";
 import { FlokkersAlsoLove } from "@/components/shared/FlokkersAlsoLove";
+import { BackBar } from "@/components/shared/BackBar";
 
 export const dynamic = "force-dynamic";
 
@@ -173,6 +174,12 @@ export default async function CountryPage(
   return (
     <main className={dmsans.className} style={{ minHeight: "100vh", backgroundColor: "#FAF7F2" }}>
 
+      <BackBar
+        backLabel={`Back to ${country.continent.name}`}
+        backHref={`/continents/${country.continent.slug}`}
+        crumbs={[{ label: "Destinations", href: "/discover" }]}
+      />
+
       {/* Hero */}
       <div
         style={{
@@ -238,23 +245,6 @@ export default async function CountryPage(
             zIndex: 2,
           }}
         >
-          {/* Breadcrumb */}
-          <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.95)", marginBottom: "8px", textShadow: "0 1px 4px rgba(0,0,0,0.7)" }}>
-            <Link
-              href="/discover"
-              style={{ color: "rgba(255,255,255,0.95)", textDecoration: "none" }}
-            >
-              Destinations
-            </Link>
-            {" › "}
-            <Link
-              href={`/continents/${country.continent.slug}`}
-              style={{ color: "rgba(255,255,255,0.95)", textDecoration: "none" }}
-            >
-              {country.continent.name}
-            </Link>
-          </p>
-
           <h1
             className={playfair.className}
             style={{
