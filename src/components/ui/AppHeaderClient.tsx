@@ -21,18 +21,36 @@ function useIsDesktop() {
 }
 
 const NAV_ITEMS = [
-  { label: "Home", href: "/home" },
-  { label: "Trips", href: "/trips" },
-  { label: "Saves", href: "/saves" },
-  { label: "Discover", href: "/discover" },
-  { label: "Travel Intel", href: "/travel-intel" },
-  { label: "Profile", href: "/profile" },
+  { label: "Home", href: "/home", private: true },
+  { label: "Trips", href: "/trips", private: true },
+  { label: "Saves", href: "/saves", private: true },
+  { label: "Discover", href: "/discover", private: false },
+  { label: "Travel Intel", href: "/travel-intel", private: false },
 ];
 
+const DISCOVER_PREFIXES = ["/discover", "/cities", "/countries", "/continents", "/share", "/spots"];
+
+function isActiveTab(href: string, pathname: string): boolean {
+  if (href === "/discover") {
+    return DISCOVER_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/") || pathname.startsWith(p + "?"));
+  }
+  if (href === "/home") return pathname === "/home";
+  return pathname.startsWith(href);
+}
+
+function navHref(href: string, isPrivate: boolean, isLoggedIn: boolean): string {
+  if (isPrivate && !isLoggedIn) {
+    return `/sign-in?redirect_url=${encodeURIComponent(href)}`;
+  }
+  return href;
+}
+
 export function AppHeaderClient({
+  isLoggedIn,
   fullName,
   email,
 }: {
+  isLoggedIn: boolean;
   fullName: string;
   email: string;
 }) {
@@ -41,11 +59,6 @@ export function AppHeaderClient({
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const { signOut } = useClerk();
-
-  function isActive(href: string) {
-    if (href === "/home") return pathname === "/home";
-    return pathname.startsWith(href);
-  }
 
   return (
     <>
@@ -69,22 +82,23 @@ export function AppHeaderClient({
 
           {/* Left: wordmark + desktop search bar */}
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-            <Link href="/home" style={{ textDecoration: "none" }}>
+            <Link href="/" style={{ textDecoration: "none" }}>
               <span style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", letterSpacing: "-0.02em" }}>
                 Flokk
               </span>
             </Link>
-            {isDesktop && <UniversalSearchBar />}
+            {isDesktop && isLoggedIn && <UniversalSearchBar />}
           </div>
 
           {/* Center: desktop nav */}
           <nav style={{ display: isDesktop ? "flex" : "none", gap: "4px", alignItems: "center" }}>
-            {NAV_ITEMS.map(({ label, href }) => {
-              const active = isActive(href);
+            {NAV_ITEMS.map(({ label, href, private: isPrivate }) => {
+              const active = isActiveTab(href, pathname);
+              const to = navHref(href, isPrivate, isLoggedIn);
               return (
                 <Link
                   key={href}
-                  href={href}
+                  href={to}
                   style={{
                     padding: "6px 14px",
                     fontSize: "14px",
@@ -101,11 +115,10 @@ export function AppHeaderClient({
             })}
           </nav>
 
-          {/* Right: UserButton (desktop) / search icon + hamburger (mobile) */}
+          {/* Right: auth controls (desktop) + mobile icons */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
 
-            {/* Clerk UserButton — desktop only */}
-            {isDesktop && (
+            {isDesktop && isLoggedIn && (
               <UserButton
                 appearance={{
                   elements: {
@@ -115,8 +128,39 @@ export function AppHeaderClient({
               />
             )}
 
-            {/* Search icon — mobile only */}
-            {!isDesktop && (
+            {isDesktop && !isLoggedIn && (
+              <>
+                <Link
+                  href="/sign-in"
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "#1B3A5C",
+                    textDecoration: "none",
+                    padding: "6px 14px",
+                  }}
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/sign-up"
+                  style={{
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "#fff",
+                    backgroundColor: "#C4664A",
+                    textDecoration: "none",
+                    padding: "8px 18px",
+                    borderRadius: "8px",
+                  }}
+                >
+                  Get early access
+                </Link>
+              </>
+            )}
+
+            {/* Search icon — mobile only, logged in */}
+            {!isDesktop && isLoggedIn && (
               <button
                 onClick={() => setSearchOpen(true)}
                 style={{ display: "flex", background: "none", border: "none", padding: "4px", cursor: "pointer", color: "#1a1a1a" }}
@@ -160,12 +204,13 @@ export function AppHeaderClient({
           }}
           onClick={() => setMenuOpen(false)}
         >
-          {NAV_ITEMS.map(({ label, href }) => {
-            const active = isActive(href);
+          {NAV_ITEMS.map(({ label, href, private: isPrivate }) => {
+            const active = isActiveTab(href, pathname);
+            const to = navHref(href, isPrivate, isLoggedIn);
             return (
               <Link
                 key={href}
-                href={href}
+                href={to}
                 style={{
                   padding: "14px 16px",
                   fontSize: "17px",
@@ -182,34 +227,73 @@ export function AppHeaderClient({
             );
           })}
 
-          {/* User info + sign out at bottom of mobile drawer */}
+          {/* Auth section at bottom of mobile drawer */}
           <div style={{ marginTop: "auto", paddingTop: "16px", borderTop: "1px solid #F0F0F0" }}>
-            <div style={{ padding: "0 16px 8px" }}>
-              <p style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a1a", margin: 0 }}>{fullName}</p>
-              <p style={{ fontSize: "12px", color: "#717171", margin: "2px 0 0" }}>{email}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => signOut({ redirectUrl: "/" })}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                padding: "14px 16px",
-                borderRadius: "12px",
-                fontSize: "16px",
-                color: "#e53e3e",
-                fontWeight: 500,
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                width: "100%",
-                textAlign: "left",
-              }}
-            >
-              <LogOut size={18} style={{ color: "#e53e3e" }} />
-              Sign out
-            </button>
+            {isLoggedIn ? (
+              <>
+                <div style={{ padding: "0 16px 8px" }}>
+                  <p style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a1a", margin: 0 }}>{fullName}</p>
+                  <p style={{ fontSize: "12px", color: "#717171", margin: "2px 0 0" }}>{email}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => signOut({ redirectUrl: "/" })}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    padding: "14px 16px",
+                    borderRadius: "12px",
+                    fontSize: "16px",
+                    color: "#e53e3e",
+                    fontWeight: 500,
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    width: "100%",
+                    textAlign: "left",
+                  }}
+                >
+                  <LogOut size={18} style={{ color: "#e53e3e" }} />
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "0 16px" }}>
+                <Link
+                  href="/sign-in"
+                  style={{
+                    display: "block",
+                    textAlign: "center",
+                    padding: "13px",
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    color: "#1B3A5C",
+                    textDecoration: "none",
+                    border: "1px solid #1B3A5C",
+                    borderRadius: "10px",
+                  }}
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/sign-up"
+                  style={{
+                    display: "block",
+                    textAlign: "center",
+                    padding: "13px",
+                    fontSize: "16px",
+                    fontWeight: 600,
+                    color: "#fff",
+                    textDecoration: "none",
+                    backgroundColor: "#C4664A",
+                    borderRadius: "10px",
+                  }}
+                >
+                  Get early access
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       )}

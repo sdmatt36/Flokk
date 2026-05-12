@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { Show, UserButton, SignInButton, SignUpButton } from "@clerk/nextjs";
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { Playfair_Display } from "next/font/google";
 import { SiteFooter } from "@/components/ui/SiteFooter";
+import { AppHeader } from "@/components/ui/AppHeader";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700"] });
 
@@ -14,37 +14,10 @@ export default async function LandingPage() {
   return (
     <div className="min-h-screen" style={{ backgroundColor: "#FFFFFF", overflowX: "hidden", maxWidth: "100vw" }}>
 
-      {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-sm border-b" style={{ backgroundColor: "rgba(255,255,255,0.92)", borderColor: "#EEEEEE" }}>
-        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-          <span className="text-xl font-bold" style={{ color: "#2d2d2d" }}>
-            Flokk
-          </span>
-          <div className="flex items-center gap-4">
-            <Show when="signed-out">
-              <SignInButton>
-                <button className="text-sm font-medium transition-colors" style={{ color: "#717171" }}>
-                  Sign in
-                </button>
-              </SignInButton>
-              <SignUpButton>
-                <button className="text-sm font-semibold px-5 py-2.5 rounded-full transition-colors text-white" style={{ backgroundColor: "#C4664A" }}>
-                  Get early access
-                </button>
-              </SignUpButton>
-            </Show>
-            <Show when="signed-in">
-              <Link href="/home" className="text-sm font-medium transition-colors" style={{ color: "#717171" }}>
-                Dashboard
-              </Link>
-              <UserButton />
-            </Show>
-          </div>
-        </div>
-      </nav>
+      <AppHeader />
 
       {/* Hero */}
-      <section style={{ position: "relative", overflow: "hidden", paddingTop: "9rem", paddingBottom: "5rem", paddingLeft: "1.5rem", paddingRight: "1.5rem", backgroundColor: "#FFFFFF" }}>
+      <section style={{ position: "relative", overflow: "hidden", paddingTop: "5rem", paddingBottom: "5rem", paddingLeft: "1.5rem", paddingRight: "1.5rem", backgroundColor: "#FFFFFF" }}>
 
         {/* Background photo — desktop only */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
