@@ -87,7 +87,7 @@ export function AppHeaderClient({
                 Flokk
               </span>
             </Link>
-            {isDesktop && isLoggedIn && <UniversalSearchBar />}
+            {isDesktop && <UniversalSearchBar />}
           </div>
 
           {/* Center: desktop nav */}
@@ -159,8 +159,8 @@ export function AppHeaderClient({
               </>
             )}
 
-            {/* Search icon — mobile only, logged in */}
-            {!isDesktop && isLoggedIn && (
+            {/* Search icon — mobile only */}
+            {!isDesktop && (
               <button
                 onClick={() => setSearchOpen(true)}
                 style={{ display: "flex", background: "none", border: "none", padding: "4px", cursor: "pointer", color: "#1a1a1a" }}
