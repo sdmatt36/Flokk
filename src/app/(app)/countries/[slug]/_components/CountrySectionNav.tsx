@@ -6,7 +6,9 @@ import Link from "next/link";
 const SECTIONS = [
   { id: "cities", label: "Cities" },
   { id: "itineraries", label: "Itineraries" },
-  { id: "picks", label: "Picks" },
+  { id: "food", label: "Food & Drink" },
+  { id: "activities", label: "Activities" },
+  { id: "lodging", label: "Lodging" },
   { id: "tours", label: "Tours" },
 ];
 

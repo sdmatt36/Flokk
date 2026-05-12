@@ -294,6 +294,7 @@ export function FilteredCountrySpotsSection({
                   rating: spot.averageRating ? Math.round(spot.averageRating) : null,
                   ratingCount: spot.ratingCount,
                   description: spot.description,
+                  shareToken: spot.shareToken,
                 }}
                 href={spot.shareToken ? `/spots/${spot.shareToken}` : undefined}
               />

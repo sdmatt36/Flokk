@@ -101,7 +101,6 @@ export default async function CountryPage(
       where: {
         geoCity: { countryId: country.id },
         isPublic: true,
-        shareToken: { not: null },
       },
       select: {
         id: true,
@@ -115,7 +114,7 @@ export default async function CountryPage(
         description: true,
       },
       orderBy: [{ averageRating: "desc" }, { ratingCount: "desc" }],
-      take: 24,
+      take: 150,
     }),
     db.generatedTour.findMany({
       where: {
@@ -148,6 +147,14 @@ export default async function CountryPage(
   ]);
 
   const totalSpots = country.cities.reduce((sum, c) => sum + c._count.communitySpots, 0);
+
+  const FOOD_CATS = new Set(["food_and_drink"]);
+  const LODGING_CATS = new Set(["lodging"]);
+  const foodSpots = spots.filter((s) => FOOD_CATS.has(s.category ?? ""));
+  const lodgingSpots = spots.filter((s) => LODGING_CATS.has(s.category ?? ""));
+  const activitySpots = spots.filter(
+    (s) => !FOOD_CATS.has(s.category ?? "") && !LODGING_CATS.has(s.category ?? "")
+  );
 
   // Shape tours into TourCardItem
   const tourItems = tours.map((t) => ({
@@ -410,11 +417,28 @@ export default async function CountryPage(
           emptyText={`No public itineraries yet for ${country.name}. Be the first to share one.`}
         />
 
-        {/* Flokk Picks */}
+        {/* Food & Drink */}
         <FilteredCountrySpotsSection
-          id="picks"
-          spots={spots}
-          emptyText={`No community spots linked to cities in ${country.name} yet.`}
+          id="food"
+          title="Food & Drink"
+          spots={foodSpots}
+          emptyText={`No food & drink picks for ${country.name} yet.`}
+        />
+
+        {/* Activities */}
+        <FilteredCountrySpotsSection
+          id="activities"
+          title="Activities"
+          spots={activitySpots}
+          emptyText={`No activity picks for ${country.name} yet.`}
+        />
+
+        {/* Lodging */}
+        <FilteredCountrySpotsSection
+          id="lodging"
+          title="Lodging"
+          spots={lodgingSpots}
+          emptyText={`No lodging picks for ${country.name} yet.`}
         />
 
         {/* Tours */}
