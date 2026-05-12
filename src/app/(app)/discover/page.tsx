@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Playfair_Display } from "next/font/google";
 import { db } from "@/lib/db";
 import { ContinentGrid } from "./_components/ContinentGrid";
-import { UnderConstructionBanner } from "./_components/UnderConstructionBanner";
 import { FilteredItinerariesSection } from "./_components/FilteredItinerariesSection";
 import { FilteredToursSection } from "./_components/FilteredToursSection";
 import { FilteredPicksSection } from "./_components/FilteredPicksSection";
@@ -38,8 +37,6 @@ export default async function DiscoverPage() {
 
   return (
     <main>
-      <UnderConstructionBanner />
-
       {/* Tagline band */}
       <div
         className="flex flex-col items-center justify-center h-24 md:h-36 gap-2 text-center px-4"
