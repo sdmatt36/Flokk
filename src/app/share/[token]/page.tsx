@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { getTripCoverImage } from "@/lib/destination-images";
@@ -104,6 +105,24 @@ export default async function SharePage({
 
   // Increment viewCount (fire-and-forget)
   db.trip.update({ where: { id: trip.id }, data: { viewCount: { increment: 1 } } }).catch(() => {});
+
+  // Breadcrumb geo lookup — best-effort, null = graceful fallback
+  const geoCity = trip.destinationCity
+    ? await db.city.findFirst({
+        where: { name: { equals: trip.destinationCity, mode: "insensitive" } },
+        select: {
+          slug: true,
+          name: true,
+          country: {
+            select: {
+              slug: true,
+              name: true,
+              continent: { select: { slug: true, name: true } },
+            },
+          },
+        },
+      })
+    : null;
 
   // Ownership check — server-side, so the bottom bar knows whether to suppress
   const previewMode = sp.preview === "true";
@@ -399,6 +418,38 @@ export default async function SharePage({
         }}
       >
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.80) 100%)" }} />
+
+        {/* Breadcrumb — top-left */}
+        {geoCity && (
+          <nav
+            aria-label="Breadcrumb"
+            style={{
+              position: "absolute",
+              top: 20,
+              left: 24,
+              zIndex: 3,
+              display: "flex",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "2px",
+              fontSize: "12px",
+              color: "rgba(255,255,255,0.95)",
+              textShadow: "0 1px 4px rgba(0,0,0,0.7)",
+              lineHeight: 1.4,
+            }}
+          >
+            <Link href="/discover" style={{ color: "inherit", textDecoration: "none" }}>Destinations</Link>
+            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
+            <Link href={`/continents/${geoCity.country.continent.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.country.continent.name}</Link>
+            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
+            <Link href={`/countries/${geoCity.country.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.country.name}</Link>
+            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
+            <Link href={`/cities/${geoCity.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.name}</Link>
+            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
+            <span style={{ opacity: 0.75 }}>{trip.title}</span>
+          </nav>
+        )}
+
         <div style={{ position: "absolute", bottom: "24px", left: "24px", right: "24px", zIndex: 2 }}>
           <h1 style={{ fontSize: "30px", fontWeight: 900, color: "#fff", lineHeight: 1.1, marginBottom: "8px", textShadow: "0 2px 12px rgba(0,0,0,0.4)" }}>
             {trip.title}

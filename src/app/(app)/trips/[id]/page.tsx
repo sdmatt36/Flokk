@@ -91,6 +91,24 @@ export default async function TripDetailPage({
 
   if (!canView) notFound();
 
+  // Breadcrumb geo lookup — best-effort, null = graceful fallback
+  const geoCity = trip.destinationCity
+    ? await db.city.findFirst({
+        where: { name: { equals: trip.destinationCity, mode: "insensitive" } },
+        select: {
+          slug: true,
+          name: true,
+          country: {
+            select: {
+              slug: true,
+              name: true,
+              continent: { select: { slug: true, name: true } },
+            },
+          },
+        },
+      })
+    : null;
+
   const dateRange = formatDateRange(trip.startDate, trip.endDate);
   const days = tripDays(trip.startDate, trip.endDate);
   const statusColor = STATUS_COLOR[trip.status] ?? "#717171";
@@ -132,31 +150,61 @@ export default async function TripDetailPage({
           }}
         />
 
-        {/* Back button */}
-        <Link
-          href={isCommunity ? "/discover" : "/trips"}
-          style={{
-            position: "absolute",
-            top: "16px",
-            left: "16px",
-            zIndex: 2,
-            display: "flex",
-            alignItems: "center",
-            gap: "4px",
-            backgroundColor: "rgba(255,255,255,0.2)",
-            backdropFilter: "blur(8px)",
-            border: "1px solid rgba(255,255,255,0.3)",
-            borderRadius: "20px",
-            padding: "6px 14px",
-            color: "#fff",
-            textDecoration: "none",
-            fontSize: "13px",
-            fontWeight: 600,
-          }}
-        >
-          <ChevronLeft size={15} />
-          {isCommunity ? "Explore" : "Trips"}
-        </Link>
+        {/* Breadcrumb (community) or back pill (owner) */}
+        {isCommunity && geoCity ? (
+          <nav
+            aria-label="Breadcrumb"
+            style={{
+              position: "absolute",
+              top: 20,
+              left: 24,
+              zIndex: 2,
+              display: "flex",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "2px",
+              fontSize: "12px",
+              color: "rgba(255,255,255,0.95)",
+              textShadow: "0 1px 4px rgba(0,0,0,0.7)",
+              lineHeight: 1.4,
+            }}
+          >
+            <Link href="/discover" style={{ color: "inherit", textDecoration: "none" }}>Destinations</Link>
+            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
+            <Link href={`/continents/${geoCity.country.continent.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.country.continent.name}</Link>
+            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
+            <Link href={`/countries/${geoCity.country.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.country.name}</Link>
+            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
+            <Link href={`/cities/${geoCity.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.name}</Link>
+            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
+            <span style={{ opacity: 0.75 }}>{trip.title}</span>
+          </nav>
+        ) : (
+          <Link
+            href={isCommunity ? "/discover" : "/trips"}
+            style={{
+              position: "absolute",
+              top: "16px",
+              left: "16px",
+              zIndex: 2,
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              backgroundColor: "rgba(255,255,255,0.2)",
+              backdropFilter: "blur(8px)",
+              border: "1px solid rgba(255,255,255,0.3)",
+              borderRadius: "20px",
+              padding: "6px 14px",
+              color: "#fff",
+              textDecoration: "none",
+              fontSize: "13px",
+              fontWeight: 600,
+            }}
+          >
+            <ChevronLeft size={15} />
+            {isCommunity ? "Explore" : "Trips"}
+          </Link>
+        )}
 
         {/* Status pill */}
         <div
