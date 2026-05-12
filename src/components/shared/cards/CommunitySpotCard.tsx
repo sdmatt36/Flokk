@@ -1,11 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { SpotImage } from "@/components/shared/SpotImage";
 import { PlaceActionRow } from "@/components/features/places/PlaceActionRow";
 import { EntityStatusPill } from "@/components/ui/EntityStatusPill";
 import { resolveSaveLink } from "@/lib/save-link";
+import { invokeNativeShare, copyToClipboard } from "@/lib/share";
 import type { EntityStatusResult } from "@/lib/entity-status";
+
+const TERRA = "#C4664A";
+const NAVY = "#1B3A5C";
+const GRAY_200 = "#E5E7EB";
 
 export interface CommunitySpotCardSpot {
   id: string;
@@ -50,6 +56,7 @@ export function CommunitySpotCard({
   showAddToItinerary = true,
   href,
 }: CommunitySpotCardProps) {
+  const [copied, setCopied] = useState(false);
   const resolvedWebsiteUrl = resolveSaveLink({
     websiteUrl: spot.websiteUrl ?? null,
     sourceUrl: spot.sourceUrl ?? null,
@@ -59,6 +66,19 @@ export function CommunitySpotCard({
     rawTitle: spot.title,
     destinationCity: spot.city,
   })?.url ?? null;
+
+  const viewHref = href ?? (spot.shareToken ? `/spots/${spot.shareToken}` : undefined);
+
+  const handleShare = async () => {
+    if (!spot.shareToken) return;
+    const url = `${window.location.origin}/spots/${spot.shareToken}`;
+    const { fallback } = await invokeNativeShare(url, spot.title);
+    if (fallback) {
+      await copyToClipboard(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   const CardWrapper = href
     ? ({ children }: { children: React.ReactNode }) => (
@@ -121,7 +141,7 @@ export function CommunitySpotCard({
           ) : null}
         </div>
       </CardWrapper>
-      {onFlokkIt && (
+      {onFlokkIt ? (
         <div style={{ padding: "0 16px 14px", marginTop: "auto" }} onClick={(e) => e.stopPropagation()}>
           <PlaceActionRow
             place={{
@@ -140,7 +160,38 @@ export function CommunitySpotCard({
             variant="card-compact"
           />
         </div>
-      )}
+      ) : viewHref ? (
+        <div
+          style={{ padding: "0 16px 14px", display: "flex", gap: 6 }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Link
+            href={viewHref}
+            style={{
+              flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center",
+              padding: "7px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+              backgroundColor: TERRA, color: "#fff", textDecoration: "none",
+            }}
+          >
+            View pick →
+          </Link>
+          {spot.shareToken && (
+            <button
+              type="button"
+              onClick={handleShare}
+              title="Copy share link"
+              style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                padding: "7px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600,
+                backgroundColor: "#fff", color: NAVY, border: `1px solid ${GRAY_200}`,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              {copied ? "Copied!" : "Share"}
+            </button>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

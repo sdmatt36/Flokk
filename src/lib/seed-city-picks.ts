@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -273,6 +274,7 @@ export async function seedCity(citySlug: string, count = 20): Promise<SeedCityRe
             address: spot.address,
             photoUrl: spot.photoUrl,
             googlePlaceId: spot.placeId,
+            shareToken: nanoid(12),
             isPublic: true,
             isAiGenerated: true,
             averageRating: 4.2,
@@ -313,6 +315,7 @@ export async function seedCity(citySlug: string, count = 20): Promise<SeedCityRe
             lng: spot.lng,
             address: spot.address,
             photoUrl: spot.photoUrl,
+            shareToken: nanoid(12),
             isPublic: true,
             isAiGenerated: true,
             averageRating: 4.2,
