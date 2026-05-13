@@ -537,6 +537,7 @@ Return this exact JSON structure:
   "outboundDestination": "string or null — the furthest non-home city in the itinerary (the actual trip destination, not the return airport)",
   "outboundDestinationAirport": "IATA code or null — airport code for outboundDestination",
   "bookingUrl": "string or null — the URL in the email to view or manage the booking. Look for phrases like 'View booking', 'Manage reservation', 'Booking details', or any vendor link that lets the user return to the booking on the vendor's site. If no such URL is present, return null.",
+  "scheduledDate": "YYYY-MM-DD or null — for restaurant, activity, car_rental, and train types: the reservation date, activity date, pickup date, or departure date. Convert any date format to YYYY-MM-DD (e.g. 'Saturday, 11 July 2026' → '2026-07-11', '11 juli 2026' → '2026-07-11'). Leave null only if no date exists in the email body.",
   "confidence": "0.0 to 1.0"
 }
 
@@ -546,7 +547,10 @@ Field notes:
 - legs: For flights ONLY. Extract EVERY individual flight segment as a separate leg object, INCLUDING intermediate stops like layovers or stopovers. A Tokyo→Singapore→Colombo itinerary has 2 legs: TYO→SIN and SIN→CMB. A Seattle→Keflavík→Bergen itinerary has 2 legs: SEA→KEF and KEF→BGO. NEVER consolidate segments — if the email mentions a ticketed segment, it MUST appear in legs. Always populate this array for flights even if only one segment. Include arrival datetime per leg when visible in the email. For EACH leg, populate flightNumber with that segment's flight number (e.g. "UL895" for leg 1, "UL3335" for leg 2) — NOT the same number on every leg. If the leg's specific flight number is not visible, use null. Populate airline per leg (carrier operating that segment); use null if unknown.
 - outboundDestination / outboundDestinationAirport: For round-trip flights that depart from and return to a home airport (NRT, HND, LHR, LGW), identify the furthest destination city/airport — NOT the return airport. Example: NRT→SIN→CMB→LHR→NRT has outboundDestination="Colombo" and outboundDestinationAirport="CMB". For one-way or simple round trips, this is just toCity/toAirport.
 - fromAirport/toAirport/fromCity/toCity: Keep these for backward compatibility. fromAirport = first leg departure, toAirport = outboundDestinationAirport (NOT the return leg airport), fromCity = first leg departure city, toCity = outboundDestination city.
-- AIRPORT CODE EXTRACTION RULES: Use ONLY IATA codes that appear verbatim in the email body (e.g. "HND", "NRT", "LHR"). NEVER infer or guess an IATA code from a city name alone. If the email says "TOKYO INTL HANEDA" or "HANEDA" → HND. If the email says "TOKYO INTL NARITA" or "NARITA" → NRT. If the email says only "Tokyo" with no airport qualifier, leave fromAirport/toAirport as "" (empty string) — do NOT emit "TYO" or any other code. The same rule applies to every leg.from and leg.to field. If you cannot find the IATA code verbatim in the email, return "".`,
+- AIRPORT CODE EXTRACTION RULES: Use ONLY IATA codes that appear verbatim in the email body (e.g. "HND", "NRT", "LHR"). NEVER infer or guess an IATA code from a city name alone. If the email says "TOKYO INTL HANEDA" or "HANEDA" → HND. If the email says "TOKYO INTL NARITA" or "NARITA" → NRT. If the email says only "Tokyo" with no airport qualifier, leave fromAirport/toAirport as "" (empty string) — do NOT emit "TYO" or any other code. The same rule applies to every leg.from and leg.to field. If you cannot find the IATA code verbatim in the email, return "".
+- scheduledDate: REQUIRED for restaurant, activity, car_rental, and train types. Look anywhere in the email body — confirmation blocks, table headers, footers. Common patterns: "Date: Saturday, 11 July 2026", "Reservation date: 2026-07-11", "Date: 11/07/2026", Swedish/Norwegian dates like "11 juli 2026". Convert all formats to YYYY-MM-DD. If the body is only generic boilerplate ("your tickets are attached", "download the app") with no specific journey date, return null.
+- city: For restaurant and activity bookings, extract from the venue address at the bottom of the email (e.g. "A-Feltvegen 25, 5743 Flåm" → city="Flåm"). Also check the sender domain and venue name for location hints.
+- ATTACHMENT-ONLY EMAILS: Some rail/airline carriers (e.g. SJ, Ryanair) send booking confirmation emails where all journey details (route, date, times) are in an attached PDF — the email body only says "your tickets are attached" or similar. In these cases ALL date and location fields must be null, and confidence must be 0.3 or lower. Do NOT hallucinate dates or routes from the booking reference alone.`,
       }],
     });
 
@@ -1050,7 +1054,7 @@ Field notes:
 
       if (existing) {
         const rawDate = (
-          extracted.departureDate ?? extracted.checkIn ?? extracted.arrivalDate
+          extracted.scheduledDate ?? extracted.departureDate ?? extracted.checkIn ?? extracted.arrivalDate
         ) as string | null;
         const orphanGettingAttached = !existing.tripId && !!resolvedTripId;
 
@@ -1861,7 +1865,7 @@ Field notes:
 
     // ── Train / activity / other (replaces SavedItem) ─────────────────────────
     } else {
-      const confirmedDate = (extracted.departureDate ?? extracted.checkIn ?? extracted.arrivalDate) as string | null;
+      const confirmedDate = (extracted.scheduledDate ?? extracted.departureDate ?? extracted.checkIn ?? extracted.arrivalDate) as string | null;
       const dayIndex = confirmedDate ? await getDayIndex(resolvedTripId, confirmedDate) : null;
 
       const routeParts: string[] = [];
