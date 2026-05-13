@@ -54,13 +54,16 @@ export default async function TripDetailPage({
 
   const { userId } = await auth();
 
-  const trip = await db.trip.findUnique({
-    where: { id },
-    include: {
-      savedItems: { orderBy: [{ dayIndex: "asc" }, { savedAt: "asc" }] },
-      _count: { select: { manualActivities: true } },
-    },
-  });
+  const [trip, cancelledCount] = await Promise.all([
+    db.trip.findUnique({
+      where: { id },
+      include: {
+        savedItems: { orderBy: [{ dayIndex: "asc" }, { savedAt: "asc" }] },
+        _count: { select: { manualActivities: true } },
+      },
+    }),
+    db.itineraryItem.count({ where: { tripId: id, cancelledAt: { not: null } } }),
+  ]);
 
   if (!trip) notFound();
 
@@ -312,6 +315,7 @@ export default async function TripDetailPage({
             initialPostTripCaptureComplete={trip.postTripCaptureComplete}
             initialPostTripModalVisitCount={trip.postTripModalVisitCount ?? 0}
             viewerMembers={viewerMembers}
+            cancelledCount={cancelledCount}
           />
           <DeleteTripButton tripId={trip.id} tripTitle={trip.title} />
         </>

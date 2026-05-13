@@ -1822,7 +1822,7 @@ function ActivityDetailModal({ activity, onClose, onEdit, onDelete, onMarkBooked
   );
 }
 
-function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onEditSavedActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onDeleteActivity, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight, budgetTotal, trackedTotal, budgetCurrency, budgetLoaded, onBudgetChange, shareToken, onManageTours }: {
+function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onEditSavedActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onDeleteActivity, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight, budgetTotal, trackedTotal, budgetCurrency, budgetLoaded, onBudgetChange, shareToken, onManageTours, cancelledCount = 0 }: {
   flyTarget: { lat: number; lng: number } | null;
   onFlyTargetConsumed: () => void;
   tripId?: string;
@@ -1848,6 +1848,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   onBudgetChange: (total: number | null, currency: string) => void;
   shareToken?: string;
   onManageTours?: () => void;
+  cancelledCount?: number;
 }) {
   const isDesktop = useIsDesktop();
   const [openDay, setOpenDay] = useState(0); // -1 = all collapsed
@@ -2962,14 +2963,16 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                   </div>
                 )}
 
-                {/* Show/hide cancelled bookings toggle */}
-                {(includeCancelled || localItineraryItems.some(it => it.cancelledAt)) && (
+                {/* Show/hide cancelled bookings toggle — only when trip has cancelled items */}
+                {cancelledCount > 0 && (
                   <div style={{ marginBottom: "10px", display: "flex", justifyContent: "flex-end" }}>
                     <button
                       onClick={() => setIncludeCancelled(v => !v)}
                       style={{ fontSize: "12px", color: "#888", background: "none", border: "none", cursor: "pointer", padding: "4px 0", fontFamily: "inherit" }}
                     >
-                      {includeCancelled ? "Hide cancelled bookings" : "Show cancelled bookings"}
+                      {includeCancelled
+                        ? `Hide ${cancelledCount} cancelled booking${cancelledCount === 1 ? "" : "s"}`
+                        : `Show ${cancelledCount} cancelled booking${cancelledCount === 1 ? "" : "s"}`}
                     </button>
                   </div>
                 )}
@@ -7409,7 +7412,7 @@ type SavedRec = {
   tags: string;
 };
 
-export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true, initialIsPublic = false, shareToken, tripStatus, initialPostTripCaptureStarted = false, initialPostTripCaptureComplete = false, initialPostTripModalVisitCount = 0, viewerMembers }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean; initialIsPublic?: boolean; shareToken?: string; tripStatus?: string; initialPostTripCaptureStarted?: boolean; initialPostTripCaptureComplete?: boolean; initialPostTripModalVisitCount?: number; viewerMembers?: { role: "ADULT" | "CHILD"; name: string; birthDate: string | null }[] }) {
+export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true, initialIsPublic = false, shareToken, tripStatus, initialPostTripCaptureStarted = false, initialPostTripCaptureComplete = false, initialPostTripModalVisitCount = 0, viewerMembers, cancelledCount = 0 }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean; initialIsPublic?: boolean; shareToken?: string; tripStatus?: string; initialPostTripCaptureStarted?: boolean; initialPostTripCaptureComplete?: boolean; initialPostTripModalVisitCount?: number; viewerMembers?: { role: "ADULT" | "CHILD"; name: string; birthDate: string | null }[]; cancelledCount?: number }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [postTripCaptureStarted, setPostTripCaptureStarted] = useState(initialPostTripCaptureStarted);
   const [postTripCaptureComplete, setPostTripCaptureComplete] = useState(initialPostTripCaptureComplete);
@@ -7964,7 +7967,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       {tab === "saved" && (
         <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} shareToken={shareToken} />
       )}
-      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} onEditSavedActivity={(a) => { setEditingActivity(a); setEditingActivityIsSavedItem(true); }} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onDeleteActivity={handleDeleteActivity} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} budgetTotal={budgetTotal} trackedTotal={trackedTotal} budgetCurrency={budgetCurrency} budgetLoaded={budgetLoaded} onBudgetChange={handleBudgetChange} shareToken={shareToken} onManageTours={() => setTab("tours")} />}
+      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} onEditSavedActivity={(a) => { setEditingActivity(a); setEditingActivityIsSavedItem(true); }} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onDeleteActivity={handleDeleteActivity} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} budgetTotal={budgetTotal} trackedTotal={trackedTotal} budgetCurrency={budgetCurrency} budgetLoaded={budgetLoaded} onBudgetChange={handleBudgetChange} shareToken={shareToken} onManageTours={() => setTab("tours")} cancelledCount={cancelledCount} />}
       {tab === "tours" && <ToursContent tripId={tripId} tripTitle={tripTitle} />}
       {tab === "packing" && <PackingContent tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} tripStartDate={tripStartDate} tripEndDate={tripEndDate} />}
       {tab === "notes" && (
