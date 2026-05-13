@@ -60,6 +60,7 @@ export async function POST(request: Request) {
           title: title.trim(),
           heroImageUrl: source.heroImageUrl ?? builtData.heroImageUrl,
           familyProfileId: profileId,
+          sourceTripId: sourceTripId,
         },
       });
       await tx.tripCollaborator.create({
@@ -89,7 +90,8 @@ export async function POST(request: Request) {
           lng: item.lng,
           destinationCity: item.destinationCity ?? source.destinationCity ?? null,
           destinationCountry: item.destinationCountry ?? source.destinationCountry ?? null,
-          dayIndex: item.dayIndex,
+          // Source uses 1-based dayIndex; TripTabContent uses 0-based — subtract 1 to normalize
+          dayIndex: item.dayIndex != null && item.dayIndex > 0 ? item.dayIndex - 1 : null,
           placePhotoUrl: (item.rawTitle ? (getVenueImage(item.rawTitle) ?? null) : null) ?? item.placePhotoUrl ?? null,
           extractionStatus: "ENRICHED" as const,
           status: "TRIP_ASSIGNED" as const,

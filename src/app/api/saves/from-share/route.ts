@@ -50,6 +50,8 @@ export async function POST(request: Request) {
     websiteUrl?: string | null;
     tripId?: string | null;
     category?: string | null;
+    dayIndex?: number | null;
+    sourceTripId?: string | null;
   };
 
   if (!body.title?.trim()) {
@@ -69,6 +71,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ saved: false, duplicate: true });
   }
 
+  const dayIndex = body.dayIndex != null && body.dayIndex > 0 ? body.dayIndex : null;
+  const status = (body.tripId && dayIndex) ? "TRIP_ASSIGNED"
+    : body.tripId ? "TRIP_ASSIGNED"
+    : "UNORGANIZED";
+
   const created = await db.savedItem.create({
     data: {
       familyProfileId: profileId,
@@ -81,11 +88,21 @@ export async function POST(request: Request) {
       websiteUrl: body.websiteUrl ?? null,
       sourceMethod: "IN_APP_SAVE",
       sourcePlatform: "direct",
-      status: body.tripId ? "TRIP_ASSIGNED" : "UNORGANIZED",
+      status,
+      dayIndex,
       extractionStatus: "PENDING",
       categoryTags: normalizeAndDedupeCategoryTags(body.category ? [body.category] : inferCategoryTagFromTitle(body.title.trim())),
     },
   });
+
+  // Increment cloneCount on source trip when a day is stolen
+  if (body.sourceTripId) {
+    db.trip.update({
+      where: { id: body.sourceTripId },
+      data: { cloneCount: { increment: 1 } },
+    }).catch(e => console.error("[from-share] cloneCount increment failed:", e));
+  }
+
   enrichSavedItem(created.id).catch(e => console.error("[from-share] enrichSavedItem failed:", e));
 
   return NextResponse.json({ saved: true }, { status: 201 });

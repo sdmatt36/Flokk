@@ -277,6 +277,9 @@ model Trip {
   eventsContextHash         String?
   eventsGeneratedAt         DateTime?
   events                    Event[]
+  sourceTripId              String?
+  sourceTrip                Trip?             @relation("StolenFrom", fields: [sourceTripId], references: [id])
+  stolenCopies              Trip[]            @relation("StolenFrom")
 }
 
 model Event {

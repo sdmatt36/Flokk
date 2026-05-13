@@ -20,6 +20,7 @@ export type SerializableItem = {
   destinationCity: string | null;
   saveable: boolean;
   websiteUrl: string | null;
+  dayIndex: number | null;
 };
 
 export function ShareActivityCard({

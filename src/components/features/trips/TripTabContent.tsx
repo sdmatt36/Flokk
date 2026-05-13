@@ -778,7 +778,7 @@ function LodgingDateModal({ itemTitle, onConfirm, onClose }: {
 // Renders ALL savedItem types including URL saves,
 // manual saves, and activity saves created via the Activity button.
 // ActivityCard is for manualActivity DB rows only.
-function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook, onLearnMore, assignedDay, onDelete, onShare }: {
+function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook, onLearnMore, assignedDay, onDelete, onShare, tripStartDate }: {
   item: SavedDisplayItem;
   isDesktop: boolean;
   onAddToItinerary: () => void;
@@ -787,6 +787,7 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
   assignedDay?: number;
   onDelete?: () => void;
   onShare?: () => void;
+  tripStartDate?: string | null;
 }) {
   const [imgFailed, setImgFailed] = useState(false);
   const hasImg = !!item.img && !imgFailed;
@@ -804,9 +805,17 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
     tripStatus: item.tripStatus,
     tripEndDate: item.tripEndDate,
   });
-  const pillLabel = statusResult.status === "on_itinerary" && item.dayIndex != null
-    ? `Day ${item.dayIndex + 1}`
-    : statusResult.label;
+  const pillLabel = (() => {
+    if (statusResult.status !== "on_itinerary" || item.dayIndex == null) return statusResult.label;
+    const dayNum = item.dayIndex + 1; // 0-based dayIndex → display "Day 1"
+    if (tripStartDate) {
+      const d = new Date(tripStartDate + "T12:00:00");
+      d.setDate(d.getDate() + item.dayIndex);
+      const dateLabel = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      return `Day ${dayNum} · ${dateLabel}`;
+    }
+    return `Day ${dayNum}`;
+  })();
   return (
     <div
       onClick={onLearnMore}
@@ -1314,6 +1323,7 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
               assignedDay={assignedDays[item.title]}
               onDelete={() => handleDeleteSave(item)}
               onShare={() => handleShare(item)}
+              tripStartDate={tripStartDate}
             />
           )
         ))}

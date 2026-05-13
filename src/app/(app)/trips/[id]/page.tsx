@@ -94,6 +94,22 @@ export default async function TripDetailPage({
 
   if (!canView) notFound();
 
+  // Source trip attribution (for stolen/cloned trips)
+  const sourceTrip = trip.sourceTripId
+    ? await db.trip.findUnique({
+        where: { id: trip.sourceTripId },
+        select: {
+          id: true,
+          destinationCity: true,
+          shareToken: true,
+          isFlokkerExample: true,
+          isAnonymous: true,
+          familyProfileId: true,
+          familyProfile: { select: { familyName: true } },
+        },
+      })
+    : null;
+
   // Breadcrumb geo lookup — best-effort, null = graceful fallback
   const geoCity = trip.destinationCity
     ? await db.city.findFirst({
@@ -284,6 +300,33 @@ export default async function TripDetailPage({
           </div>
         </div>
       </div>
+
+      {/* Attribution line — only when trip was stolen/cloned from a source */}
+      {sourceTrip && (
+        <div style={{ padding: "8px 24px", borderBottom: "1px solid #F0F0F0", backgroundColor: "#FAFAFA" }}>
+          {(() => {
+            const city = sourceTrip.destinationCity ?? "another destination";
+            let label: React.ReactNode;
+            if (sourceTrip.isFlokkerExample) {
+              label = <>Inspired by <em>{city}</em> on Flokk</>;
+            } else if (sourceTrip.isAnonymous || !sourceTrip.familyProfile?.familyName) {
+              label = <>Inspired by a Flokk family&apos;s <em>{city}</em> itinerary</>;
+            } else {
+              label = <>Inspired by {sourceTrip.familyProfile.familyName}&apos;s <em>{city}</em> itinerary</>;
+            }
+            return sourceTrip.shareToken ? (
+              <a
+                href={`/share/${sourceTrip.shareToken}`}
+                style={{ fontSize: "12px", color: "#1B3A5C", textDecoration: "underline", textDecorationColor: "rgba(27,58,92,0.35)" }}
+              >
+                {label}
+              </a>
+            ) : (
+              <span style={{ fontSize: "12px", color: "#1B3A5C" }}>{label}</span>
+            );
+          })()}
+        </div>
+      )}
 
       {isCommunity ? (
         <CommunityTripView

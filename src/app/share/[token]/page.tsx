@@ -265,6 +265,7 @@ export default async function SharePage({
           destinationCity: trip.destinationCity,
           saveable: true,
           websiteUrl: s.websiteUrl ?? null,
+          dayIndex: di,
         };
       }
       if (entry.kind === "itinerary") {
@@ -308,6 +309,7 @@ export default async function SharePage({
           destinationCity: trip.destinationCity,
           saveable: it.type === "ACTIVITY",
           websiteUrl: null,
+          dayIndex: di,
         };
       }
       // manual
@@ -331,6 +333,7 @@ export default async function SharePage({
         destinationCity: trip.destinationCity,
         saveable: true,
         websiteUrl: null,
+        dayIndex: di,
       };
     });
 
@@ -483,6 +486,7 @@ export default async function SharePage({
             isOwner={isOwner}
             shareToken={token}
             heroImageUrl={heroImg}
+            sourceTripId={trip.id}
           />
         )}
 

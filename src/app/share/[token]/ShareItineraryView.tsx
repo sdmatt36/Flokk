@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, MapPin, BookmarkCheck, Bookmark, ExternalLink, ChevronRight } from "lucide-react";
+import { ChevronDown, MapPin, BookmarkCheck, Bookmark, ExternalLink, ChevronRight, Calendar } from "lucide-react";
 import { CommunityTripMap, type MarkerDef } from "@/components/features/trips/CommunityTripMap";
 import Link from "next/link";
 import { getDestinationCoords } from "@/lib/destination-coords";
@@ -86,12 +86,14 @@ export function ShareItineraryView({
   isOwner = false,
   shareToken,
   heroImageUrl: _heroImageUrl,
+  sourceTripId,
 }: {
   days: DayData[];
   isLoggedIn: boolean;
   isOwner?: boolean;
   shareToken: string;
   heroImageUrl?: string | null;
+  sourceTripId?: string;
 }) {
   const [openDay, setOpenDay] = useState(-1);
   const [savedSet, setSavedSet] = useState<Set<string>>(new Set());
@@ -101,7 +103,8 @@ export function ShareItineraryView({
   const leftPanelRef = useRef<HTMLDivElement>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [stealing, setStealing] = useState(false);
-  const [stolen, setStolen] = useState<{ tripId: string; tripTitle: string; copied: number } | null>(null);
+  const [stolen, setStolen] = useState<{ tripId: string; tripTitle: string; copied: number; startDate?: string } | null>(null);
+  const [stealStartDate, setStealStartDate] = useState("");
 
   useEffect(() => {
     if (!leftPanelRef.current) return;
@@ -137,14 +140,16 @@ export function ShareItineraryView({
   async function handleSteal() {
     setStealing(true);
     try {
+      const body: Record<string, string> = { shareToken };
+      if (stealStartDate) body.startDate = stealStartDate;
       const res = await fetch("/api/trips/steal-to-new", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ shareToken }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error("Failed");
       const data = await res.json() as { tripId: string; tripTitle: string; copied: number };
-      setStolen(data);
+      setStolen({ ...data, startDate: stealStartDate || undefined });
       setConfirmOpen(false);
     } catch {
       alert("Something went wrong. Please try again.");
@@ -172,6 +177,8 @@ export function ShareItineraryView({
             lng: item.lng,
             placePhotoUrl: item.imageUrl ?? null,
             websiteUrl: item.websiteUrl ?? null,
+            dayIndex: day.index,
+            sourceTripId: sourceTripId ?? null,
           }),
         });
         if (res.ok) setSavedSet(prev => new Set(prev).add(item.id));
@@ -200,6 +207,8 @@ export function ShareItineraryView({
           lng: item.lng,
           placePhotoUrl: item.imageUrl ?? null,
           websiteUrl: item.websiteUrl ?? null,
+          dayIndex: item.dayIndex ?? null,
+          sourceTripId: sourceTripId ?? null,
         }),
       });
       if (res.ok) setSavedSet(prev => new Set(prev).add(itemId));
@@ -461,11 +470,30 @@ export function ShareItineraryView({
             <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", fontWeight: 700, color: "#1B3A5C", marginBottom: "8px" }}>
               Start planning {tripDestination}?
             </h2>
-            <p style={{ fontSize: "14px", color: "#717171", marginBottom: "24px", lineHeight: 1.5 }}>
+            <p style={{ fontSize: "14px", color: "#717171", marginBottom: "20px", lineHeight: 1.5 }}>
               We&apos;ll create a new {tripDestination} trip and copy all{" "}
-              {totalActivityCount} activities into it as saved places. You can
-              organise them into days from there.
+              {totalActivityCount} activities into it, organised by day. You can
+              adjust anything from there.
             </p>
+
+            {/* Optional start date */}
+            <label style={{ display: "block", fontSize: "12px", fontWeight: 700, color: "#555", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              When are you going? (optional)
+            </label>
+            <div style={{ position: "relative", marginBottom: "6px" }}>
+              <input
+                type="date"
+                value={stealStartDate}
+                min={new Date(Date.now() + 86400000).toISOString().substring(0, 10)}
+                onChange={(e) => setStealStartDate(e.target.value)}
+                style={{ width: "100%", padding: "11px 14px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", outline: "none", boxSizing: "border-box" }}
+              />
+              <Calendar size={14} style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)", color: "#999", pointerEvents: "none" }} />
+            </div>
+            <p style={{ fontSize: "12px", color: "#AAAAAA", marginBottom: "20px" }}>
+              We&apos;ll plot Day 1 to your start date. Skip to set dates later.
+            </p>
+
             <button
               onClick={handleSteal}
               disabled={stealing}
@@ -488,7 +516,9 @@ export function ShareItineraryView({
         <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-[#1B3A5C] text-white text-sm px-4 py-3 rounded-xl shadow-lg flex flex-col items-center gap-2 z-50 w-72 text-center">
           <span className="font-semibold">{stolen.tripTitle} created</span>
           <span className="text-xs" style={{ color: "#D1D5DB" }}>
-            {stolen.copied} places saved. Add dates to start planning.
+            {stolen.startDate
+              ? `${stolen.copied} places saved, starting ${new Date(stolen.startDate + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.`
+              : `${stolen.copied} places saved. Add dates when you're ready.`}
           </span>
           <a
             href={`/trips/${stolen.tripId}`}

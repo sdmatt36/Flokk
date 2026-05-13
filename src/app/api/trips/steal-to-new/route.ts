@@ -3,12 +3,12 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
-import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { getTripAccess } from "@/lib/trip-permissions";
+import { buildClonedItem, computeScheduledDate } from "@/lib/clone-saved-items";
 
 export const maxDuration = 60;
 
-function getCategoryTags(title: string, notes: string | null): string[] {
+function inferCategoryTags(title: string, notes: string | null): string[] {
   const text = (title + " " + (notes ?? "")).toLowerCase();
   if (/restaurant|cafe|coffee|bar|food|eat|lunch|dinner|breakfast|bbq|burger|pizza|ramen|sushi/.test(text)) return ["food"];
   if (/museum|palace|temple|village|park|garden|monument|castle|shrine/.test(text)) return ["culture"];
@@ -18,13 +18,20 @@ function getCategoryTags(title: string, notes: string | null): string[] {
   return ["activity"];
 }
 
+// Source trips use 1-based dayIndex (Day 1 = 1). TripTabContent uses 0-based (Day 1 = 0).
+// Subtract 1 to convert — null stays null (unassigned).
+function convertDayIndex(sourceDayIndex: number | null): number | null {
+  if (sourceDayIndex == null || sourceDayIndex <= 0) return null;
+  return sourceDayIndex - 1;
+}
+
 export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { shareToken } = await req.json() as { shareToken: string };
+  const { shareToken, startDate } = await req.json() as { shareToken: string; startDate?: string };
 
   const profileId = await resolveProfileId(userId);
   if (!profileId) {
@@ -35,6 +42,11 @@ export async function POST(req: Request) {
   const sourceTrip = await db.trip.findFirst({
     where: { shareToken },
     include: {
+      // SavedItems are the primary content source (especially seeded Flokker examples)
+      savedItems: {
+        where: { dayIndex: { gt: 0 }, deletedAt: null },
+        orderBy: [{ dayIndex: "asc" }, { savedAt: "asc" }],
+      },
       itineraryItems: true,
       manualActivities: true,
     },
@@ -48,24 +60,37 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Cannot steal your own trip" }, { status: 400 });
   }
 
-  // Only carry dates forward if they are in the future — past dates are not useful to the new owner
-  const now = new Date();
-  const startDate = sourceTrip.startDate && sourceTrip.startDate > now ? sourceTrip.startDate.toISOString().substring(0, 10) : null;
-  const endDate = sourceTrip.endDate && sourceTrip.endDate > now ? sourceTrip.endDate.toISOString().substring(0, 10) : null;
+  // Determine trip duration from max dayIndex across all sources
+  const allDayIndices = [
+    ...sourceTrip.savedItems.map(s => s.dayIndex ?? 0),
+    ...sourceTrip.itineraryItems.map(i => i.dayIndex ?? 0),
+    ...sourceTrip.manualActivities.map(m => m.dayIndex ?? 0),
+  ];
+  const maxSourceDayIndex = allDayIndices.length > 0 ? Math.max(...allDayIndices) : 0;
+
+  // Date handling: use provided startDate or null; compute endDate from source duration
+  const tripStartDate = startDate ?? null;
+  const tripEndDate = tripStartDate && maxSourceDayIndex > 0
+    ? computeScheduledDate(tripStartDate, maxSourceDayIndex)
+    : null;
 
   const builtData = await buildTripFromExtraction({
     cities: sourceTrip.cities.length > 0 ? sourceTrip.cities : (sourceTrip.destinationCity ? [sourceTrip.destinationCity] : []),
     country: sourceTrip.country ?? sourceTrip.destinationCountry ?? null,
     countries: sourceTrip.countries.length > 0 ? sourceTrip.countries : undefined,
-    startDate,
-    endDate,
+    startDate: tripStartDate,
+    endDate: tripEndDate,
     isAnonymous: true,
   });
 
-  // Create new trip for this user
+  // Create new trip for this user, record source lineage
   const newTrip = await db.$transaction(async (tx) => {
     const created = await tx.trip.create({
-      data: { ...builtData, familyProfileId: profileId },
+      data: {
+        ...builtData,
+        familyProfileId: profileId,
+        sourceTripId: sourceTrip.id,
+      },
     });
     await tx.tripCollaborator.create({
       data: {
@@ -77,33 +102,48 @@ export async function POST(req: Request) {
         acceptedAt: new Date(),
       },
     });
+    // Increment clone count on source trip
+    await tx.trip.update({
+      where: { id: sourceTrip.id },
+      data: { cloneCount: { increment: 1 } },
+    });
     return created;
   });
 
-  type SaveInput = {
-    familyProfileId: string;
-    tripId: string;
-    rawTitle: string;
-    rawDescription: string | null;
-    lat: number | null;
-    lng: number | null;
-    destinationCity: string | null;
-    sourceUrl: string | null;
-    mediaThumbnailUrl: string | null;
-    placePhotoUrl: string | null;
-    status: "UNORGANIZED";
-    sourceMethod: "SHARED_TRIP_IMPORT";
-    sourcePlatform: "direct";
-    categoryTags: string[];
-    extractionStatus: "ENRICHED";
-  };
+  const savedItemsToCreate = [];
 
-  const savedItems: SaveInput[] = [];
+  // Primary source: SavedItems with dayIndex > 0 (covers seeded Flokker examples)
+  // Convert 1-based source dayIndex to 0-based for TripTabContent compatibility
+  for (const item of sourceTrip.savedItems) {
+    if (!item.rawTitle) continue;
+    const dayIndex = convertDayIndex(item.dayIndex);
+    savedItemsToCreate.push(buildClonedItem({
+      familyProfileId: profileId,
+      tripId: newTrip.id,
+      rawTitle: item.rawTitle,
+      rawDescription: item.rawDescription ?? null,
+      lat: item.lat ?? null,
+      lng: item.lng ?? null,
+      destinationCity: item.destinationCity ?? sourceTrip.destinationCity ?? null,
+      destinationCountry: item.destinationCountry ?? sourceTrip.destinationCountry ?? null,
+      placePhotoUrl: item.placePhotoUrl ?? null,
+      websiteUrl: item.websiteUrl ?? null,
+      categoryTags: item.categoryTags.length > 0 ? item.categoryTags : inferCategoryTags(item.rawTitle, item.rawDescription ?? null),
+      dayIndex,
+    }));
+  }
 
-  // Itinerary items — skip FLIGHT and LODGING
+  // Secondary source: ItineraryItems (email-imported bookings for user trips)
+  // Skip FLIGHT and LODGING; skip if a SavedItem covers the same day+title
+  const savedTitlesInDay = new Set(
+    savedItemsToCreate.map(s => `${s.dayIndex}|${s.rawTitle?.toLowerCase()}`)
+  );
   for (const item of sourceTrip.itineraryItems) {
     if (item.type === "FLIGHT" || item.type === "LODGING") continue;
-    savedItems.push({
+    const dayIndex = convertDayIndex(item.dayIndex);
+    const key = `${dayIndex}|${item.title.toLowerCase()}`;
+    if (savedTitlesInDay.has(key)) continue;
+    savedItemsToCreate.push(buildClonedItem({
       familyProfileId: profileId,
       tripId: newTrip.id,
       rawTitle: item.title,
@@ -111,20 +151,15 @@ export async function POST(req: Request) {
       lat: item.latitude ?? null,
       lng: item.longitude ?? null,
       destinationCity: item.toCity ?? sourceTrip.destinationCity ?? null,
-      sourceUrl: null,
-      mediaThumbnailUrl: null,
-      placePhotoUrl: null,
-      status: "UNORGANIZED",
-      sourceMethod: "SHARED_TRIP_IMPORT",
-      sourcePlatform: "direct",
-      categoryTags: normalizeAndDedupeCategoryTags(getCategoryTags(item.title, item.notes ?? null)),
-      extractionStatus: "ENRICHED",
-    });
+      categoryTags: inferCategoryTags(item.title, item.notes ?? null),
+      dayIndex,
+    }));
   }
 
   // Manual activities — include all
   for (const item of sourceTrip.manualActivities) {
-    savedItems.push({
+    const dayIndex = convertDayIndex(item.dayIndex);
+    savedItemsToCreate.push(buildClonedItem({
       familyProfileId: profileId,
       tripId: newTrip.id,
       rawTitle: item.title,
@@ -132,34 +167,25 @@ export async function POST(req: Request) {
       lat: item.lat ?? null,
       lng: item.lng ?? null,
       destinationCity: sourceTrip.destinationCity ?? null,
-      sourceUrl: item.website ?? null,
-      mediaThumbnailUrl: null,
       placePhotoUrl: null,
-      status: "UNORGANIZED",
-      sourceMethod: "SHARED_TRIP_IMPORT",
-      sourcePlatform: "direct",
-      categoryTags: normalizeAndDedupeCategoryTags(getCategoryTags(item.title, item.notes ?? null)),
-      extractionStatus: "ENRICHED",
-    });
+      websiteUrl: item.website ?? null,
+      categoryTags: inferCategoryTags(item.title, item.notes ?? null),
+      dayIndex,
+    }));
   }
 
-  if (savedItems.length > 0) {
+  if (savedItemsToCreate.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await db.savedItem.createMany({ data: savedItems as any[] });
+    await db.savedItem.createMany({ data: savedItemsToCreate as any[] });
   }
 
-  // Enrich images for stolen saves via Google Places
+  // Enrich images for stolen saves via Google Places (up to 20 items)
   const newSaves = await db.savedItem.findMany({
-    where: {
-      familyProfileId: profileId,
-      tripId: newTrip.id,
-      placePhotoUrl: null,
-    },
+    where: { familyProfileId: profileId, tripId: newTrip.id, placePhotoUrl: null },
     select: { id: true, rawTitle: true, destinationCity: true },
   });
 
-  const toEnrich = newSaves.slice(0, 20);
-  for (const save of toEnrich) {
+  for (const save of newSaves.slice(0, 20)) {
     try {
       const query = encodeURIComponent(`${save.rawTitle} ${save.destinationCity ?? ""}`);
       const searchRes = await fetch(
@@ -180,10 +206,7 @@ export async function POST(req: Request) {
       const photoRes = await fetch(redirectUrl, { redirect: "follow" });
       const finalUrl = photoRes.url;
       if (finalUrl && finalUrl !== redirectUrl) {
-        await db.savedItem.update({
-          where: { id: save.id },
-          data: { placePhotoUrl: finalUrl },
-        });
+        await db.savedItem.update({ where: { id: save.id }, data: { placePhotoUrl: finalUrl } });
       }
     } catch { continue; }
     await new Promise(r => setTimeout(r, 200));
@@ -192,6 +215,6 @@ export async function POST(req: Request) {
   return NextResponse.json({
     tripId: newTrip.id,
     tripTitle: newTrip.title,
-    copied: savedItems.length,
+    copied: savedItemsToCreate.length,
   });
 }
