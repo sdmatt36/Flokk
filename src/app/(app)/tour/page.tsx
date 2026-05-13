@@ -222,6 +222,22 @@ export default function TourPage() {
     if (tripIdParam) setTripId(tripIdParam);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Browser back/forward: sync UI to URL
+  useEffect(() => {
+    function handlePopState() {
+      const idParam = new URLSearchParams(window.location.search).get("id");
+      if (!idParam) {
+        setResults(null);
+        setStops([]);
+        setRemovedStops([]);
+      } else {
+        loadSavedTour(idParam);
+      }
+    }
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function fetchSavedTours() {
     setLoadingTours(true);
     try {
@@ -243,6 +259,12 @@ export default function TourPage() {
       if (!res.ok) { setError("Could not load tour."); return; }
       const data = await res.json() as TourResponse;
       setResults(data);
+      // Push state so the back button returns to /tour (form) not home.
+      // Skip push if the URL already matches (e.g. initial page load with ?id=).
+      const currentId = new URLSearchParams(window.location.search).get("id");
+      if (currentId !== id) {
+        window.history.pushState({}, "", `/tour?id=${id}`);
+      }
     } catch {
       setError("Could not load tour.");
     } finally {
@@ -312,7 +334,7 @@ export default function TourPage() {
       } else {
         setResults({ ...data, destinationCountry });
         if (data.tourId) {
-          window.history.replaceState({}, '', `/tour?id=${data.tourId}`);
+          window.history.pushState({}, "", `/tour?id=${data.tourId}`);
         }
         // Refresh library in background so the new tour appears next time
         fetchSavedTours();
