@@ -8,7 +8,8 @@ import { inferLodgingType } from "@/lib/infer-lodging-type";
 export const dynamic = "force-dynamic";
 
 // GET /api/trips/[id]/itinerary-items
-// Returns all ItineraryItems for the trip except FLIGHT (those are covered by Flight records).
+// Returns all ItineraryItems for the trip including FLIGHT type. Flight records co-exist with
+// FLIGHT ItineraryItems; TripTabContent deduplicates them at render time (ItineraryItem wins).
 // By default, cancelled items are excluded. Pass ?include_cancelled=true to include them (owner only).
 export async function GET(
   req: Request,

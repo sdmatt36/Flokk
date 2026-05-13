@@ -3397,8 +3397,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                           const route = from && to ? `${from} → ${to}` : (from || to || it.title);
                                           const airlineLabel = matchFlight?.airline && matchFlight?.flightNumber
                                             ? `${matchFlight.airline} · ${matchFlight.flightNumber}` : null;
-                                          const depTime = formatTime(it.departureTime) ?? it.departureTime;
-                                          const arrTime = it.arrivalTime ? (formatTime(it.arrivalTime) ?? it.arrivalTime) : null;
+                                          const resolvedDep = it.departureTime ?? matchFlight?.departureTime ?? null;
+                                          const resolvedArr = it.arrivalTime ?? matchFlight?.arrivalTime ?? null;
+                                          const depTime = formatTime(resolvedDep) ?? resolvedDep;
+                                          const arrTime = resolvedArr ? (formatTime(resolvedArr) ?? resolvedArr) : null;
                                           const paxLabel = it.passengers.length > 0
                                             ? it.passengers.length <= 2
                                               ? it.passengers.join(", ")
