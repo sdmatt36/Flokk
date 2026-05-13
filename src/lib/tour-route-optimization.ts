@@ -2,13 +2,20 @@ import { haversineKm } from "@/lib/geo";
 
 type Coord = { id: string; lat: number; lng: number };
 
-// Order a set of stops via nearest-neighbor starting from the westernmost stop.
-// Picking a directional anchor avoids the "arbitrary start in the middle" problem.
-// Returns stops in optimized order.
-export function optimizeRouteOrder<T extends Coord>(stops: T[]): T[] {
+// Order a set of stops via nearest-neighbor.
+// When pinnedFirstId is provided the matching stop is locked as Stop 1;
+// nearest-neighbor optimization runs only on the remaining stops.
+// Without pinnedFirstId uses the westernmost stop as anchor.
+export function optimizeRouteOrder<T extends Coord>(stops: T[], pinnedFirstId?: string): T[] {
   if (stops.length <= 2) return [...stops];
 
-  const anchor = stops.reduce((min, s) => (s.lng < min.lng ? s : min), stops[0]);
+  let anchor: T;
+  if (pinnedFirstId) {
+    const pinned = stops.find(s => s.id === pinnedFirstId);
+    anchor = pinned ?? stops.reduce((min, s) => (s.lng < min.lng ? s : min), stops[0]);
+  } else {
+    anchor = stops.reduce((min, s) => (s.lng < min.lng ? s : min), stops[0]);
+  }
 
   const remaining = stops.filter(s => s.id !== anchor.id);
   const ordered: T[] = [anchor];

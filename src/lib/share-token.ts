@@ -86,6 +86,10 @@ export interface ResolvedShareEntity {
   generatedTour?: {
     id: string;
     title: string;
+    subtitle: string | null;
+    inputGroup: string | null;
+    inputVibe: string[];
+    inputDurationHr: number | null;
     destinationCity: string;
     destinationCountry: string | null;
     prompt: string;
@@ -418,6 +422,10 @@ export async function resolveShareToken(token: string): Promise<ResolvedShareEnt
     select: {
       id: true,
       title: true,
+      subtitle: true,
+      inputGroup: true,
+      inputVibe: true,
+      inputDurationHr: true,
       destinationCity: true,
       destinationCountry: true,
       prompt: true,

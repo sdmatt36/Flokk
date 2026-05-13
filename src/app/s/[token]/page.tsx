@@ -193,14 +193,19 @@ export default async function ShareItemPage({ params }: { params: Promise<{ toke
                 fontWeight: 900,
                 color: "#fff",
                 lineHeight: 1.1,
-                marginBottom: "6px",
+                marginBottom: "4px",
                 marginTop: "4px",
                 textShadow: "0 2px 12px rgba(0,0,0,0.4)",
               }}
             >
               {tour.title}
             </h1>
-            <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.85)", margin: 0 }}>
+            {tour.subtitle && (
+              <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.8)", margin: "0 0 4px" }}>
+                {tour.subtitle}
+              </p>
+            )}
+            <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", margin: 0 }}>
               {locationDisplay} · {tour.durationLabel} · {tour.transport}
             </p>
           </div>

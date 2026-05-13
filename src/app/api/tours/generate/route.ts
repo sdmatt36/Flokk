@@ -292,11 +292,30 @@ export async function POST(req: NextRequest) {
     durationLabel?: string;
     transport?: string;
     tripId?: string;
+    inputStartPoint?: string;
+    inputGroup?: string;
+    inputVibe?: string[];
+    inputDurationHr?: number;
   };
   const { prompt, destinationCity } = body;
   const durationLabel = body.durationLabel ?? "";
   const transport = body.transport ?? "Walking";
   const tripId = body.tripId ?? null;
+  const inputStartPoint = body.inputStartPoint?.trim() || null;
+  const inputGroup = body.inputGroup ?? "family_kids";
+  const inputVibe: string[] = body.inputVibe ?? [];
+  const inputDurationHr = body.inputDurationHr ?? null;
+
+  const GROUP_LABELS: Record<string, string> = {
+    adults_only: "Adults only — NO children present",
+    family_kids: "Family with children",
+    solo: "Solo traveler",
+    couple: "Two adults (couple)",
+    friends: "Group of adult friends",
+  };
+  const inputGroupLabel = GROUP_LABELS[inputGroup] ?? "Group of travelers";
+  const isNoChildren = ["adults_only", "solo", "couple", "friends"].includes(inputGroup);
+  const vibeLabel = inputVibe.length > 0 ? inputVibe.map(v => v.replace(/_/g, " ")).join(", ") : "(no specific vibe)";
 
   if (!prompt || !destinationCity) {
     return NextResponse.json({ error: "prompt and destinationCity are required" }, { status: 400 });
@@ -384,6 +403,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    if (isNoChildren) {
+      familyContext = "";
+      youngestChildAge = null;
+    }
+
     const maxWalk = maxWalkMinutes(youngestChildAge);
     const maxDistMeters = maxWalk * 80;
 
@@ -456,6 +480,10 @@ export async function POST(req: NextRequest) {
         familyProfileId: profileId,
         categoryTags: [],
         originalTargetStops: targetStops,
+        inputGroup,
+        inputVibe,
+        inputDurationHr,
+        inputStartPoint,
       },
     });
 
@@ -484,6 +512,25 @@ export async function POST(req: NextRequest) {
       console.log(`[tour-resolve] no destination center for ${destinationCity}; cityName-match only`);
     }
 
+    const emitTourMetadataTool: Anthropic.Tool = {
+      name: "emit_tour_metadata",
+      description: "Emit the title and subtitle for this tour. Call this ONCE.",
+      input_schema: {
+        type: "object",
+        properties: {
+          title: {
+            type: "string",
+            description: "Vivid, specific 4-8 word tour title. Not the city name alone, not generic. Examples: 'Hidden Lanes and Night Markets', 'Temple Hopping by Metro', 'Ramen Alleys of Shinjuku'.",
+          },
+          subtitle: {
+            type: "string",
+            description: "One sentence (15-25 words) that sets the mood and tells the traveler what makes this tour special. Specific to the theme, destination, and group.",
+          },
+        },
+        required: ["title", "subtitle"],
+      },
+    };
+
     const emitTourStopTool: Anthropic.Tool = {
       name: "emit_tour_stop",
       description: `Emit one stop for the tour. Call this tool exactly ${targetStops} times, once per stop, in order.`,
@@ -496,8 +543,8 @@ export async function POST(req: NextRequest) {
           lng: { type: "number" },
           duration: { type: "number", description: "Minutes at this stop" },
           travelTime: { type: "number", description: "Minutes to travel to the NEXT stop, 0 for the last stop" },
-          why: { type: "string", description: "One sentence on why this stop fits the theme. When referencing children, use first names only — NEVER include ages in parentheses (e.g. write 'Beau and Miles' not 'Beau (10) and Miles (7)')." },
-          familyNote: { type: "string", description: `Specific note for this family: ${childAgesContext}` },
+          why: { type: "string", description: "One sentence on why this stop fits the theme. Reference travelers naturally — first names only, never include ages." },
+          familyNote: { type: "string", description: isNoChildren ? "One sentence on what makes this stop great for this specific group." : `Specific note tailored to the group: ${childAgesContext}. What will the children experience or enjoy here?` },
           themeRelevance: { type: "string", description: `Specific justification for why this exact venue directly serves the theme "${prompt}". Name what happens at this venue that fits the theme. Avoid vague phrases like "provides atmosphere", "complements", or "adds variety". If you cannot justify the stop concretely, choose a different venue.` },
         },
         required: ["name", "address", "lat", "lng", "duration", "travelTime", "why", "familyNote", "themeRelevance"],
@@ -509,17 +556,69 @@ export async function POST(req: NextRequest) {
       ? `\n\nThe user's lodging is at coordinates ${anchorLat}, ${anchorLng}. The tour must be anchored near this location:\n- Walking: first stop within 1km of lodging, last stop within 1km of lodging (round-trip from base)\n- Metro / Transit: first stop within 1.5km of lodging or a transit station within 800m of lodging\n- Driving: first stop within 5km of lodging, last stop within 5km of lodging`
       : "";
 
-    const systemPrompt = `You are a family travel expert building themed day tours. Call emit_tour_stop exactly ${targetStops} times — once per stop, in order.
+    const startingPointInstruction = inputStartPoint
+      ? `\n\nStarting point: The tour MUST begin at or immediately adjacent to "${inputStartPoint}". This is Stop 1.`
+      : "";
+
+    const familyNoteRule = isNoChildren
+      ? `5. In the why field, reference the traveler(s) naturally. Do not mention children.`
+      : `5. familyNote MUST reference the specific children: ${childAgesContext}. Tailor to their ages.
+6. In the why field, reference travelers by first name only — never include ages in parentheses.`;
+
+    const systemPrompt = `You are a travel expert building themed day tours. Call emit_tour_stop exactly ${targetStops} times — once per stop, in order.
 
 ABSOLUTE RULES — violating any of these means the tour fails:
 1. Every stop MUST be a real, operating venue physically located IN ${destinationCity}. No venues from other cities. No "branch" workarounds. No closed or fictional places.
 2. Every stop MUST directly serve the theme. No tangential sightseeing added for variety.
 3. ${transport === "Walking" ? `Walking tour: every consecutive stop pair MUST be within ${maxWalk} minutes walk (~${maxDistMeters}m) of each other. Cluster tightly in one neighborhood.` : transport === "Metro / Transit" ? "Metro tour: stops can span the city but must be reachable by public transit." : "Car tour: no distance constraint."}
 4. Total time (sum of all duration + travelTime) must not exceed ${maxMinutes} minutes.
-5. familyNote MUST reference the specific children: ${childAgesContext}. Tailor to their ages.
-6. In the why field, NEVER include ages in parentheses after names. Write "Beau and Miles" not "Beau (10) and Miles (7)". First names alone are sufficient.${anchorInstruction}`;
+${familyNoteRule}${startingPointInstruction}${anchorInstruction}`;
 
-    const userMessage = `${seededContext}Tour theme: ${prompt}. Destination: ${destinationCity}. Duration: ${durationLabel || "Half day (4 hrs)"}. Transport: ${transport}. Family: ${familyContext || "not specified"}`;
+    const userMessage = [
+      seededContext || null,
+      `Tour theme: ${prompt}`,
+      `Destination: ${destinationCity}`,
+      `Duration: ${durationLabel || "Half day (4 hrs)"}`,
+      `Transport: ${transport}`,
+      `Group: ${inputGroupLabel}`,
+      inputVibe.length > 0 ? `Vibe: ${vibeLabel}` : null,
+      inputStartPoint ? `Starting point: ${inputStartPoint}` : null,
+      familyContext ? `Traveler context: ${familyContext}` : null,
+    ].filter(Boolean).join("\n");
+
+    // ── Pre-stream: emit_tour_metadata (title + subtitle) ─────────────────────
+    let tourGeneratedTitle: string | null = null;
+    let tourGeneratedSubtitle: string | null = null;
+    try {
+      const metadataResponse = await anthropic.messages.create({
+        model: "claude-sonnet-4-6",
+        max_tokens: 256,
+        system: `You are naming a themed day tour. Generate a vivid, specific title and subtitle. Call emit_tour_metadata exactly once.`,
+        tools: [emitTourMetadataTool],
+        tool_choice: { type: "tool", name: "emit_tour_metadata" },
+        messages: [{ role: "user", content: userMessage }],
+      });
+      const metaTool = metadataResponse.content.find(
+        b => b.type === "tool_use" && b.name === "emit_tour_metadata"
+      );
+      if (metaTool && metaTool.type === "tool_use") {
+        const meta = metaTool.input as { title: string; subtitle: string };
+        tourGeneratedTitle = meta.title?.trim() || null;
+        tourGeneratedSubtitle = meta.subtitle?.trim() || null;
+      }
+      if (tourGeneratedTitle || tourGeneratedSubtitle) {
+        await db.generatedTour.update({
+          where: { id: tourId },
+          data: {
+            ...(tourGeneratedTitle ? { title: tourGeneratedTitle } : {}),
+            ...(tourGeneratedSubtitle ? { subtitle: tourGeneratedSubtitle } : {}),
+          },
+        });
+        console.log(`[tour-metadata] title="${tourGeneratedTitle}" subtitle="${tourGeneratedSubtitle?.slice(0, 60)}"`);
+      }
+    } catch (err) {
+      console.error("[tour-metadata] failed, proceeding without metadata:", err);
+    }
 
     type PersistedStop = ResolvedStop & { id: string; orderIndex: number };
 
@@ -546,7 +645,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
       const finalSystemPrompt = extraInstruction ? `${systemPrompt}\n\n${extraInstruction}` : systemPrompt;
 
       const stream = anthropic.messages.stream({
-        model: "claude-haiku-4-5-20251001",
+        model: "claude-sonnet-4-6",
         max_tokens: 4096,
         system: finalSystemPrompt,
         tools: [emitTourStopTool],
@@ -722,7 +821,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
       };
 
       const fillStream = anthropic.messages.stream({
-        model: "claude-haiku-4-5-20251001",
+        model: "claude-sonnet-4-6",
         max_tokens: 2048,
         system: `${systemPrompt}\n\n${fillInstruction}`,
         tools: [fillTool],
@@ -799,8 +898,10 @@ ABSOLUTE RULES — violating any of these means the tour fails:
     const stopsWithCoords = finalStopsFromDb.filter(s => s.lat != null && s.lng != null);
     if (stopsWithCoords.length >= 3) {
       try {
+        const pinnedFirstId = inputStartPoint ? finalStopsFromDb[0]?.id : undefined;
         const optimized = optimizeRouteOrder(
-          stopsWithCoords.map(s => ({ id: s.id, lat: s.lat!, lng: s.lng! }))
+          stopsWithCoords.map(s => ({ id: s.id, lat: s.lat!, lng: s.lng! })),
+          pinnedFirstId
         );
 
         const newOrderById = new Map<string, number>();
@@ -909,6 +1010,8 @@ ABSOLUTE RULES — violating any of these means the tour fails:
     const finalPartialTour = finalStopsFromDb.length < targetStops || !!clusterViolation;
     return NextResponse.json({
       tourId,
+      title: tourGeneratedTitle ?? tourTitle,
+      subtitle: tourGeneratedSubtitle ?? null,
       originalTargetStops: targetStops,
       stops: finalStopsFromDb.map(s => ({
         id: s.id,

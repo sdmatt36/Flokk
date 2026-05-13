@@ -42,12 +42,25 @@ function decodeHtmlEntities(str: string | null | undefined): string {
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
 }
 
+const GROUP_CHIP_LABELS: Record<string, string> = {
+  adults_only: "Adults only",
+  family_kids: "Family",
+  solo: "Solo",
+  couple: "Couple",
+  friends: "Friends",
+};
+
 type Props = {
   stops: Stop[];
   removedStops: Stop[];
   destinationCity: string;
   destinationCountry?: string | null;
   prompt: string;
+  title?: string | null;
+  subtitle?: string | null;
+  inputGroup?: string | null;
+  inputVibe?: string[];
+  inputDurationHr?: number | null;
   durationLabel: string;
   transport: string;
   tourId?: string | null;
@@ -81,7 +94,7 @@ function RemovalPlaceholder({ stop, onUndo }: { stop: Stop; onUndo: () => void }
   );
 }
 
-export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, prompt, durationLabel, transport, tourId, walkViolations, originalTargetStops, onRemoveStop, onQuickUndo, onDeleteCommit, onPermanentRestore, onReplaceStops, readOnly = false }: Props) {
+export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, prompt, title, subtitle, inputGroup, inputVibe, inputDurationHr, durationLabel, transport, tourId, walkViolations, originalTargetStops, onRemoveStop, onQuickUndo, onDeleteCommit, onPermanentRestore, onReplaceStops, readOnly = false }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [trips, setTrips] = useState<TripOption[]>([]);
   const [tripsLoading, setTripsLoading] = useState(false);
@@ -271,14 +284,34 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
 
   return (
     <div>
-      <p className="font-serif text-xl font-semibold text-[#1B3A5C] mb-1">{prompt}</p>
+      <p className="font-serif text-xl font-semibold text-[#1B3A5C] mb-1">{title ?? destinationCity}</p>
+      {subtitle && <p className="text-sm text-gray-500 mb-2">{subtitle}</p>}
+      {(inputGroup || (inputVibe && inputVibe.length > 0) || inputDurationHr) && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+          {inputGroup && (
+            <span style={{ fontSize: 11, padding: "3px 10px", background: "#F0F4F8", color: "#1B3A5C", borderRadius: 20, fontWeight: 500 }}>
+              {GROUP_CHIP_LABELS[inputGroup] ?? inputGroup}
+            </span>
+          )}
+          {inputDurationHr && (
+            <span style={{ fontSize: 11, padding: "3px 10px", background: "#F0F4F8", color: "#1B3A5C", borderRadius: 20, fontWeight: 500 }}>
+              {inputDurationHr} hr{inputDurationHr !== 1 ? "s" : ""}
+            </span>
+          )}
+          {inputVibe?.map(v => (
+            <span key={v} style={{ fontSize: 11, padding: "3px 10px", background: "rgba(196,102,74,0.1)", color: "#C4664A", borderRadius: 20, fontWeight: 500 }}>
+              {v.replace(/_/g, " ")}
+            </span>
+          ))}
+        </div>
+      )}
       <p className="text-sm text-gray-400 mb-6">{destinationCity}</p>
 
       {walkViolations != null && walkViolations > 0 && (
         <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
           <AlertTriangle size={16} className="text-amber-700 shrink-0 mt-0.5" />
           <p className="text-xs text-amber-900 leading-relaxed">
-            Heads up: this tour has {walkViolations} {walkViolations === 1 ? "walk" : "walks"} that exceed the suggested walking distance for your family. You can remove any stop and regenerate for a tighter route.
+            Heads up: {walkViolations} {walkViolations === 1 ? "leg" : "legs"} on this route exceed the suggested walking distance. Remove a stop and regenerate for a tighter route.
           </p>
         </div>
       )}

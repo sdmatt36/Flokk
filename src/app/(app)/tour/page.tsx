@@ -33,6 +33,8 @@ type Stop = {
 
 type TourResponse = {
   tourId?: string | null;
+  title?: string | null;
+  subtitle?: string | null;
   originalTargetStops?: number;
   stops: Stop[];
   removedStops?: Stop[];
@@ -43,6 +45,9 @@ type TourResponse = {
   transport: string;
   generatedAt: string;
   walkViolations?: number;
+  inputGroup?: string | null;
+  inputVibe?: string[];
+  inputDurationHr?: number | null;
 };
 
 type SavedTourEntry = {
@@ -64,6 +69,14 @@ const WHOS_COMING_OPTIONS = [
   "Teens lead",
 ];
 
+const WHOS_COMING_TO_GROUP: Record<string, string> = {
+  "With the whole family": "family_kids",
+  "Just adults": "adults_only",
+  "Multi-family": "friends",
+  "Grandparents": "adults_only",
+  "Teens lead": "family_kids",
+};
+
 const VIBE_OPTIONS = [
   "Food & markets",
   "Culture",
@@ -76,10 +89,29 @@ const VIBE_OPTIONS = [
   "✨ Surprise me",
 ];
 
+const VIBE_TO_SLUG: Record<string, string> = {
+  "Food & markets": "food_markets",
+  "Culture": "culture",
+  "Nature": "nature",
+  "Adventure": "adventure",
+  "Beach": "beach",
+  "Off-path": "off_path",
+  "Family-paced": "family_paced",
+  "Blend": "blend",
+  "✨ Surprise me": "surprise",
+};
+
+const DURATION_TO_HOURS: Record<string, number> = {
+  "2 hours": 2,
+  "Half day (4 hrs)": 4,
+  "Full day (8 hrs)": 8,
+};
+
 export default function TourPage() {
   const [tripId, setTripId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
   const [destinationCity, setDestinationCity] = useState("");
+  const [startingPoint, setStartingPoint] = useState("");
   const [destinationCountry, setDestinationCountry] = useState<string | null>(null);
   const [durationLabel, setDurationLabel] = useState("");
   const [transport, setTransport] = useState("");
@@ -252,12 +284,16 @@ export default function TourPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: `${prompt.trim()}\n\nGroup: ${whosComing}\nVibe: ${vibes.join(", ")}`,
+          prompt: prompt.trim(),
           destinationCity: destinationCity.trim(),
           durationLabel,
           transport,
           familyProfileId: undefined,
           tripId: tripId ?? undefined,
+          inputStartPoint: startingPoint.trim() || undefined,
+          inputGroup: WHOS_COMING_TO_GROUP[whosComing] ?? "family_kids",
+          inputVibe: vibes.map(v => VIBE_TO_SLUG[v]).filter(Boolean),
+          inputDurationHr: DURATION_TO_HOURS[durationLabel] ?? null,
         }),
       });
       const data = await res.json() as TourResponse & { error?: string };
@@ -289,6 +325,7 @@ export default function TourPage() {
     setTransport("");
     setError("");
     setTouched(false);
+    setStartingPoint("");
     setSuggestions([]);
     setShowSuggestions(false);
   }
@@ -367,6 +404,11 @@ export default function TourPage() {
             destinationCity={results.destinationCity}
             destinationCountry={results.destinationCountry ?? null}
             prompt={results.prompt}
+            title={results.title ?? null}
+            subtitle={results.subtitle ?? null}
+            inputGroup={results.inputGroup ?? null}
+            inputVibe={results.inputVibe ?? []}
+            inputDurationHr={results.inputDurationHr ?? null}
             durationLabel={results.durationLabel}
             transport={results.transport}
             tourId={results.tourId ?? null}
@@ -460,6 +502,14 @@ export default function TourPage() {
               <option value="Car or Taxi">Car or Taxi</option>
             </select>
           </div>
+
+          <input
+            type="text"
+            value={startingPoint}
+            onChange={(e) => setStartingPoint(e.target.value)}
+            placeholder="Starting point (optional — hotel name, landmark, address)"
+            className={`${inputClass} mt-3`}
+          />
 
           {/* Who's Coming + Vibe chips */}
           <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid #F0F0F0" }}>
