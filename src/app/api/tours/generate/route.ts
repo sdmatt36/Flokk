@@ -180,6 +180,27 @@ async function getDestinationCenter(destinationCity: string): Promise<{ lat: num
   }
 }
 
+// English→local name aliases for cities where the English name doesn't match
+// the local name returned by Google Places address_components.
+const CITY_ALIASES: Record<string, string[]> = {
+  lisbon: ["lisboa"],
+  rome: ["roma"],
+  athens: ["athina", "athína"],
+  naples: ["napoli"],
+  florence: ["firenze"],
+  venice: ["venezia"],
+  milan: ["milano"],
+  cologne: ["köln", "koln"],
+  munich: ["münchen", "munchen"],
+  vienna: ["wien"],
+  warsaw: ["warszawa"],
+  prague: ["praha"],
+  brussels: ["bruxelles", "brussel"],
+  "new york city": ["new york"],
+  "new york": ["new york city"],
+  bangkok: ["krung thep", "กรุงเทพ"],
+};
+
 async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, transport: string, destinationCenter: { lat: number; lng: number } | null): Promise<ResolvedStop | null> {
   try {
     const cityNorm = destinationCity.toLowerCase().split(",")[0].trim();
@@ -228,16 +249,24 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     const cityComponents = components.filter(c =>
       c.types?.some((t: string) => allowedTypes.includes(t))
     );
+    const cityAliases = CITY_ALIASES[cityNorm] ?? [];
     const cityMatch = cityComponents.some(c => {
       const long = (c.long_name ?? "").toLowerCase();
       const short = (c.short_name ?? "").toLowerCase();
       // Strip "County" suffix so "Sonoma County" matches cityNorm "sonoma".
       const longNorm = long.replace(/\s+county$/i, "").trim();
       const shortNorm = short.replace(/\s+county$/i, "").trim();
-      return long.includes(cityNorm) ||
-             short.includes(cityNorm) ||
-             longNorm.includes(cityNorm) ||
-             shortNorm.includes(cityNorm);
+      // Bidirectional check: component includes cityNorm OR cityNorm includes component.
+      // The second direction catches "new york city" containing "new york".
+      const directMatch = long.includes(cityNorm) || short.includes(cityNorm) ||
+             longNorm.includes(cityNorm) || shortNorm.includes(cityNorm) ||
+             cityNorm.includes(longNorm) || cityNorm.includes(shortNorm);
+      if (directMatch) return true;
+      // Alias check: for cities with different English vs local names (Rome/Roma, Lisbon/Lisboa).
+      return cityAliases.some(alias =>
+        long.includes(alias) || short.includes(alias) ||
+        longNorm.includes(alias) || shortNorm.includes(alias)
+      );
     });
     const venueLocation = firstResult.geometry.location;
     let distanceMatch = false;
@@ -896,88 +925,99 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
       }
     }
 
-    // ── Attempt 3: under-emission retry — fill missing stops ─────────────────
-    // Triggered whenever accepted stop count < targetStops after all prior attempts.
-    // Appends to (not replaces) existing stops. Passes already-accepted names so
-    // Claude doesn't repeat them. Each new stop goes through the same
-    // resolveAgainstPlaces + themeRelevance gates.
-    if (completedStops.length < targetStops) {
-      const missing = targetStops - completedStops.length;
-      const alreadyAccepted = completedStops.map(s => s.name);
-      console.log(`[tour-underemission-retry] target=${targetStops} got=${completedStops.length}, retrying for ${missing} stops`);
+    // ── Attempt 3+: fill loop — run up to 3 passes until targetStops is reached ─
+    // Each pass appends new stops without replacing existing ones.
+    // Passes the growing list of accepted names to prevent duplicates.
+    // Stops early if a pass produces zero new accepted stops (prevents spinning).
+    {
+      let fillPass = 0;
+      const MAX_FILL_PASSES = 3;
 
-      const fillInstruction = `ALREADY ACCEPTED STOPS — DO NOT REPEAT THESE (they are already in the tour):\n${alreadyAccepted.map((n, i) => `${i + 1}. ${n}`).join("\n")}\n\nYou must emit exactly ${missing} NEW stop(s) that are DIFFERENT from the above list. All original constraints still apply.`;
+      while (completedStops.length < targetStops && fillPass < MAX_FILL_PASSES) {
+        fillPass++;
+        const missing = targetStops - completedStops.length;
+        const alreadyAccepted = completedStops.map(s => s.name);
+        console.log(`[tour-fill] pass ${fillPass}/${MAX_FILL_PASSES}: need ${missing} more stops (have ${completedStops.length}/${targetStops})`);
 
-      const fillTool: Anthropic.Tool = {
-        ...emitTourStopTool,
-        description: `Emit exactly ${missing} new stop(s) for the tour. Do NOT repeat any already-accepted stop.`,
-      };
+        const fillInstruction = `ALREADY ACCEPTED STOPS — DO NOT REPEAT THESE (they are already in the tour):\n${alreadyAccepted.map((n, i) => `${i + 1}. ${n}`).join("\n")}\n\nYou must emit exactly ${missing} NEW stop(s) that are DIFFERENT from the above list. Choose DIFFERENT venue types and areas of the city than what is already listed. All original constraints still apply.`;
 
-      const fillStream = anthropic.messages.stream({
-        model: "claude-sonnet-4-6",
-        max_tokens: 4096,
-        system: `${systemPrompt}\n\n${fillInstruction}`,
-        tools: [fillTool],
-        tool_choice: { type: "tool", name: "emit_tour_stop" },
-        messages: [{ role: "user", content: userMessage }],
-      });
+        const fillTool: Anthropic.Tool = {
+          ...emitTourStopTool,
+          description: `Emit exactly ${missing} new stop(s) for the tour. Do NOT repeat any already-accepted stop.`,
+        };
 
-      let fillToolName: string | null = null;
-      let fillToolJson = "";
-      let fillOrderIndex = completedStops.length;
+        const fillStream = anthropic.messages.stream({
+          model: "claude-sonnet-4-6",
+          max_tokens: 4096,
+          system: `${systemPrompt}\n\n${fillInstruction}`,
+          tools: [fillTool],
+          tool_choice: { type: "tool", name: "emit_tour_stop" },
+          messages: [{ role: "user", content: userMessage }],
+        });
 
-      for await (const event of fillStream) {
-        if (event.type === "content_block_start" && event.content_block.type === "tool_use") {
-          fillToolName = event.content_block.name;
-          fillToolJson = "";
-        } else if (event.type === "content_block_delta" && event.delta.type === "input_json_delta") {
-          fillToolJson += event.delta.partial_json;
-        } else if (event.type === "content_block_stop" && fillToolName === "emit_tour_stop") {
-          try {
-            const rawStop = JSON.parse(fillToolJson) as RawStop;
-            rawStop.why = scrubEmDash(rawStop.why) ?? "";
-            rawStop.familyNote = scrubEmDash(rawStop.familyNote) ?? "";
-            const isDuplicate = alreadyAccepted.some(
-              n => n.toLowerCase() === (rawStop.name ?? "").toLowerCase()
-            );
-            if (isDuplicate) {
-              console.log(`[tour-underemission-retry] duplicate skipped: "${rawStop.name}"`);
-            } else {
-              const resolved = await resolveAgainstPlaces(rawStop, destinationCity, transport, destinationCenter);
-              if (resolved && !hasWeakThemeRelevance(rawStop.themeRelevance)) {
-                const stopId = crypto.randomUUID();
-                const idx = fillOrderIndex++;
-                await db.tourStop.create({
-                  data: {
-                    id: stopId,
-                    tourId,
-                    orderIndex: idx,
-                    name: resolved.name,
-                    address: resolved.address || null,
-                    lat: resolved.lat || null,
-                    lng: resolved.lng || null,
-                    durationMin: resolved.duration || null,
-                    travelTimeMin: resolved.travelTime || null,
-                    why: resolved.why || null,
-                    familyNote: resolved.familyNote || null,
-                    imageUrl: resolved.imageUrl,
-                    websiteUrl: resolved.websiteUrl,
-                    placeId: resolved.placeId ?? null,
-                    ticketRequired: resolved.ticketRequired,
-                    placeTypes: resolved.placeTypes ?? [],
-                  },
-                });
-                completedStops.push({ ...resolved, id: stopId, orderIndex: idx });
-                console.log(`[tour-underemission-retry] added "${resolved.name}" (${completedStops.length}/${targetStops})`);
+        let fillToolName: string | null = null;
+        let fillToolJson = "";
+        let fillOrderIndex = completedStops.length;
+        const beforeFill = completedStops.length;
+
+        for await (const event of fillStream) {
+          if (event.type === "content_block_start" && event.content_block.type === "tool_use") {
+            fillToolName = event.content_block.name;
+            fillToolJson = "";
+          } else if (event.type === "content_block_delta" && event.delta.type === "input_json_delta") {
+            fillToolJson += event.delta.partial_json;
+          } else if (event.type === "content_block_stop" && fillToolName === "emit_tour_stop") {
+            try {
+              const rawStop = JSON.parse(fillToolJson) as RawStop;
+              rawStop.why = scrubEmDash(rawStop.why) ?? "";
+              rawStop.familyNote = scrubEmDash(rawStop.familyNote) ?? "";
+              const isDuplicate = alreadyAccepted.some(
+                n => n.toLowerCase() === (rawStop.name ?? "").toLowerCase()
+              );
+              if (isDuplicate) {
+                console.log(`[tour-fill] duplicate skipped: "${rawStop.name}"`);
+              } else {
+                const resolved = await resolveAgainstPlaces(rawStop, destinationCity, transport, destinationCenter);
+                if (resolved && !hasWeakThemeRelevance(rawStop.themeRelevance)) {
+                  const stopId = crypto.randomUUID();
+                  const idx = fillOrderIndex++;
+                  await db.tourStop.create({
+                    data: {
+                      id: stopId,
+                      tourId,
+                      orderIndex: idx,
+                      name: resolved.name,
+                      address: resolved.address || null,
+                      lat: resolved.lat || null,
+                      lng: resolved.lng || null,
+                      durationMin: resolved.duration || null,
+                      travelTimeMin: resolved.travelTime || null,
+                      why: resolved.why || null,
+                      familyNote: resolved.familyNote || null,
+                      imageUrl: resolved.imageUrl,
+                      websiteUrl: resolved.websiteUrl,
+                      placeId: resolved.placeId ?? null,
+                      ticketRequired: resolved.ticketRequired,
+                      placeTypes: resolved.placeTypes ?? [],
+                    },
+                  });
+                  completedStops.push({ ...resolved, id: stopId, orderIndex: idx });
+                  console.log(`[tour-fill] added "${resolved.name}" (${completedStops.length}/${targetStops})`);
+                }
               }
+            } catch (e) {
+              console.error("[tour-fill] parse error:", e);
             }
-          } catch (e) {
-            console.error("[tour-underemission-retry] parse error:", e);
+            fillToolName = null;
+            fillToolJson = "";
+          } else if (event.type === "message_stop") {
+            console.log(`[tour-fill] pass ${fillPass} done: ${completedStops.length}/${targetStops}`);
           }
-          fillToolName = null;
-          fillToolJson = "";
-        } else if (event.type === "message_stop") {
-          console.log(`[tour-underemission-retry] filled to ${completedStops.length}/${targetStops}`);
+        }
+
+        if (completedStops.length === beforeFill) {
+          console.log(`[tour-fill] pass ${fillPass} added 0 stops — stopping fill loop`);
+          break;
         }
       }
     }
@@ -991,6 +1031,19 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
 
     if (finalStopsFromDb.length < targetStops) {
       console.warn(`[tour-underdelivery] WARN: ${finalStopsFromDb.length}/${targetStops} stops delivered for tour ${tourId} (${durationLabel}, ${destinationCity})`);
+    }
+
+    // B1 verification: log if any capitalized two-word sequence from the prompt
+    // is not represented in the final stop names (named-place rule adherence).
+    {
+      const namedPlaceMatches = prompt.match(/\b[A-Z][a-z]+ (?:[A-Z][a-z]+|[Oo]f|[Tt]he)\b/g) ?? [];
+      for (const named of namedPlaceMatches) {
+        const norm = named.toLowerCase();
+        const present = finalStopsFromDb.some(s => (s.name ?? "").toLowerCase().includes(norm));
+        if (!present) {
+          console.warn(`[tour-named-place] WARN: "${named}" from prompt not found in any stop name for tour ${tourId}`);
+        }
+      }
     }
 
     if (!isNoChildren && finalStopsFromDb.length > 2) {

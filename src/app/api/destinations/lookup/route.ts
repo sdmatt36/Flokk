@@ -74,10 +74,15 @@ export async function GET(req: NextRequest) {
         // Strip " County" suffix from admin_level_2 results so "Maui County" → "Maui"
         const rawCityName = p.structured_formatting.main_text;
         const isCounty = p.types.includes("administrative_area_level_2");
-        const cityName =
+        const strippedName =
           isCounty && rawCityName.endsWith(" County")
             ? rawCityName.slice(0, -" County".length)
             : rawCityName;
+        // Colloquial display overrides: show the name users actually know.
+        const COLLOQUIAL_NAMES: Record<string, string> = {
+          "New York": "New York City",
+        };
+        const cityName = COLLOQUIAL_NAMES[strippedName] ?? strippedName;
 
         let region = "";
         let countryName = "";
