@@ -7,6 +7,7 @@ import Link from "next/link";
 import { getDestinationCoords } from "@/lib/destination-coords";
 import type { SerializableItem } from "./ShareActivityCard";
 import type { SaveableItem } from "./SaveDayButton";
+import { StealDayModal } from "@/components/features/share/StealDayModal";
 
 export interface DayData {
   index: number;
@@ -104,6 +105,8 @@ export function ShareItineraryView({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [stealing, setStealing] = useState(false);
   const [stolen, setStolen] = useState<{ tripId: string; tripTitle: string; copied: number; startDate?: string } | null>(null);
+  const [stealDayOpen, setStealDayOpen] = useState(false);
+  const [stealDayData, setStealDayData] = useState<{ index: number; label: string; city: string | null; items: { id: string; title: string; destinationCity?: string | null; lat?: number | null; lng?: number | null; imageUrl?: string | null; websiteUrl?: string | null }[] } | null>(null);
   const [stealStartDate, setStealStartDate] = useState("");
 
   useEffect(() => {
@@ -158,34 +161,26 @@ export function ShareItineraryView({
     }
   }
 
-  async function handleStealDay(day: DayData) {
+  function openStealDayModal(day: DayData) {
     if (!isLoggedIn) {
       window.location.href = `/sign-up?redirect_url=${encodeURIComponent(`/share/${shareToken}`)}`;
       return;
     }
-    for (const item of day.items) {
-      if (savedSet.has(item.id) || savingSet.has(item.id)) continue;
-      setSavingSet(prev => new Set(prev).add(item.id));
-      try {
-        const res = await fetch("/api/saves/from-share", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: item.title,
-            city: item.destinationCity,
-            lat: item.lat,
-            lng: item.lng,
-            placePhotoUrl: item.imageUrl ?? null,
-            websiteUrl: item.websiteUrl ?? null,
-            dayIndex: day.index - 1,  // share page uses 1-based; TripTabContent is 0-based
-            sourceTripId: sourceTripId ?? null,
-          }),
-        });
-        if (res.ok) setSavedSet(prev => new Set(prev).add(item.id));
-      } finally {
-        setSavingSet(prev => { const n = new Set(prev); n.delete(item.id); return n; });
-      }
-    }
+    setStealDayData({
+      index: day.index,
+      label: day.label,
+      city: day.city,
+      items: day.items.filter(i => i.saveable).map(i => ({
+        id: i.id,
+        title: i.title,
+        destinationCity: i.destinationCity,
+        lat: i.lat,
+        lng: i.lng,
+        imageUrl: i.imageUrl,
+        websiteUrl: i.websiteUrl,
+      })),
+    });
+    setStealDayOpen(true);
   }
 
   async function handleFlokk(item: SerializableItem) {
@@ -218,6 +213,7 @@ export function ShareItineraryView({
   }
 
   return (
+    <>
     <div>
 
       {/* ── "Love this trip?" bar ── */}
@@ -289,18 +285,14 @@ export function ShareItineraryView({
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
                           <span style={{ fontSize: "13px", color: "#717171" }}>{day.items.length} stop{day.items.length !== 1 ? "s" : ""}</span>
-                          {!isOwner && day.items.length > 0 && (() => {
-                            const allSaved = day.items.every(it => savedSet.has(it.id));
-                            return (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); handleStealDay(day); }}
-                                disabled={allSaved}
-                                style={{ fontSize: "11px", fontWeight: 700, color: allSaved ? "#4a7c59" : "#fff", backgroundColor: allSaved ? "rgba(74,124,89,0.1)" : "#C4664A", border: allSaved ? "1px solid rgba(74,124,89,0.3)" : "none", borderRadius: "999px", padding: "3px 10px", cursor: allSaved ? "default" : "pointer", whiteSpace: "nowrap" }}
-                              >
-                                {allSaved ? "Flokked!" : "Steal this day"}
-                              </button>
-                            );
-                          })()}
+                          {!isOwner && day.items.length > 0 && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openStealDayModal(day); }}
+                              style={{ fontSize: "11px", fontWeight: 700, color: "#fff", backgroundColor: "#C4664A", border: "none", borderRadius: "999px", padding: "3px 10px", cursor: "pointer", whiteSpace: "nowrap" }}
+                            >
+                              Steal this day
+                            </button>
+                          )}
                           <ChevronDown
                             size={16}
                             style={{ color: "#717171", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s ease" }}
@@ -530,5 +522,17 @@ export function ShareItineraryView({
       )}
 
     </div>
+
+    <StealDayModal
+      open={stealDayOpen}
+      shareToken={shareToken}
+      sourceTripId={sourceTripId}
+      day={stealDayData ?? { index: 1, label: "Day 1", city: null, items: [] }}
+      onClose={() => setStealDayOpen(false)}
+      onItemsSaved={itemIds =>
+        setSavedSet(prev => { const n = new Set(prev); itemIds.forEach(id => n.add(id)); return n; })
+      }
+    />
+    </>
   );
 }
