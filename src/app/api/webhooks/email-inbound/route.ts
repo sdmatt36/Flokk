@@ -1065,7 +1065,7 @@ Field notes:
           if (rawDate) mergeData.dayIndex = await getDayIndex(resolvedTripId, rawDate);
           if (!existing.scheduledDate && rawDate) mergeData.scheduledDate = rawDate;
           if (!existing.address && extracted.address) mergeData.address = extracted.address;
-          if (!existing.fromCity && extracted.fromCity) mergeData.fromCity = extracted.fromCity;
+          if (!existing.fromCity && (extracted.fromCity || extracted.city)) mergeData.fromCity = (extracted.fromCity as string | null) ?? (extracted.city as string | null);
           if (!existing.toCity && extracted.toCity) mergeData.toCity = extracted.toCity;
           await db.itineraryItem.update({ where: { id: existing.id }, data: mergeData });
           logCtx.itineraryItemIds = [existing.id];
@@ -1079,7 +1079,7 @@ Field notes:
         const mergeData: Record<string, any> = {};
         if (!existing.scheduledDate && rawDate) mergeData.scheduledDate = rawDate;
         if (!existing.address && extracted.address) mergeData.address = extracted.address;
-        if (!existing.fromCity && extracted.fromCity) mergeData.fromCity = extracted.fromCity;
+        if (!existing.fromCity && (extracted.fromCity || extracted.city)) mergeData.fromCity = (extracted.fromCity as string | null) ?? (extracted.city as string | null);
         if (!existing.toCity && extracted.toCity) mergeData.toCity = extracted.toCity;
 
         if (Object.keys(mergeData).length > 0) {
@@ -1971,10 +1971,10 @@ Field notes:
       const item = existingCatchAll
         ? await db.itineraryItem.update({
             where: { id: existingCatchAll.id },
-            data: { title: itemTitle, scheduledDate: confirmedDate, departureTime: (extracted.departureTime as string | null) ?? null, arrivalTime: (extracted.arrivalTime as string | null) ?? null, fromCity: (extracted.fromCity as string | null) ?? null, toCity: (extracted.toCity as string | null) ?? null, notes: autoNotes, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex, venueUrl: catchAllVenueUrl },
+            data: { title: itemTitle, scheduledDate: confirmedDate, departureTime: (extracted.departureTime as string | null) ?? null, arrivalTime: (extracted.arrivalTime as string | null) ?? null, fromCity: (extracted.fromCity as string | null) ?? (extracted.city as string | null) ?? null, toCity: (extracted.toCity as string | null) ?? null, notes: autoNotes, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex, venueUrl: catchAllVenueUrl },
           })
         : await db.itineraryItem.create({
-            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: catchAllType, title: itemTitle, scheduledDate: confirmedDate, departureTime: (extracted.departureTime as string | null) ?? null, arrivalTime: (extracted.arrivalTime as string | null) ?? null, fromCity: (extracted.fromCity as string | null) ?? null, toCity: (extracted.toCity as string | null) ?? null, confirmationCode: catchAllConf, notes: autoNotes, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex, venueUrl: catchAllVenueUrl },
+            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: catchAllType, title: itemTitle, scheduledDate: confirmedDate, departureTime: (extracted.departureTime as string | null) ?? null, arrivalTime: (extracted.arrivalTime as string | null) ?? null, fromCity: (extracted.fromCity as string | null) ?? (extracted.city as string | null) ?? null, toCity: (extracted.toCity as string | null) ?? null, confirmationCode: catchAllConf, notes: autoNotes, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex, venueUrl: catchAllVenueUrl },
           });
 
       if (matchedTrip && extracted.confirmationCode) {
