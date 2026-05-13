@@ -1035,25 +1035,60 @@ Field notes:
       }
     }
 
-    // Duplicate guard: check confirmationCode scoped to the resolved trip.
-    // Phase Vault: narrowed from profile-global to trip-scoped so that re-forwarding
-    // a booking to a different trip (e.g. a code that was previously mismatched) now succeeds.
-    // Only applied when confirmationCode is non-null — null-code bookings are allowed through.
-    //
-    // Pre-extraction dedup removed for flights in Phase 2A.1 — writeFlightFromEmail now handles
-    // dedup at the write layer (find-or-replace on FlightBooking by tripId+confirmationCode).
-    // See src/lib/flights/extract-and-write.ts. Guard retained for hotel/activity types which
-    // do not yet have write-layer dedup.
+    // Duplicate guard: profile-scoped by (familyProfileId + confirmationCode).
+    // Flights excluded — writeFlightFromEmail handles dedup at the write layer.
+    // Behaviors:
+    //   (c) orphan item (tripId=null) + new extraction matched a trip → attach tripId + merge null fields
+    //   (b) item exists with tripId + new extraction has non-null fields not on existing → merge only
+    //   (a) item exists + no new fields → skip creation
     const incomingConfCode = (extracted.confirmationCode as string | null) ?? null;
-    if (incomingConfCode && extracted.type !== "flight" && resolvedTripId) {
+    if (incomingConfCode && extracted.type !== "flight") {
       const existing = await db.itineraryItem.findFirst({
-        where: { confirmationCode: incomingConfCode, tripId: resolvedTripId },
-        select: { id: true, title: true, tripId: true },
+        where: { familyProfileId: familyProfile.id, confirmationCode: incomingConfCode },
+        select: { id: true, title: true, tripId: true, scheduledDate: true, address: true, fromCity: true, toCity: true },
       });
+
       if (existing) {
-        console.log(`[email-inbound] duplicate detected (trip-scoped) — confirmationCode: ${incomingConfCode} already exists as "${existing.title}" on trip ${existing.tripId ?? "unassigned"} — skipping`);
-        await logExtraction({ ...logCtx, outcome: "dropped", errorMessage: `duplicate confirmationCode: ${incomingConfCode}` });
-        return NextResponse.json({ received: true, skipped: "duplicate" });
+        const rawDate = (
+          extracted.departureDate ?? extracted.checkIn ?? extracted.arrivalDate
+        ) as string | null;
+        const orphanGettingAttached = !existing.tripId && !!resolvedTripId;
+
+        if (orphanGettingAttached) {
+          // (c) attach trip to previously-orphaned item
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const mergeData: Record<string, any> = { tripId: resolvedTripId };
+          if (rawDate) mergeData.dayIndex = await getDayIndex(resolvedTripId, rawDate);
+          if (!existing.scheduledDate && rawDate) mergeData.scheduledDate = rawDate;
+          if (!existing.address && extracted.address) mergeData.address = extracted.address;
+          if (!existing.fromCity && extracted.fromCity) mergeData.fromCity = extracted.fromCity;
+          if (!existing.toCity && extracted.toCity) mergeData.toCity = extracted.toCity;
+          await db.itineraryItem.update({ where: { id: existing.id }, data: mergeData });
+          logCtx.itineraryItemIds = [existing.id];
+          console.log(`[email-inbound] duplicate_attached: orphan ${existing.id} → trip ${resolvedTripId}`);
+          await logExtraction({ ...logCtx, outcome: "duplicate_attached", errorMessage: `orphan attached to trip: ${resolvedTripId}` });
+          return NextResponse.json({ received: true, attached: existing.id });
+        }
+
+        // (a) or (b): item already has a trip (or both are orphans) — merge null fields, skip creation
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mergeData: Record<string, any> = {};
+        if (!existing.scheduledDate && rawDate) mergeData.scheduledDate = rawDate;
+        if (!existing.address && extracted.address) mergeData.address = extracted.address;
+        if (!existing.fromCity && extracted.fromCity) mergeData.fromCity = extracted.fromCity;
+        if (!existing.toCity && extracted.toCity) mergeData.toCity = extracted.toCity;
+
+        if (Object.keys(mergeData).length > 0) {
+          await db.itineraryItem.update({ where: { id: existing.id }, data: mergeData });
+          logCtx.itineraryItemIds = [existing.id];
+          console.log(`[email-inbound] duplicate_merged: ${existing.id} — fields: ${Object.keys(mergeData).join(", ")}`);
+          await logExtraction({ ...logCtx, outcome: "duplicate_merged", errorMessage: `merged: ${Object.keys(mergeData).join(", ")}` });
+        } else {
+          logCtx.itineraryItemIds = [existing.id];
+          console.log(`[email-inbound] duplicate_skipped: ${existing.id} — confirmationCode: ${incomingConfCode}`);
+          await logExtraction({ ...logCtx, outcome: "duplicate_skipped", errorMessage: `duplicate confirmationCode: ${incomingConfCode}` });
+        }
+        return NextResponse.json({ received: true, skipped: "duplicate", existingId: existing.id });
       }
     }
 

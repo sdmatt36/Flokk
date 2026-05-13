@@ -11,7 +11,7 @@ export type ExtractionLogInput = {
   itineraryItemIds?: string[];
   tripDocumentId?: string | null;
   confidenceScore?: number | null;
-  outcome: "success" | "partial" | "dropped" | "error";
+  outcome: "success" | "partial" | "dropped" | "error" | "duplicate_skipped" | "duplicate_merged" | "duplicate_attached";
   errorMessage?: string | null;
   rawEmailSize?: number | null;
   rawEmail?: string | null;
