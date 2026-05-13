@@ -64,6 +64,7 @@ type SavedTourEntry = {
 const WHOS_COMING_OPTIONS = [
   "With the whole family",
   "Just adults",
+  "Solo",
   "Multi-family",
   "Grandparents",
   "Teens lead",
@@ -72,6 +73,7 @@ const WHOS_COMING_OPTIONS = [
 const WHOS_COMING_TO_GROUP: Record<string, string> = {
   "With the whole family": "family_kids",
   "Just adults": "adults_only",
+  "Solo": "solo",
   "Multi-family": "friends",
   "Grandparents": "adults_only",
   "Teens lead": "family_kids",
@@ -102,7 +104,9 @@ const VIBE_TO_SLUG: Record<string, string> = {
 };
 
 const DURATION_TO_HOURS: Record<string, number> = {
+  "1 hour": 1,
   "2 hours": 2,
+  "3 hours": 3,
   "Half day (4 hrs)": 4,
   "Full day (8 hrs)": 8,
 };
@@ -383,7 +387,7 @@ export default function TourPage() {
               className="flex items-center gap-1 text-sm text-[#1B3A5C] underline cursor-pointer"
             >
               <RotateCcw size={14} />
-              Start over
+              Create a new tour
             </button>
             {results.tourId && (
               <button
@@ -486,7 +490,9 @@ export default function TourPage() {
               className={`flex-1 ${inputClass}`}
             >
               <option value="" disabled>How long?</option>
+              <option value="1 hour">1 hour</option>
               <option value="2 hours">2 hours</option>
+              <option value="3 hours">3 hours</option>
               <option value="Half day (4 hrs)">Half day (4 hrs)</option>
               <option value="Full day (8 hrs)">Full day (8 hrs)</option>
             </select>

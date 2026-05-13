@@ -323,13 +323,20 @@ export async function POST(req: NextRequest) {
 
   let maxMinutes: number;
   let targetStops: number;
-  if (durationLabel === "2 hours") {
+  if (durationLabel === "1 hour") {
+    maxMinutes = 60;
+    targetStops = 2;
+  } else if (durationLabel === "2 hours") {
     maxMinutes = 120;
     targetStops = 3;
+  } else if (durationLabel === "3 hours") {
+    maxMinutes = 180;
+    targetStops = 4;
   } else if (durationLabel === "Full day (8 hrs)") {
     maxMinutes = 480;
     targetStops = 7;
   } else {
+    // "Half day (4 hrs)" or unrecognised — default 4 hrs
     maxMinutes = 240;
     targetStops = 5;
   }
@@ -512,6 +519,35 @@ export async function POST(req: NextRequest) {
       console.log(`[tour-resolve] no destination center for ${destinationCity}; cityName-match only`);
     }
 
+    // ── Group framing helpers (A6) ────────────────────────────────────────────
+    const GROUP_FRAMING: Record<string, string> = {
+      adults_only: '"the group", "you all", or "adults-only" framing. No child references.',
+      family_kids: `"with the kids" or "family-friendly". Use children's first names when context provides them, otherwise "the kids".`,
+      solo: '"you" throughout — "a solo walk", "on your own". Never refer to a group or companion.',
+      couple: '"the two of you", "a couple", "for couples". Never refer to solo or large group.',
+      friends: '"the group", "with friends". No solo or couple framing.',
+    };
+
+    const whyDescription = isNoChildren
+      ? inputGroup === "solo"
+        ? 'One sentence on why this stop fits the theme. Use "you" framing throughout — "You\'ll love…", "Perfect for your solo afternoon."'
+        : inputGroup === "couple"
+          ? 'One sentence on why this stop fits the theme. Use "the two of you" framing — "A perfect spot for the two of you to…"'
+          : inputGroup === "friends"
+            ? 'One sentence on why this stop fits the theme. Use "the group" or "your crew" framing.'
+            : 'One sentence on why this stop fits the theme. Reference the group naturally with adults-only framing.'
+      : 'One sentence on why this stop fits the theme. Lead with what the KIDS will enjoy — kids are the primary audience, parents are secondary. E.g.: "The kids will love the castle ruins while adults take in the views." NOT: "Adults can sit while kids explore."';
+
+    const familyNoteDescription = isNoChildren
+      ? inputGroup === "solo"
+        ? 'What makes this stop great for a solo traveler. Use "you" framing.'
+        : inputGroup === "couple"
+          ? 'What makes this stop special for a couple.'
+          : inputGroup === "friends"
+            ? 'What makes this stop fun for a group of adult friends.'
+            : 'What makes this stop great for this adults-only group.'
+      : `Specific note tailored to the group: ${childAgesContext}. What will the children experience or enjoy here? If this stop has public bathrooms, say so explicitly (e.g. "Clean public restrooms available on the lower level.").`;
+
     const emitTourMetadataTool: Anthropic.Tool = {
       name: "emit_tour_metadata",
       description: "Emit the title and subtitle for this tour. Call this ONCE.",
@@ -543,8 +579,8 @@ export async function POST(req: NextRequest) {
           lng: { type: "number" },
           duration: { type: "number", description: "Minutes at this stop" },
           travelTime: { type: "number", description: "Minutes to travel to the NEXT stop, 0 for the last stop" },
-          why: { type: "string", description: "One sentence on why this stop fits the theme. Reference travelers naturally — first names only, never include ages." },
-          familyNote: { type: "string", description: isNoChildren ? "One sentence on what makes this stop great for this specific group." : `Specific note tailored to the group: ${childAgesContext}. What will the children experience or enjoy here?` },
+          why: { type: "string", description: whyDescription },
+          familyNote: { type: "string", description: familyNoteDescription },
           themeRelevance: { type: "string", description: `Specific justification for why this exact venue directly serves the theme "${prompt}". Name what happens at this venue that fits the theme. Avoid vague phrases like "provides atmosphere", "complements", or "adds variety". If you cannot justify the stop concretely, choose a different venue.` },
         },
         required: ["name", "address", "lat", "lng", "duration", "travelTime", "why", "familyNote", "themeRelevance"],
@@ -557,13 +593,28 @@ export async function POST(req: NextRequest) {
       : "";
 
     const startingPointInstruction = inputStartPoint
-      ? `\n\nStarting point: The tour MUST begin at or immediately adjacent to "${inputStartPoint}". This is Stop 1.`
+      ? `\n\nSTARTING POINT: "${inputStartPoint}"
+THIS IS STOP 1. The user expects to begin here.
+- If "${inputStartPoint}" is a specific named venue, use it verbatim as Stop 1.
+- If "${inputStartPoint}" is a broader area or landmark (e.g. "Times Square", "Tuileries", "Downtown"), choose the most iconic specific venue AT that location as Stop 1 (e.g. "Times Square" → "TKTS Booth at Father Duffy Square"; "Tuileries" → "Jardin des Tuileries main entrance"). DO NOT silently skip or move past the starting point.`
       : "";
 
     const familyNoteRule = isNoChildren
-      ? `5. In the why field, reference the traveler(s) naturally. Do not mention children.`
+      ? `5. In the why field, use correct group framing (see GROUP FRAMING below). Do not mention children.`
       : `5. familyNote MUST reference the specific children: ${childAgesContext}. Tailor to their ages.
-6. In the why field, reference travelers by first name only — never include ages in parentheses.`;
+6. In the why field, lead with what the KIDS will enjoy — kids are the primary audience, parents are secondary. Good: "The kids will love the castle ruins while adults take in the views." Bad: "Adults can relax while kids play."`;
+
+    const themeTermsRule = `THEME BALANCE: if the theme contains multiple terms joined by "and", "with", "plus", or similar connectors, the stop mix MUST cover each term with at least one stop. Do not over-index on one term and drop another. "parks and treats" → ≥1 park AND ≥1 sweets/treat stop; "museums and cafes" → ≥1 museum AND ≥1 cafe.`;
+
+    const kidsSweetsRule = isNoChildren
+      ? ""
+      : `KIDS SWEETS: include ≥1 gelato, ice cream, pastry, or sweets stop. Place it after a long walk or near the end as a reward. Non-negotiable when group=family_kids.`;
+
+    const kidsBathroomRule = isNoChildren
+      ? ""
+      : `KIDS BATHROOMS: ≥1 stop must have reliable public bathrooms (museum, large park with facilities, mall, transit hub, or fast-casual restaurant). The familyNote on that stop MUST explicitly mention bathroom availability (e.g. "Clean public restrooms available on the lower level.").`;
+
+    const groupFramingRule = `GROUP FRAMING: This tour is for ${inputGroupLabel}. Use ${GROUP_FRAMING[inputGroup] ?? '"the group"'} in every why and familyNote field. Never default to "adults-only" for a solo tour, or use group language for a solo traveler.`;
 
     const systemPrompt = `You are a travel expert building themed day tours. Call emit_tour_stop exactly ${targetStops} times — once per stop, in order.
 
@@ -572,7 +623,10 @@ ABSOLUTE RULES — violating any of these means the tour fails:
 2. Every stop MUST directly serve the theme. No tangential sightseeing added for variety.
 3. ${transport === "Walking" ? `Walking tour: every consecutive stop pair MUST be within ${maxWalk} minutes walk (~${maxDistMeters}m) of each other. Cluster tightly in one neighborhood.` : transport === "Metro / Transit" ? "Metro tour: stops can span the city but must be reachable by public transit." : "Car tour: no distance constraint."}
 4. Total time (sum of all duration + travelTime) must not exceed ${maxMinutes} minutes.
-${familyNoteRule}${startingPointInstruction}${anchorInstruction}`;
+${familyNoteRule}
+
+${themeTermsRule}
+${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomRule + "\n" : ""}${groupFramingRule}${startingPointInstruction}${anchorInstruction}`;
 
     const userMessage = [
       seededContext || null,
@@ -593,7 +647,7 @@ ${familyNoteRule}${startingPointInstruction}${anchorInstruction}`;
       const metadataResponse = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
         max_tokens: 256,
-        system: `You are naming a themed day tour. Generate a vivid, specific title and subtitle. Call emit_tour_metadata exactly once.`,
+        system: `You are naming a themed day tour. Generate a vivid, specific title and subtitle. Call emit_tour_metadata exactly once. Group framing: ${GROUP_FRAMING[inputGroup] ?? "natural group language"}. Match this in the subtitle — solo tours say "solo", couples say "the two of you", family tours say "with the kids", etc. Never mislabel the group type.`,
         tools: [emitTourMetadataTool],
         tool_choice: { type: "tool", name: "emit_tour_metadata" },
         messages: [{ role: "user", content: userMessage }],
@@ -899,6 +953,7 @@ ${familyNoteRule}${startingPointInstruction}${anchorInstruction}`;
     if (stopsWithCoords.length >= 3) {
       try {
         const pinnedFirstId = inputStartPoint ? finalStopsFromDb[0]?.id : undefined;
+        console.log(`[tour-start-point] inputStartPoint="${inputStartPoint ?? "none"}" preOptimStop1="${finalStopsFromDb[0]?.name ?? "none"}" pinnedFirstId="${pinnedFirstId ?? "none"}"`);
         const optimized = optimizeRouteOrder(
           stopsWithCoords.map(s => ({ id: s.id, lat: s.lat!, lng: s.lng! })),
           pinnedFirstId
@@ -922,6 +977,7 @@ ${familyNoteRule}${startingPointInstruction}${anchorInstruction}`;
           orderBy: { orderIndex: "asc" },
         });
 
+        console.log(`[tour-start-point] postOptimStop1="${finalStopsFromDb[0]?.name ?? "none"}" (inputStartPoint="${inputStartPoint ?? "none"}")`);
         console.log("[generate] route optimization applied", {
           tourId,
           stopCount: finalStopsFromDb.length,
@@ -1032,6 +1088,9 @@ ${familyNoteRule}${startingPointInstruction}${anchorInstruction}`;
       prompt,
       durationLabel,
       transport,
+      inputGroup,
+      inputVibe,
+      inputDurationHr,
       generatedAt: new Date().toISOString(),
       ...(finalPartialTour ? { partialTour: true } : {}),
       ...(finalWalkViolations > 0 ? { walkViolations: finalWalkViolations } : {}),
