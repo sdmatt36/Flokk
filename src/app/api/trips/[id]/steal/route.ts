@@ -49,6 +49,7 @@ export async function POST(
       tripId: sourceId,
       dayIndex: { in: dayIndexes },
       type: { notIn: ["FLIGHT", "LODGING"] },
+      cancelledAt: null,
     },
     select: { title: true, type: true, notes: true, latitude: true, longitude: true, toCity: true },
   });

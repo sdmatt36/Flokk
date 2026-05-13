@@ -10,7 +10,7 @@ export const maxDuration = 30;
 async function getTrackedTotal(tripId: string, targetCurrency: string): Promise<number> {
   const [items, manuals] = await Promise.all([
     db.itineraryItem.findMany({
-      where: { tripId },
+      where: { tripId, cancelledAt: null },
       select: { totalCost: true, currency: true, type: true },
     }),
     db.manualActivity.findMany({

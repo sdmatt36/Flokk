@@ -224,6 +224,7 @@ export async function extractRichTripContext(
     where: { id: tripId },
     include: {
       itineraryItems: {
+        where: { cancelledAt: null },
         select: {
           type: true,
           title: true,

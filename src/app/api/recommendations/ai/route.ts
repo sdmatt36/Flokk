@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
   const trip = await db.trip.findUnique({
     where: { id: tripId },
     include: {
-      itineraryItems: { select: { id: true, type: true, title: true, latitude: true, longitude: true, dayIndex: true } },
+      itineraryItems: { where: { cancelledAt: null }, select: { id: true, type: true, title: true, latitude: true, longitude: true, dayIndex: true } },
       savedItems: {
         where: { tripId, deletedAt: null },
         select: { id: true, rawTitle: true },

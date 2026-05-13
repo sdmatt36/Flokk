@@ -84,7 +84,7 @@ export default async function SharePage({
     where: { shareToken: token },
     include: {
       savedItems: { orderBy: [{ dayIndex: "asc" }, { savedAt: "asc" }] },
-      itineraryItems: { orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }] },
+      itineraryItems: { where: { cancelledAt: null }, orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }] },
       manualActivities: { orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }] },
       familyProfile: { select: { familyName: true } },
       placeRatings: {

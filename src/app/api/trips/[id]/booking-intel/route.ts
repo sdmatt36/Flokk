@@ -117,7 +117,7 @@ export async function GET(
       flights: { select: { id: true, type: true, status: true } },
       savedItems: { select: { categoryTags: true, isBooked: true } },
       manualActivities: { select: { status: true } },
-      itineraryItems: { select: { type: true } },
+      itineraryItems: { where: { cancelledAt: null }, select: { type: true } },
       keyInfo: { select: { label: true, value: true } },
       documents: { select: { label: true } },
     },

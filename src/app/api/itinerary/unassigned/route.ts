@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest) {
   if (!profileId) return NextResponse.json({ error: "No profile" }, { status: 400 });
 
   const items = await db.itineraryItem.findMany({
-    where: { familyProfileId: profileId, tripId: null },
+    where: { familyProfileId: profileId, tripId: null, cancelledAt: null },
     orderBy: { createdAt: "desc" },
     select: {
       id: true, type: true, title: true, scheduledDate: true,

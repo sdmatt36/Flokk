@@ -9,8 +9,9 @@ export const dynamic = "force-dynamic";
 
 // GET /api/trips/[id]/itinerary-items
 // Returns all ItineraryItems for the trip except FLIGHT (those are covered by Flight records).
+// By default, cancelled items are excluded. Pass ?include_cancelled=true to include them (owner only).
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { userId } = await auth();
@@ -25,8 +26,11 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const url = new URL(req.url);
+  const includeCancelled = url.searchParams.get("include_cancelled") === "true";
+
   const items = await db.itineraryItem.findMany({
-    where: { tripId },
+    where: { tripId, ...(includeCancelled ? {} : { cancelledAt: null }) },
     orderBy: [{ dayIndex: "asc" }, { createdAt: "asc" }],
     select: {
       id: true,
@@ -57,6 +61,9 @@ export async function GET(
       imageUrl: true,
       status: true,
       lodgingType: true,
+      cancelledAt: true,
+      cancelledBy: true,
+      cancellationReason: true,
     },
   });
 

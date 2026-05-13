@@ -11,10 +11,13 @@ export type ExtractionLogInput = {
   itineraryItemIds?: string[];
   tripDocumentId?: string | null;
   confidenceScore?: number | null;
-  outcome: "success" | "partial" | "dropped" | "error" | "duplicate_skipped" | "duplicate_merged" | "duplicate_attached";
+  outcome: "success" | "partial" | "dropped" | "error" | "duplicate_skipped" | "duplicate_merged" | "duplicate_attached" | "cancellation_matched" | "cancellation_unmatched" | "cancellation_ambiguous" | "attachment_unreadable" | "cancellation_restored";
   errorMessage?: string | null;
   rawEmailSize?: number | null;
   rawEmail?: string | null;
+  attachmentCount?: number | null;
+  attachmentMimeTypes?: string[];
+  attachmentSizeBytes?: number | null;
 };
 
 export async function logExtraction(input: ExtractionLogInput): Promise<void> {
@@ -35,6 +38,9 @@ export async function logExtraction(input: ExtractionLogInput): Promise<void> {
         errorMessage: input.errorMessage ?? null,
         rawEmailSize: input.rawEmailSize ?? null,
         rawEmail: input.rawEmail ?? null,
+        attachmentCount: input.attachmentCount ?? null,
+        attachmentMimeTypes: input.attachmentMimeTypes ?? [],
+        attachmentSizeBytes: input.attachmentSizeBytes ?? null,
       },
     });
   } catch (e) {

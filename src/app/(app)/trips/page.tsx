@@ -26,10 +26,10 @@ export default async function TripsPage() {
     },
     orderBy: { startDate: "asc" },
     include: {
-      _count: { select: { savedItems: true, packingItems: true, manualActivities: true, itineraryItems: { where: { type: { notIn: ["FLIGHT", "TRAIN"] } } } } },
+      _count: { select: { savedItems: true, packingItems: true, manualActivities: true, itineraryItems: { where: { cancelledAt: null, type: { notIn: ["FLIGHT", "TRAIN"] } } } } },
       savedItems: { select: { dayIndex: true }, where: { dayIndex: { not: null } } },
       manualActivities: { select: { dayIndex: true, status: true }, where: { dayIndex: { not: null } } },
-      itineraryItems: { select: { type: true } },
+      itineraryItems: { select: { type: true }, where: { cancelledAt: null } },
     },
   });
 
