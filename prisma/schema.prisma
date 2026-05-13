@@ -1157,6 +1157,11 @@ model GeneratedTour {
   destinationViewportSW Json?
   tourViewportNE        Json?
   tourViewportSW        Json?
+  subtitle              String?
+  inputGroup            String?
+  inputVibe             String[]      @default([])
+  inputDurationHr       Int?
+  inputStartPoint       String?
   stops                 TourStop[]
   cityId                String?       @db.Text
   city                  City?         @relation(fields: [cityId], references: [id], onDelete: SetNull)
