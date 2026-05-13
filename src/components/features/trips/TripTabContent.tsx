@@ -1686,6 +1686,9 @@ type ItineraryItemLocal = {
   additionalConfirmations?: string[];
   status?: string | null;
   lodgingType?: string | null;
+  cancelledAt?: string | null;
+  cancelledBy?: string | null;
+  cancellationReason?: string | null;
 };
 
 type UnifiedDayItem = {
@@ -1858,6 +1861,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [localActivities, setLocalActivities] = useState<Activity[]>([]);
   const [localFlights, setLocalFlights] = useState<Flight[]>([]);
   const [localItineraryItems, setLocalItineraryItems] = useState<ItineraryItemLocal[]>([]);
+  const [includeCancelled, setIncludeCancelled] = useState(false);
+  const [restoringBooking, setRestoringBooking] = useState(false);
   const [verificationModalOpen, setVerificationModalOpen] = useState(false);
   const [verificationIndex, setVerificationIndex] = useState(0);
   const [expandedSlotKey, setExpandedSlotKey] = useState<string | null>(null);
@@ -2277,6 +2282,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       let lng: number | null = null;
       if (item.itemType === "itinerary" && item.itineraryItem) {
         const it = item.itineraryItem;
+        if (it.cancelledAt) return []; // cancelled items never appear on map
         title = it.title;
         if (it.type === "FLIGHT") { lat = it.arrivalLat ?? null; lng = it.arrivalLng ?? null; }
         else { lat = it.latitude ?? null; lng = it.longitude ?? null; }
@@ -2622,7 +2628,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   // swaps sortOrder values and re-renders in the new order.
   useEffect(() => {
     if (!tripId) return;
-    fetch(`/api/trips/${tripId}/itinerary-items`)
+    fetch(`/api/trips/${tripId}/itinerary-items${includeCancelled ? "?include_cancelled=true" : ""}`)
       .then(r => r.json())
       .then(({ items }: { items: ItineraryItemLocal[] }) => {
         if (!Array.isArray(items) || items.length === 0) return;
@@ -2659,11 +2665,11 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         }
       })
       .catch(() => {});
-  }, [tripId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tripId, includeCancelled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function refreshItineraryItems() {
     if (!tripId) return;
-    fetch(`/api/trips/${tripId}/itinerary-items`)
+    fetch(`/api/trips/${tripId}/itinerary-items${includeCancelled ? "?include_cancelled=true" : ""}`)
       .then(r => r.json())
       .then(({ items }: { items: ItineraryItemLocal[] }) => {
         if (Array.isArray(items)) setLocalItineraryItems(items);
@@ -2917,7 +2923,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                 activities={openDay >= 0 ? buildMapPinsForDay(openDay) : localActivities.filter(a => a.lat != null && a.lng != null).map(a => ({ title: a.title, lat: a.lat!, lng: a.lng!, dayIndex: a.dayIndex }))}
                 importedBookingPins={openDay >= 0 ? [] : [...localItineraryItems]
                   .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-                  .filter(it => it.latitude != null && it.longitude != null && it.latitude !== 0 && it.longitude !== 0)
+                  .filter(it => !it.cancelledAt && it.latitude != null && it.longitude != null && it.latitude !== 0 && it.longitude !== 0)
                   .map(it => ({ id: it.id, title: it.title, type: it.type, dayIndex: it.dayIndex ?? null, latitude: it.latitude!, longitude: it.longitude!, arrivalLat: it.arrivalLat ?? null, arrivalLng: it.arrivalLng ?? null }))}
               />
             </div>
@@ -2952,6 +2958,18 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       style={{ marginTop: "8px", fontSize: "13px", fontWeight: 600, color: "#C4664A", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
                     >
                       Review now →
+                    </button>
+                  </div>
+                )}
+
+                {/* Show/hide cancelled bookings toggle */}
+                {(includeCancelled || localItineraryItems.some(it => it.cancelledAt)) && (
+                  <div style={{ marginBottom: "10px", display: "flex", justifyContent: "flex-end" }}>
+                    <button
+                      onClick={() => setIncludeCancelled(v => !v)}
+                      style={{ fontSize: "12px", color: "#888", background: "none", border: "none", cursor: "pointer", padding: "4px 0", fontFamily: "inherit" }}
+                    >
+                      {includeCancelled ? "Hide cancelled bookings" : "Show cancelled bookings"}
                     </button>
                   </div>
                 )}
@@ -3339,9 +3357,13 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                       {/* ItineraryItem card (email-imported confirmed booking) */}
                                       {item.itemType === "itinerary" && item.itineraryItem && (() => {
                                         const it = item.itineraryItem;
+                                        const isCancelled = !!it.cancelledAt;
                                         // Shared card shell: white bg, terracotta left border, no icon/emoji
-                                        const cardStyle: React.CSSProperties = { flex: 1, backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderLeft: "3px solid #C4664A", borderRadius: "12px", padding: "12px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
-                                        const bookedBadge = <span style={{ fontSize: "11px", fontWeight: 600, backgroundColor: "rgba(74,124,89,0.1)", color: "#4a7c59", borderRadius: "999px", padding: "2px 8px" }}>Booked</span>;
+                                        const cardStyle: React.CSSProperties = isCancelled
+                                          ? { flex: 1, backgroundColor: "#F9F9F9", border: "1px solid rgba(0,0,0,0.06)", borderLeft: "3px solid #AAAAAA", borderRadius: "12px", padding: "12px 14px", boxShadow: "none", opacity: 0.72 }
+                                          : { flex: 1, backgroundColor: "#fff", border: "1px solid rgba(0,0,0,0.08)", borderLeft: "3px solid #C4664A", borderRadius: "12px", padding: "12px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" };
+                                        const cancelledBadge = <span style={{ fontSize: "11px", fontWeight: 600, backgroundColor: "rgba(160,0,0,0.08)", color: "#9B2C2C", borderRadius: "999px", padding: "2px 8px" }}>Cancelled</span>;
+                                        const bookedBadge = isCancelled ? cancelledBadge : <span style={{ fontSize: "11px", fontWeight: 600, backgroundColor: "rgba(74,124,89,0.1)", color: "#4a7c59", borderRadius: "999px", padding: "2px 8px" }}>Booked</span>;
                                         function formatDateShort(d: string | null): string | null {
                                           if (!d) return null;
                                           try {
@@ -3373,7 +3395,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                             <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => setSelectedItineraryItem(it)}>
                                               <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
                                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{route}</p>
+                                                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px", ...(isCancelled ? { textDecoration: "line-through", color: "#888" } : {}) }}>{route}</p>
                                                   {airlineLabel && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "3px" }}>{airlineLabel}</p>}
                                                   <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "6px" }}>
                                                     Departs <span style={depTime ? {} : { color: "#BBBBBB" }}>{depTime ?? "Time TBC"}</span>
@@ -3415,7 +3437,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                               <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
                                                 <ItemImageTile src={it.imageUrl} title={it.title} variant="card" />
                                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{hotelName}</p>
+                                                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px", ...(isCancelled ? { textDecoration: "line-through", color: "#888" } : {}) }}>{hotelName}</p>
                                                   {dateFormatted && (
                                                     <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "6px" }}>
                                                       {dateLabel} · {dateFormatted}{lodgingTime ? ` · ${lodgingTime}` : ""}
@@ -3449,7 +3471,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                             <div style={{ ...cardStyle, cursor: "pointer" }} onClick={() => setSelectedItineraryItem(it)}>
                                               <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
                                                 <div style={{ flex: 1, minWidth: 0 }}>
-                                                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{trainRoute}</p>
+                                                  <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px", ...(isCancelled ? { textDecoration: "line-through", color: "#888" } : {}) }}>{trainRoute}</p>
                                                   {operator && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "3px" }}>{operator}</p>}
                                                   {(depTime || arrTime) && (
                                                     <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "6px" }}>
@@ -3482,7 +3504,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                             <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
                                               <ItemImageTile src={it.imageUrl} title={it.title} variant="card" />
                                               <div style={{ flex: 1, minWidth: 0 }}>
-                                                <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px" }}>{it.title}</p>
+                                                <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", lineHeight: 1.3, marginBottom: "2px", ...(isCancelled ? { textDecoration: "line-through", color: "#888" } : {}) }}>{it.title}</p>
                                                 {it.notes && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "6px" }}>{it.notes}</p>}
                                                 <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
                                                   {bookedBadge}
@@ -3771,7 +3793,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
             activities={openDay >= 0 ? buildMapPinsForDay(openDay) : localActivities.filter(a => a.lat != null && a.lng != null).map(a => ({ title: a.title, lat: a.lat!, lng: a.lng!, dayIndex: a.dayIndex }))}
             importedBookingPins={openDay >= 0 ? [] : [...localItineraryItems]
               .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-              .filter(it => it.latitude != null && it.longitude != null && it.latitude !== 0 && it.longitude !== 0)
+              .filter(it => !it.cancelledAt && it.latitude != null && it.longitude != null && it.latitude !== 0 && it.longitude !== 0)
               .map(it => ({ id: it.id, title: it.title, type: it.type, dayIndex: it.dayIndex ?? null, latitude: it.latitude!, longitude: it.longitude!, arrivalLat: it.arrivalLat ?? null, arrivalLng: it.arrivalLng ?? null }))}
           />
         </div>}{/* end right panel (desktop only) */}
@@ -4293,6 +4315,47 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                   </div>
                 );
               })()}
+
+              {/* Cancellation info + restore — shown for all types when item is cancelled */}
+              {sit.cancelledAt && (
+                <div style={{ marginTop: "16px", padding: "14px 16px", backgroundColor: "#FEF2F2", border: "1px solid rgba(155,44,44,0.15)", borderRadius: "12px" }}>
+                  <p style={{ fontSize: "12px", fontWeight: 700, color: "#9B2C2C", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>Cancelled</p>
+                  <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 14px", marginBottom: "12px" }}>
+                    <span style={{ fontSize: "11px", color: "#999", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Date</span>
+                    <span style={{ fontSize: "13px", color: "#1a1a1a" }}>{new Date(sit.cancelledAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+                    {sit.cancelledBy && (
+                      <>
+                        <span style={{ fontSize: "11px", color: "#999", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Source</span>
+                        <span style={{ fontSize: "13px", color: "#1a1a1a" }}>{sit.cancelledBy}</span>
+                      </>
+                    )}
+                    {sit.cancellationReason && (
+                      <>
+                        <span style={{ fontSize: "11px", color: "#999", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Reason</span>
+                        <span style={{ fontSize: "13px", color: "#1a1a1a" }}>{sit.cancellationReason}</span>
+                      </>
+                    )}
+                  </div>
+                  <button
+                    onClick={async () => {
+                      setRestoringBooking(true);
+                      try {
+                        const res = await fetch(`/api/itinerary-items/${sit.id}/restore`, { method: "PATCH" });
+                        if (res.ok) {
+                          setLocalItineraryItems(prev => prev.map(i => i.id === sit.id ? { ...i, cancelledAt: null, cancelledBy: null, cancellationReason: null, status: "BOOKED" } : i));
+                          setSelectedItineraryItem(null);
+                        }
+                      } catch { /* non-fatal */ } finally {
+                        setRestoringBooking(false);
+                      }
+                    }}
+                    disabled={restoringBooking}
+                    style={{ width: "100%", padding: "10px", backgroundColor: "#fff", color: "#1B3A5C", border: "1.5px solid #1B3A5C", borderRadius: "10px", fontSize: "13px", fontWeight: 600, cursor: restoringBooking ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: restoringBooking ? 0.6 : 1 }}
+                  >
+                    {restoringBooking ? "Restoring..." : "Restore this booking"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         );
