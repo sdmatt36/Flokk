@@ -383,6 +383,9 @@ export async function POST(req: NextRequest) {
     confidenceScore: number | null;
     rawEmailSize: number | null;
     rawEmail: string | null;
+    attachmentCount: number | null;
+    attachmentMimeTypes: string[];
+    attachmentSizeBytes: number | null;
   } = {
     senderEmail: "",
     subject: null,
@@ -396,6 +399,9 @@ export async function POST(req: NextRequest) {
     confidenceScore: null,
     rawEmailSize: null,
     rawEmail: null,
+    attachmentCount: null,
+    attachmentMimeTypes: [],
+    attachmentSizeBytes: null,
   };
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -483,29 +489,82 @@ export async function POST(req: NextRequest) {
     const knownMembers = familyProfile.members ?? [];
     console.log("[email-inbound] known members:", knownMembers.map((m) => m.name));
 
+    // ── Attachment processing ──────────────────────────────────────────────────
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawAttachments: Array<Record<string, any>> = Array.isArray(payload.attachments)
+      ? payload.attachments
+      : [];
+
+    const SUPPORTED_MIME = new Set([
+      "application/pdf",
+      "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif",
+    ]);
+    const TWO_MB = 2 * 1024 * 1024;
+    const THREE_MB = 3 * 1024 * 1024;
+
+    const totalAttachmentBytes = rawAttachments.reduce((sum, a) => sum + (Number(a.size) || 0), 0);
+    logCtx.attachmentCount = rawAttachments.length;
+    logCtx.attachmentMimeTypes = rawAttachments.map((a) => String(a.content_type ?? "unknown"));
+    logCtx.attachmentSizeBytes = totalAttachmentBytes;
+
+    // Filter: supported MIME, drop >2MB individuals, then apply 3MB total budget
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let filteredAttachments: Array<Record<string, any>> = rawAttachments
+      .filter((a) => SUPPORTED_MIME.has(String(a.content_type ?? "")) && (Number(a.size) || 0) <= TWO_MB);
+
+    let attachmentsTruncated = false;
+    if (filteredAttachments.reduce((s, a) => s + (Number(a.size) || 0), 0) > THREE_MB) {
+      // Drop images before PDFs
+      filteredAttachments = filteredAttachments.filter((a) => String(a.content_type).startsWith("application/pdf"));
+      attachmentsTruncated = true;
+    }
+    if (filteredAttachments.reduce((s, a) => s + (Number(a.size) || 0), 0) > THREE_MB) {
+      // Keep only first PDF
+      filteredAttachments = filteredAttachments.slice(0, 1);
+      attachmentsTruncated = true;
+    }
+
+    if (attachmentsTruncated) {
+      console.warn(`[email-inbound] attachments truncated for size — kept ${filteredAttachments.length} of ${rawAttachments.length}`);
+    }
+
+    // Build Anthropic content blocks
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const contentBlocks: Array<Record<string, any>> = [];
+
     // ── Claude extraction ──────────────────────────────────────────────────────
     const emailContent = text
       ? text.substring(0, 8000)
       : html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().substring(0, 8000);
 
-    console.log("[email-inbound] calling Claude, content length:", emailContent.length);
+    const hasAttachments = filteredAttachments.length > 0;
+    const attachmentNote = hasAttachments
+      ? `\n\nNOTE: ${filteredAttachments.length} attachment(s) are included in this extraction context. Use their content to extract all booking details — dates, stations, routes, times — that may not appear in the email body.`
+      : `\n\nATTACHMENT-ONLY EMAILS: Some rail/airline carriers (e.g. SJ, Ryanair) send emails where all journey details are in an attached PDF. If the body is only generic boilerplate ("your tickets are attached", "download the app") and NO attachments are provided here, return confidence ≤ 0.3 and null for all date/location fields. Do NOT hallucinate dates or routes from the booking reference alone.`;
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1500,
-      messages: [{
-        role: "user",
-        content: `${isGetYourGuide && gygActivityHint ? `CRITICAL: This is a GetYourGuide booking. The activity name is "${gygActivityHint}". Use this exact string as the activityName field. Do NOT use "GetYourGuide" as the activityName or title. Put "GetYourGuide" in the vendorName field only.\n\n` : ""}Extract booking information from this confirmation email. Return ONLY valid JSON with no markdown.
+    const promptText = `${isGetYourGuide && gygActivityHint ? `CRITICAL: This is a GetYourGuide booking. The activity name is "${gygActivityHint}". Use this exact string as the activityName field. Do NOT use "GetYourGuide" as the activityName or title. Put "GetYourGuide" in the vendorName field only.\n\n` : ""}First, determine whether this email represents a NEW booking confirmation, a CANCELLATION of an existing booking, or a REFUND acknowledgment. Do not assume it is a booking — read the subject and content to classify it first.
+
+IMPORTANT: If the sender is a transportation or accommodation vendor (airline, rail operator, hotel chain), do NOT assume the email is a booking confirmation. Vendor identity tells you who sent the email, not what kind of email it is. An LNER email may be a refund acknowledgment, not a train booking. A Marriott email may be a cancellation confirmation, not a hotel reservation. Always read the subject line and body to determine the type before extracting any fields.
+
+TYPE CLASSIFICATION — determine this first before filling any other fields:
+- Use "cancellation" when the email confirms a booking has been cancelled (subject lines like: "Your booking has been cancelled", "Cancellation confirmed").
+- Use "refund" when the email acknowledges a refund request or confirms money will be returned (subject lines like: "We have received your refund request", "Your refund is being processed", "Refund confirmation").
+- Use "hotel", "flight", "activity", "restaurant", "car_rental", or "train" ONLY when the email is a NEW or ACTIVE booking confirmation containing journey or reservation details.
+- For "cancellation" and "refund" types: set confirmationCode, all date fields, and route fields to null — these types do not carry new booking details.
+
+Once you have determined the type, extract the relevant fields. Return ONLY valid JSON with no markdown.
 
 Email subject: ${subject}
-Email content: ${emailContent}
+Email content: ${emailContent}${attachmentNote}
 
 Return this exact JSON structure:
 {
-  "type": "hotel" | "flight" | "activity" | "restaurant" | "car_rental" | "train" | "unknown",
+  "type": "hotel" | "flight" | "activity" | "restaurant" | "car_rental" | "train" | "cancellation" | "refund" | "unknown",
   "vendorName": "string or null — for hotel bookings, this is the SPECIFIC PROPERTY name (e.g., 'Home Hotel Havnekontoret'), NOT the parent brand or chain (e.g., not 'Strawberry Hotels'). The brand may appear in the email header or footer for marketing purposes; ignore it. Look in the booking confirmation block for the specific property. Common hotel brands to watch for: Marriott, Hilton, Hyatt, Strawberry, Accor, IHG, Four Seasons, Ritz-Carlton, Scandic, Radisson, Best Western, Nobis, SLH. If the email is from one of these brands, the actual property name will be in the confirmation details (e.g., 'W Barcelona', 'Le Meridien Kuala Lumpur', 'Home Hotel Havnekontoret'). For flights, activities, and other types, use the airline or tour operator or vendor name as normal.",
   "activityName": "string or null — for activity/tour bookings only: the specific tour or experience name, never the platform name (GetYourGuide, Viator, Klook)",
-  "confirmationCode": "string or null",
+  "confirmationCode": "string or null — the ORIGINAL booking confirmation code. For cancellation/refund emails: set this to null. Do not use a refund case reference or cancellation ID as the confirmationCode.",
+  "refundCaseReference": "string or null — for cancellation/refund type ONLY: the refund or case reference number (e.g. '26RYEIV99Z'). Null for all other types.",
+  "originalBookingCode": "string or null — for cancellation/refund type ONLY: the original booking confirmation code if it appears in the cancellation/refund email. Most vendors omit it — return null if absent.",
   "checkIn": "YYYY-MM-DD or null",
   "checkOut": "YYYY-MM-DD or null",
   "departureDate": "YYYY-MM-DD or null",
@@ -537,20 +596,45 @@ Return this exact JSON structure:
   "outboundDestination": "string or null — the furthest non-home city in the itinerary (the actual trip destination, not the return airport)",
   "outboundDestinationAirport": "IATA code or null — airport code for outboundDestination",
   "bookingUrl": "string or null — the URL in the email to view or manage the booking. Look for phrases like 'View booking', 'Manage reservation', 'Booking details', or any vendor link that lets the user return to the booking on the vendor's site. If no such URL is present, return null.",
-  "scheduledDate": "YYYY-MM-DD or null — for restaurant, activity, car_rental, and train types: the reservation date, activity date, pickup date, or departure date. Convert any date format to YYYY-MM-DD (e.g. 'Saturday, 11 July 2026' → '2026-07-11', '11 juli 2026' → '2026-07-11'). Leave null only if no date exists in the email body.",
+  "scheduledDate": "YYYY-MM-DD or null — for restaurant, activity, car_rental, and train types: the reservation date, activity date, pickup date, or departure date. Convert any date format to YYYY-MM-DD (e.g. 'Saturday, 11 July 2026' → '2026-07-11', '11 juli 2026' → '2026-07-11'). Leave null only if no date exists in the email body or attachments.",
   "confidence": "0.0 to 1.0"
 }
 
 Field notes:
+- TYPE: Already classified above — do not change the type field based on field extraction. The classification step is final.
+- confirmationCode: For cancellation/refund, set to null. The refund case number goes in refundCaseReference. If the original booking code appears in the email (some vendors include it), put it in originalBookingCode.
 - guestNames: Extract ALL passenger/guest/traveler names as an array. For activity/tour bookings (GetYourGuide, Viator, Klook), look under "Travelers", "Guests", "Participants" sections and include every name listed. For flights, include all passenger names on the booking, not just the primary contact. For hotels, include all guests listed. Return [] only if no names are found anywhere in the email.
 - rooms: For HOTEL bookings ONLY. If the confirmation email contains MULTIPLE rooms with distinct confirmation numbers (common when families book 2+ rooms at the same property for the same dates), return each room as a separate object in this array. Each room object has: confirmationCode (the room-specific code), guests (the guest names on that room), cost (the price for that room in the booking currency). If the booking is a single room, return null — NOT an empty array. If the top-level confirmationCode matches one of the rooms (or the email only contains one room), treat that as a single-room booking and return rooms: null. Example: a Strawberry Hotels email with booking numbers 28686792 (2 adults, 13576 NOK), 28687367 (1 adult + 1 child, 13828 NOK), 28688208 (1 adult + 1 child, 13828 NOK) — return rooms as a 3-element array. Top-level confirmationCode should be the FIRST room's code (28686792), totalCost should be the sum (41232), guestNames should be the union of all room guests.
 - legs: For flights ONLY. Extract EVERY individual flight segment as a separate leg object, INCLUDING intermediate stops like layovers or stopovers. A Tokyo→Singapore→Colombo itinerary has 2 legs: TYO→SIN and SIN→CMB. A Seattle→Keflavík→Bergen itinerary has 2 legs: SEA→KEF and KEF→BGO. NEVER consolidate segments — if the email mentions a ticketed segment, it MUST appear in legs. Always populate this array for flights even if only one segment. Include arrival datetime per leg when visible in the email. For EACH leg, populate flightNumber with that segment's flight number (e.g. "UL895" for leg 1, "UL3335" for leg 2) — NOT the same number on every leg. If the leg's specific flight number is not visible, use null. Populate airline per leg (carrier operating that segment); use null if unknown.
 - outboundDestination / outboundDestinationAirport: For round-trip flights that depart from and return to a home airport (NRT, HND, LHR, LGW), identify the furthest destination city/airport — NOT the return airport. Example: NRT→SIN→CMB→LHR→NRT has outboundDestination="Colombo" and outboundDestinationAirport="CMB". For one-way or simple round trips, this is just toCity/toAirport.
 - fromAirport/toAirport/fromCity/toCity: Keep these for backward compatibility. fromAirport = first leg departure, toAirport = outboundDestinationAirport (NOT the return leg airport), fromCity = first leg departure city, toCity = outboundDestination city.
 - AIRPORT CODE EXTRACTION RULES: Use ONLY IATA codes that appear verbatim in the email body (e.g. "HND", "NRT", "LHR"). NEVER infer or guess an IATA code from a city name alone. If the email says "TOKYO INTL HANEDA" or "HANEDA" → HND. If the email says "TOKYO INTL NARITA" or "NARITA" → NRT. If the email says only "Tokyo" with no airport qualifier, leave fromAirport/toAirport as "" (empty string) — do NOT emit "TYO" or any other code. The same rule applies to every leg.from and leg.to field. If you cannot find the IATA code verbatim in the email, return "".
-- scheduledDate: REQUIRED for restaurant, activity, car_rental, and train types. Look anywhere in the email body — confirmation blocks, table headers, footers. Common patterns: "Date: Saturday, 11 July 2026", "Reservation date: 2026-07-11", "Date: 11/07/2026", Swedish/Norwegian dates like "11 juli 2026". Convert all formats to YYYY-MM-DD. If the body is only generic boilerplate ("your tickets are attached", "download the app") with no specific journey date, return null.
-- city: For restaurant and activity bookings, extract from the venue address at the bottom of the email (e.g. "A-Feltvegen 25, 5743 Flåm" → city="Flåm"). Also check the sender domain and venue name for location hints.
-- ATTACHMENT-ONLY EMAILS: Some rail/airline carriers (e.g. SJ, Ryanair) send booking confirmation emails where all journey details (route, date, times) are in an attached PDF — the email body only says "your tickets are attached" or similar. In these cases ALL date and location fields must be null, and confidence must be 0.3 or lower. Do NOT hallucinate dates or routes from the booking reference alone.`,
+- scheduledDate: REQUIRED for restaurant, activity, car_rental, and train types. Look anywhere in the email body and any attached PDFs — confirmation blocks, table headers, footers. Common patterns: "Date: Saturday, 11 July 2026", "Reservation date: 2026-07-11", "Date: 11/07/2026", Swedish/Norwegian dates like "11 juli 2026". Convert all formats to YYYY-MM-DD. If no date exists anywhere, return null.
+- city: For restaurant and activity bookings, extract from the venue address at the bottom of the email (e.g. "A-Feltvegen 25, 5743 Flåm" → city="Flåm"). Also check the sender domain and venue name for location hints.`;
+
+    contentBlocks.push({ type: "text", text: promptText });
+
+    for (const att of filteredAttachments) {
+      const mimeType = String(att.content_type ?? "");
+      const data = String(att.content ?? "");
+      if (!data) continue;
+      if (mimeType === "application/pdf") {
+        contentBlocks.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data } });
+      } else if (["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"].includes(mimeType)) {
+        const normalizedMime = mimeType === "image/jpg" ? "image/jpeg" : mimeType;
+        contentBlocks.push({ type: "image", source: { type: "base64", media_type: normalizedMime, data } });
+      }
+    }
+
+    console.log(`[email-inbound] calling Claude — body: ${emailContent.length} chars, attachments: ${filteredAttachments.length}, content blocks: ${contentBlocks.length}`);
+
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 1500,
+      messages: [{
+        role: "user",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        content: contentBlocks as any,
       }],
     });
 
@@ -574,7 +658,9 @@ Field notes:
     logCtx.extractedType = (extracted?.type as string | null) ?? null;
     logCtx.confidenceScore = (extracted?.confidence as number | null) ?? null;
 
-    if (!extracted || (extracted.confidence as number) < 0.5) {
+    const isRefundOrCancellation = ["cancellation", "refund"].includes(extracted?.type as string);
+    const minConfidence = isRefundOrCancellation ? 0.3 : 0.5;
+    if (!extracted || (extracted.confidence as number) < minConfidence) {
       console.log("[email-inbound] low confidence:", extracted?.confidence);
       const urlMatch = (text || html || '').match(/https?:\/\/[^\s<>"]+/);
       if (urlMatch) {
@@ -1037,6 +1123,78 @@ Field notes:
           // Fall through to existing activity handling (creates the single flat orphan)
         }
       }
+    }
+
+    // ── Cancellation / refund handling ────────────────────────────────────────
+    if (extracted.type === "cancellation" || extracted.type === "refund") {
+      const cancelVendor = ((extracted.vendorName as string | null) ?? "").trim();
+      const cancelRefundCase = (extracted.refundCaseReference as string | null) ?? null;
+      const cancelOrigCode = (extracted.originalBookingCode as string | null) ?? null;
+      const cancelReason = `${cancelVendor ? cancelVendor + " " : ""}${extracted.type} email${cancelRefundCase ? ", case " + cancelRefundCase : ""}`;
+
+      // Tier 1: original booking code extracted AND matches an existing active item
+      if (cancelOrigCode) {
+        const tier1Match = await db.itineraryItem.findFirst({
+          where: { familyProfileId: familyProfile.id, confirmationCode: cancelOrigCode, cancelledAt: null },
+          select: { id: true, title: true, type: true },
+        });
+        if (tier1Match) {
+          await db.itineraryItem.update({
+            where: { id: tier1Match.id },
+            data: { status: "CANCELLED", cancelledAt: new Date(), cancelledBy: "email_cancellation", cancellationReason: cancelReason },
+          });
+          logCtx.itineraryItemIds = [tier1Match.id];
+          console.log(`[email-inbound] cancellation tier1: soft-deleted ${tier1Match.id} (${tier1Match.title}) via originalBookingCode ${cancelOrigCode}`);
+          await logExtraction({ ...logCtx, outcome: "cancellation_matched", errorMessage: `tier1: originalBookingCode match on ${cancelOrigCode}` });
+          return NextResponse.json({ received: true, cancellation: "matched", tier: 1, cancelledItemId: tier1Match.id });
+        }
+      }
+
+      // Tier 2: vendor + type match, must find exactly one active item
+      if (cancelVendor) {
+        // Map extracted type to ItineraryItem type string
+        const typeMap: Record<string, string> = { hotel: "LODGING", flight: "FLIGHT", train: "TRAIN", activity: "ACTIVITY", restaurant: "RESTAURANT", car_rental: "CAR_RENTAL" };
+        // refund/cancellation emails name the ORIGINAL booking type in vendorName context — use raw type hint from subject/body if available
+        // We can't know the original type from the refund email alone, so search across all types
+        const tier2Candidates = await db.itineraryItem.findMany({
+          where: {
+            familyProfileId: familyProfile.id,
+            cancelledAt: null,
+            OR: [
+              { title: { contains: cancelVendor, mode: "insensitive" } },
+              { notes: { contains: cancelVendor, mode: "insensitive" } },
+              { bookingSource: { contains: cancelVendor, mode: "insensitive" } },
+            ],
+          },
+          select: { id: true, title: true, type: true },
+        });
+
+        if (tier2Candidates.length === 1) {
+          const match = tier2Candidates[0];
+          await db.itineraryItem.update({
+            where: { id: match.id },
+            data: { status: "CANCELLED", cancelledAt: new Date(), cancelledBy: "email_cancellation", cancellationReason: cancelReason },
+          });
+          logCtx.itineraryItemIds = [match.id];
+          console.log(`[email-inbound] cancellation tier2: soft-deleted ${match.id} (${match.title}) via vendor match "${cancelVendor}"`);
+          await logExtraction({ ...logCtx, outcome: "cancellation_matched", errorMessage: `tier2: vendor+single match for "${cancelVendor}"` });
+          return NextResponse.json({ received: true, cancellation: "matched", tier: 2, cancelledItemId: match.id });
+        }
+
+        // Tier 3: 0 or >1 candidates — no auto-action
+        const tier3Msg = tier2Candidates.length === 0
+          ? `tier3: no candidates for vendor "${cancelVendor}"`
+          : `tier3: ${tier2Candidates.length} candidates for vendor "${cancelVendor}" — ambiguous`;
+        const tier3Outcome = tier2Candidates.length > 1 ? "cancellation_ambiguous" : "cancellation_unmatched";
+        console.log(`[email-inbound] ${tier3Msg}`);
+        await logExtraction({ ...logCtx, outcome: tier3Outcome, errorMessage: tier3Msg });
+        return NextResponse.json({ received: true, cancellation: tier2Candidates.length > 1 ? "ambiguous" : "unmatched" });
+      }
+
+      // No vendor extracted at all — log and drop
+      console.log("[email-inbound] cancellation/refund with no vendorName — dropping");
+      await logExtraction({ ...logCtx, outcome: "cancellation_unmatched", errorMessage: "no vendorName on cancellation/refund" });
+      return NextResponse.json({ received: true, cancellation: "unmatched" });
     }
 
     // Duplicate guard: profile-scoped by (familyProfileId + confirmationCode).
