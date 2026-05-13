@@ -56,16 +56,27 @@ export async function POST(
   // Calculate dayIndex from trip startDate.
   // Dates are stored as midnight JST (T15:00:00.000Z). Add 12h before extracting
   // UTC fields to get the correct calendar day regardless of server timezone.
+  // Try arrivalDate first — inbound cross-day flights land on a different calendar
+  // day than they depart; place by the day the traveler arrives.
   let dayIndex: number | null = null;
-  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true } });
+  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } });
   if (trip?.startDate) {
     const rawStart = new Date(trip.startDate);
     const shiftedStart = new Date(rawStart.getTime() + 12 * 60 * 60 * 1000);
     const start = new Date(shiftedStart.getUTCFullYear(), shiftedStart.getUTCMonth(), shiftedStart.getUTCDate());
-    const [dy, dm, dd] = departureDate.split("-").map(Number);
-    const dep = new Date(dy, dm - 1, dd);
-    const diff = Math.round((dep.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    dayIndex = diff; // 0-indexed: Day 1 = dayIndex 0, matches generateTripDays
+    const duration = trip.endDate
+      ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24))
+      : 30;
+    if (arrivalDate) {
+      const [ay, am, ad] = arrivalDate.split("-").map(Number);
+      const arrIdx = Math.round((new Date(ay, am - 1, ad).getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      if (arrIdx >= 0 && arrIdx <= duration) dayIndex = arrIdx;
+    }
+    if (dayIndex === null) {
+      const [dy, dm, dd] = departureDate.split("-").map(Number);
+      const diff = Math.round((new Date(dy, dm - 1, dd).getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      dayIndex = diff >= 0 && diff <= duration ? diff : 0;
+    }
   }
 
   const flight = await db.flight.create({

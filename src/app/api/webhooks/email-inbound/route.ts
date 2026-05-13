@@ -351,18 +351,25 @@ async function resolveFlightFieldsFromVault(
 
 // ── dayIndex helper ──────────────────────────────────────────────────────────
 
-async function getDayIndex(tripId: string | null, dateStr: string): Promise<number | null> {
+async function getDayIndex(tripId: string | null, dateStr: string, arrivalDateStr?: string | null): Promise<number | null> {
   if (!tripId) return null;
   const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } });
   if (!trip?.startDate) return null;
   const rawStart = new Date(trip.startDate);
   const shiftedStart = new Date(rawStart.getTime() + 12 * 60 * 60 * 1000);
   const start = new Date(shiftedStart.getUTCFullYear(), shiftedStart.getUTCMonth(), shiftedStart.getUTCDate());
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const idx = Math.round((new Date(y, m - 1, d).getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   const duration = trip.endDate
     ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24))
     : 30;
+  // Try arrivalDate first — inbound cross-day flights (transpacific, red-eyes) arrive on a
+  // different calendar day than they depart; place by the day the traveler actually lands.
+  if (arrivalDateStr) {
+    const [ay, am, ad] = arrivalDateStr.split("-").map(Number);
+    const arrIdx = Math.round((new Date(ay, am - 1, ad).getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    if (arrIdx >= 0 && arrIdx <= duration) return arrIdx;
+  }
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const idx = Math.round((new Date(y, m - 1, d).getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   if (idx < 0 || idx > duration) return 0;
   return idx;
 }
@@ -1272,7 +1279,7 @@ Field notes:
     // direct booking confirmations do not surface a single flightNumber field.
     if (extracted.type === "flight") {
       const outboundDayIndex = extracted.departureDate
-        ? await getDayIndex(resolvedTripId, extracted.departureDate as string)
+        ? await getDayIndex(resolvedTripId, extracted.departureDate as string, (extracted.arrivalDate as string | null) ?? null)
         : null;
 
       // Resolve airports/times — fills in any fields Claude missed by checking
@@ -1436,7 +1443,7 @@ Field notes:
         }
 
         const legTitle = `${leg.from} → ${leg.to}`;
-        const legDayIndex = leg.departureDate ? await getDayIndex(resolvedTripId, leg.departureDate) : null;
+        const legDayIndex = leg.departureDate ? await getDayIndex(resolvedTripId, leg.departureDate, leg.arrivalDate) : null;
 
         // Collect leg for Flight table write (after ItineraryItem loop completes)
         writeFlightLegs.push({
@@ -1676,7 +1683,7 @@ Field notes:
             if (!leg.from || !leg.to) continue;
 
             const legTitle = `${leg.from} → ${leg.to}`;
-            const legDayIndex = leg.departureDate ? await getDayIndex(relTripId, leg.departureDate) : null;
+            const legDayIndex = leg.departureDate ? await getDayIndex(relTripId, leg.departureDate, leg.arrivalDate) : null;
 
             const geoQuery = leg.toCity ? `${leg.to} airport ${leg.toCity}` : `${leg.to} airport`;
             const legGeo = await geocodePlace(geoQuery);
@@ -1739,7 +1746,7 @@ Field notes:
               arrivalDate: leg.arrivalDate ?? null,
               arrivalTime: leg.arrivalTime ?? null,
               duration: null,
-              dayIndex: leg.departureDate ? await getDayIndex(relTripId, leg.departureDate) : null,
+              dayIndex: leg.departureDate ? await getDayIndex(relTripId, leg.departureDate, leg.arrivalDate) : null,
               type: "outbound",
               notes: null,
             }))
