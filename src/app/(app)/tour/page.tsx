@@ -87,6 +87,9 @@ const VIBE_OPTIONS = [
   "Beach",
   "Off-path",
   "Family-paced",
+  "Parks & play",
+  "Sweets",
+  "Animals",
   "Blend",
   "✨ Surprise me",
 ];
@@ -99,6 +102,9 @@ const VIBE_TO_SLUG: Record<string, string> = {
   "Beach": "beach",
   "Off-path": "off_path",
   "Family-paced": "family_paced",
+  "Parks & play": "parks_play",
+  "Sweets": "sweets",
+  "Animals": "animals",
   "Blend": "blend",
   "✨ Surprise me": "surprise",
 };

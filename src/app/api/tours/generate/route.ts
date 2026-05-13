@@ -111,6 +111,11 @@ function hasWeakThemeRelevance(text: string | undefined | null): boolean {
   return vaguePhrases.some(p => trimmed.includes(p));
 }
 
+function scrubEmDash(s: string | null | undefined): string | null {
+  if (!s) return s ?? null;
+  return s.replace(/—/g, ", ").replace(/,\s*,/g, ",").replace(/\s{2,}/g, " ").trim();
+}
+
 type ResolvedStop = RawStop & { imageUrl: string | null; websiteUrl: string | null; placeId: string | null; ticketRequired: string | null; placeTypes: string[] };
 
 function deriveTicketSignal(
@@ -387,9 +392,9 @@ export async function POST(req: NextRequest) {
             const age = ageFromBirthDate(m.birthDate);
             if (m.role === "CHILD") {
               if (age !== null) childAges.push(age);
-              return `${m.name ?? "Child"} (age ${age ?? "unknown"})`;
+              return m.name ?? "Child";
             }
-            return `${m.name ?? "Adult"} (adult)`;
+            return m.name ?? "Adult";
           })
           .join(", ");
 
@@ -528,6 +533,14 @@ export async function POST(req: NextRequest) {
       friends: '"the group", "with friends". No solo or couple framing.',
     };
 
+    const vibeInterpretationRules = (() => {
+      const rules: string[] = [];
+      if (inputVibe.includes("parks_play")) rules.push('"parks_play" vibe: Tour leans heavily on playgrounds, parks, green spaces, outdoor activity zones, climbing structures. Include multiple park/play stops — not just one.');
+      if (inputVibe.includes("sweets")) rules.push('"sweets" vibe: The ENTIRE tour is dessert-themed. Bakeries, gelato shops, candy stores, chocolatiers, dessert cafes. Include MULTIPLE sweets stops across the tour (this goes beyond the mandatory single sweets stop — sweets IS the theme).');
+      if (inputVibe.includes("animals")) rules.push('"animals" vibe: Focus on zoos, aquariums, wildlife sanctuaries, urban farms, butterfly gardens, animal encounters. Include at least 2-3 animal-related stops for half-day or longer tours.');
+      return rules.length > 0 ? `\nVIBE INTERPRETATION:\n${rules.join("\n")}` : "";
+    })();
+
     const whyDescription = isNoChildren
       ? inputGroup === "solo"
         ? 'One sentence on why this stop fits the theme. Use "you" framing throughout — "You\'ll love…", "Perfect for your solo afternoon."'
@@ -560,7 +573,7 @@ export async function POST(req: NextRequest) {
           },
           subtitle: {
             type: "string",
-            description: "One sentence (15-25 words) that sets the mood and tells the traveler what makes this tour special. Specific to the theme, destination, and group.",
+            description: "One sentence (15-25 words) that sets the mood and tells the traveler what makes this tour special. Specific to the theme, destination, and group. Do NOT name specific venues. Do NOT write 'kicks off at X' or 'starts the day at X' — the starting stop is chosen after this step.",
           },
         },
         required: ["title", "subtitle"],
@@ -573,7 +586,7 @@ export async function POST(req: NextRequest) {
       input_schema: {
         type: "object",
         properties: {
-          name: { type: "string" },
+          name: { type: "string", description: "ONE specific venue name only. Never use '/' between alternatives or list two options. If uncertain which venue to pick, choose one and commit." },
           address: { type: "string" },
           lat: { type: "number" },
           lng: { type: "number" },
@@ -606,15 +619,22 @@ THIS IS STOP 1. The user expects to begin here.
 
     const themeTermsRule = `THEME BALANCE: if the theme contains multiple terms joined by "and", "with", "plus", or similar connectors, the stop mix MUST cover each term with at least one stop. Do not over-index on one term and drop another. "parks and treats" → ≥1 park AND ≥1 sweets/treat stop; "museums and cafes" → ≥1 museum AND ≥1 cafe.`;
 
-    const kidsSweetsRule = isNoChildren
-      ? ""
-      : `KIDS SWEETS: include ≥1 gelato, ice cream, pastry, or sweets stop. Place it after a long walk or near the end as a reward. Non-negotiable when group=family_kids.`;
+    const kidsSweetsRule = isNoChildren ? "" : targetStops <= 2
+      ? `KIDS SWEETS + BATHROOMS (short tour, ${targetStops} stops): One of your ${targetStops} stops MUST be a café, dessert spot, or restaurant that serves treats AND has clean restrooms. Combine both requirements in one stop. Non-negotiable — reserve this slot FIRST.`
+      : `KIDS SWEETS: ≥1 gelato, ice cream, pastry, or sweets stop MUST appear in your INITIAL generation. Reserve this slot BEFORE selecting other stops. Non-negotiable — cannot be deferred to expansion passes.`;
 
-    const kidsBathroomRule = isNoChildren
-      ? ""
-      : `KIDS BATHROOMS: ≥1 stop must have reliable public bathrooms (museum, large park with facilities, mall, transit hub, or fast-casual restaurant). The familyNote on that stop MUST explicitly mention bathroom availability (e.g. "Clean public restrooms available on the lower level.").`;
+    const kidsBathroomRule = isNoChildren || targetStops <= 2 ? "" : `KIDS BATHROOMS: ≥1 stop with reliable public bathrooms (museum, large park with facilities, mall, transit hub, or fast-casual restaurant) MUST appear in your INITIAL generation. Reserve this slot BEFORE other stops. The familyNote on that stop MUST explicitly mention bathroom availability (e.g. "Clean public restrooms available on the lower level.").`;
 
     const groupFramingRule = `GROUP FRAMING: This tour is for ${inputGroupLabel}. Use ${GROUP_FRAMING[inputGroup] ?? '"the group"'} in every why and familyNote field. Never default to "adults-only" for a solo tour, or use group language for a solo traveler.`;
+
+    const emDashRule = `COPY RULE — NO EM DASHES: Never use em dashes (—) anywhere in any output field. Replace with a comma, period, or parentheses. BAD: "Time Out Market — a legendary food hall." GOOD: "Time Out Market. A legendary food hall." or "Time Out Market (a legendary food hall)."`;
+
+    const nameRules = isNoChildren ? "" : `NAME FORMAT: Use family member first names only in output. Never write ages in parentheses, brackets, or after the name in any form. Ages are context for you to calibrate appropriateness — not text to quote back. GOOD: "Beau and Miles will love this." BAD: "Beau (10) and Miles (8) will love this."
+NAME CONSISTENCY: If you use specific names in any stop, use those same names throughout ALL stops. Do not switch between first names and generic descriptions ("the 10-year-old", "the kids") mid-tour.`;
+
+    const soloContextRule = inputGroup === "solo"
+      ? `\nSOLO NOTE: This is a personal solo trip for one adult taking time away from others. Use "you" framing exclusively throughout all why and familyNote fields. Zero references to companions, family members, group, or anyone's names.`
+      : "";
 
     const systemPrompt = `You are a travel expert building themed day tours. Call emit_tour_stop exactly ${targetStops} times — once per stop, in order.
 
@@ -625,8 +645,9 @@ ABSOLUTE RULES — violating any of these means the tour fails:
 4. Total time (sum of all duration + travelTime) must not exceed ${maxMinutes} minutes.
 ${familyNoteRule}
 
+${emDashRule}
 ${themeTermsRule}
-${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomRule + "\n" : ""}${groupFramingRule}${startingPointInstruction}${anchorInstruction}`;
+${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomRule + "\n" : ""}${nameRules ? nameRules + "\n" : ""}${groupFramingRule}${soloContextRule}${vibeInterpretationRules}${startingPointInstruction}${anchorInstruction}`;
 
     const userMessage = [
       seededContext || null,
@@ -647,7 +668,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
       const metadataResponse = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
         max_tokens: 256,
-        system: `You are naming a themed day tour. Generate a vivid, specific title and subtitle. Call emit_tour_metadata exactly once. Group framing: ${GROUP_FRAMING[inputGroup] ?? "natural group language"}. Match this in the subtitle — solo tours say "solo", couples say "the two of you", family tours say "with the kids", etc. Never mislabel the group type.`,
+        system: `You are naming a themed day tour. Generate a vivid, specific title and subtitle. Call emit_tour_metadata exactly once.\nGroup framing: ${GROUP_FRAMING[inputGroup] ?? "natural group language"}. Match this in the subtitle — solo tours say "solo" or "for one", couples say "the two of you", family tours say "with the kids", etc. Never mislabel the group type.\nSubtitle rules: describe theme, mood, and group experience. Do NOT name specific venues. Do NOT write "kicks off at X" or "starts the day at X" — the starting stop is chosen after this step.\nGrammar: use "an" before vowel sounds (e.g., "an adults-only walk"), "a" before consonant sounds.\n${emDashRule}`,
         tools: [emitTourMetadataTool],
         tool_choice: { type: "tool", name: "emit_tour_metadata" },
         messages: [{ role: "user", content: userMessage }],
@@ -657,8 +678,8 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
       );
       if (metaTool && metaTool.type === "tool_use") {
         const meta = metaTool.input as { title: string; subtitle: string };
-        tourGeneratedTitle = meta.title?.trim() || null;
-        tourGeneratedSubtitle = meta.subtitle?.trim() || null;
+        tourGeneratedTitle = scrubEmDash(meta.title?.trim() || null);
+        tourGeneratedSubtitle = scrubEmDash(meta.subtitle?.trim() || null);
       }
       if (tourGeneratedTitle || tourGeneratedSubtitle) {
         await db.generatedTour.update({
@@ -716,6 +737,8 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
         } else if (event.type === "content_block_stop" && currentToolName === "emit_tour_stop") {
           try {
             const rawStop = JSON.parse(currentToolJson) as RawStop;
+            rawStop.why = scrubEmDash(rawStop.why) ?? "";
+            rawStop.familyNote = scrubEmDash(rawStop.familyNote) ?? "";
             const resolved = await resolveAgainstPlaces(rawStop, destinationCity, transport, destinationCenter);
             if (!resolved) {
               rejectedCount++;
@@ -896,6 +919,8 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
         } else if (event.type === "content_block_stop" && fillToolName === "emit_tour_stop") {
           try {
             const rawStop = JSON.parse(fillToolJson) as RawStop;
+            rawStop.why = scrubEmDash(rawStop.why) ?? "";
+            rawStop.familyNote = scrubEmDash(rawStop.familyNote) ?? "";
             const isDuplicate = alreadyAccepted.some(
               n => n.toLowerCase() === (rawStop.name ?? "").toLowerCase()
             );
