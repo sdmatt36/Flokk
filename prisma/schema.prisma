@@ -939,8 +939,11 @@ model ItineraryItem {
   managementUrl     String?  // link to manage reservation on platform
   venueUrl          String?  // resolved venue/property URL per Universal URL Rule
   imageUrl          String?  // resolved venue photo per Discipline 4.18; populated from SavedItem.placePhotoUrl at write time
-  status            String?  @default("BOOKED") // INTERESTED | CONFIRMED | BOOKED — manual entries explicit; email-imported defaults to BOOKED
+  status            String?  @default("BOOKED") // INTERESTED | CONFIRMED | BOOKED | CANCELLED — manual entries explicit; email-imported defaults to BOOKED; email_cancellation sets CANCELLED + cancelledAt
   lodgingType       String?  // hotel | vacation_rental | bnb | cruise_ship | campsite | motel | resort | other
+  cancelledAt       DateTime?  // soft-delete gate: non-null = cancelled; null = active
+  cancelledBy       String?    // 'user' | 'email_cancellation' | 'admin' | 'system'
+  cancellationReason String?   // e.g. "Refund acknowledgment from LNER, case 26RYEIV99Z"
   createdAt         DateTime @default(now())
   shareToken        String?  @unique
 }
@@ -1103,16 +1106,19 @@ model ExtractionLog {
   subject             String?
   resolutionPath      String    // "profile_member" | "direct_user" | "delegate" | "none"
   familyProfileId     String?
-  extractedType       String?   // "hotel" | "flight" | "activity" | "train" | "car_rental" | "unknown" | "none"
+  extractedType       String?   // "hotel" | "flight" | "activity" | "train" | "car_rental" | "restaurant" | "unknown" | "cancellation" | "refund"
   matchedTripId       String?
   autoCreatedTripId   String?
   itineraryItemIds    String[]  @default([])
   tripDocumentId      String?
   confidenceScore     Float?
-  outcome             String    // "success" | "partial" | "dropped" | "error"
+  outcome             String    // "success" | "partial" | "dropped" | "error" | "duplicate_skipped" | "duplicate_merged" | "duplicate_attached" | "cancellation_matched" | "cancellation_unmatched" | "cancellation_ambiguous" | "attachment_unreadable"
   errorMessage        String?
   rawEmailSize        Int?
   rawEmail            String?   // truncated at 200KB; null for pre-2026-05-13 rows
+  attachmentCount     Int?      // number of attachments in CloudMailin payload
+  attachmentMimeTypes String[]  @default([])  // MIME types of all attachments received
+  attachmentSizeBytes Int?      // total bytes across all attachments pre-truncation
 
   @@index([senderEmail, createdAt])
   @@index([familyProfileId, createdAt])
