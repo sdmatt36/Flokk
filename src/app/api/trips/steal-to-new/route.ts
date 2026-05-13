@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
-import { getTripAccess } from "@/lib/trip-permissions";
+import { getTripAccess, canEditTripContent } from "@/lib/trip-permissions";
 import { buildClonedItem, computeScheduledDate } from "@/lib/clone-saved-items";
 
 export const maxDuration = 60;
@@ -31,7 +31,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { shareToken, startDate } = await req.json() as { shareToken: string; startDate?: string };
+  const body = await req.json() as {
+    shareToken: string;
+    startDate?: string;
+    filterDayIndex?: number;  // 1-based source dayIndex; when set, only clone items from this day
+    targetTripId?: string;    // when set, append to existing trip instead of creating new
+    tripName?: string;        // used when creating new trip; defaults to "{city} — Day {N}"
+  };
+  const { shareToken, startDate, filterDayIndex, targetTripId, tripName } = body;
 
   const profileId = await resolveProfileId(userId);
   if (!profileId) {
@@ -55,22 +62,95 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Trip not found" }, { status: 404 });
   }
 
-  // Prevent stealing a trip you already own or collaborate on
-  if (await getTripAccess(profileId, sourceTrip.id) !== null) {
+  // Prevent stealing a trip you already own or collaborate on (only applies to new-trip creation)
+  if (!targetTripId && await getTripAccess(profileId, sourceTrip.id) !== null) {
     return NextResponse.json({ error: "Cannot steal your own trip" }, { status: 400 });
   }
 
-  // Determine trip duration from max dayIndex across all sources
-  const allDayIndices = [
-    ...sourceTrip.savedItems.map(s => s.dayIndex ?? 0),
-    ...sourceTrip.itineraryItems.map(i => i.dayIndex ?? 0),
-    ...sourceTrip.manualActivities.map(m => m.dayIndex ?? 0),
-  ];
+  // ── PATH A: Append stolen day to an existing trip ─────────────────────────
+  if (targetTripId) {
+    const targetTrip = await db.trip.findUnique({
+      where: { id: targetTripId },
+      select: { id: true, title: true, destinationCity: true },
+    });
+    if (!targetTrip) {
+      return NextResponse.json({ error: "Target trip not found" }, { status: 404 });
+    }
+    if (!await canEditTripContent(profileId, targetTripId)) {
+      return NextResponse.json({ error: "Not authorized to edit target trip" }, { status: 403 });
+    }
+
+    // Compute the dayIndex that the stolen items will occupy on the target trip
+    // (one beyond the current max so they form a new logical day)
+    const maxSave = await db.savedItem.findFirst({
+      where: { tripId: targetTripId, deletedAt: null, dayIndex: { not: null } },
+      orderBy: { dayIndex: "desc" },
+      select: { dayIndex: true },
+    });
+    const appendAsDayIndex = maxSave?.dayIndex != null ? maxSave.dayIndex + 1 : 0;
+
+    // Filter source items to the requested day (or all if no filter)
+    const sourceItems = filterDayIndex != null
+      ? sourceTrip.savedItems.filter(s => s.dayIndex === filterDayIndex)
+      : sourceTrip.savedItems;
+
+    const itemsToCreate = sourceItems
+      .filter(item => !!item.rawTitle)
+      .map(item => buildClonedItem({
+        familyProfileId: profileId,
+        tripId: targetTripId,
+        rawTitle: item.rawTitle!,
+        rawDescription: item.rawDescription ?? null,
+        lat: item.lat ?? null,
+        lng: item.lng ?? null,
+        destinationCity: item.destinationCity ?? sourceTrip.destinationCity ?? null,
+        destinationCountry: item.destinationCountry ?? sourceTrip.destinationCountry ?? null,
+        placePhotoUrl: item.placePhotoUrl ?? null,
+        websiteUrl: item.websiteUrl ?? null,
+        categoryTags: item.categoryTags.length > 0
+          ? item.categoryTags
+          : inferCategoryTags(item.rawTitle!, item.rawDescription ?? null),
+        dayIndex: appendAsDayIndex,  // all items share the same new day slot
+      }));
+
+    if (itemsToCreate.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await db.savedItem.createMany({ data: itemsToCreate as any[] });
+    }
+
+    // Increment cloneCount — a partial steal is still a steal
+    await db.trip.update({
+      where: { id: sourceTrip.id },
+      data: { cloneCount: { increment: 1 } },
+    });
+
+    return NextResponse.json({
+      tripId: targetTripId,
+      tripTitle: targetTrip.title,
+      copied: itemsToCreate.length,
+    });
+  }
+
+  // ── PATH B: Create a new trip ──────────────────────────────────────────────
+
+  // When stealing a single day, only include that day's SavedItems
+  const filteredSavedItems = filterDayIndex != null
+    ? sourceTrip.savedItems.filter(s => s.dayIndex === filterDayIndex)
+    : sourceTrip.savedItems;
+
+  // Determine trip duration (single-day steals become 1-day trips)
+  const allDayIndices = filterDayIndex != null
+    ? [1]  // placeholder — 1-day trip; endDate not computed
+    : [
+        ...sourceTrip.savedItems.map(s => s.dayIndex ?? 0),
+        ...sourceTrip.itineraryItems.map(i => i.dayIndex ?? 0),
+        ...sourceTrip.manualActivities.map(m => m.dayIndex ?? 0),
+      ];
   const maxSourceDayIndex = allDayIndices.length > 0 ? Math.max(...allDayIndices) : 0;
 
-  // Date handling: use provided startDate or null; compute endDate from source duration
+  // Date handling: only compute endDate for full-trip steals
   const tripStartDate = startDate ?? null;
-  const tripEndDate = tripStartDate && maxSourceDayIndex > 0
+  const tripEndDate = tripStartDate && maxSourceDayIndex > 0 && filterDayIndex == null
     ? computeScheduledDate(tripStartDate, maxSourceDayIndex)
     : null;
 
@@ -83,11 +163,19 @@ export async function POST(req: Request) {
     isAnonymous: true,
   });
 
+  // Trip title: explicit name > default day-steal name > AI-generated name
+  const resolvedTitle = tripName?.trim() || (
+    filterDayIndex != null
+      ? `${sourceTrip.destinationCity ?? "Trip"} — Day ${filterDayIndex}`
+      : builtData.title
+  );
+
   // Create new trip for this user, record source lineage
   const newTrip = await db.$transaction(async (tx) => {
     const created = await tx.trip.create({
       data: {
         ...builtData,
+        title: resolvedTitle,
         familyProfileId: profileId,
         sourceTripId: sourceTrip.id,
       },
@@ -112,11 +200,12 @@ export async function POST(req: Request) {
 
   const savedItemsToCreate = [];
 
-  // Primary source: SavedItems with dayIndex > 0 (covers seeded Flokker examples)
-  // Convert 1-based source dayIndex to 0-based for TripTabContent compatibility
-  for (const item of sourceTrip.savedItems) {
+  // Primary source: SavedItems (covers seeded Flokker examples)
+  for (const item of filteredSavedItems) {
     if (!item.rawTitle) continue;
-    const dayIndex = convertDayIndex(item.dayIndex);
+    // Single-day steals: all items land at dayIndex=0 (Day 1 of the new 1-day trip)
+    // Full steals: convert 1-based source dayIndex to 0-based
+    const dayIndex = filterDayIndex != null ? 0 : convertDayIndex(item.dayIndex);
     savedItemsToCreate.push(buildClonedItem({
       familyProfileId: profileId,
       tripId: newTrip.id,
@@ -133,45 +222,45 @@ export async function POST(req: Request) {
     }));
   }
 
-  // Secondary source: ItineraryItems (email-imported bookings for user trips)
-  // Skip FLIGHT and LODGING; skip if a SavedItem covers the same day+title
-  const savedTitlesInDay = new Set(
-    savedItemsToCreate.map(s => `${s.dayIndex}|${s.rawTitle?.toLowerCase()}`)
-  );
-  for (const item of sourceTrip.itineraryItems) {
-    if (item.type === "FLIGHT" || item.type === "LODGING") continue;
-    const dayIndex = convertDayIndex(item.dayIndex);
-    const key = `${dayIndex}|${item.title.toLowerCase()}`;
-    if (savedTitlesInDay.has(key)) continue;
-    savedItemsToCreate.push(buildClonedItem({
-      familyProfileId: profileId,
-      tripId: newTrip.id,
-      rawTitle: item.title,
-      rawDescription: item.notes ?? null,
-      lat: item.latitude ?? null,
-      lng: item.longitude ?? null,
-      destinationCity: item.toCity ?? sourceTrip.destinationCity ?? null,
-      categoryTags: inferCategoryTags(item.title, item.notes ?? null),
-      dayIndex,
-    }));
-  }
+  // Secondary sources: ItineraryItems + ManualActivities (only for full-trip steals)
+  if (filterDayIndex == null) {
+    const savedTitlesInDay = new Set(
+      savedItemsToCreate.map(s => `${s.dayIndex}|${s.rawTitle?.toLowerCase()}`)
+    );
+    for (const item of sourceTrip.itineraryItems) {
+      if (item.type === "FLIGHT" || item.type === "LODGING") continue;
+      const dayIndex = convertDayIndex(item.dayIndex);
+      const key = `${dayIndex}|${item.title.toLowerCase()}`;
+      if (savedTitlesInDay.has(key)) continue;
+      savedItemsToCreate.push(buildClonedItem({
+        familyProfileId: profileId,
+        tripId: newTrip.id,
+        rawTitle: item.title,
+        rawDescription: item.notes ?? null,
+        lat: item.latitude ?? null,
+        lng: item.longitude ?? null,
+        destinationCity: item.toCity ?? sourceTrip.destinationCity ?? null,
+        categoryTags: inferCategoryTags(item.title, item.notes ?? null),
+        dayIndex,
+      }));
+    }
 
-  // Manual activities — include all
-  for (const item of sourceTrip.manualActivities) {
-    const dayIndex = convertDayIndex(item.dayIndex);
-    savedItemsToCreate.push(buildClonedItem({
-      familyProfileId: profileId,
-      tripId: newTrip.id,
-      rawTitle: item.title,
-      rawDescription: item.notes ?? null,
-      lat: item.lat ?? null,
-      lng: item.lng ?? null,
-      destinationCity: sourceTrip.destinationCity ?? null,
-      placePhotoUrl: null,
-      websiteUrl: item.website ?? null,
-      categoryTags: inferCategoryTags(item.title, item.notes ?? null),
-      dayIndex,
-    }));
+    for (const item of sourceTrip.manualActivities) {
+      const dayIndex = convertDayIndex(item.dayIndex);
+      savedItemsToCreate.push(buildClonedItem({
+        familyProfileId: profileId,
+        tripId: newTrip.id,
+        rawTitle: item.title,
+        rawDescription: item.notes ?? null,
+        lat: item.lat ?? null,
+        lng: item.lng ?? null,
+        destinationCity: sourceTrip.destinationCity ?? null,
+        placePhotoUrl: null,
+        websiteUrl: item.website ?? null,
+        categoryTags: inferCategoryTags(item.title, item.notes ?? null),
+        dayIndex,
+      }));
+    }
   }
 
   if (savedItemsToCreate.length > 0) {

@@ -71,7 +71,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ saved: false, duplicate: true });
   }
 
-  const dayIndex = body.dayIndex != null && body.dayIndex > 0 ? body.dayIndex : null;
+  const dayIndex = body.dayIndex != null ? body.dayIndex : null;
   const status = (body.tripId && dayIndex) ? "TRIP_ASSIGNED"
     : body.tripId ? "TRIP_ASSIGNED"
     : "UNORGANIZED";

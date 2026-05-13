@@ -177,7 +177,7 @@ export function ShareItineraryView({
             lng: item.lng,
             placePhotoUrl: item.imageUrl ?? null,
             websiteUrl: item.websiteUrl ?? null,
-            dayIndex: day.index,
+            dayIndex: day.index - 1,  // share page uses 1-based; TripTabContent is 0-based
             sourceTripId: sourceTripId ?? null,
           }),
         });
