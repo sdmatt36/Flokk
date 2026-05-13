@@ -476,11 +476,18 @@ export default function TourPage() {
                       style={{ background: "none", border: "none", fontFamily: "inherit" }}
                     >
                       <span className="font-semibold">{s.cityName}</span>
-                      {s.region && s.region !== s.countryName && s.region !== s.cityName ? (
-                        <span className="text-gray-400 text-xs">· {s.region}</span>
-                      ) : s.countryName && s.countryName !== s.cityName ? (
-                        <span className="text-gray-400 text-xs">· {s.countryName}</span>
-                      ) : null}
+                      {(() => {
+                        const needsRegion = suggestions.filter(
+                          other => other.cityName === s.cityName && other.countryName === s.countryName
+                        ).length > 1;
+                        if (needsRegion && s.region && s.region !== s.cityName && s.region !== s.countryName) {
+                          return <span className="text-gray-400 text-xs whitespace-nowrap">· {s.region}, {s.countryName}</span>;
+                        }
+                        if (s.countryName && s.countryName !== s.cityName) {
+                          return <span className="text-gray-400 text-xs whitespace-nowrap">· {s.countryName}</span>;
+                        }
+                        return null;
+                      })()}
                     </button>
                   ))}
                 </div>

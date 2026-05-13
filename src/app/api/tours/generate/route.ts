@@ -339,11 +339,11 @@ export async function POST(req: NextRequest) {
     targetStops = 4;
   } else if (durationLabel === "Full day (8 hrs)") {
     maxMinutes = 480;
-    targetStops = 7;
+    targetStops = 8;
   } else {
     // "Half day (4 hrs)" or unrecognised — default 4 hrs
     maxMinutes = 240;
-    targetStops = 5;
+    targetStops = 6;
   }
 
   try {
@@ -357,6 +357,7 @@ export async function POST(req: NextRequest) {
     let familyContext = "";
     let youngestChildAge: number | null = null;
     let childAgesContext = "ages not specified";
+    let childNames: string[] = [];
 
     if (tripId) {
       const aggCtx = await aggregateTripContext(tripId);
@@ -392,6 +393,7 @@ export async function POST(req: NextRequest) {
             const age = ageFromBirthDate(m.birthDate);
             if (m.role === "CHILD") {
               if (age !== null) childAges.push(age);
+              if (m.name) childNames.push(m.name);
               return m.name ?? "Child";
             }
             return m.name ?? "Adult";
@@ -535,10 +537,18 @@ export async function POST(req: NextRequest) {
 
     const vibeInterpretationRules = (() => {
       const rules: string[] = [];
-      if (inputVibe.includes("parks_play")) rules.push('"parks_play" vibe: Tour leans heavily on playgrounds, parks, green spaces, outdoor activity zones, climbing structures. Include multiple park/play stops — not just one.');
-      if (inputVibe.includes("sweets")) rules.push('"sweets" vibe: The ENTIRE tour is dessert-themed. Bakeries, gelato shops, candy stores, chocolatiers, dessert cafes. Include MULTIPLE sweets stops across the tour (this goes beyond the mandatory single sweets stop — sweets IS the theme).');
-      if (inputVibe.includes("animals")) rules.push('"animals" vibe: Focus on zoos, aquariums, wildlife sanctuaries, urban farms, butterfly gardens, animal encounters. Include at least 2-3 animal-related stops for half-day or longer tours.');
-      return rules.length > 0 ? `\nVIBE INTERPRETATION:\n${rules.join("\n")}` : "";
+      const vibeStopFloor = Math.max(1, Math.round(targetStops * 0.4));
+      if (inputVibe.includes("parks_play")) rules.push(`"parks_play" vibe: MINIMUM ${vibeStopFloor} stops must be parks, playgrounds, green spaces, outdoor activity zones, or climbing structures. These are the spine of the tour. Non-negotiable.`);
+      if (inputVibe.includes("sweets")) rules.push(`"sweets" vibe: MINIMUM ${vibeStopFloor} stops must be dedicated sweets venues — bakeries, gelato, candy stores, chocolatiers, dessert cafes, pastry shops. Sweets IS the theme. Other stops complement; sweets dominate.`);
+      if (inputVibe.includes("animals")) rules.push(`"animals" vibe: MINIMUM ${Math.min(vibeStopFloor, 3)} stops must be animal-focused — zoos, aquariums, wildlife sanctuaries, urban farms, butterfly gardens, insect museums, animal encounters. Mandatory, not optional.`);
+      if (inputVibe.includes("food_markets")) rules.push(`"food_markets" vibe: MINIMUM ${vibeStopFloor} stops must be food markets, street food stalls, culinary halls, or food-focused venues.`);
+      if (inputVibe.includes("culture")) rules.push(`"culture" vibe: MINIMUM ${vibeStopFloor} stops must be cultural venues — museums, galleries, historic sites, temples, palaces, heritage districts.`);
+      if (inputVibe.includes("nature")) rules.push(`"nature" vibe: MINIMUM ${vibeStopFloor} stops must be outdoor/nature venues — parks, gardens, viewpoints, rivers, nature trails, botanical gardens.`);
+      if (inputVibe.length >= 2 && !inputVibe.includes("surprise") && !inputVibe.includes("blend")) {
+        const perVibe = Math.max(1, Math.floor(targetStops / inputVibe.length));
+        rules.push(`MULTIPLE VIBES (${inputVibe.length} selected): Distribute stops roughly evenly — at least ${perVibe} stop(s) per vibe. Do not over-index on one and ignore others.`);
+      }
+      return rules.length > 0 ? `\nVIBE EMPHASIS:\n${rules.join("\n")}` : "";
     })();
 
     const whyDescription = isNoChildren
@@ -623,7 +633,7 @@ THIS IS STOP 1. The user expects to begin here.
       ? `KIDS SWEETS + BATHROOMS (short tour, ${targetStops} stops): One of your ${targetStops} stops MUST be a café, dessert spot, or restaurant that serves treats AND has clean restrooms. Combine both requirements in one stop. Non-negotiable — reserve this slot FIRST.`
       : `KIDS SWEETS: ≥1 gelato, ice cream, pastry, or sweets stop MUST appear in your INITIAL generation. Reserve this slot BEFORE selecting other stops. Non-negotiable — cannot be deferred to expansion passes.`;
 
-    const kidsBathroomRule = isNoChildren || targetStops <= 2 ? "" : `KIDS BATHROOMS: ≥1 stop with reliable public bathrooms (museum, large park with facilities, mall, transit hub, or fast-casual restaurant) MUST appear in your INITIAL generation. Reserve this slot BEFORE other stops. The familyNote on that stop MUST explicitly mention bathroom availability (e.g. "Clean public restrooms available on the lower level.").`;
+    const kidsBathroomRule = isNoChildren || targetStops <= 2 ? "" : `KIDS BATHROOMS: ≥1 stop with reliable public bathrooms (museum, large park with facilities, shopping mall, transit hub, or fast-casual restaurant) MUST appear in your INITIAL generation. Do NOT defer this. The familyNote on that exact stop MUST explicitly mention bathroom availability — use a phrase like "Clean public restrooms available", "Public bathrooms on site", or "Restroom facilities available here". A stop without this exact note does NOT count as the bathroom stop.`;
 
     const groupFramingRule = `GROUP FRAMING: This tour is for ${inputGroupLabel}. Use ${GROUP_FRAMING[inputGroup] ?? '"the group"'} in every why and familyNote field. Never default to "adults-only" for a solo tour, or use group language for a solo traveler.`;
 
@@ -636,6 +646,10 @@ NAME CONSISTENCY: If you use specific names in any stop, use those same names th
       ? `\nSOLO NOTE: This is a personal solo trip for one adult taking time away from others. Use "you" framing exclusively throughout all why and familyNote fields. Zero references to companions, family members, group, or anyone's names.`
       : "";
 
+    const stopCountRule = `STOP COUNT: You MUST call emit_tour_stop exactly ${targetStops} times. Not ${targetStops - 1}, not fewer. If a stop is hard to find, substitute the nearest similar venue. Ending with fewer stops than required means the tour fails.`;
+
+    const namedPlaceRule = `NAMED-PLACE RULE: If the tour theme mentions any specific place, attraction, neighborhood, park, market, or venue by name (e.g. "Central Park", "Shinjuku", "the Louvre", "Tsukiji Market"), that exact named place MUST appear as a stop. It is a hard requirement — do not substitute a "similar" alternative.`;
+
     const systemPrompt = `You are a travel expert building themed day tours. Call emit_tour_stop exactly ${targetStops} times — once per stop, in order.
 
 ABSOLUTE RULES — violating any of these means the tour fails:
@@ -645,6 +659,8 @@ ABSOLUTE RULES — violating any of these means the tour fails:
 4. Total time (sum of all duration + travelTime) must not exceed ${maxMinutes} minutes.
 ${familyNoteRule}
 
+${stopCountRule}
+${namedPlaceRule}
 ${emDashRule}
 ${themeTermsRule}
 ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomRule + "\n" : ""}${nameRules ? nameRules + "\n" : ""}${groupFramingRule}${soloContextRule}${vibeInterpretationRules}${startingPointInstruction}${anchorInstruction}`;
@@ -668,7 +684,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
       const metadataResponse = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
         max_tokens: 256,
-        system: `You are naming a themed day tour. Generate a vivid, specific title and subtitle. Call emit_tour_metadata exactly once.\nGroup framing: ${GROUP_FRAMING[inputGroup] ?? "natural group language"}. Match this in the subtitle — solo tours say "solo" or "for one", couples say "the two of you", family tours say "with the kids", etc. Never mislabel the group type.\nSubtitle rules: describe theme, mood, and group experience. Do NOT name specific venues. Do NOT write "kicks off at X" or "starts the day at X" — the starting stop is chosen after this step.\nGrammar: use "an" before vowel sounds (e.g., "an adults-only walk"), "a" before consonant sounds.\n${emDashRule}`,
+        system: `You are naming a themed day tour. Generate a vivid, specific title and subtitle. Call emit_tour_metadata exactly once.\nGroup framing: ${GROUP_FRAMING[inputGroup] ?? "natural group language"}. Match this in the subtitle — solo tours say "solo" or "for one", couples say "the two of you", family tours say "with the kids", etc. Never mislabel the group type.\nSubtitle rules: describe theme, mood, and group experience. Do NOT name specific venues. Do NOT write "kicks off at X" or "starts the day at X" — the starting stop is chosen after this step.\nGrammar: use "an" before vowel sounds (e.g., "an adults-only walk"), "a" before consonant sounds.${childNames.length > 0 ? `\nNAME CONSISTENCY: The family's children are named: ${childNames.join(", ")}. If the subtitle references children by name, use exactly these names. Do not use generic terms like "the kids" if you choose to name them.` : ""}\n${emDashRule}`,
         tools: [emitTourMetadataTool],
         tool_choice: { type: "tool", name: "emit_tour_metadata" },
         messages: [{ role: "user", content: userMessage }],
@@ -899,7 +915,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
 
       const fillStream = anthropic.messages.stream({
         model: "claude-sonnet-4-6",
-        max_tokens: 2048,
+        max_tokens: 4096,
         system: `${systemPrompt}\n\n${fillInstruction}`,
         tools: [fillTool],
         tool_choice: { type: "tool", name: "emit_tour_stop" },
@@ -972,6 +988,18 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
       where: { tourId, deletedAt: null },
       orderBy: { orderIndex: "asc" },
     });
+
+    if (finalStopsFromDb.length < targetStops) {
+      console.warn(`[tour-underdelivery] WARN: ${finalStopsFromDb.length}/${targetStops} stops delivered for tour ${tourId} (${durationLabel}, ${destinationCity})`);
+    }
+
+    if (!isNoChildren && finalStopsFromDb.length > 2) {
+      const bathroomRe = /restroom|bathroom|toilet|WC|facilities/i;
+      const hasBathroomMention = finalStopsFromDb.some(s => bathroomRe.test(s.familyNote ?? ""));
+      if (!hasBathroomMention) {
+        console.warn(`[tour-bathroom-missing] WARN: no bathroom mention in any familyNote for tour ${tourId}`);
+      }
+    }
 
     // ── Route optimization ────────────────────────────────────────────────────
     const stopsWithCoords = finalStopsFromDb.filter(s => s.lat != null && s.lng != null);
