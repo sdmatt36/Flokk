@@ -1112,6 +1112,7 @@ model ExtractionLog {
   outcome             String    // "success" | "partial" | "dropped" | "error"
   errorMessage        String?
   rawEmailSize        Int?
+  rawEmail            String?   // truncated at 200KB; null for pre-2026-05-13 rows
 
   @@index([senderEmail, createdAt])
   @@index([familyProfileId, createdAt])

@@ -382,6 +382,7 @@ export async function POST(req: NextRequest) {
     tripDocumentId: string | null;
     confidenceScore: number | null;
     rawEmailSize: number | null;
+    rawEmail: string | null;
   } = {
     senderEmail: "",
     subject: null,
@@ -394,6 +395,7 @@ export async function POST(req: NextRequest) {
     tripDocumentId: null,
     confidenceScore: null,
     rawEmailSize: null,
+    rawEmail: null,
   };
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -417,8 +419,10 @@ export async function POST(req: NextRequest) {
     }
 
     logCtx.subject = subject || null;
-    logCtx.rawEmailSize = (text || html || "").length;
-    console.log('[email-inbound] body length:', (text || html || '').length);
+    const rawBody = text || html || "";
+    logCtx.rawEmailSize = rawBody.length;
+    logCtx.rawEmail = rawBody.length > 0 ? rawBody.slice(0, 200_000) : null;
+    console.log('[email-inbound] body length:', rawBody.length);
     console.log("[email-inbound] from:", from, "| to:", to, "| subject:", subject);
 
     // ── GYG pre-extraction — pull activity name from subject before Claude runs ─
@@ -712,14 +716,24 @@ Field notes:
       .split(/[\s|:\-–—]+/).map((w) => w.trim()).filter((w) => w.length > 2);
 
     // Helper: does a booking date fall within a trip's range (allow 3 days before start for pre-trip hotels)
+    // Open-ended trips (endDate=null) match within [startDate - 3d, startDate + 90d]
     function dateInTripRange(dateStr: string, trip: typeof trips[0]): boolean {
-      if (!trip.startDate || !trip.endDate) return false;
+      if (!trip.startDate) return false;
       const [y, m, d] = dateStr.split("-").map(Number);
       const booking = new Date(y, m - 1, d);
       const start = new Date(trip.startDate); start.setHours(0, 0, 0, 0);
-      start.setDate(start.getDate() - 3); // allow 3 days before trip start
-      const end = new Date(trip.endDate);   end.setHours(23, 59, 59, 999);
-      return booking >= start && booking <= end;
+      start.setDate(start.getDate() - 3);
+
+      if (trip.endDate) {
+        const end = new Date(trip.endDate); end.setHours(23, 59, 59, 999);
+        return booking >= start && booking <= end;
+      }
+
+      // open-ended trip: 90-day window from start
+      const openEnd = new Date(trip.startDate);
+      openEnd.setDate(openEnd.getDate() + 90);
+      openEnd.setHours(23, 59, 59, 999);
+      return booking >= start && booking <= openEnd;
     }
 
     const now = new Date();

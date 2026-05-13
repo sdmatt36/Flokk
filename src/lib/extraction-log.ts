@@ -14,6 +14,7 @@ export type ExtractionLogInput = {
   outcome: "success" | "partial" | "dropped" | "error";
   errorMessage?: string | null;
   rawEmailSize?: number | null;
+  rawEmail?: string | null;
 };
 
 export async function logExtraction(input: ExtractionLogInput): Promise<void> {
@@ -33,6 +34,7 @@ export async function logExtraction(input: ExtractionLogInput): Promise<void> {
         outcome: input.outcome,
         errorMessage: input.errorMessage ?? null,
         rawEmailSize: input.rawEmailSize ?? null,
+        rawEmail: input.rawEmail ?? null,
       },
     });
   } catch (e) {
