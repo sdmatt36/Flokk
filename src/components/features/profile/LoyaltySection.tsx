@@ -19,34 +19,60 @@ const CAR_RENTAL = [
   "Avis Preferred", "Budget Fastbreak", "Alamo Insiders",
 ];
 
+interface Adult {
+  id: string;
+  name: string | null;
+}
+
 interface LoyaltyEntry {
   id: string;
   program: string;
   memberNumber: string;
   programType: string;
+  familyMemberId: string | null;
+  familyMember: { id: string; name: string | null } | null;
 }
 
 export function LoyaltySection() {
   const [loyaltyPrograms, setLoyaltyPrograms] = useState<LoyaltyEntry[]>([]);
+  const [adults, setAdults] = useState<Adult[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<"airline" | "hotel" | "car">("airline");
   const [selectedProgram, setSelectedProgram] = useState<string | null>(null);
   const [memberNumber, setMemberNumber] = useState("");
+  const [selectedMemberId, setSelectedMemberId] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    fetch("/api/profile/loyalty")
-      .then((r) => r.json())
-      .then((data: Array<{ id: string; programName: string; memberNumber: string; programType: string }>) => {
-        if (!Array.isArray(data)) return;
-        setLoyaltyPrograms(
-          data.map((p) => ({
-            id: p.id,
-            program: p.programName,
-            memberNumber: p.memberNumber,
-            programType: p.programType,
-          }))
-        );
+    Promise.all([
+      fetch("/api/profile/loyalty").then((r) => r.json()),
+      fetch("/api/family/members").then((r) => r.json()),
+    ])
+      .then(([loyaltyData, membersData]) => {
+        if (Array.isArray(loyaltyData)) {
+          setLoyaltyPrograms(
+            loyaltyData.map((p: {
+              id: string;
+              programName: string;
+              memberNumber: string;
+              programType: string;
+              familyMemberId: string | null;
+              familyMember: { id: string; name: string | null } | null;
+            }) => ({
+              id: p.id,
+              program: p.programName,
+              memberNumber: p.memberNumber,
+              programType: p.programType,
+              familyMemberId: p.familyMemberId ?? null,
+              familyMember: p.familyMember ?? null,
+            }))
+          );
+        }
+        const memberList: Adult[] = (membersData?.members ?? [])
+          .filter((m: { role: string; name: string | null }) => m.role === "ADULT" && m.name)
+          .map((m: { id: string; name: string | null }) => ({ id: m.id, name: m.name }));
+        setAdults(memberList);
+        if (memberList.length > 0) setSelectedMemberId(memberList[0].id);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -63,6 +89,7 @@ export function LoyaltySection() {
           programName: selectedProgram,
           memberNumber: memberNumber.trim(),
           programType: activeCategory,
+          familyMemberId: selectedMemberId || null,
         }),
       });
       if (!res.ok) throw new Error("Failed to save");
@@ -74,10 +101,13 @@ export function LoyaltySection() {
           program: saved.programName,
           memberNumber: saved.memberNumber,
           programType: saved.programType,
+          familyMemberId: saved.familyMemberId ?? null,
+          familyMember: saved.familyMember ?? null,
         },
       ]);
       setMemberNumber("");
       setSelectedProgram(null);
+      if (adults.length > 0) setSelectedMemberId(adults[0].id);
     } catch (err) {
       console.error("Loyalty save error:", err);
     } finally {
@@ -96,6 +126,25 @@ export function LoyaltySection() {
     );
   }
 
+  async function handleReassign(id: string, newMemberId: string) {
+    const familyMemberId = newMemberId || null;
+    const res = await fetch(`/api/profile/loyalty?id=${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ familyMemberId }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setLoyaltyPrograms((prev) =>
+        prev.map((e) =>
+          e.id === id
+            ? { ...e, familyMemberId: updated.familyMemberId ?? null, familyMember: updated.familyMember ?? null }
+            : e
+        )
+      );
+    }
+  }
+
   const PROGRAMS_BY_CATEGORY = {
     airline: AIRLINES,
     hotel: HOTELS,
@@ -111,6 +160,7 @@ export function LoyaltySection() {
   const currentPrograms = loyaltyPrograms.filter((e) => e.programType === activeCategory);
   const addedNames = new Set(currentPrograms.map((e) => e.program));
   const availablePrograms = PROGRAMS_BY_CATEGORY[activeCategory].filter((p) => !addedNames.has(p));
+  const hasAdults = adults.length > 0;
 
   if (loading) return <p style={{ color: "#717171", fontSize: "14px" }}>Loading...</p>;
 
@@ -173,6 +223,28 @@ export function LoyaltySection() {
                   color: "#1a1a1a", backgroundColor: "transparent",
                 }}
               />
+              {hasAdults && (
+                <select
+                  value={entry.familyMemberId ?? ""}
+                  onChange={(e) => handleReassign(entry.id, e.target.value)}
+                  style={{
+                    flex: "0 0 auto",
+                    border: "1px solid #E8E8E8",
+                    borderRadius: "6px",
+                    padding: "4px 8px",
+                    fontSize: "12px",
+                    color: entry.familyMemberId ? "#1B3A5C" : "#717171",
+                    backgroundColor: "#fff",
+                    cursor: "pointer",
+                    outline: "none",
+                  }}
+                >
+                  <option value="">Unassigned</option>
+                  {adults.map((a) => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                </select>
+              )}
               <button
                 onClick={() => handleRemove(entry.id)}
                 style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}
@@ -209,45 +281,67 @@ export function LoyaltySection() {
         ))}
       </div>
 
-      {/* Member number + Add button — shown when a program is selected */}
+      {/* Member number + adult picker + Add button — shown when a program is selected */}
       {selectedProgram && (
-        <div style={{ display: "flex", gap: "8px", alignItems: "flex-end", marginTop: "4px" }}>
-          <div style={{ flex: 1, position: "relative" }}>
-            <p style={{ fontSize: "12px", color: "#717171", marginBottom: "4px" }}>
-              Member number for <strong>{selectedProgram}</strong>
-            </p>
-            <input
-              value={memberNumber}
-              onChange={(e) => setMemberNumber(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAddLoyalty()}
-              placeholder="Enter member number"
-              autoFocus
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "4px" }}>
+          {hasAdults && (
+            <div>
+              <p style={{ fontSize: "12px", color: "#717171", marginBottom: "4px" }}>Traveler</p>
+              <select
+                value={selectedMemberId}
+                onChange={(e) => setSelectedMemberId(e.target.value)}
+                style={{
+                  width: "100%", padding: "8px 12px", border: "1px solid #E8E8E8",
+                  borderRadius: "8px", fontSize: "14px", color: "#1a1a1a",
+                  backgroundColor: "#fff", outline: "none", cursor: "pointer",
+                  boxSizing: "border-box",
+                }}
+              >
+                <option value="">Unassigned</option>
+                {adults.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
+            <div style={{ flex: 1, position: "relative" }}>
+              <p style={{ fontSize: "12px", color: "#717171", marginBottom: "4px" }}>
+                Member number for <strong>{selectedProgram}</strong>
+              </p>
+              <input
+                value={memberNumber}
+                onChange={(e) => setMemberNumber(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddLoyalty()}
+                placeholder="Enter member number"
+                autoFocus
+                style={{
+                  width: "100%", padding: "8px 12px", border: "1px solid #E8E8E8",
+                  borderRadius: "8px", fontSize: "14px", color: "#1a1a1a", outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <button
+              onClick={handleAddLoyalty}
+              disabled={isSaving || !memberNumber.trim()}
               style={{
-                width: "100%", padding: "8px 12px", border: "1px solid #E8E8E8",
-                borderRadius: "8px", fontSize: "14px", color: "#1a1a1a", outline: "none",
-                boxSizing: "border-box",
+                padding: "8px 16px",
+                backgroundColor: "#1B3A5C",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: memberNumber.trim() && !isSaving ? "pointer" : "not-allowed",
+                flexShrink: 0,
+                opacity: memberNumber.trim() && !isSaving ? 1 : 0.4,
+                transition: "opacity 0.15s",
               }}
-            />
+            >
+              {isSaving ? "Saving..." : "+ Add"}
+            </button>
           </div>
-          <button
-            onClick={handleAddLoyalty}
-            disabled={isSaving || !memberNumber.trim()}
-            style={{
-              padding: "8px 16px",
-              backgroundColor: "#1B3A5C",
-              color: "#fff",
-              border: "none",
-              borderRadius: "8px",
-              fontSize: "13px",
-              fontWeight: 600,
-              cursor: memberNumber.trim() && !isSaving ? "pointer" : "not-allowed",
-              flexShrink: 0,
-              opacity: memberNumber.trim() && !isSaving ? 1 : 0.4,
-              transition: "opacity 0.15s",
-            }}
-          >
-            {isSaving ? "Saving..." : "+ Add"}
-          </button>
         </div>
       )}
 

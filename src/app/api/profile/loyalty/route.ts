@@ -10,18 +10,18 @@ export async function GET() {
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const profileId = await resolveProfileId(userId);
   if (!profileId) return NextResponse.json([]);
-  const profile = await db.familyProfile.findUnique({
-    where: { id: profileId },
-    include: { loyaltyPrograms: true },
+  const programs = await db.loyaltyProgram.findMany({
+    where: { familyProfileId: profileId },
+    include: { familyMember: { select: { id: true, name: true } } },
   });
-  return NextResponse.json(profile?.loyaltyPrograms ?? []);
+  return NextResponse.json(programs);
 }
 
 export async function POST(req: Request) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json();
-  const { programName, memberNumber, programType } = body;
+  const { programName, memberNumber, programType, familyMemberId } = body;
   if (!programName || memberNumber === undefined) {
     return NextResponse.json({ error: "Missing fields" }, { status: 400 });
   }
@@ -35,7 +35,9 @@ export async function POST(req: Request) {
       memberNumber: memberNumber || "",
       programType: programType ?? "airline",
       familyProfileId: profileId,
+      familyMemberId: familyMemberId ?? null,
     },
+    include: { familyMember: { select: { id: true, name: true } } },
   });
   return NextResponse.json(program);
 }
@@ -47,10 +49,14 @@ export async function PATCH(req: Request) {
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
   const body = await req.json();
-  const { memberNumber } = body;
+  const { memberNumber, familyMemberId } = body;
   const updated = await db.loyaltyProgram.update({
     where: { id },
-    data: { memberNumber: memberNumber ?? "" },
+    data: {
+      ...(memberNumber !== undefined ? { memberNumber: memberNumber ?? "" } : {}),
+      ...(familyMemberId !== undefined ? { familyMemberId: familyMemberId ?? null } : {}),
+    },
+    include: { familyMember: { select: { id: true, name: true } } },
   });
   return NextResponse.json(updated);
 }

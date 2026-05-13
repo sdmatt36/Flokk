@@ -162,6 +162,7 @@ model FamilyMember {
   visaNotes           String?
   foodAllergies       String[]  @default([])
   allergyNotes        String?
+  loyaltyPrograms  LoyaltyProgram[]
 }
 
 enum MemberRole {
@@ -620,6 +621,8 @@ model LoyaltyProgram {
   id              String        @id @default(cuid())
   familyProfileId String
   familyProfile   FamilyProfile @relation(fields: [familyProfileId], references: [id], onDelete: Cascade)
+  familyMemberId  String?
+  familyMember    FamilyMember? @relation(fields: [familyMemberId], references: [id], onDelete: SetNull)
   programName     String
   memberNumber    String
   programType     String        @default("airline") // 'airline' | 'hotel' | 'car'
