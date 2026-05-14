@@ -7711,6 +7711,8 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   type VaultContact = { id: string; name: string; role?: string | null; phone?: string | null; whatsapp?: string | null; email?: string | null; notes?: string | null };
   type VaultDocument = { id: string; label: string; type: string; url?: string | null; content?: string | null };
   type VaultKeyInfo = { id: string; label: string; value: string };
+  type CruisePort = { id: string; title: string; fromCity: string | null; arrivalTime: string | null; departureTime: string | null; dayIndex: number | null; sortOrder: number };
+  type CruiseBookingRecord = { id: string; confirmationCode: string | null; cruiseLine: string | null; shipName: string | null; embarkPort: string | null; disembarkPort: string | null; embarkDate: string | null; disembarkDate: string | null; cabinType: string | null; cabinNumber: string | null; notes: string | null; ports: CruisePort[] };
   type VaultCancelTarget = {
     docId: string; label: string; bookingType: string;
     confirmationCode: string | null; managementUrl: string | null;
@@ -7721,6 +7723,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [contacts, setContacts] = useState<VaultContact[]>([]);
   const [documents, setDocuments] = useState<VaultDocument[]>([]);
   const [keyInfo, setKeyInfo] = useState<VaultKeyInfo[]>([]);
+  const [cruiseBookings, setCruiseBookings] = useState<CruiseBookingRecord[]>([]);
   const [vaultCancelTarget, setVaultCancelTarget] = useState<VaultCancelTarget | null>(null);
   const [vaultCancelling, setVaultCancelling] = useState(false);
   const [showAddContact, setShowAddContact] = useState(false);
@@ -7736,10 +7739,12 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       fetch(`/api/trips/${tripId}/vault/contacts`).then(r => r.json()),
       fetch(`/api/trips/${tripId}/vault/documents`).then(r => r.json()),
       fetch(`/api/trips/${tripId}/vault/keyinfo`).then(r => r.json()),
-    ]).then(([c, d, k]) => {
+      fetch(`/api/trips/${tripId}/cruise-bookings`).then(r => r.json()),
+    ]).then(([c, d, k, cr]) => {
       setContacts(Array.isArray(c) ? c : []);
       setDocuments(Array.isArray(d) ? d : []);
       setKeyInfo(Array.isArray(k) ? k : []);
+      setCruiseBookings(Array.isArray(cr?.bookings) ? cr.bookings : []);
     }).catch(console.error);
   }, [tripId, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -8191,6 +8196,71 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
 
       {tab === "vault" && (
         <div style={{ maxWidth: "640px", display: "flex", flexDirection: "column", gap: "32px" }}>
+
+          {/* ── CRUISE BOOKINGS ── */}
+          {cruiseBookings.length > 0 && (
+            <div>
+              <div style={{ marginBottom: "14px" }}>
+                <p style={{ fontSize: "16px", fontWeight: 800, color: "#1a1a1a", marginBottom: "2px" }}>Cruise</p>
+                <p style={{ fontSize: "12px", color: "#717171" }}>Sailing details imported from your confirmation email</p>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {cruiseBookings.map(cruise => {
+                  function fmtCruiseDate(d: string | null): string {
+                    if (!d) return "";
+                    try { return new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }); } catch { return d; }
+                  }
+                  const routeLabel = cruise.embarkPort && cruise.disembarkPort
+                    ? `${cruise.embarkPort} → ${cruise.disembarkPort}`
+                    : cruise.embarkPort ?? cruise.disembarkPort ?? "Cruise";
+                  const portStops = cruise.ports.filter(p => !p.title.startsWith("Embarkation") && !p.title.startsWith("Disembarkation") && p.title !== "Day at Sea");
+                  const seaDays = cruise.ports.filter(p => p.title === "Day at Sea").length;
+                  return (
+                    <div key={cruise.id} style={{ backgroundColor: "#fff", border: "1px solid rgba(27,58,92,0.15)", borderRadius: "14px", padding: "16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                        <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", color: "#2B6CB0", backgroundColor: "rgba(43,108,176,0.08)", borderRadius: "999px", padding: "2px 8px" }}>CRUISE</span>
+                        <span style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a" }}>{routeLabel}</span>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 16px" }}>
+                        {cruise.cruiseLine && <><span style={{ fontSize: "11px", color: "#999", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Line</span><span style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: 500 }}>{cruise.cruiseLine}</span></>}
+                        {cruise.shipName && <><span style={{ fontSize: "11px", color: "#999", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Ship</span><span style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: 500 }}>{cruise.shipName}</span></>}
+                        {cruise.embarkDate && <><span style={{ fontSize: "11px", color: "#999", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Embark</span><span style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: 500 }}>{fmtCruiseDate(cruise.embarkDate)}</span></>}
+                        {cruise.disembarkDate && <><span style={{ fontSize: "11px", color: "#999", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Disembark</span><span style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: 500 }}>{fmtCruiseDate(cruise.disembarkDate)}</span></>}
+                        {(cruise.cabinType || cruise.cabinNumber) && <><span style={{ fontSize: "11px", color: "#999", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Cabin</span><span style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: 500 }}>{[cruise.cabinType, cruise.cabinNumber].filter(Boolean).join(" · ")}</span></>}
+                        {cruise.confirmationCode && <><span style={{ fontSize: "11px", color: "#999", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>Confirmation</span><span style={{ fontSize: "13px", color: "#1a1a1a", fontWeight: 500 }}>{cruise.confirmationCode}</span></>}
+                      </div>
+                      {cruise.ports.length > 0 && (
+                        <div style={{ marginTop: "14px", borderTop: "1px solid #F0F0F0", paddingTop: "12px" }}>
+                          <p style={{ fontSize: "11px", fontWeight: 700, color: "#999", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
+                            Itinerary · {portStops.length} port{portStops.length !== 1 ? "s" : ""}{seaDays > 0 ? ` · ${seaDays} sea day${seaDays !== 1 ? "s" : ""}` : ""}
+                          </p>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                            {cruise.ports.map(port => {
+                              const isSeaDay = port.title === "Day at Sea";
+                              const isEmbark = port.title.startsWith("Embarkation");
+                              const isDisembark = port.title.startsWith("Disembarkation");
+                              const portName = isSeaDay ? "Day at Sea" : port.fromCity ?? port.title;
+                              const badge = isEmbark ? "Embark" : isDisembark ? "Disembark" : isSeaDay ? "Sea" : "Port";
+                              const badgeColor = isEmbark || isDisembark ? "#2B6CB0" : isSeaDay ? "#A0AEC0" : "#4A7C59";
+                              const timeStr = [port.arrivalTime, port.departureTime].filter(Boolean).join(" – ");
+                              return (
+                                <div key={port.id} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                  <span style={{ fontSize: "9px", fontWeight: 700, color: badgeColor, backgroundColor: `${badgeColor}14`, borderRadius: "4px", padding: "1px 5px", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{badge}</span>
+                                  <span style={{ fontSize: "13px", color: isSeaDay ? "#A0AEC0" : "#1a1a1a", fontWeight: isSeaDay ? 400 : 500, flex: 1 }}>{portName}</span>
+                                  {timeStr && <span style={{ fontSize: "11px", color: "#999", whiteSpace: "nowrap" }}>{timeStr}</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {cruise.notes && <p style={{ fontSize: "12px", color: "#717171", marginTop: "10px" }}>{cruise.notes}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* ── IMPORTED BOOKINGS ── */}
           {documents.filter(d => d.type === "booking").length > 0 && (

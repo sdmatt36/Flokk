@@ -82,6 +82,31 @@ export type PdfActivity = {
   type: string | null;
 };
 
+export type PdfCruisePort = {
+  id: string;
+  title: string;
+  fromCity: string | null;
+  arrivalTime: string | null;
+  departureTime: string | null;
+  dayIndex: number | null;
+  sortOrder: number;
+};
+
+export type PdfCruiseBooking = {
+  id: string;
+  confirmationCode: string | null;
+  cruiseLine: string | null;
+  shipName: string | null;
+  embarkPort: string | null;
+  disembarkPort: string | null;
+  embarkDate: string | null;
+  disembarkDate: string | null;
+  cabinType: string | null;
+  cabinNumber: string | null;
+  notes: string | null;
+  ports: PdfCruisePort[];
+};
+
 export type PdfContact = {
   name: string;
   role: string | null;
@@ -106,6 +131,7 @@ export type TripPDFProps = {
   familyName: string | null;
   members: Array<{ name: string | null; role: string }>;
   flightBookings: PdfFlightBooking[];
+  cruiseBookings: PdfCruiseBooking[];
   itineraryItems: PdfItineraryItem[];
   spots: PdfSpot[];
   activities: PdfActivity[];
@@ -420,6 +446,7 @@ export function TripItineraryPDF({
   familyName,
   members,
   flightBookings,
+  cruiseBookings,
   itineraryItems,
   spots,
   activities,
@@ -454,6 +481,7 @@ export function TripItineraryPDF({
   const sortedDays = [...byDay.keys()].sort((a, b) => a - b);
   const hasItinerary = sortedDays.length > 0;
   const hasFlights = flightBookings.length > 0;
+  const hasCruise = cruiseBookings.length > 0;
   const hasContacts = contacts.length > 0 || keyInfo.length > 0;
 
   const destination = [destinationCity, destinationCountry].filter(Boolean).join(", ");
@@ -492,6 +520,7 @@ export function TripItineraryPDF({
 
         <Text style={s.coverContentsHead}>This itinerary includes:</Text>
         {hasFlights ? <Text style={s.coverContentsBullet}>• Flight bookings and confirmation codes</Text> : null}
+        {hasCruise ? <Text style={s.coverContentsBullet}>• Cruise itinerary and port schedule</Text> : null}
         {hasItinerary ? <Text style={s.coverContentsBullet}>• Day-by-day schedule</Text> : null}
         {hasContacts ? <Text style={s.coverContentsBullet}>• Emergency contacts and key information</Text> : null}
 
@@ -504,6 +533,65 @@ export function TripItineraryPDF({
         <Page size="A4" style={s.page}>
           <Text style={s.sectionHeader}>Flights</Text>
           {flightBookings.map((b) => <FlightCard key={b.id} booking={b} />)}
+          {pageNum}
+        </Page>
+      ) : null}
+
+      {/* ── CRUISE ── */}
+      {hasCruise ? (
+        <Page size="A4" style={s.page}>
+          <Text style={s.sectionHeader}>Cruise</Text>
+          {cruiseBookings.map((cruise) => {
+            const route = cruise.embarkPort && cruise.disembarkPort
+              ? `${cruise.embarkPort} → ${cruise.disembarkPort}`
+              : cruise.embarkPort ?? cruise.disembarkPort ?? "Cruise";
+            function fmtPort(d: string | null): string {
+              if (!d) return "";
+              try { return new Date(d + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }); } catch { return d; }
+            }
+            return (
+              <View key={cruise.id} style={s.flightCard} wrap={false}>
+                <View style={s.flightCardTop}>
+                  <View>
+                    <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 15, color: NAVY, marginBottom: 2 }}>{route}</Text>
+                    {cruise.cruiseLine || cruise.shipName ? (
+                      <Text style={{ fontSize: 11, color: MUTED }}>
+                        {[cruise.cruiseLine, cruise.shipName].filter(Boolean).join("  ·  ")}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <Text style={{ ...s.itemBadge, backgroundColor: "#2B6CB0" }}>CRUISE</Text>
+                </View>
+                <View style={{ flexDirection: "row", gap: 24, flexWrap: "wrap", marginTop: 8 }}>
+                  {cruise.embarkDate ? <Text style={s.itemDetail}>Embark: {fmtPort(cruise.embarkDate)}</Text> : null}
+                  {cruise.disembarkDate ? <Text style={s.itemDetail}>Disembark: {fmtPort(cruise.disembarkDate)}</Text> : null}
+                  {cruise.cabinType || cruise.cabinNumber ? (
+                    <Text style={s.itemDetail}>Cabin: {[cruise.cabinType, cruise.cabinNumber].filter(Boolean).join(" · ")}</Text>
+                  ) : null}
+                  {cruise.confirmationCode ? <Text style={s.itemConf}>Confirmation: {cruise.confirmationCode}</Text> : null}
+                </View>
+                {cruise.ports.length > 0 ? (
+                  <View style={{ marginTop: 10, borderTopWidth: 1, borderTopColor: BORDER, paddingTop: 8 }}>
+                    <Text style={{ fontSize: 9, fontFamily: "Helvetica-Bold", color: MUTED, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Port Schedule</Text>
+                    {cruise.ports.map((port) => {
+                      const isSeaDay = port.title === "Day at Sea";
+                      const portName = isSeaDay ? "Day at Sea" : port.fromCity ?? port.title;
+                      const timeStr = [port.arrivalTime, port.departureTime].filter(Boolean).join(" – ");
+                      const badge = port.title.startsWith("Embarkation") ? "EMBARK" : port.title.startsWith("Disembarkation") ? "DISEMBARK" : isSeaDay ? "SEA" : "PORT";
+                      return (
+                        <View key={port.id} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                          <Text style={{ fontSize: 8, fontFamily: "Helvetica-Bold", color: isSeaDay ? "#A0AEC0" : "#2B6CB0", width: 52 }}>{badge}</Text>
+                          <Text style={{ fontSize: 11, color: isSeaDay ? MUTED : DARK, flex: 1 }}>{portName}</Text>
+                          {timeStr ? <Text style={{ fontSize: 10, color: MUTED }}>{timeStr}</Text> : null}
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : null}
+                {cruise.notes ? <Text style={s.itemNotes}>{cruise.notes}</Text> : null}
+              </View>
+            );
+          })}
           {pageNum}
         </Page>
       ) : null}

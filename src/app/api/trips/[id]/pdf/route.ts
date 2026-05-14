@@ -23,7 +23,7 @@ export async function GET(
   const access = await getTripAccess(profileId, id);
   if (!access) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const [trip, profile, flightBookings, itineraryItems, spots, activities, flightLegs, contacts, keyInfo] =
+  const [trip, profile, flightBookings, cruiseBookings, itineraryItems, spots, activities, flightLegs, contacts, keyInfo] =
     await Promise.all([
       db.trip.findUnique({
         where: { id },
@@ -47,6 +47,17 @@ export async function GET(
         where: { tripId: id },
         orderBy: { sortOrder: "asc" },
         include: { flights: { orderBy: { sortOrder: "asc" } } },
+      }),
+      db.cruiseBooking.findMany({
+        where: { tripId: id },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        include: {
+          ports: {
+            where: { cancelledAt: null },
+            orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }],
+            select: { id: true, title: true, fromCity: true, arrivalTime: true, departureTime: true, dayIndex: true, sortOrder: true },
+          },
+        },
       }),
       // Email-imported confirmed bookings (LODGING, FLIGHT, TRAIN, ACTIVITY, etc.)
       db.itineraryItem.findMany({
@@ -163,6 +174,28 @@ export async function GET(
     heroImageUrl,
     familyName: profile?.familyName ?? null,
     members: (profile?.members ?? []).map((m) => ({ name: m.name, role: m.role })),
+    cruiseBookings: cruiseBookings.map((cb) => ({
+      id: cb.id,
+      confirmationCode: cb.confirmationCode,
+      cruiseLine: cb.cruiseLine,
+      shipName: cb.shipName,
+      embarkPort: cb.embarkPort,
+      disembarkPort: cb.disembarkPort,
+      embarkDate: cb.embarkDate,
+      disembarkDate: cb.disembarkDate,
+      cabinType: cb.cabinType,
+      cabinNumber: cb.cabinNumber,
+      notes: cb.notes,
+      ports: cb.ports.map((p) => ({
+        id: p.id,
+        title: p.title,
+        fromCity: p.fromCity,
+        arrivalTime: p.arrivalTime,
+        departureTime: p.departureTime,
+        dayIndex: p.dayIndex,
+        sortOrder: p.sortOrder,
+      })),
+    })),
     flightBookings: flightBookings.map((fb) => ({
       id: fb.id,
       confirmationCode: fb.confirmationCode,
