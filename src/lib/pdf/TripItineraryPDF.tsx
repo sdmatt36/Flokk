@@ -131,6 +131,7 @@ const BOOKING_TYPE_LABEL: Record<string, string> = {
   ACTIVITY: "ACTIVITY",
   CAR_RENTAL: "CAR RENTAL",
   RESTAURANT: "RESTAURANT",
+  CRUISE_PORT: "CRUISE",
   OTHER: "OTHER",
 };
 
@@ -141,6 +142,7 @@ const BOOKING_TYPE_COLOR: Record<string, string> = {
   ACTIVITY: TERRA,
   CAR_RENTAL: "#7A6348",
   RESTAURANT: "#8B5E83",
+  CRUISE_PORT: "#2B6CB0",
   OTHER: "#888888",
 };
 

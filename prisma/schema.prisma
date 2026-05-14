@@ -245,6 +245,7 @@ model Trip {
   questions        Question[]
   flights          Flight[]
   flightBookings   FlightBooking[]
+  cruiseBookings   CruiseBooking[]
   manualActivities ManualActivity[]
   tripNotes        TripNote[]
   contacts         TripContact[]
@@ -704,6 +705,32 @@ model TravelVideo {
 }
 
 // =============================================================================
+// CRUISE BOOKINGS
+// =============================================================================
+
+model CruiseBooking {
+  id               String          @id @default(cuid())
+  tripId           String
+  trip             Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  confirmationCode String?
+  cruiseLine       String?
+  shipName         String?
+  embarkPort       String?
+  disembarkPort    String?
+  embarkDate       String?
+  disembarkDate    String?
+  cabinType        String?
+  cabinNumber      String?
+  notes            String?
+  status           String          @default("saved")
+  sortOrder        Int             @default(0)
+  createdAt        DateTime        @default(now())
+  ports            ItineraryItem[]
+
+  @@index([tripId])
+}
+
+// =============================================================================
 // FLIGHTS
 // =============================================================================
 
@@ -950,6 +977,8 @@ model ItineraryItem {
   cancelledAt       DateTime?  // soft-delete gate: non-null = cancelled; null = active
   cancelledBy       String?    // 'user' | 'email_cancellation' | 'admin' | 'system'
   cancellationReason String?   // e.g. "Refund acknowledgment from LNER, case 26RYEIV99Z"
+  cruiseBookingId   String?
+  cruiseBooking     CruiseBooking? @relation(fields: [cruiseBookingId], references: [id], onDelete: SetNull)
   createdAt         DateTime @default(now())
   shareToken        String?  @unique
 }

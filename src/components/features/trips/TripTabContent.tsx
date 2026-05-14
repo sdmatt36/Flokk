@@ -1699,6 +1699,7 @@ type ItineraryItemLocal = {
   cancelledAt?: string | null;
   cancelledBy?: string | null;
   cancellationReason?: string | null;
+  cruiseBookingId?: string | null;
 };
 
 type UnifiedDayItem = {
@@ -2115,6 +2116,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         return timeToMin(it.departureTime) ?? 900;
       }
       if (it.type === "TRAIN") return timeToMin(it.departureTime) ?? 660;
+      if (it.type === "CRUISE_PORT") return timeToMin(it.arrivalTime ?? it.departureTime) ?? (it.sortOrder ?? 50) * 10;
       return timeToMin(it.departureTime ?? it.arrivalTime) ?? 720;
     }
     if (item.itemType === "flight" && item.flight) {
@@ -3506,6 +3508,43 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                 shareTitle: trainRoute,
                                                 onEdit: () => setSelectedItineraryItem(it),
                                                 onRemove: () => { if (window.confirm("Remove this booking from your itinerary?")) handleDeleteBookingItem(it.id); },
+                                              })}
+                                            </div>
+                                          );
+                                        }
+
+                                        // ── CRUISE PORT ──────────────────────────────────────────────────
+                                        if (it.type === "CRUISE_PORT") {
+                                          const isSeaDay = it.title === "Day at Sea";
+                                          const arrTime = it.arrivalTime ? (formatTime(it.arrivalTime) ?? it.arrivalTime) : null;
+                                          const depTime = it.departureTime ? (formatTime(it.departureTime) ?? it.departureTime) : null;
+                                          const portLabel = isSeaDay ? "Sea Day" : it.title.startsWith("Embarkation") ? "Embarkation" : it.title.startsWith("Disembarkation") ? "Disembarkation" : "Port Call";
+                                          const portName = isSeaDay ? "Day at Sea" : it.fromCity ?? it.title;
+                                          return (
+                                            <div style={{ ...cardStyle, cursor: "pointer", borderLeftColor: isSeaDay ? "#A0AEC0" : "#1B3A5C" }} onClick={() => setSelectedItineraryItem(it)}>
+                                              <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                                                    <span style={{ fontSize: "10px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: isSeaDay ? "#A0AEC0" : "#1B3A5C" }}>{portLabel}</span>
+                                                    {it.confirmationCode && <span style={{ fontSize: "11px", color: "#999" }}>· Conf: {it.confirmationCode}</span>}
+                                                  </div>
+                                                  <p style={{ fontSize: "14px", fontWeight: 700, color: isSeaDay ? "#A0AEC0" : "#1B3A5C", lineHeight: 1.3, marginBottom: "2px", ...(isCancelled ? { textDecoration: "line-through" } : {}) }}>{portName}</p>
+                                                  {(arrTime || depTime) && !isSeaDay && (
+                                                    <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4, marginBottom: "6px" }}>
+                                                      {arrTime && <>Arrives {arrTime}</>}
+                                                      {arrTime && depTime && " · "}
+                                                      {depTime && <>Departs {depTime}</>}
+                                                    </p>
+                                                  )}
+                                                  {it.notes && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }}>{it.notes}</p>}
+                                                </div>
+                                              </div>
+                                              {cardActionRow({
+                                                shareEntityType: "itinerary_item",
+                                                shareEntityId: it.id,
+                                                shareTitle: portName,
+                                                onEdit: () => setSelectedItineraryItem(it),
+                                                onRemove: () => { if (window.confirm("Remove this port stop from your itinerary?")) handleDeleteBookingItem(it.id); },
                                               })}
                                             </div>
                                           );

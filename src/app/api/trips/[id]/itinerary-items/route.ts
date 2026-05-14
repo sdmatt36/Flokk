@@ -65,6 +65,7 @@ export async function GET(
       cancelledAt: true,
       cancelledBy: true,
       cancellationReason: true,
+      cruiseBookingId: true,
     },
   });
 

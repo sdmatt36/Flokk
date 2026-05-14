@@ -556,7 +556,8 @@ IMPORTANT: If the sender is a transportation or accommodation vendor (airline, r
 TYPE CLASSIFICATION — determine this first before filling any other fields:
 - Use "cancellation" when the email confirms a booking has been cancelled (subject lines like: "Your booking has been cancelled", "Cancellation confirmed").
 - Use "refund" when the email acknowledges a refund request or confirms money will be returned (subject lines like: "We have received your refund request", "Your refund is being processed", "Refund confirmation").
-- Use "hotel", "flight", "activity", "restaurant", "car_rental", or "train" ONLY when the email is a NEW or ACTIVE booking confirmation containing journey or reservation details.
+- Use "hotel", "flight", "activity", "restaurant", "car_rental", "train", or "cruise" ONLY when the email is a NEW or ACTIVE booking confirmation containing journey or reservation details.
+- Use "cruise" when the email confirms a cruise booking — it will contain a ship name, cruise line, embarkation/disembarkation ports, and a sailing itinerary with port stops.
 - For "cancellation" and "refund" types: set confirmationCode, all date fields, and route fields to null — these types do not carry new booking details.
 
 Once you have determined the type, extract the relevant fields. Return ONLY valid JSON with no markdown.
@@ -566,7 +567,7 @@ Email content: ${emailContent}${attachmentNote}
 
 Return this exact JSON structure:
 {
-  "type": "hotel" | "flight" | "activity" | "restaurant" | "car_rental" | "train" | "cancellation" | "refund" | "unknown",
+  "type": "hotel" | "flight" | "activity" | "restaurant" | "car_rental" | "train" | "cruise" | "cancellation" | "refund" | "unknown",
   "vendorName": "string or null — for hotel bookings, this is the SPECIFIC PROPERTY name (e.g., 'Home Hotel Havnekontoret'), NOT the parent brand or chain (e.g., not 'Strawberry Hotels'). The brand may appear in the email header or footer for marketing purposes; ignore it. Look in the booking confirmation block for the specific property. Common hotel brands to watch for: Marriott, Hilton, Hyatt, Strawberry, Accor, IHG, Four Seasons, Ritz-Carlton, Scandic, Radisson, Best Western, Nobis, SLH. If the email is from one of these brands, the actual property name will be in the confirmation details (e.g., 'W Barcelona', 'Le Meridien Kuala Lumpur', 'Home Hotel Havnekontoret'). For flights, activities, and other types, use the airline or tour operator or vendor name as normal.",
   "activityName": "string or null — for activity/tour bookings only: the specific tour or experience name, never the platform name (GetYourGuide, Viator, Klook)",
   "confirmationCode": "string or null — the ORIGINAL booking confirmation code. For cancellation/refund emails: set this to null. Do not use a refund case reference or cancellation ID as the confirmationCode.",
@@ -604,6 +605,15 @@ Return this exact JSON structure:
   "outboundDestinationAirport": "IATA code or null — airport code for outboundDestination",
   "bookingUrl": "string or null — the URL in the email to view or manage the booking. Look for phrases like 'View booking', 'Manage reservation', 'Booking details', or any vendor link that lets the user return to the booking on the vendor's site. If no such URL is present, return null.",
   "scheduledDate": "YYYY-MM-DD or null — for restaurant, activity, car_rental, and train types: the reservation date, activity date, pickup date, or departure date. Convert any date format to YYYY-MM-DD (e.g. 'Saturday, 11 July 2026' → '2026-07-11', '11 juli 2026' → '2026-07-11'). Leave null only if no date exists in the email body or attachments.",
+  "cruiseLine": "string or null — for cruise type only: the cruise line name (e.g. 'Viking', 'Royal Caribbean', 'Celebrity', 'Norwegian', 'MSC', 'Princess', 'Holland America')",
+  "shipName": "string or null — for cruise type only: the ship name (e.g. 'Viking Sky', 'Symphony of the Seas')",
+  "embarkPort": "string or null — for cruise type only: the departure/embarkation port city (e.g. 'Barcelona', 'Miami')",
+  "disembarkPort": "string or null — for cruise type only: the arrival/disembarkation port city (e.g. 'Athens', 'Rome')",
+  "embarkDate": "YYYY-MM-DD or null — for cruise type only: sailing/embarkation date",
+  "disembarkDate": "YYYY-MM-DD or null — for cruise type only: disembarkation date",
+  "cabinType": "string or null — for cruise type only: cabin category (e.g. 'Veranda', 'Explorer Suite', 'Balcony', 'Interior')",
+  "cabinNumber": "string or null — for cruise type only: assigned cabin/stateroom number",
+  "ports": [{ "portName": "string — city and country (e.g. 'Dubrovnik, Croatia')", "date": "YYYY-MM-DD", "arrivalTime": "HH:MM or null", "departureTime": "HH:MM or null", "isEmbarkation": "boolean", "isDisembarkation": "boolean", "isSeaDay": "boolean" }],
   "confidence": "0.0 to 1.0"
 }
 
@@ -617,7 +627,8 @@ Field notes:
 - fromAirport/toAirport/fromCity/toCity: Keep these for backward compatibility. fromAirport = first leg departure, toAirport = outboundDestinationAirport (NOT the return leg airport), fromCity = first leg departure city, toCity = outboundDestination city.
 - AIRPORT CODE EXTRACTION RULES: Use ONLY IATA codes that appear verbatim in the email body (e.g. "HND", "NRT", "LHR"). NEVER infer or guess an IATA code from a city name alone. If the email says "TOKYO INTL HANEDA" or "HANEDA" → HND. If the email says "TOKYO INTL NARITA" or "NARITA" → NRT. If the email says only "Tokyo" with no airport qualifier, leave fromAirport/toAirport as "" (empty string) — do NOT emit "TYO" or any other code. The same rule applies to every leg.from and leg.to field. If you cannot find the IATA code verbatim in the email, return "".
 - scheduledDate: REQUIRED for restaurant, activity, car_rental, and train types. Look anywhere in the email body and any attached PDFs — confirmation blocks, table headers, footers. Common patterns: "Date: Saturday, 11 July 2026", "Reservation date: 2026-07-11", "Date: 11/07/2026", Swedish/Norwegian dates like "11 juli 2026". Convert all formats to YYYY-MM-DD. If no date exists anywhere, return null.
-- city: For restaurant and activity bookings, extract from the venue address at the bottom of the email (e.g. "A-Feltvegen 25, 5743 Flåm" → city="Flåm"). Also check the sender domain and venue name for location hints.`;
+- city: For restaurant and activity bookings, extract from the venue address at the bottom of the email (e.g. "A-Feltvegen 25, 5743 Flåm" → city="Flåm"). Also check the sender domain and venue name for location hints.
+- ports: For cruise type ONLY. Extract EVERY port stop in the sailing itinerary including embarkation and disembarkation ports. Each sea day should appear as a separate entry with isSeaDay=true and portName="Day at Sea". Include arrival and departure times per port when listed. Set isEmbarkation=true for the first port where guests board, isDisembarkation=true for the final port where guests disembark. Return [] only if the email contains no itinerary at all.`;
 
     contentBlocks.push({ type: "text", text: promptText });
 
@@ -2071,6 +2082,109 @@ Field notes:
       logCtx.itineraryItemIds = [checkInItem.id];
       await logExtraction({ ...logCtx, outcome: "success" });
       return NextResponse.json({ received: true, status: "success", type: "hotel", tripId: resolvedTripId });
+
+    // ── Cruise ─────────────────────────────────────────────────────────────────
+    } else if (extracted.type === "cruise") {
+      const cruiseLine  = (extracted.cruiseLine  as string | null) ?? null;
+      const shipName    = (extracted.shipName    as string | null) ?? null;
+      const embarkPort  = (extracted.embarkPort  as string | null) ?? null;
+      const disembarkPort = (extracted.disembarkPort as string | null) ?? null;
+      const embarkDate  = (extracted.embarkDate  as string | null) ?? null;
+      const disembarkDate = (extracted.disembarkDate as string | null) ?? null;
+      const cabinType   = (extracted.cabinType   as string | null) ?? null;
+      const cabinNumber = (extracted.cabinNumber as string | null) ?? null;
+      const confCode    = (extracted.confirmationCode as string | null) ?? null;
+
+      // Dedup: skip if a CruiseBooking with this confirmation code already exists
+      if (confCode && resolvedTripId) {
+        const existingCruise = await db.cruiseBooking.findFirst({
+          where: { tripId: resolvedTripId, confirmationCode: confCode },
+          select: { id: true },
+        });
+        if (existingCruise) {
+          console.log(`[email-inbound] cruise duplicate skipped: ${existingCruise.id}`);
+          await logExtraction({ ...logCtx, outcome: "duplicate_skipped", errorMessage: `duplicate cruise confirmationCode: ${confCode}` });
+          return NextResponse.json({ received: true, skipped: "duplicate_cruise" });
+        }
+      }
+
+      if (!resolvedTripId) {
+        console.log("[email-inbound] cruise: no trip resolved — creating orphan CruiseBooking not supported, dropping");
+        await logExtraction({ ...logCtx, outcome: "dropped", errorMessage: "cruise: no resolved tripId" });
+        return NextResponse.json({ received: true, status: "dropped", reason: "no_trip" });
+      }
+
+      const cruiseBooking = await db.cruiseBooking.create({
+        data: {
+          tripId: resolvedTripId,
+          confirmationCode: confCode,
+          cruiseLine,
+          shipName,
+          embarkPort,
+          disembarkPort,
+          embarkDate,
+          disembarkDate,
+          cabinType,
+          cabinNumber,
+          notes: (extracted.notes as string | null) ?? null,
+          status: "saved",
+        },
+      });
+
+      type CruisePort = {
+        portName: string;
+        date: string;
+        arrivalTime: string | null;
+        departureTime: string | null;
+        isEmbarkation: boolean;
+        isDisembarkation: boolean;
+        isSeaDay: boolean;
+      };
+
+      const ports: CruisePort[] = Array.isArray(extracted.ports)
+        ? (extracted.ports as CruisePort[])
+        : [];
+
+      const createdPortIds: string[] = [];
+      for (const port of ports) {
+        const portDayIndex = port.date ? await getDayIndex(resolvedTripId, port.date) : null;
+        const portTitle = port.isSeaDay
+          ? "Day at Sea"
+          : port.isEmbarkation
+          ? `Embarkation · ${port.portName}`
+          : port.isDisembarkation
+          ? `Disembarkation · ${port.portName}`
+          : `Port Call · ${port.portName}`;
+
+        // Sort weight: embark like check-in (20), regular port / sea day (50), disembark like check-out (80)
+        const portSortOrder = port.isEmbarkation ? 20 : port.isDisembarkation ? 80 : 50;
+
+        const portItem = await db.itineraryItem.create({
+          data: {
+            tripId: resolvedTripId,
+            familyProfileId: familyProfile.id,
+            cruiseBookingId: cruiseBooking.id,
+            type: "CRUISE_PORT",
+            title: portTitle,
+            fromCity: port.isSeaDay ? null : port.portName,
+            arrivalTime: port.arrivalTime ?? null,
+            departureTime: port.departureTime ?? null,
+            confirmationCode: confCode,
+            dayIndex: portDayIndex,
+            sortOrder: portSortOrder,
+            sourceType: "EMAIL_IMPORT",
+            status: "BOOKED",
+            passengers,
+          },
+          select: { id: true },
+        });
+        createdPortIds.push(portItem.id);
+      }
+
+      logCtx.itineraryItemIds = createdPortIds;
+      console.log(`[email-inbound] cruise created: ${cruiseBooking.id} — ${createdPortIds.length} ports`);
+      await logExtraction({ ...logCtx, outcome: "success" });
+      return NextResponse.json({ received: true, status: "success", type: "cruise", cruiseBookingId: cruiseBooking.id, ports: createdPortIds.length });
 
     // ── Train / activity / other (replaces SavedItem) ─────────────────────────
     } else {
