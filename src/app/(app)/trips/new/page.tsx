@@ -265,7 +265,10 @@ function NewTripForm() {
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  if (endDate && endDate < e.target.value) setEndDate(e.target.value);
+                }}
                 style={{ ...inputStyle, fontSize: "14px", padding: "12px" }}
                 onFocus={(e) => { e.currentTarget.style.borderColor = "#C4664A"; }}
                 onBlur={(e) => { e.currentTarget.style.borderColor = "#EEEEEE"; }}

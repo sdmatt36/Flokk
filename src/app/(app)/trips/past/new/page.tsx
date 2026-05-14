@@ -199,6 +199,7 @@ function Step1Basics({
 
   const handleStartChange = (v: string) => {
     setStartDate(v);
+    if (endDate && endDate < v) setEndDate(v);
   };
 
   const canContinue = primaryCity.trim() !== "" && startDate !== "" && endDate !== "";

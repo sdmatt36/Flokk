@@ -288,7 +288,10 @@ function AddTripModal({ onClose }: { onClose: () => void }) {
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  if (endDate && endDate < e.target.value) setEndDate(e.target.value);
+                }}
                 style={{
                   fontSize: "14px",
                   padding: "10px 12px",
