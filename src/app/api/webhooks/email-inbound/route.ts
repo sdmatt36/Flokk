@@ -599,7 +599,7 @@ Return this exact JSON structure:
   "contactEmail": "string or null",
   "guestNames": ["string"] or [],
   "rooms": [{ "confirmationCode": "string", "guests": ["string"], "cost": number }] or null,
-  "legs": [{ "from": "IATA", "to": "IATA", "fromCity": "string", "toCity": "string", "departure": "YYYY-MM-DDTHH:MM", "arrival": "YYYY-MM-DDTHH:MM", "flightNumber": "string (e.g. UL895)", "airline": "string or null" }] or [],
+  "legs": [{ "from": "IATA", "to": "IATA", "fromCity": "string", "toCity": "string", "departure": "YYYY-MM-DDTHH:MM", "arrival": "YYYY-MM-DDTHH:MM", "flightNumber": "string (e.g. UL895)", "airline": "string or null", "cabin": "string or null (literal airline cabin designation, e.g. 'Economy', 'Business', 'First', 'J', 'Y', 'C' — null if not stated)", "seats": "string or null (comma-separated seat numbers for this leg, e.g. '4C, 4D' — null if not stated)" }] or [],
   "outboundDestination": "string or null — the furthest non-home city in the itinerary (the actual trip destination, not the return airport)",
   "outboundDestinationAirport": "IATA code or null — airport code for outboundDestination",
   "bookingUrl": "string or null — the URL in the email to view or manage the booking. Look for phrases like 'View booking', 'Manage reservation', 'Booking details', or any vendor link that lets the user return to the booking on the vendor's site. If no such URL is present, return null.",
@@ -612,7 +612,7 @@ Field notes:
 - confirmationCode: For cancellation/refund, set to null. The refund case number goes in refundCaseReference. If the original booking code appears in the email (some vendors include it), put it in originalBookingCode.
 - guestNames: Extract ALL passenger/guest/traveler names as an array. For activity/tour bookings (GetYourGuide, Viator, Klook), look under "Travelers", "Guests", "Participants" sections and include every name listed. For flights, include all passenger names on the booking, not just the primary contact. For hotels, include all guests listed. Return [] only if no names are found anywhere in the email.
 - rooms: For HOTEL bookings ONLY. If the confirmation email contains MULTIPLE rooms with distinct confirmation numbers (common when families book 2+ rooms at the same property for the same dates), return each room as a separate object in this array. Each room object has: confirmationCode (the room-specific code), guests (the guest names on that room), cost (the price for that room in the booking currency). If the booking is a single room, return null — NOT an empty array. If the top-level confirmationCode matches one of the rooms (or the email only contains one room), treat that as a single-room booking and return rooms: null. Example: a Strawberry Hotels email with booking numbers 28686792 (2 adults, 13576 NOK), 28687367 (1 adult + 1 child, 13828 NOK), 28688208 (1 adult + 1 child, 13828 NOK) — return rooms as a 3-element array. Top-level confirmationCode should be the FIRST room's code (28686792), totalCost should be the sum (41232), guestNames should be the union of all room guests.
-- legs: For flights ONLY. Extract EVERY individual flight segment as a separate leg object, INCLUDING intermediate stops like layovers or stopovers. A Tokyo→Singapore→Colombo itinerary has 2 legs: TYO→SIN and SIN→CMB. A Seattle→Keflavík→Bergen itinerary has 2 legs: SEA→KEF and KEF→BGO. NEVER consolidate segments — if the email mentions a ticketed segment, it MUST appear in legs. Always populate this array for flights even if only one segment. Include arrival datetime per leg when visible in the email. For EACH leg, populate flightNumber with that segment's flight number (e.g. "UL895" for leg 1, "UL3335" for leg 2) — NOT the same number on every leg. If the leg's specific flight number is not visible, use null. Populate airline per leg (carrier operating that segment); use null if unknown.
+- legs: For flights ONLY. Extract EVERY individual flight segment as a separate leg object, INCLUDING intermediate stops like layovers or stopovers. A Tokyo→Singapore→Colombo itinerary has 2 legs: TYO→SIN and SIN→CMB. A Seattle→Keflavík→Bergen itinerary has 2 legs: SEA→KEF and KEF→BGO. NEVER consolidate segments — if the email mentions a ticketed segment, it MUST appear in legs. Always populate this array for flights even if only one segment. Include arrival datetime per leg when visible in the email. For EACH leg, populate flightNumber with that segment's own flight number — for a roundtrip, the outbound and return are ALWAYS different numbers (e.g. JAL925 outbound NRT→OKA, JAL914 return OKA→NRT — these are distinct numbers, not the same). NEVER copy the outbound flight number to the return leg; look for the return flight number explicitly in the email. If a leg's specific flight number is not visible, use null. Populate airline per leg (carrier operating that segment); use null if unknown. For cabin: use the literal designation from the email (e.g. "Class J", "Business", "Economy", "J", "Y") — do NOT default to "Economy" if not stated; use null if the email does not specify cabin for that leg. For seats: extract per-leg seat numbers as a comma-separated string (e.g. "9D, 9G") — use null if not stated.
 - outboundDestination / outboundDestinationAirport: For round-trip flights that depart from and return to a home airport (NRT, HND, LHR, LGW), identify the furthest destination city/airport — NOT the return airport. Example: NRT→SIN→CMB→LHR→NRT has outboundDestination="Colombo" and outboundDestinationAirport="CMB". For one-way or simple round trips, this is just toCity/toAirport.
 - fromAirport/toAirport/fromCity/toCity: Keep these for backward compatibility. fromAirport = first leg departure, toAirport = outboundDestinationAirport (NOT the return leg airport), fromCity = first leg departure city, toCity = outboundDestination city.
 - AIRPORT CODE EXTRACTION RULES: Use ONLY IATA codes that appear verbatim in the email body (e.g. "HND", "NRT", "LHR"). NEVER infer or guess an IATA code from a city name alone. If the email says "TOKYO INTL HANEDA" or "HANEDA" → HND. If the email says "TOKYO INTL NARITA" or "NARITA" → NRT. If the email says only "Tokyo" with no airport qualifier, leave fromAirport/toAirport as "" (empty string) — do NOT emit "TYO" or any other code. The same rule applies to every leg.from and leg.to field. If you cannot find the IATA code verbatim in the email, return "".
@@ -1345,12 +1345,14 @@ Field notes:
         arrivalTime: string | null;
         flightNumber: string | null;
         airline: string | null;
+        cabin: string | null;
+        seats: string | null;
       };
 
       let flightLegs: FlightLeg[] = [];
 
       const rawLegs = Array.isArray(extracted.legs)
-        ? extracted.legs as Array<{ from: string; to: string; fromCity?: string; toCity?: string; departure?: string; arrival?: string; flightNumber?: string | null; airline?: string | null }>
+        ? extracted.legs as Array<{ from: string; to: string; fromCity?: string; toCity?: string; departure?: string; arrival?: string; flightNumber?: string | null; airline?: string | null; cabin?: string | null; seats?: string | null }>
         : [];
 
       if (rawLegs.length > 0) {
@@ -1368,6 +1370,8 @@ Field notes:
             arrivalTime: arrTime ? arrTime.slice(0, 5) : null,
             flightNumber: (l.flightNumber as string | null | undefined) ?? null,
             airline: (l.airline as string | null | undefined) ?? null,
+            cabin: (l.cabin as string | null | undefined) ?? null,
+            seats: (l.seats as string | null | undefined) ?? null,
           };
         });
       } else {
@@ -1384,6 +1388,8 @@ Field notes:
             arrivalTime: (extracted.arrivalTime as string | null) ?? null,
             flightNumber: (extracted.flightNumber as string | null) ?? null,
             airline: (extracted.airline as string | null) ?? null,
+            cabin: null,
+            seats: null,
           });
         }
         // Synthesize return leg from scalar return fields if present
@@ -1401,13 +1407,47 @@ Field notes:
             departureTime: (extracted.returnDepartureTime as string | null) ?? null,
             arrivalDate: (extracted.returnArrivalDate as string | null) ?? null,
             arrivalTime: (extracted.returnArrivalTime as string | null) ?? null,
-            flightNumber: null,
+            flightNumber: (extracted.returnFlightNumber as string | null) ?? null,
             airline: (extracted.airline as string | null) ?? null,
+            cabin: null,
+            seats: null,
           });
         }
       }
 
       console.log(`[email-inbound] creating ${flightLegs.length} flight ItineraryItem(s) for confirmation ${outboundConf ?? "(no code)"}`);
+
+      // Validation warnings — never block extraction, only log
+      if (flightLegs.length >= 2) {
+        const nums = flightLegs.map((l) => l.flightNumber).filter(Boolean);
+        const reversed = flightLegs.length === 2 &&
+          nums[0] && nums[1] &&
+          nums[0] === nums[1];
+        if (reversed) {
+          console.warn(`[email-inbound][warn] duplicate reversed flight numbers: both legs report "${nums[0]}" — likely roundtrip where return number was not extracted`);
+        }
+      }
+      for (const leg of flightLegs) {
+        if (leg.flightNumber && /\(/.test(leg.flightNumber)) {
+          console.warn(`[email-inbound][warn] parenthetical in flightNumber "${leg.flightNumber}" — may be codeshare annotation, not a flight number`);
+        }
+        if (
+          (leg.cabin === null || leg.cabin?.toLowerCase() === "economy") &&
+          leg.seats === null &&
+          emailContent.length > 500
+        ) {
+          console.warn(`[email-inbound][warn] leg ${leg.from}→${leg.to}: cabin=economy/null + seats=null in a long email — verify cabin and seat data were not missed`);
+        }
+      }
+      const passengerCount = Array.isArray(extracted.guestNames) ? extracted.guestNames.length : 0;
+      for (const leg of flightLegs) {
+        if (leg.seats && passengerCount > 0) {
+          const seatCount = leg.seats.split(",").length;
+          if (seatCount !== passengerCount) {
+            console.warn(`[email-inbound][warn] leg ${leg.from}→${leg.to}: ${seatCount} seat(s) extracted but ${passengerCount} passenger(s) — mismatch`);
+          }
+        }
+      }
 
       // Delete stale FLIGHT ItineraryItems before writing fresh legs.
       // The upsert key includes fromAirport+toAirport, so airport corrections
@@ -1461,6 +1501,8 @@ Field notes:
           dayIndex: legDayIndex,
           type: "outbound",
           notes: null,
+          cabin: leg.cabin ?? null,
+          seats: leg.seats ?? null,
         });
 
         // Geocode arrival airport for map pin — IATA+city preferred, IATA-only fallback
@@ -1557,7 +1599,7 @@ Field notes:
           tripId: resolvedTripId,
           confirmationCode: outboundConf,
           airline: (extracted.airline as string | null) ?? null,
-          cabinClass: "economy",
+          cabinClass: writeFlightLegs[0]?.cabin ?? "economy",
           status: "booked",
           sortOrder: 0,
           seatNumbers: null,
@@ -1749,6 +1791,8 @@ Field notes:
               dayIndex: leg.departureDate ? await getDayIndex(relTripId, leg.departureDate, leg.arrivalDate) : null,
               type: "outbound",
               notes: null,
+              cabin: leg.cabin ?? null,
+              seats: leg.seats ?? null,
             }))
           );
 
@@ -1756,7 +1800,7 @@ Field notes:
             tripId: relTripId,
             confirmationCode: outboundConf,
             airline: (extracted.airline as string | null) ?? null,
-            cabinClass: "economy",
+            cabinClass: relWriteFlightLegs[0]?.cabin ?? "economy",
             status: "booked",
             sortOrder: 0,
             seatNumbers: null,

@@ -31,6 +31,8 @@ export type WriteFlightLeg = {
   dayIndex: number | null;
   type: string;
   notes: string | null;
+  cabin: string | null;
+  seats: string | null;
 };
 
 export type WriteFlightInput = {
@@ -119,11 +121,11 @@ export async function writeFlightFromEmail(input: WriteFlightInput, dbOverride?:
             arrivalDate: leg.arrivalDate ?? null,
             arrivalTime: leg.arrivalTime ?? null,
             duration: leg.duration ?? null,
-            cabinClass,
+            cabinClass: leg.cabin ?? cabinClass,
             // Denormalized for legacy Vault card reads during Phase 2→3 transition.
             // Phase 3 will stop reading this field; Phase 4 will drop it.
             confirmationCode: trimmedCode,
-            seatNumbers: null,
+            seatNumbers: leg.seats ?? null,
             notes: leg.notes ?? null,
             dayIndex: leg.dayIndex ?? null,
             sortOrder,
