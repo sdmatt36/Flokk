@@ -328,6 +328,30 @@ export default async function TripDetailPage({
         </div>
       )}
 
+      {/* Download PDF — owner and collaborator trips only */}
+      {!isCommunity && (
+        <div
+          style={{
+            padding: "10px 24px",
+            borderBottom: "1px solid #F0F0F0",
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
+          <a
+            href={`/api/trips/${id}/pdf`}
+            style={{
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "#C4664A",
+              textDecoration: "none",
+            }}
+          >
+            Download PDF
+          </a>
+        </div>
+      )}
+
       {isCommunity ? (
         <CommunityTripView
           items={serializedItems}
