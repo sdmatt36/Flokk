@@ -8198,13 +8198,33 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         <div style={{ maxWidth: "640px", display: "flex", flexDirection: "column", gap: "32px" }}>
 
           {/* ── CRUISE BOOKINGS ── */}
-          {cruiseBookings.length > 0 && (
-            <div>
-              <div style={{ marginBottom: "14px" }}>
-                <p style={{ fontSize: "16px", fontWeight: 800, color: "#1a1a1a", marginBottom: "2px" }}>Cruise</p>
-                <p style={{ fontSize: "12px", color: "#717171" }}>Sailing details imported from your confirmation email</p>
+          <div>
+            <div style={{ marginBottom: "14px" }}>
+              <p style={{ fontSize: "16px", fontWeight: 800, color: "#1a1a1a", marginBottom: "2px" }}>Cruise</p>
+              <p style={{ fontSize: "12px", color: "#717171" }}>Sailing details imported from your confirmation email</p>
+            </div>
+
+            {cruiseBookings.length === 0 && (
+              <div style={{ backgroundColor: "#F0F5FF", border: "1px solid rgba(43,108,176,0.2)", borderRadius: "14px", padding: "18px 20px" }}>
+                <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", marginBottom: "6px" }}>Going on a cruise?</p>
+                <p style={{ fontSize: "13px", color: "#4A6080", lineHeight: 1.6, marginBottom: "12px" }}>
+                  Forward your cruise confirmation email and we&apos;ll automatically import your full port schedule — every stop, arrival and departure times, sea days, and cabin details.
+                </p>
+                <p style={{ fontSize: "12px", color: "#4A6080", marginBottom: "4px", fontWeight: 600 }}>Forward confirmations to:</p>
+                <a
+                  href="mailto:trips@flokktravel.com"
+                  style={{ fontSize: "13px", fontWeight: 700, color: "#2B6CB0", textDecoration: "none", letterSpacing: "0.01em" }}
+                >
+                  trips@flokktravel.com
+                </a>
+                <p style={{ fontSize: "11px", color: "#8AA0BC", marginTop: "10px" }}>
+                  Works with Viking, Royal Caribbean, Celebrity, Norwegian, MSC, Princess, Holland America, and more.
+                </p>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            )}
+
+            {cruiseBookings.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 {cruiseBookings.map(cruise => {
                   function fmtCruiseDate(d: string | null): string {
                     if (!d) return "";
@@ -8259,8 +8279,8 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                   );
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* ── IMPORTED BOOKINGS ── */}
           {documents.filter(d => d.type === "booking").length > 0 && (
