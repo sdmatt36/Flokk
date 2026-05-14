@@ -5,6 +5,7 @@ import { CountryCard } from "./CountryCard";
 type Country = {
   slug: string;
   name: string;
+  photoUrl: string | null;
   _count: { cities: number };
   spotCount: number;
   topCities: Array<{ name: string; photoUrl: string | null }>;

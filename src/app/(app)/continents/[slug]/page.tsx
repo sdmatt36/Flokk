@@ -47,6 +47,7 @@ export default async function ContinentPage(
         select: {
           slug: true,
           name: true,
+          blurb: true,
           photoUrl: true,
           cities: {
             where: { featured: true, type: "CITY" },
@@ -67,6 +68,8 @@ export default async function ContinentPage(
   const countries = continent.countries.map((c) => ({
     slug: c.slug,
     name: c.name,
+    photoUrl: c.photoUrl ?? null,
+    blurb: c.blurb ?? null,
     _count: { cities: c.cities.length },
     spotCount: c.cities.reduce((sum, city) => sum + city._count.communitySpots, 0),
     topCities: (() => {
@@ -87,7 +90,7 @@ export default async function ContinentPage(
       }
       return sorted;
     })(),
-  })).filter((c) => c._count.cities > 0);
+  })).filter((c) => c._count.cities > 0 || (c.blurb && c.blurb.length >= 20 && c.photoUrl));
 
   const allCountriesAZ = [...continent.countries].sort((a, b) => a.name.localeCompare(b.name));
 

@@ -11,6 +11,7 @@ type Props = {
   country: {
     slug: string;
     name: string;
+    photoUrl: string | null;
     _count: { cities: number };
     spotCount: number;
     topCities: Array<{ name: string; photoUrl: string | null }>;
@@ -20,7 +21,7 @@ type Props = {
 };
 
 export function CountryCard({ country, continentColor, continentLabel }: Props) {
-  const cityPhoto = country.topCities[0]?.photoUrl ?? null;
+  const cityPhoto = country.topCities[0]?.photoUrl ?? country.photoUrl ?? null;
   const coverImage = cityPhoto ?? getTripCoverImage(null, country.name, null);
   const isColorFallback = coverImage === DEFAULT_COVER;
 
