@@ -23,7 +23,7 @@ export async function GET(
   const access = await getTripAccess(profileId, id);
   if (!access) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const [trip, profile, flightBookings, itineraryItems, packingItems, contacts, keyInfo] =
+  const [trip, profile, flightBookings, itineraryItems, spots, activities, contacts, keyInfo] =
     await Promise.all([
       db.trip.findUnique({
         where: { id },
@@ -48,6 +48,7 @@ export async function GET(
         orderBy: { sortOrder: "asc" },
         include: { flights: { orderBy: { sortOrder: "asc" } } },
       }),
+      // Email-imported confirmed bookings (LODGING, FLIGHT, TRAIN, ACTIVITY, etc.)
       db.itineraryItem.findMany({
         where: { tripId: id, cancelledAt: null },
         orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }],
@@ -55,7 +56,6 @@ export async function GET(
           id: true,
           type: true,
           title: true,
-          scheduledDate: true,
           departureTime: true,
           arrivalTime: true,
           fromCity: true,
@@ -67,12 +67,40 @@ export async function GET(
           address: true,
           dayIndex: true,
           sortOrder: true,
-          status: true,
         },
       }),
-      db.packingItem.findMany({
-        where: { tripId: id },
-        orderBy: [{ category: "asc" }, { sortOrder: "asc" }],
+      // Saved spots the user assigned to a day (restaurants, attractions, etc.)
+      db.savedItem.findMany({
+        where: { tripId: id, dayIndex: { not: null }, deletedAt: null, sourceMethod: { not: "manual_activity" } },
+        orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }],
+        select: {
+          id: true,
+          rawTitle: true,
+          rawDescription: true,
+          startTime: true,
+          categoryTags: true,
+          destinationCity: true,
+          dayIndex: true,
+          sortOrder: true,
+        },
+      }),
+      // Manually added activities
+      db.manualActivity.findMany({
+        where: { tripId: id, deletedAt: null },
+        orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }, { time: "asc" }],
+        select: {
+          id: true,
+          title: true,
+          time: true,
+          endTime: true,
+          venueName: true,
+          address: true,
+          notes: true,
+          dayIndex: true,
+          sortOrder: true,
+          type: true,
+          date: true,
+        },
       }),
       db.tripContact.findMany({
         where: { tripId: id },
@@ -86,7 +114,7 @@ export async function GET(
 
   if (!trip) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  // Only use hero image if it's an absolute public URL; local paths won't resolve in PDF renderer
+  // Only use hero image if it's a publicly accessible https URL
   const heroImageUrl = trip.heroImageUrl?.startsWith("https://") ? trip.heroImageUrl : null;
 
   const generatedDate = new Date().toLocaleDateString("en-US", {
@@ -95,9 +123,23 @@ export async function GET(
     year: "numeric",
   });
 
-  // Dynamic import keeps @react-pdf/renderer out of the initial bundle
-  const { renderToBuffer } = await import("@react-pdf/renderer");
+  // Compute dayIndex for manual activities that don't have it set, using trip.startDate + activity.date
+  const tripStartDate = trip.startDate ? new Date(trip.startDate) : null;
+  function computeDayIndex(dateStr: string): number | null {
+    if (!tripStartDate) return null;
+    try {
+      const [y, m, d] = dateStr.split("-").map(Number);
+      const actDate = new Date(y, m - 1, d);
+      const start = new Date(tripStartDate.getFullYear(), tripStartDate.getMonth(), tripStartDate.getDate());
+      const diff = Math.round((actDate.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      return diff >= 0 ? diff : null;
+    } catch {
+      return null;
+    }
+  }
+
   const { TripItineraryPDF } = await import("@/lib/pdf/TripItineraryPDF");
+  const { renderToBuffer } = await import("@react-pdf/renderer");
 
   const pdfProps = {
     tripTitle: trip.title,
@@ -136,7 +178,6 @@ export async function GET(
       id: i.id,
       type: i.type,
       title: i.title,
-      scheduledDate: i.scheduledDate,
       departureTime: i.departureTime,
       arrivalTime: i.arrivalTime,
       fromCity: i.fromCity,
@@ -148,13 +189,30 @@ export async function GET(
       address: i.address,
       dayIndex: i.dayIndex,
       sortOrder: i.sortOrder,
-      status: i.status,
     })),
-    packingItems: packingItems.map((p) => ({
-      category: p.category,
-      name: p.name,
-      assignedTo: p.assignedTo,
-      packed: p.packed,
+    spots: spots
+      .filter((s) => s.dayIndex !== null && s.rawTitle !== null)
+      .map((s) => ({
+        id: s.id,
+        rawTitle: s.rawTitle as string,
+        rawDescription: s.rawDescription,
+        startTime: s.startTime,
+        categoryTags: s.categoryTags,
+        destinationCity: s.destinationCity,
+        dayIndex: s.dayIndex as number,
+        sortOrder: s.sortOrder,
+      })),
+    activities: activities.map((a) => ({
+      id: a.id,
+      title: a.title,
+      time: a.time,
+      endTime: a.endTime,
+      venueName: a.venueName,
+      address: a.address,
+      notes: a.notes,
+      dayIndex: a.dayIndex ?? computeDayIndex(a.date),
+      sortOrder: a.sortOrder,
+      type: a.type,
     })),
     contacts: contacts.map((c) => ({
       name: c.name,
@@ -168,8 +226,6 @@ export async function GET(
     generatedDate,
   };
 
-  // React.createElement return type is narrower than renderToBuffer's DocumentProps expectation;
-  // the runtime type is correct since TripItineraryPDF returns <Document>.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const buffer = await renderToBuffer(React.createElement(TripItineraryPDF, pdfProps) as any);
 
