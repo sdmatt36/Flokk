@@ -23,7 +23,7 @@ export async function GET(
   const access = await getTripAccess(profileId, id);
   if (!access) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const [trip, profile, flightBookings, itineraryItems, spots, activities, contacts, keyInfo] =
+  const [trip, profile, flightBookings, itineraryItems, spots, activities, flightLegs, contacts, keyInfo] =
     await Promise.all([
       db.trip.findUnique({
         where: { id },
@@ -102,6 +102,11 @@ export async function GET(
           date: true,
         },
       }),
+      // Individual flight legs — used to look up flight numbers for FLIGHT itinerary items
+      db.flight.findMany({
+        where: { tripId: id },
+        select: { flightNumber: true, fromAirport: true, confirmationCode: true },
+      }),
       db.tripContact.findMany({
         where: { tripId: id },
         orderBy: { createdAt: "asc" },
@@ -122,6 +127,14 @@ export async function GET(
     day: "numeric",
     year: "numeric",
   });
+
+  // Build lookup: confirmationCode+fromAirport → flightNumber for FLIGHT itinerary items
+  const flightNumLookup = new Map<string, string>();
+  for (const leg of flightLegs) {
+    if (leg.confirmationCode && leg.fromAirport) {
+      flightNumLookup.set(`${leg.confirmationCode}:${leg.fromAirport}`, leg.flightNumber);
+    }
+  }
 
   // Compute dayIndex for manual activities that don't have it set, using trip.startDate + activity.date
   const tripStartDate = trip.startDate ? new Date(trip.startDate) : null;
@@ -178,6 +191,10 @@ export async function GET(
       id: i.id,
       type: i.type,
       title: i.title,
+      flightNumber:
+        i.type === "FLIGHT" && i.confirmationCode && i.fromAirport
+          ? (flightNumLookup.get(`${i.confirmationCode}:${i.fromAirport}`) ?? null)
+          : null,
       departureTime: i.departureTime,
       arrivalTime: i.arrivalTime,
       fromCity: i.fromCity,

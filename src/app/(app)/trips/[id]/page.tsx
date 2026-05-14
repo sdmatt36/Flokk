@@ -347,7 +347,7 @@ export default async function TripDetailPage({
               textDecoration: "none",
             }}
           >
-            Download PDF
+            Download Trip Itinerary
           </a>
         </div>
       )}

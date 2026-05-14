@@ -42,6 +42,7 @@ export type PdfItineraryItem = {
   id: string;
   type: string;
   title: string;
+  flightNumber: string | null; // populated for FLIGHT type items only
   departureTime: string | null;
   arrivalTime: string | null;
   fromCity: string | null;
@@ -304,6 +305,11 @@ function BookingBlock({ item }: { item: PdfItineraryItem }) {
     <View style={s.itemWrap} wrap={false}>
       <View style={s.itemRow1}>
         <Text style={{ ...s.itemBadge, backgroundColor: color }}>{label}</Text>
+        {item.flightNumber ? (
+          <Text style={{ fontFamily: "Helvetica-Bold", fontSize: 11, color: NAVY, marginRight: 10 }}>
+            {item.flightNumber}
+          </Text>
+        ) : null}
         {timeStr ? <Text style={s.itemTime}>{timeStr}</Text> : null}
       </View>
       <Text style={s.itemTitle}>{item.title}</Text>
