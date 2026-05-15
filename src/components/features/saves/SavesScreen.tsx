@@ -1020,27 +1020,94 @@ function PastTabContent({ sections, expandedSections, setExpandedSections, share
   );
 }
 
+// ─── CityGroupSection ─────────────────────────────────────────────────────────
+function CityGroupSection({ city, saves, sharedProps, onAssignCity, defaultExpanded = false }: {
+  city: string;
+  saves: Save[];
+  sharedProps: SharedCardGridProps;
+  onAssignCity: (id: string) => void;
+  defaultExpanded?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const [showAll, setShowAll] = useState(false);
+  const PREVIEW = 6;
+  const shown = showAll ? saves : saves.slice(0, PREVIEW);
+  return (
+    <div style={{ marginBottom: "28px" }}>
+      <div
+        onClick={() => setExpanded(e => !e)}
+        style={{ cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: "12px", borderBottom: "1px solid rgba(0,0,0,0.06)", marginBottom: expanded ? "14px" : 0 }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <span style={{ fontSize: "15px", fontWeight: 700, color: "#1a1a1a" }}>{city}</span>
+          <span style={{ fontSize: "12px", color: "#717171", fontWeight: 500 }}>{saves.length} {saves.length === 1 ? "save" : "saves"}</span>
+        </div>
+        <span style={{ fontSize: "14px", color: "#717171", display: "inline-block", transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>▾</span>
+      </div>
+      {expanded && (
+        <>
+          <CardGrid cards={shown} openDropdown={sharedProps.openDropdown} setOpenDropdown={sharedProps.setOpenDropdown} assignTrip={sharedProps.assignTrip} onTripClick={() => {}} onCardClick={sharedProps.onCardClick} availableTrips={sharedProps.availableTrips} onDeleted={sharedProps.onDeleted} onIdentifyPlace={sharedProps.onIdentifyPlace} onRateClick={sharedProps.onRateClick} ratedItemId={sharedProps.ratedItemId} onAssignCity={onAssignCity} />
+          {saves.length > PREVIEW && (
+            <button type="button" onClick={() => setShowAll(a => !a)} style={SHOW_MORE_STYLE}>
+              {showAll ? "Show less" : `Show all ${saves.length} saves →`}
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function UnassignedTabContent({ items, sharedProps, onAssignCity }: {
   items: Save[];
   sharedProps: SharedCardGridProps;
   onAssignCity: (id: string) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
   if (items.length === 0) {
     return <p style={{ color: "#6B7280", textAlign: "center", padding: "40px 0", fontSize: 14 }}>Every save is assigned or matched. You&apos;re on top of things.</p>;
   }
-  const shown = expanded ? items : items.slice(0, 3);
+
+  const { cityGroups, otherPlaces, unassigned } = groupSaves(items);
+
   return (
     <section>
-      <div className="grid grid-cols-3 lg:grid-cols-3 md:grid-cols-2 sm:grid-cols-1" style={{ gap: 16 }}>
-        {shown.map((save) => (
-          <SaveCard key={save.id} save={save} {...sharedProps} onTripClick={() => {}} onAssignCity={onAssignCity} />
-        ))}
-      </div>
-      {items.length > 3 && (
-        <button type="button" onClick={() => setExpanded(!expanded)} style={SHOW_MORE_STYLE}>
-          {expanded ? "Show less" : `Show all ${items.length} saves →`}
-        </button>
+      {/* City groups — each with 3+ saves */}
+      {cityGroups.map((group, i) => (
+        <CityGroupSection
+          key={group.city}
+          city={group.city}
+          saves={group.saves}
+          sharedProps={sharedProps}
+          onAssignCity={onAssignCity}
+          defaultExpanded={i === 0}
+        />
+      ))}
+
+      {/* Other places — cities with <3 saves */}
+      {otherPlaces.length > 0 && (
+        <OtherPlacesSection
+          saves={otherPlaces}
+          openDropdown={sharedProps.openDropdown}
+          setOpenDropdown={sharedProps.setOpenDropdown}
+          assignTrip={sharedProps.assignTrip}
+          onCardClick={sharedProps.onCardClick}
+          availableTrips={sharedProps.availableTrips}
+          onDeleted={sharedProps.onDeleted}
+          onIdentifyPlace={sharedProps.onIdentifyPlace}
+          onRateClick={sharedProps.onRateClick}
+          ratedItemId={sharedProps.ratedItemId}
+        />
+      )}
+
+      {/* No city matched — truly unresolvable locations */}
+      {unassigned.length > 0 && (
+        <CityGroupSection
+          city="No city matched"
+          saves={unassigned}
+          sharedProps={sharedProps}
+          onAssignCity={onAssignCity}
+          defaultExpanded={cityGroups.length === 0 && otherPlaces.length === 0}
+        />
       )}
     </section>
   );
