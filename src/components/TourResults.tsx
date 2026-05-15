@@ -1,9 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AlertTriangle, ChevronDown, Clock, ExternalLink, Footprints, Loader2, MapPin, Plus, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertTriangle, ChevronDown, ChevronUp, Clock, ExternalLink, Footprints, GripVertical, Loader2, MapPin, Plus, X } from "lucide-react";
 import { bucketTrips } from "@/lib/trip-phase";
 import TourMapBlock from "@/components/tours/TourMapBlock";
+import {
+  DndContext,
+  PointerSensor,
+  TouchSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import "mapbox-gl/dist/mapbox-gl.css";
 
 type Stop = {
@@ -74,6 +92,23 @@ type Props = {
   readOnly?: boolean;
 };
 
+// ── Sortable stop wrapper ──────────────────────────────────────────────────────
+function SortableStopShell({ id, children }: { id: string; children: (dragHandleProps: React.HTMLAttributes<HTMLSpanElement>, isDragging: boolean) => React.ReactNode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    position: "relative",
+    zIndex: isDragging ? 50 : undefined,
+  };
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children({ ...attributes, ...listeners } as React.HTMLAttributes<HTMLSpanElement>, isDragging)}
+    </div>
+  );
+}
+
 function RemovalPlaceholder({ stop, onUndo }: { stop: Stop; onUndo: () => void }) {
   return (
     <div className="relative overflow-hidden rounded-xl border border-[#1B3A5C]/20 bg-[#1B3A5C]/5 px-4 py-3 mb-3">
@@ -114,6 +149,18 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
     timer: ReturnType<typeof setTimeout>;
     startedAt: number;
   }[]>([]);
+
+  // Add-stop form
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addName, setAddName] = useState("");
+  const [addAddress, setAddAddress] = useState("");
+  const [addDuration, setAddDuration] = useState("30");
+  const [addNotes, setAddNotes] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
+  const addNameRef = useRef<HTMLInputElement>(null);
+
+  // Reorder debounce ref — persist after drag settles
+  const reorderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Flush pending DELETEs on unmount
   useEffect(() => {
@@ -256,6 +303,73 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
   const activeCount = stops.filter(s => !pendingRemovals.some(p => p.stop.id === s.id)).length;
   const gap = originalTargetStops - activeCount;
 
+  // dnd-kit sensors: pointer (mouse/trackpad) + touch (mobile) + keyboard
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = stops.findIndex(s => s.id === active.id);
+    const newIndex = stops.findIndex(s => s.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(stops, oldIndex, newIndex).map((s, i) => ({ ...s, orderIndex: i }));
+    onReplaceStops(reordered);
+    persistReorder(reordered);
+  }
+
+  function moveStop(stopId: string, direction: "up" | "down") {
+    const idx = stops.findIndex(s => s.id === stopId);
+    if (idx === -1) return;
+    const newIndex = direction === "up" ? idx - 1 : idx + 1;
+    if (newIndex < 0 || newIndex >= stops.length) return;
+    const reordered = arrayMove(stops, idx, newIndex).map((s, i) => ({ ...s, orderIndex: i }));
+    onReplaceStops(reordered);
+    persistReorder(reordered);
+  }
+
+  function persistReorder(reordered: Stop[]) {
+    if (!tourId) return;
+    if (reorderTimeoutRef.current) clearTimeout(reorderTimeoutRef.current);
+    reorderTimeoutRef.current = setTimeout(() => {
+      fetch(`/api/tours/${tourId}/stops`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order: reordered.map((s, i) => ({ id: s.id, orderIndex: i })) }),
+      });
+    }, 600);
+  }
+
+  async function handleAddStop() {
+    if (!addName.trim() || !tourId || isAdding) return;
+    setIsAdding(true);
+    try {
+      const res = await fetch(`/api/tours/${tourId}/stops`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: addName.trim(),
+          address: addAddress.trim() || undefined,
+          durationMin: parseInt(addDuration) || 30,
+          why: addNotes.trim() || undefined,
+        }),
+      });
+      if (!res.ok) return;
+      const newStop = await res.json() as Stop;
+      onReplaceStops([...stops, newStop]);
+      setAddName("");
+      setAddAddress("");
+      setAddDuration("30");
+      setAddNotes("");
+      setShowAddForm(false);
+    } catch { /* non-fatal */ } finally {
+      setIsAdding(false);
+    }
+  }
+
   async function handleRegenerate() {
     if (!tourId || gap <= 0) return;
     setIsRegenerating(true);
@@ -318,92 +432,208 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
 
       <TourMapBlock stops={stops} />
 
-      {stops.map((stop, index) => (
-        pendingRemovals.some(p => p.stop.id === stop.id) ? (
-          <RemovalPlaceholder
-            key={stop.id}
-            stop={stop}
-            onUndo={() => handleUndo(stop.id)}
-          />
-        ) : (
-          <div key={stop.id} className="relative border border-gray-100 rounded-2xl mb-3 shadow-sm bg-white overflow-hidden">
-            {!readOnly && (
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={stops.map(s => s.id)} strategy={verticalListSortingStrategy}>
+          {stops.map((stop, index) => (
+            pendingRemovals.some(p => p.stop.id === stop.id) ? (
+              <RemovalPlaceholder
+                key={stop.id}
+                stop={stop}
+                onUndo={() => handleUndo(stop.id)}
+              />
+            ) : (
+              <SortableStopShell key={stop.id} id={stop.id}>
+                {(dragHandleProps, isDragging) => (
+                  <div className={`relative border rounded-2xl mb-3 shadow-sm bg-white overflow-hidden ${isDragging ? "border-[#1B3A5C]/40 shadow-md" : "border-gray-100"}`}>
+                    {!readOnly && (
+                      <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
+                        {/* Up/Down arrows for reliable mobile reorder */}
+                        <button
+                          type="button"
+                          onClick={() => moveStop(stop.id, "up")}
+                          disabled={index === 0}
+                          className="flex h-6 w-6 items-center justify-center rounded-full bg-white/90 shadow-sm hover:bg-white disabled:opacity-30"
+                          aria-label="Move up"
+                        >
+                          <ChevronUp size={12} className="text-[#1B3A5C]" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveStop(stop.id, "down")}
+                          disabled={index === stops.length - 1}
+                          className="flex h-6 w-6 items-center justify-center rounded-full bg-white/90 shadow-sm hover:bg-white disabled:opacity-30"
+                          aria-label="Move down"
+                        >
+                          <ChevronDown size={12} className="text-[#1B3A5C]" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleLocalRemove(stop);
+                          }}
+                          className="flex h-6 w-6 items-center justify-center rounded-full bg-white/90 shadow-sm hover:bg-white"
+                          aria-label={`Remove ${stop.name}`}
+                        >
+                          <X size={14} className="text-[#1B3A5C]" />
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex">
+                      {/* Drag handle */}
+                      {!readOnly && (
+                        <span
+                          {...dragHandleProps}
+                          className="flex items-center justify-center w-6 shrink-0 cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-400 touch-none"
+                          style={{ paddingLeft: 4 }}
+                          aria-label="Drag to reorder"
+                        >
+                          <GripVertical size={14} />
+                        </span>
+                      )}
+
+                      {/* Image */}
+                      <div className="w-24 h-24 shrink-0 bg-stone-100 flex items-center justify-center overflow-hidden">
+                        {stop.imageUrl ? (
+                          <img
+                            src={stop.imageUrl}
+                            alt={stop.name}
+                            className="w-full h-full object-cover transition-opacity duration-500"
+                            style={{ opacity: imgLoaded[stop.id] ? 1 : 0 }}
+                            onLoad={() => setImgLoaded(prev => ({ ...prev, [stop.id]: true }))}
+                          />
+                        ) : (
+                          <MapPin size={20} className="text-stone-300" />
+                        )}
+                      </div>
+
+                      {/* Content */}
+                      <div className="flex flex-col p-3 flex-1 min-w-0 gap-1.5" style={{ paddingRight: readOnly ? undefined : "72px" }}>
+                        <div className="flex items-start gap-2">
+                          <div className="w-5 h-5 rounded-full bg-[#C4664A] flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">
+                            {index + 1}
+                          </div>
+                          <span className="text-sm font-semibold text-[#1B3A5C] leading-snug">{decodeHtmlEntities(stop.name)}</span>
+                        </div>
+
+                        {stop.websiteUrl && (
+                          <a
+                            href={stop.websiteUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-1 text-xs text-[#1B3A5C] hover:text-[#C4664A] transition-colors"
+                          >
+                            <ExternalLink size={12} />
+                            Link
+                          </a>
+                        )}
+
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5 text-xs text-gray-500">
+                            <Clock size={10} />
+                            {stop.duration} min
+                          </span>
+                          {transport === "Walking" && index > 0 && (stops[index - 1].travelTime ?? 0) > 0 && (
+                            <span className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5 text-xs text-gray-500">
+                              <Footprints size={10} />
+                              {stops[index - 1].travelTime} min walk
+                            </span>
+                          )}
+                        </div>
+
+                        {stop.why && stop.why !== "Added manually" && (
+                          <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">{decodeHtmlEntities(stop.why)}</p>
+                        )}
+
+                        {stop.familyNote && (
+                          <p className="text-xs text-[#C4664A] italic line-clamp-2">{stop.familyNote}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </SortableStopShell>
+            )
+          ))}
+        </SortableContext>
+      </DndContext>
+
+      {/* Add a stop */}
+      {!readOnly && tourId && (
+        showAddForm ? (
+          <div className="border border-[#1B3A5C]/20 rounded-2xl bg-[#F8FAFF] p-4 mb-3">
+            <p className="text-sm font-semibold text-[#1B3A5C] mb-3">Add a stop</p>
+            <input
+              ref={addNameRef}
+              type="text"
+              value={addName}
+              onChange={e => setAddName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") handleAddStop(); if (e.key === "Escape") setShowAddForm(false); }}
+              placeholder="Place name (required)"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C] mb-2 bg-white"
+              autoFocus
+            />
+            <input
+              type="text"
+              value={addAddress}
+              onChange={e => setAddAddress(e.target.value)}
+              placeholder="Address (optional)"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C] mb-2 bg-white"
+            />
+            <div className="flex gap-2 mb-2">
+              <select
+                value={addDuration}
+                onChange={e => setAddDuration(e.target.value)}
+                className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C] bg-white"
+              >
+                <option value="15">15 min</option>
+                <option value="30">30 min</option>
+                <option value="45">45 min</option>
+                <option value="60">1 hour</option>
+                <option value="90">90 min</option>
+                <option value="120">2 hours</option>
+              </select>
+            </div>
+            <input
+              type="text"
+              value={addNotes}
+              onChange={e => setAddNotes(e.target.value)}
+              placeholder="Notes (optional)"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C] mb-3 bg-white"
+            />
+            <div className="flex gap-2">
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleLocalRemove(stop);
-                }}
-                className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full bg-white/90 shadow-sm hover:bg-white z-10"
-                aria-label={`Remove ${stop.name}`}
+                onClick={handleAddStop}
+                disabled={!addName.trim() || isAdding}
+                className="flex-1 bg-[#1B3A5C] text-white rounded-xl py-2 text-sm font-medium disabled:opacity-50"
+                style={{ border: "none", cursor: addName.trim() && !isAdding ? "pointer" : "default" }}
               >
-                <X size={14} className="text-[#1B3A5C]" />
+                {isAdding ? "Adding..." : "Add stop"}
               </button>
-            )}
-
-            <div className="flex">
-              {/* Image */}
-              <div className="w-24 h-24 shrink-0 bg-stone-100 flex items-center justify-center overflow-hidden">
-                {stop.imageUrl ? (
-                  <img
-                    src={stop.imageUrl}
-                    alt={stop.name}
-                    className="w-full h-full object-cover transition-opacity duration-500"
-                    style={{ opacity: imgLoaded[stop.id] ? 1 : 0 }}
-                    onLoad={() => setImgLoaded(prev => ({ ...prev, [stop.id]: true }))}
-                  />
-                ) : (
-                  <MapPin size={20} className="text-stone-300" />
-                )}
-              </div>
-
-              {/* Content */}
-              <div className="flex flex-col p-3 flex-1 min-w-0 gap-1.5">
-                <div className="flex items-start gap-2">
-                  <div className="w-5 h-5 rounded-full bg-[#C4664A] flex items-center justify-center text-white text-xs font-bold shrink-0 mt-0.5">
-                    {index + 1}
-                  </div>
-                  <span className="text-sm font-semibold text-[#1B3A5C] leading-snug">{decodeHtmlEntities(stop.name)}</span>
-                </div>
-
-                {stop.websiteUrl && (
-                  <a
-                    href={stop.websiteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="inline-flex items-center gap-1 text-xs text-[#1B3A5C] hover:text-[#C4664A] transition-colors"
-                  >
-                    <ExternalLink size={12} />
-                    Link
-                  </a>
-                )}
-
-                <div className="flex flex-wrap gap-1.5">
-                  <span className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5 text-xs text-gray-500">
-                    <Clock size={10} />
-                    {stop.duration} min
-                  </span>
-                  {transport === "Walking" && index > 0 && (stops[index - 1].travelTime ?? 0) > 0 && (
-                    <span className="inline-flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5 text-xs text-gray-500">
-                      <Footprints size={10} />
-                      {stops[index - 1].travelTime} min walk
-                    </span>
-                  )}
-                </div>
-
-                {stop.why && (
-                  <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">{decodeHtmlEntities(stop.why)}</p>
-                )}
-
-                {stop.familyNote && (
-                  <p className="text-xs text-[#C4664A] italic line-clamp-2">{stop.familyNote}</p>
-                )}
-              </div>
+              <button
+                type="button"
+                onClick={() => { setShowAddForm(false); setAddName(""); setAddAddress(""); setAddDuration("30"); setAddNotes(""); }}
+                className="px-4 rounded-xl border border-gray-200 text-sm text-gray-500"
+                style={{ background: "white", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
             </div>
           </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => { setShowAddForm(true); setTimeout(() => addNameRef.current?.focus(), 50); }}
+            className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#1B3A5C]/30 bg-white px-4 py-3 text-sm text-[#1B3A5C] hover:border-[#1B3A5C] hover:bg-[#1B3A5C]/5 transition-colors"
+          >
+            <Plus size={14} />
+            Add your own stop
+          </button>
         )
-      ))}
+      )}
 
       {gap > 0 && !readOnly && (
         <button
