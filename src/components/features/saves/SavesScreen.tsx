@@ -1291,7 +1291,7 @@ export function SavesScreen() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importState, setImportState] = useState<"idle" | "loading" | "done" | "error">("idle");
-  const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null);
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number; geocodeFailed?: number } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -1358,9 +1358,9 @@ export function SavesScreen() {
       const fd = new FormData();
       fd.append("file", importFile);
       const res = await fetch("/api/saves/import-maps", { method: "POST", body: fd });
-      const data = await res.json() as { imported?: number; skipped?: number; error?: string };
+      const data = await res.json() as { imported?: number; skipped?: number; geocodeFailed?: number; error?: string };
       if (!res.ok || data.error) { setImportState("error"); setImportError(data.error ?? "Import failed."); return; }
-      setImportResult({ imported: data.imported ?? 0, skipped: data.skipped ?? 0 });
+      setImportResult({ imported: data.imported ?? 0, skipped: data.skipped ?? 0, geocodeFailed: data.geocodeFailed });
       setImportState("done");
       // Refresh saves list
       const fresh = await fetch("/api/saves").then(r => r.json());
@@ -2543,8 +2543,13 @@ Your saved places, all in one spot
                   <strong>{importResult.imported}</strong> place{importResult.imported !== 1 ? "s" : ""} added to your saves.
                 </p>
                 {importResult.skipped > 0 && (
-                  <p style={{ fontSize: 13, color: "#717171", marginBottom: 16 }}>
+                  <p style={{ fontSize: 13, color: "#717171", marginBottom: 4 }}>
                     {importResult.skipped} already existed and were skipped.
+                  </p>
+                )}
+                {(importResult.geocodeFailed ?? 0) > 0 && (
+                  <p style={{ fontSize: 13, color: "#717171", marginBottom: 16 }}>
+                    {importResult.geocodeFailed} could not be located and were skipped.
                   </p>
                 )}
                 <button
@@ -2562,11 +2567,12 @@ Your saved places, all in one spot
                   <a href="https://takeout.google.com" target="_blank" rel="noopener noreferrer" style={{ color: "#1B3A5C", fontWeight: 600 }}>takeout.google.com</a>
                   , unzip the archive, then upload any of these:
                 </p>
-                <ul style={{ fontSize: 13, color: "#717171", lineHeight: 1.7, marginBottom: 16, paddingLeft: 18 }}>
-                  <li><strong>.csv</strong> from <code style={{ fontSize: 12 }}>/Takeout/Saved/</code> — your saved lists like &ldquo;Want to go&rdquo; or custom lists</li>
-                  <li><strong>Saved Places.json</strong> from <code style={{ fontSize: 12 }}>/Takeout/Maps (your places)/</code> — starred places</li>
-                  <li><strong>.kml</strong> from Google My Maps — custom maps</li>
+                <ul style={{ fontSize: 13, color: "#717171", lineHeight: 1.7, marginBottom: 8, paddingLeft: 18 }}>
+                  <li><strong>.csv</strong> from <code style={{ fontSize: 12 }}>/Takeout/Saved/</code> (your saved lists like &ldquo;Want to go&rdquo; or custom lists)</li>
+                  <li><strong>Saved Places.json</strong> from <code style={{ fontSize: 12 }}>/Takeout/Maps (your places)/</code> (starred places)</li>
+                  <li><strong>.kml</strong> from Google My Maps (custom maps)</li>
                 </ul>
+                <p style={{ fontSize: 12, color: "#999", marginBottom: 16 }}>We look up coordinates automatically for places that don&apos;t include them.</p>
 
                 <input
                   ref={importInputRef}

@@ -310,6 +310,56 @@ export async function resolveCountry(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Forward geocode: text query → coordinates + placeId.
+// Single text search call; geometry is in results so no details call is needed.
+// Used by the CSV import pipeline for rows where the URL lacks @lat,lng.
+// Cost: $0.032/request (Places Text Search SKU).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ForwardGeocodeResult {
+  lat: number;
+  lng: number;
+  placeId: string;
+  name: string;
+  formattedAddress: string | null;
+}
+
+export async function forwardGeocodeFromText(
+  query: string
+): Promise<ForwardGeocodeResult | null> {
+  if (!API_KEY || !query?.trim()) return null;
+  try {
+    const res = await fetch(
+      `${PLACES_TEXT_SEARCH}?query=${encodeURIComponent(query)}&key=${API_KEY}`
+    );
+    if (!res.ok) return null;
+    const data = await res.json() as {
+      status: string;
+      results?: Array<{
+        place_id: string;
+        name: string;
+        formatted_address?: string;
+        geometry?: { location?: { lat: number; lng: number } };
+      }>;
+    };
+    if (data.status !== "OK" || !data.results?.length) return null;
+    const first = data.results[0];
+    const lat = first.geometry?.location?.lat;
+    const lng = first.geometry?.location?.lng;
+    if (lat == null || lng == null) return null;
+    return {
+      lat,
+      lng,
+      placeId: first.place_id,
+      name: first.name,
+      formattedAddress: first.formatted_address ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Reverse-geocode city from lat/lng.
 // Used to populate ManualActivity.city at creation time so community
 // write-through gets the correct physical city instead of trip.destinationCity.

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ExtractionStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { forwardGeocodeFromText } from "@/lib/google-places";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -303,6 +304,13 @@ async function resolveOrCreateCity(
   }
 }
 
+// List names that are generic labels, not city hints
+const GENERIC_LIST_NAMES = /^(want to go|favorites|favourites|starred|saved places|default list|places to visit|my list|my places)$/i;
+
+function extractCityHint(listName: string): string | null {
+  return GENERIC_LIST_NAMES.test(listName.trim()) ? null : listName.trim();
+}
+
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -320,6 +328,7 @@ export async function POST(req: NextRequest) {
   // Parse ─────────────────────────────────────────────────────────────────────
   type ParsedPlace = { name: string; lat: number; lng: number; address: string | null; mapsUrl: string | null; notes: string | null; listName: string | null };
   const parsed: ParsedPlace[] = [];
+  let csvStats: { urlExtracted: number; forwardGeocoded: number; geocodeFailed: number } | null = null;
 
   if (fileName.endsWith(".json")) {
     let data: TakeoutGeoJSON;
@@ -364,35 +373,58 @@ export async function POST(req: NextRequest) {
     }
 
     const headers = rows[0].map(h => h.trim().toLowerCase());
-    // Locate columns by name; fall back to positional defaults if headers differ
     const titleIdx = headers.indexOf("title") >= 0 ? headers.indexOf("title") : 0;
     const urlIdx = headers.indexOf("url") >= 0 ? headers.indexOf("url") : 2;
     const noteIdx = headers.indexOf("note") >= 0 ? headers.indexOf("note")
       : headers.indexOf("comment") >= 0 ? headers.indexOf("comment") : -1;
 
+    const cityHint = extractCityHint(listName);
+    type NeedsGeocode = { name: string; note: string | null; mapsUrl: string | null };
+    const needsGeocode: NeedsGeocode[] = [];
+    let urlExtracted = 0;
+
+    // Pass 1: extract coords from URL where possible
     for (const row of rows.slice(1)) {
       const name = row[titleIdx]?.trim() || "Saved place";
       const url = (urlIdx < row.length ? row[urlIdx] : "")?.trim() ?? "";
       const note = noteIdx >= 0 && noteIdx < row.length ? (row[noteIdx]?.trim() || null) : null;
+      const mapsUrl = url || null;
 
       const coords = extractCoordsFromUrl(url);
-      if (!coords) continue; // no @lat,lng in URL — skipped; backfill cron handles remainder
-
-      parsed.push({
-        name,
-        lat: coords.lat,
-        lng: coords.lng,
-        address: null,
-        mapsUrl: url || null,
-        notes: note,
-        listName,
-      });
+      if (coords) {
+        parsed.push({ name, lat: coords.lat, lng: coords.lng, address: null, mapsUrl, notes: note, listName });
+        urlExtracted++;
+      } else {
+        needsGeocode.push({ name, note, mapsUrl });
+      }
     }
+
+    // Pass 2: forward-geocode rows that had no @lat,lng — sequential to respect rate limits
+    let forwardGeocoded = 0;
+    let geocodeFailed = 0;
+    for (const item of needsGeocode) {
+      const query = cityHint ? `${item.name} ${cityHint}` : item.name;
+      const geo = await forwardGeocodeFromText(query);
+      if (geo) {
+        parsed.push({ name: item.name, lat: geo.lat, lng: geo.lng, address: geo.formattedAddress, mapsUrl: item.mapsUrl, notes: item.note, listName });
+        forwardGeocoded++;
+      } else {
+        geocodeFailed++;
+      }
+    }
+
+    csvStats = { urlExtracted, forwardGeocoded, geocodeFailed };
   } else {
     return NextResponse.json({ error: "Unsupported file type. Upload a .json (Google Takeout), .kml, or .csv file." }, { status: 400 });
   }
 
   if (parsed.length === 0) {
+    if (csvStats && csvStats.geocodeFailed > 0) {
+      return NextResponse.json({
+        error: "We couldn't locate the places in this file. This can happen when places use minimal URLs without coordinates and the place names are ambiguous. Try adding addresses to your places in Google Maps before re-exporting.",
+        geocodeFailed: csvStats.geocodeFailed,
+      }, { status: 400 });
+    }
     return NextResponse.json({ error: "No places found in the file." }, { status: 400 });
   }
 
@@ -477,5 +509,6 @@ export async function POST(req: NextRequest) {
     imported: totalCreated,
     skipped: parsed.length - totalCreated,
     total: parsed.length,
+    ...(csvStats ? { urlExtracted: csvStats.urlExtracted, forwardGeocoded: csvStats.forwardGeocoded, geocodeFailed: csvStats.geocodeFailed } : {}),
   });
 }
