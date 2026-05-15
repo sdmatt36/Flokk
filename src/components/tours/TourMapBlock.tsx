@@ -22,7 +22,6 @@ async function fetchRoutedGeometry(
   token: string
 ): Promise<[number, number][] | null> {
   if (validStops.length < 2) return null;
-  // Mapbox Directions max 25 waypoints
   const coords = validStops.map(s => `${s.lng},${s.lat}`).join(";");
   try {
     const res = await fetch(
@@ -48,7 +47,7 @@ export default function TourMapBlock({ stops, transport }: TourMapBlockProps) {
   );
   const hasValid = validStops.length > 0;
 
-  // Build Google Maps full-route URL
+  // Build Google Maps full-route URL whenever stops or transport change
   useEffect(() => {
     if (validStops.length < 2) { setRouteUrl(null); return; }
     const travelMode = transport === "Walking" ? "walking" : transport === "Metro / Transit" ? "transit" : "driving";
@@ -66,7 +65,7 @@ export default function TourMapBlock({ stops, transport }: TourMapBlockProps) {
 
     let destroyed = false;
 
-    import("mapbox-gl").then(async (mb) => {
+    import("mapbox-gl").then((mb) => {
       if (destroyed || !containerRef.current) return;
       const mapboxgl = mb.default;
       mapboxgl.accessToken = token;
@@ -83,13 +82,11 @@ export default function TourMapBlock({ stops, transport }: TourMapBlockProps) {
 
       mapRef.current = map;
 
-      // Fetch routed geometry
+      // Kick off the route fetch immediately — don't await before registering load handler
       const profile = transportToProfile(transport);
-      const routeCoords = await fetchRoutedGeometry(validStops, profile, token);
+      const routePromise = fetchRoutedGeometry(validStops, profile, token);
 
-      if (destroyed) return;
-
-      // Add numbered markers with name popup
+      // Add markers synchronously (no async needed)
       validStops.forEach((stop, index) => {
         const el = document.createElement("div");
         el.style.cssText =
@@ -119,8 +116,15 @@ export default function TourMapBlock({ stops, transport }: TourMapBlockProps) {
       validStops.forEach(s => bounds.extend([s.lng, s.lat]));
       map.fitBounds(bounds, { padding: 48, maxZoom: 15, duration: 0 });
 
-      map.on("load", () => {
+      // Register load handler synchronously — it awaits routePromise inside,
+      // so it always runs AFTER the map is ready regardless of route fetch timing.
+      map.on("load", async () => {
         if (destroyed) return;
+
+        // routePromise may already be resolved (route was fast) or still pending
+        const routeCoords = await routePromise;
+        if (destroyed) return;
+
         const lineCoords: [number, number][] = routeCoords ?? validStops.map(s => [s.lng, s.lat]);
 
         map.addSource("tour-route", {
@@ -132,7 +136,6 @@ export default function TourMapBlock({ stops, transport }: TourMapBlockProps) {
           },
         });
 
-        // Subtle casing for contrast against map backgrounds
         map.addLayer({
           id: "tour-route-casing",
           type: "line",
