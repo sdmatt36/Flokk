@@ -78,7 +78,7 @@ export default async function LandingPage() {
                     See how it works
                   </a>
                 </div>
-                <p className="text-sm" style={{ color: "#999", textWrap: "balance" } as React.CSSProperties}>
+                <p className="text-sm" style={{ color: "#999" }}>
                   <span style={{ whiteSpace: "nowrap" }}>No credit card required.</span>
                   {" · "}
                   <span style={{ whiteSpace: "nowrap" }}>Built for families of all kinds, including the family you choose.</span>
@@ -163,31 +163,31 @@ export default async function LandingPage() {
               </div>
             </div>
 
-            {/* Antarctica */}
+            {/* Paris */}
             <div className="rounded-2xl overflow-hidden border shadow-sm flex flex-col" style={{ backgroundColor: "#fff", borderColor: "#EEEEEE" }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="https://images.unsplash.com/photo-1508193638397-1c4234db14d8?w=800&q=80" alt="Antarctica with Kids" className="w-full h-44 object-cover" style={{ objectPosition: "center center" }} />
+              <img src="https://images.unsplash.com/photo-1499856871958-5b9627545d1a?w=800&q=80" alt="Paris with Kids" className="w-full h-44 object-cover" style={{ objectPosition: "center 60%" }} />
               <div className="p-5 space-y-3 flex flex-col flex-1">
                 <div>
-                  <p className="font-bold text-base" style={{ color: "#1a1a1a" }}>Antarctica with Kids: Penguins, Glaciers, and the Bottom of the World</p>
-                  <p className="text-sm mt-0.5" style={{ color: "#999" }}>Expedition family · 10 days at sea</p>
+                  <p className="font-bold text-base" style={{ color: "#1a1a1a" }}>Paris with Kids</p>
+                  <p className="text-sm mt-0.5" style={{ color: "#999" }}>Family · 8 days · France</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {["Adventure", "Expedition", "Once-in-a-lifetime"].map((tag) => (
+                  {["Culture", "8 days", "Kid-friendly"].map((tag) => (
                     <span key={tag} className="text-xs font-medium px-3 py-1 rounded-full" style={{ backgroundColor: "#FAFAFA", color: "#6B8F71" }}>
                       {tag}
                     </span>
                   ))}
                 </div>
                 <ul className="space-y-1 flex-1">
-                  {["Half Moon Island Penguin Colony", "Port Lockroy Postcards", "Neko Harbour Landing", "Lemaire Channel"].map((item) => (
+                  {["Eiffel Tower", "Champ de Mars Picnic", "Musée d'Orsay", "Disneyland Paris"].map((item) => (
                     <li key={item} className="flex items-center gap-2 text-sm" style={{ color: "#717171" }}>
                       <span style={{ width: "5px", height: "5px", borderRadius: "50%", backgroundColor: "#C4664A", flexShrink: 0, display: "inline-block" }} />
                       {item}
                     </li>
                   ))}
                 </ul>
-                <Link href="/share/a003ca69-d909-4b53-8733-63e7d94d9763" className="block w-full text-center text-sm font-semibold py-2.5 rounded-xl border transition-colors" style={{ borderColor: "#C4664A", color: "#C4664A", textDecoration: "none" }}>
+                <Link href="/share/LIy_O3qVQ4xb" className="block w-full text-center text-sm font-semibold py-2.5 rounded-xl border transition-colors" style={{ borderColor: "#C4664A", color: "#C4664A", textDecoration: "none" }}>
                   Use this as my starting point
                 </Link>
               </div>
@@ -505,7 +505,7 @@ export default async function LandingPage() {
       <section style={{ backgroundColor: "#FFFFFF", paddingTop: "80px", paddingBottom: "80px", paddingLeft: "1.5rem", paddingRight: "1.5rem" }}>
         <div style={{ maxWidth: "680px", margin: "0 auto", textAlign: "center" }}>
           <h2 className={`${playfair.className} text-3xl md:text-[40px]`} style={{ fontWeight: 700, color: "#1B3A5C", marginBottom: "16px", lineHeight: 1.2 }}>
-            For the grandparents who don&apos;t do&nbsp;smartphones.
+            For the grandparents<br />who don&apos;t do smartphones.
           </h2>
           <p style={{ fontSize: "20px", color: "#C4664A", fontWeight: 600, marginBottom: "12px" }}>
             Print your family&apos;s trip as a PDF.
