@@ -1220,6 +1220,14 @@ export function SavesScreen() {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [addToTripModal, setAddToTripModal] = useState<{ saveId: string; options: Array<{ id: string; name: string }> } | null>(null);
 
+  // Maps import
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importState, setImportState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [importResult, setImportResult] = useState<{ imported: number; skipped: number } | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     Promise.all([
       fetch("/api/saves").then(r => r.json()),
@@ -1274,6 +1282,24 @@ export function SavesScreen() {
     setManualCategory(category);
     setShowManualModal(true);
   }, [searchParams]);
+
+  async function handleImport() {
+    if (!importFile || importState === "loading") return;
+    setImportState("loading");
+    setImportError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", importFile);
+      const res = await fetch("/api/saves/import-maps", { method: "POST", body: fd });
+      const data = await res.json() as { imported?: number; skipped?: number; error?: string };
+      if (!res.ok || data.error) { setImportState("error"); setImportError(data.error ?? "Import failed."); return; }
+      setImportResult({ imported: data.imported ?? 0, skipped: data.skipped ?? 0 });
+      setImportState("done");
+      // Refresh saves list
+      const fresh = await fetch("/api/saves").then(r => r.json());
+      setSaves((fresh.saves ?? []).map(mapApiItem));
+    } catch { setImportState("error"); setImportError("Network error. Please try again."); }
+  }
 
   // Dismiss city dropdown on outside click
   useEffect(() => {
@@ -2044,6 +2070,33 @@ Your saved places, all in one spot
         </div>
       )}
 
+      {/* Import from Google Maps pill */}
+      <button
+        onClick={() => { setShowImportModal(true); setImportState("idle"); setImportFile(null); setImportResult(null); setImportError(null); }}
+        title="Import saved places from Google Maps"
+        style={{
+          position: "fixed",
+          bottom: 96,
+          right: 164,
+          height: 40,
+          paddingLeft: 16,
+          paddingRight: 16,
+          borderRadius: 20,
+          backgroundColor: "#fff",
+          border: "1.5px solid #1B3A5C",
+          color: "#1B3A5C",
+          fontFamily: "Inter, sans-serif",
+          fontSize: 13,
+          fontWeight: 600,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+          zIndex: 90,
+        }}
+      >
+        Import from Maps
+      </button>
+
       {/* Add Activity pill button */}
       <button
         onClick={() => setShowManualModal(true)}
@@ -2402,6 +2455,94 @@ Your saved places, all in one spot
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Import from Maps modal */}
+      {showImportModal && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" }}
+          onClick={() => setShowImportModal(false)}
+        >
+          <div
+            style={{ width: "100%", maxWidth: 480, background: "#fff", borderRadius: "20px 20px 0 0", padding: "28px 24px 40px", boxSizing: "border-box" }}
+            onClick={e => e.stopPropagation()}
+          >
+            {importState === "done" && importResult ? (
+              <>
+                <p style={{ fontSize: 17, fontWeight: 700, color: "#1B3A5C", marginBottom: 8 }}>Import complete</p>
+                <p style={{ fontSize: 14, color: "#444", marginBottom: 4 }}>
+                  <strong>{importResult.imported}</strong> place{importResult.imported !== 1 ? "s" : ""} added to your saves.
+                </p>
+                {importResult.skipped > 0 && (
+                  <p style={{ fontSize: 13, color: "#717171", marginBottom: 16 }}>
+                    {importResult.skipped} already existed and were skipped.
+                  </p>
+                )}
+                <button
+                  onClick={() => setShowImportModal(false)}
+                  style={{ width: "100%", padding: "12px 0", borderRadius: 10, border: "none", background: "#1B3A5C", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  Done
+                </button>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: 17, fontWeight: 700, color: "#1B3A5C", marginBottom: 6 }}>Import from Google Maps</p>
+                <p style={{ fontSize: 13, color: "#717171", lineHeight: 1.6, marginBottom: 16 }}>
+                  Export your saved places from Google Maps via{" "}
+                  <a href="https://takeout.google.com" target="_blank" rel="noopener noreferrer" style={{ color: "#1B3A5C", fontWeight: 600 }}>takeout.google.com</a>
+                  {" "}→ select <strong>Maps (your places)</strong> → download. Then upload the <strong>Saved Places.json</strong> file here.
+                  Also accepts <strong>.kml</strong> files from Google My Maps.
+                </p>
+
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept=".json,.kml,.kmz"
+                  style={{ display: "none" }}
+                  onChange={e => setImportFile(e.target.files?.[0] ?? null)}
+                />
+
+                <button
+                  onClick={() => importInputRef.current?.click()}
+                  style={{
+                    width: "100%", padding: "12px 0", borderRadius: 10, marginBottom: 12,
+                    border: "1.5px dashed #1B3A5C", background: "#F8FAFF",
+                    color: "#1B3A5C", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  {importFile ? importFile.name : "Choose file (.json or .kml)"}
+                </button>
+
+                {importError && (
+                  <p style={{ fontSize: 13, color: "#c0392b", marginBottom: 10 }}>{importError}</p>
+                )}
+
+                <button
+                  onClick={handleImport}
+                  disabled={!importFile || importState === "loading"}
+                  style={{
+                    width: "100%", padding: "12px 0", borderRadius: 10, border: "none",
+                    background: importFile ? "#C4664A" : "#E8E8E8",
+                    color: importFile ? "#fff" : "#aaa",
+                    fontSize: 14, fontWeight: 600,
+                    cursor: importFile ? "pointer" : "default",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  {importState === "loading" ? "Importing…" : "Import Places"}
+                </button>
+
+                <button
+                  onClick={() => setShowImportModal(false)}
+                  style={{ display: "block", width: "100%", marginTop: 12, background: "none", border: "none", fontSize: 13, color: "#717171", cursor: "pointer", fontFamily: "inherit", textAlign: "center" }}
+                >
+                  Cancel
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

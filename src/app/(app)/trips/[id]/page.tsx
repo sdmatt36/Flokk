@@ -328,7 +328,7 @@ export default async function TripDetailPage({
         </div>
       )}
 
-      {/* Download PDF — owner and collaborator trips only */}
+      {/* Export row — owner and collaborator trips only */}
       {!isCommunity && (
         <div
           style={{
@@ -336,18 +336,21 @@ export default async function TripDetailPage({
             borderBottom: "1px solid #F0F0F0",
             display: "flex",
             alignItems: "center",
+            gap: "20px",
           }}
         >
           <a
             href={`/api/trips/${id}/pdf`}
-            style={{
-              fontSize: "12px",
-              fontWeight: 600,
-              color: "#C4664A",
-              textDecoration: "none",
-            }}
+            style={{ fontSize: "12px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
           >
-            Download Trip Itinerary
+            Download Itinerary PDF
+          </a>
+          <a
+            href={`/api/trips/${id}/kml`}
+            style={{ fontSize: "12px", fontWeight: 600, color: "#1B3A5C", textDecoration: "none" }}
+            title="Open in Google Maps, Apple Maps, or any GPS app"
+          >
+            Export to Maps (KML)
           </a>
         </div>
       )}
