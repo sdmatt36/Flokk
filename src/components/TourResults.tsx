@@ -354,12 +354,19 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
           name: addName.trim(),
           address: addAddress.trim() || undefined,
           durationMin: parseInt(addDuration) || 30,
-          why: addNotes.trim() || undefined,
+          notes: addNotes.trim() || undefined,
         }),
       });
       if (!res.ok) return;
-      const newStop = await res.json() as Stop;
-      onReplaceStops([...stops, newStop]);
+      const data = await res.json() as Stop & { prevStopId?: string | null; prevStopTravelTime?: number | null };
+      // Sync travelTime on the previous stop so the walk-time chip updates
+      const updated = stops.map(s =>
+        s.id === data.prevStopId && data.prevStopTravelTime != null
+          ? { ...s, travelTime: data.prevStopTravelTime }
+          : s
+      );
+      const { prevStopId: _a, prevStopTravelTime: _b, ...newStop } = data;
+      onReplaceStops([...updated, newStop]);
       setAddName("");
       setAddAddress("");
       setAddDuration("30");
@@ -430,7 +437,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
         </div>
       )}
 
-      <TourMapBlock stops={stops} />
+      <TourMapBlock stops={stops} transport={transport} />
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={stops.map(s => s.id)} strategy={verticalListSortingStrategy}>
@@ -550,6 +557,26 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
                         {stop.familyNote && (
                           <p className="text-xs text-[#C4664A] italic line-clamp-2">{stop.familyNote}</p>
                         )}
+
+                        {/* Directions to next stop */}
+                        {(() => {
+                          const next = stops[index + 1];
+                          if (!next || !stop.lat || !stop.lng || !next.lat || !next.lng) return null;
+                          const travelMode = transport === "Walking" ? "walking" : transport === "Metro / Transit" ? "transit" : "driving";
+                          const url = `https://www.google.com/maps/dir/?api=1&origin=${stop.lat},${stop.lng}&destination=${next.lat},${next.lng}&travelmode=${travelMode}`;
+                          return (
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              className="inline-flex items-center gap-1 text-xs text-[#1B3A5C]/60 hover:text-[#1B3A5C] transition-colors mt-0.5"
+                            >
+                              <MapPin size={10} />
+                              Directions to {decodeHtmlEntities(next.name)}
+                            </a>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
