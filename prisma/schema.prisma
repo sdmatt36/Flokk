@@ -418,11 +418,14 @@ model SavedItem {
   shareToken               String?   @unique
   lodgingType              String?   // hotel | vacation_rental | bnb | cruise_ship | campsite | motel | resort | other
   manualActivity           ManualActivity? @relation("ManualActivitySavedItem")
+  cityId                   String?
+  city                     City?     @relation(fields: [cityId], references: [id], onDelete: SetNull)
 
   @@index([communitySpotId])
   @@index([tourId])
   @@index([deletedAt])
   @@index([eventSourceProvider, eventSourceEventId])
+  @@index([cityId])
 }
 
 enum SavedItemStatus {
@@ -1072,6 +1075,7 @@ model City {
   tags                  String[]        @default([])
   communitySpots        CommunitySpot[]
   tours                 GeneratedTour[]
+  savedItems            SavedItem[]
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
 
