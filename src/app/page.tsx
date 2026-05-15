@@ -12,7 +12,8 @@ export default async function LandingPage() {
   if (userId) redirect("/home");
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#FFFFFF", overflowX: "hidden", maxWidth: "100vw" }}>
+    <div className="landing-page min-h-screen" style={{ backgroundColor: "#FFFFFF", overflowX: "hidden", maxWidth: "100vw" }}>
+      <style>{`.landing-page h1,.landing-page h2,.landing-page h3{text-wrap:balance}`}</style>
 
       <AppHeader />
 
@@ -77,7 +78,13 @@ export default async function LandingPage() {
                     See how it works
                   </a>
                 </div>
-                <p className="text-sm" style={{ color: "#999" }}>No credit card required. · Built for families of all kinds, including the family you choose. · 200+ families already planning smarter.</p>
+                <p className="text-sm" style={{ color: "#999", textWrap: "balance" } as React.CSSProperties}>
+                  <span style={{ whiteSpace: "nowrap" }}>No credit card required.</span>
+                  {" · "}
+                  <span style={{ whiteSpace: "nowrap" }}>Built for families of all kinds, including the family you choose.</span>
+                  {" · "}
+                  <span style={{ whiteSpace: "nowrap" }}>200+ families already planning smarter.</span>
+                </p>
               </div>
 
               {/* Right: floating product card — desktop only */}
@@ -498,7 +505,7 @@ export default async function LandingPage() {
       <section style={{ backgroundColor: "#FFFFFF", paddingTop: "80px", paddingBottom: "80px", paddingLeft: "1.5rem", paddingRight: "1.5rem" }}>
         <div style={{ maxWidth: "680px", margin: "0 auto", textAlign: "center" }}>
           <h2 className={`${playfair.className} text-3xl md:text-[40px]`} style={{ fontWeight: 700, color: "#1B3A5C", marginBottom: "16px", lineHeight: 1.2 }}>
-            For the grandparents who don&apos;t do smartphones.
+            For the grandparents who don&apos;t do&nbsp;smartphones.
           </h2>
           <p style={{ fontSize: "20px", color: "#C4664A", fontWeight: 600, marginBottom: "12px" }}>
             Print your family&apos;s trip as a PDF.
