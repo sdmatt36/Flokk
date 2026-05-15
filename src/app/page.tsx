@@ -455,12 +455,12 @@ export default async function LandingPage() {
               {
                 name: "Import from Google Maps",
                 desc: "Bring everything you’ve already saved. Import your Google Maps history in one shot.",
-                live: true,
+                live: false,
               },
               {
                 name: "One Tap Navigation",
                 desc: "Export your full day as a live route in Google or Apple Maps instantly.",
-                live: true,
+                live: false,
               },
               {
                 name: "Print Your Trip as a PDF",

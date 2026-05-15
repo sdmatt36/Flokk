@@ -28,6 +28,53 @@ interface TakeoutGeoJSON {
   features?: TakeoutFeature[];
 }
 
+// ── CSV parser ────────────────────────────────────────────────────────────────
+// Handles Google Takeout per-list CSVs (Title, Note, URL, Comment columns).
+// Coordinates are not in the CSV directly; they're embedded in the URL column
+// as the @lat,lng,zoom pattern that Google Maps uses in its deep links.
+function parseCsvRows(text: string): string[][] {
+  const clean = text.startsWith("﻿") ? text.slice(1) : text; // strip UTF-8 BOM
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < clean.length; i++) {
+    const ch = clean[i];
+    if (inQuotes) {
+      if (ch === '"' && clean[i + 1] === '"') { field += '"'; i++; }
+      else if (ch === '"') { inQuotes = false; }
+      else { field += ch; }
+    } else {
+      if (ch === '"') { inQuotes = true; }
+      else if (ch === ',') { row.push(field); field = ''; }
+      else if (ch === '\r' && clean[i + 1] === '\n') {
+        row.push(field); field = '';
+        if (row.some(f => f.trim())) rows.push(row);
+        row = []; i++;
+      } else if (ch === '\n' || ch === '\r') {
+        row.push(field); field = '';
+        if (row.some(f => f.trim())) rows.push(row);
+        row = [];
+      } else { field += ch; }
+    }
+  }
+  if (field || row.length > 0) {
+    row.push(field);
+    if (row.some(f => f.trim())) rows.push(row);
+  }
+  return rows;
+}
+
+function extractCoordsFromUrl(url: string): { lat: number; lng: number } | null {
+  const m = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (!m) return null;
+  const lat = parseFloat(m[1]);
+  const lng = parseFloat(m[2]);
+  if (isNaN(lat) || isNaN(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng };
+}
+
 // ── KML parser ────────────────────────────────────────────────────────────────
 function parseCoordsString(raw: string): { lat: number; lng: number } | null {
   const trimmed = raw.trim().split(/\s+/)[0];
@@ -271,7 +318,7 @@ export async function POST(req: NextRequest) {
   const fileName = file.name.toLowerCase();
 
   // Parse ─────────────────────────────────────────────────────────────────────
-  type ParsedPlace = { name: string; lat: number; lng: number; address: string | null; mapsUrl: string | null; notes: string | null };
+  type ParsedPlace = { name: string; lat: number; lng: number; address: string | null; mapsUrl: string | null; notes: string | null; listName: string | null };
   const parsed: ParsedPlace[] = [];
 
   if (fileName.endsWith(".json")) {
@@ -300,15 +347,49 @@ export async function POST(req: NextRequest) {
         address: props.location?.Address?.trim() ?? null,
         mapsUrl: props["Google Maps URL"] ?? null,
         notes: null,
+        listName: null,
       });
     }
   } else if (fileName.endsWith(".kml") || fileName.endsWith(".kmz")) {
     const places = parseKml(text);
     for (const p of places) {
-      parsed.push({ name: p.name, lat: p.lat, lng: p.lng, address: p.address, mapsUrl: null, notes: p.description });
+      parsed.push({ name: p.name, lat: p.lat, lng: p.lng, address: p.address, mapsUrl: null, notes: p.description, listName: null });
+    }
+  } else if (fileName.endsWith(".csv")) {
+    // Google Takeout per-list CSV: one file per saved list (e.g. "Kamakura food.csv")
+    const listName = file.name.replace(/\.csv$/i, "").trim();
+    const rows = parseCsvRows(text);
+    if (rows.length < 2) {
+      return NextResponse.json({ error: "Empty or unreadable CSV file." }, { status: 400 });
+    }
+
+    const headers = rows[0].map(h => h.trim().toLowerCase());
+    // Locate columns by name; fall back to positional defaults if headers differ
+    const titleIdx = headers.indexOf("title") >= 0 ? headers.indexOf("title") : 0;
+    const urlIdx = headers.indexOf("url") >= 0 ? headers.indexOf("url") : 2;
+    const noteIdx = headers.indexOf("note") >= 0 ? headers.indexOf("note")
+      : headers.indexOf("comment") >= 0 ? headers.indexOf("comment") : -1;
+
+    for (const row of rows.slice(1)) {
+      const name = row[titleIdx]?.trim() || "Saved place";
+      const url = (urlIdx < row.length ? row[urlIdx] : "")?.trim() ?? "";
+      const note = noteIdx >= 0 && noteIdx < row.length ? (row[noteIdx]?.trim() || null) : null;
+
+      const coords = extractCoordsFromUrl(url);
+      if (!coords) continue; // no @lat,lng in URL — skipped; backfill cron handles remainder
+
+      parsed.push({
+        name,
+        lat: coords.lat,
+        lng: coords.lng,
+        address: null,
+        mapsUrl: url || null,
+        notes: note,
+        listName,
+      });
     }
   } else {
-    return NextResponse.json({ error: "Unsupported file type. Upload a .json (Google Takeout) or .kml file." }, { status: 400 });
+    return NextResponse.json({ error: "Unsupported file type. Upload a .json (Google Takeout), .kml, or .csv file." }, { status: 400 });
   }
 
   if (parsed.length === 0) {
@@ -374,13 +455,13 @@ export async function POST(req: NextRequest) {
       data: batch.map((p, bi) => ({
         familyProfileId: profileId,
         sourceMethod: "maps_import",
-        sourcePlatform: fileName.endsWith(".json") ? "google_maps" : "kml",
+        sourcePlatform: fileName.endsWith(".json") ? "google_maps" : fileName.endsWith(".csv") ? "google_maps_csv" : "kml",
         rawTitle: p.name,
         lat: p.lat,
         lng: p.lng,
         websiteUrl: p.mapsUrl ?? null,
         rawDescription: [p.address, p.notes].filter(Boolean).join(" · ") || null,
-        categoryTags: [inferCategory(p.name, p.mapsUrl ?? undefined)],
+        categoryTags: [inferCategory(p.name, p.mapsUrl ?? undefined), ...(p.listName ? [`list:${p.listName}`] : [])],
         status: "UNORGANIZED",
         extractionStatus: ExtractionStatus.ENRICHED,
         needsPlaceConfirmation: false,
