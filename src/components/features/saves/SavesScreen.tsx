@@ -2557,17 +2557,21 @@ Your saved places, all in one spot
             ) : (
               <>
                 <p style={{ fontSize: 17, fontWeight: 700, color: "#1B3A5C", marginBottom: 6 }}>Import from Google Maps</p>
-                <p style={{ fontSize: 13, color: "#717171", lineHeight: 1.6, marginBottom: 16 }}>
-                  Export your saved places from Google Maps via{" "}
+                <p style={{ fontSize: 13, color: "#717171", lineHeight: 1.6, marginBottom: 8 }}>
+                  Export your data at{" "}
                   <a href="https://takeout.google.com" target="_blank" rel="noopener noreferrer" style={{ color: "#1B3A5C", fontWeight: 600 }}>takeout.google.com</a>
-                  {" "}→ select <strong>Maps (your places)</strong> → download. Then upload the <strong>Saved Places.json</strong> file here.
-                  Also accepts <strong>.kml</strong> files from Google My Maps.
+                  , unzip the archive, then upload any of these:
                 </p>
+                <ul style={{ fontSize: 13, color: "#717171", lineHeight: 1.7, marginBottom: 16, paddingLeft: 18 }}>
+                  <li><strong>.csv</strong> from <code style={{ fontSize: 12 }}>/Takeout/Saved/</code> — your saved lists like &ldquo;Want to go&rdquo; or custom lists</li>
+                  <li><strong>Saved Places.json</strong> from <code style={{ fontSize: 12 }}>/Takeout/Maps (your places)/</code> — starred places</li>
+                  <li><strong>.kml</strong> from Google My Maps — custom maps</li>
+                </ul>
 
                 <input
                   ref={importInputRef}
                   type="file"
-                  accept=".json,.kml,.kmz"
+                  accept=".csv,.json,.kml,.kmz"
                   style={{ display: "none" }}
                   onChange={e => setImportFile(e.target.files?.[0] ?? null)}
                 />
@@ -2580,7 +2584,7 @@ Your saved places, all in one spot
                     color: "#1B3A5C", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
                   }}
                 >
-                  {importFile ? importFile.name : "Choose file (.json or .kml)"}
+                  {importFile ? importFile.name : "Choose file (.csv, .json, or .kml)"}
                 </button>
 
                 {importError && (
