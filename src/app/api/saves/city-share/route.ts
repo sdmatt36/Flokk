@@ -2,14 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { nanoid } from "nanoid";
-
-async function resolveProfileId(userId: string): Promise<string | null> {
-  const profile = await db.familyProfile.findUnique({
-    where: { userId },
-    select: { id: true },
-  });
-  return profile?.id ?? null;
-}
+import { resolveProfileId } from "@/lib/profile-access";
 
 export async function POST(request: NextRequest) {
   try {

@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 
 const IMPORT_SOURCE_METHODS = ["maps_import"];
-
-async function resolveProfileId(userId: string): Promise<string | null> {
-  const profile = await db.familyProfile.findUnique({
-    where: { userId },
-    select: { id: true },
-  });
-  return profile?.id ?? null;
-}
 
 export async function GET(
   request: NextRequest,

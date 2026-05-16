@@ -1,16 +1,9 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 
 const IMPORT_SOURCE_METHODS = new Set(["maps_import"]);
-
-async function resolveProfileId(userId: string): Promise<string | null> {
-  const profile = await db.familyProfile.findUnique({
-    where: { userId },
-    select: { id: true },
-  });
-  return profile?.id ?? null;
-}
 
 export async function GET() {
   try {
@@ -41,7 +34,7 @@ export async function GET() {
     // Group by destinationCity tracking both importCount and allCount
     const map = new Map<
       string,
-      { slug: string | null; photoUrl: string | null; importCount: number; allCount: number }
+      { citySlug: string | null; photoUrl: string | null; importCount: number; allCount: number }
     >();
 
     for (const s of saves) {
@@ -50,7 +43,7 @@ export async function GET() {
       const entry = map.get(name);
       if (!entry) {
         map.set(name, {
-          slug: s.city?.slug ?? null,
+          citySlug: s.city?.slug ?? null,
           photoUrl: s.city?.heroPhotoUrl ?? s.city?.photoUrl ?? null,
           importCount: isImport ? 1 : 0,
           allCount: 1,
@@ -62,8 +55,8 @@ export async function GET() {
         if (!entry.photoUrl && (s.city?.heroPhotoUrl || s.city?.photoUrl)) {
           entry.photoUrl = s.city?.heroPhotoUrl ?? s.city?.photoUrl ?? null;
         }
-        if (!entry.slug && s.city?.slug) {
-          entry.slug = s.city.slug;
+        if (!entry.citySlug && s.city?.slug) {
+          entry.citySlug = s.city.slug;
         }
       }
     }
