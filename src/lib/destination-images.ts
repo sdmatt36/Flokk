@@ -326,11 +326,11 @@ export function getTripCoverImage(
 
 /**
  * Full priority chain for SavedItem / activity card images:
- * 1. getVenueImage(title) — curated venue photo (single source of truth)
- * 2. placePhotoUrl  — Google Places photo (dynamic fallback)
- * 3. mediaThumbnailUrl — scraped thumbnail
- * 4. type-based Unsplash fallback (train, flight, hotel, food)
- * 5. destination photo (city or country)
+ * 1. placePhotoUrl  — Google Places photo (venue-specific, highest fidelity)
+ * 2. mediaThumbnailUrl — scraped thumbnail (also venue-specific)
+ * 3. getVenueImage(title) — curated Unsplash for known landmarks
+ * 4. destination photo (city or country — location context beats generic category)
+ * 5. type-based Unsplash fallback (train, flight, hotel, food)
  * 6. generic travel fallback
  */
 export function getItemImage(
@@ -344,17 +344,20 @@ export function getItemImage(
   const place = placePhotoUrl?.trim();
   if (place) return place.replace("http://", "https://");
 
-  const venue = title ? getVenueImage(title) : null;
-  if (venue) return venue;
-
   const thumb = mediaThumbnailUrl?.trim();
   if (thumb) return thumb.replace("http://", "https://");
 
-  // Type-based fallback (before destination)
+  const venue = title ? getVenueImage(title) : null;
+  if (venue) return venue;
+
+  const destination = lookupDestination(city, country);
+  if (destination) return destination;
+
+  // Type-based fallback — last resort before DEFAULT_COVER
   const t = (type ?? "").toLowerCase();
   for (const key of Object.keys(TYPE_IMAGES)) {
     if (t.includes(key)) return TYPE_IMAGES[key];
   }
 
-  return lookupDestination(city, country) ?? DEFAULT_COVER;
+  return DEFAULT_COVER;
 }

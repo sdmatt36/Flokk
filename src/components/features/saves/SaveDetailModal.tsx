@@ -8,7 +8,7 @@ import { LODGING_TYPE_LABELS, LODGING_TYPE_OPTIONS } from "@/lib/infer-lodging-t
 import { categoryLabel, normalizeCategorySlug } from "@/lib/categories";
 import { CategoryEditor } from "@/components/shared/CategoryEditor";
 import { bucketTrips } from "@/lib/trip-phase";
-import { getTripCoverImage } from "@/lib/destination-images";
+import { getItemImage } from "@/lib/destination-images";
 import { shareEntity } from "@/lib/share";
 
 type SaveItem = {
@@ -274,12 +274,15 @@ export function SaveDetailModal({
         {/* Hero */}
         <div style={{ height: "220px", position: "relative", flexShrink: 0 }}>
           {(() => {
-            const heroImg = item?.mediaThumbnailUrl ?? item?.placePhotoUrl;
-            if (heroImg) {
-              return <div style={{ width: "100%", height: "100%", backgroundImage: `url('${heroImg.replace("http://", "https://")}')`, backgroundSize: "cover", backgroundPosition: "center" }} />;
-            }
-            const coverImg = getTripCoverImage(item?.destinationCity, item?.destinationCountry, null);
-            return <div style={{ width: "100%", height: "100%", backgroundImage: coverImg ? `url('${coverImg}')` : undefined, backgroundSize: "cover", backgroundPosition: "center", backgroundColor: "#1a1a1a" }} />;
+            const heroImg = getItemImage(
+              item?.rawTitle,
+              item?.placePhotoUrl,
+              item?.mediaThumbnailUrl,
+              item?.categoryTags?.[0] ?? null,
+              item?.destinationCity,
+              item?.destinationCountry,
+            );
+            return <div style={{ width: "100%", height: "100%", backgroundImage: `url('${heroImg}')`, backgroundSize: "cover", backgroundPosition: "center", backgroundColor: "#1a1a1a" }} />;
           })()}
           {/* dark overlay for text legibility */}
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.0) 30%, rgba(0,0,0,0.65) 100%)" }} />

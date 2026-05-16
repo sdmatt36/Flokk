@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ExtractionStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
-import { forwardGeocodeFromText } from "@/lib/google-places";
+import { forwardGeocodeFromText, fetchPlaceDetailsById } from "@/lib/google-places";
 import { mapPlaceTypesToCanonicalSlugs } from "@/lib/categories";
 
 export const dynamic = "force-dynamic";
@@ -327,7 +327,7 @@ export async function POST(req: NextRequest) {
   const fileName = file.name.toLowerCase();
 
   // Parse ─────────────────────────────────────────────────────────────────────
-  type ParsedPlace = { name: string; lat: number; lng: number; address: string | null; mapsUrl: string | null; notes: string | null; listName: string | null; overrideCategory?: string[] };
+  type ParsedPlace = { name: string; lat: number; lng: number; address: string | null; mapsUrl: string | null; notes: string | null; listName: string | null; overrideCategory?: string[]; placePhotoUrl?: string | null; googlePlaceId?: string | null; venueWebsiteUrl?: string | null; };
   const parsed: ParsedPlace[] = [];
   let csvStats: { urlExtracted: number; forwardGeocoded: number; geocodeFailed: number } | null = null;
 
@@ -400,7 +400,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Pass 2: forward-geocode rows that had no @lat,lng — sequential to respect rate limits
+    // Pass 2: forward-geocode rows that had no @lat,lng — sequential to respect rate limits.
+    // Also fetches venue photo + website via the Places Details API using the placeId that
+    // forwardGeocodeFromText already returns, avoiding a duplicate text search.
     let forwardGeocoded = 0;
     let geocodeFailed = 0;
     for (const item of needsGeocode) {
@@ -408,7 +410,20 @@ export async function POST(req: NextRequest) {
       const geo = await forwardGeocodeFromText(query);
       if (geo) {
         const mappedSlugs = mapPlaceTypesToCanonicalSlugs(geo.types);
-        parsed.push({ name: item.name, lat: geo.lat, lng: geo.lng, address: geo.formattedAddress, mapsUrl: item.mapsUrl, notes: item.note, listName, overrideCategory: mappedSlugs.length > 0 ? mappedSlugs : undefined });
+        const details = await fetchPlaceDetailsById(geo.placeId);
+        parsed.push({
+          name: item.name,
+          lat: geo.lat,
+          lng: geo.lng,
+          address: geo.formattedAddress,
+          mapsUrl: item.mapsUrl,
+          notes: item.note,
+          listName,
+          overrideCategory: mappedSlugs.length > 0 ? mappedSlugs : undefined,
+          googlePlaceId: geo.placeId,
+          placePhotoUrl: details?.photoUrl ?? null,
+          venueWebsiteUrl: details?.websiteUrl ?? null,
+        });
         forwardGeocoded++;
       } else {
         geocodeFailed++;
@@ -493,11 +508,14 @@ export async function POST(req: NextRequest) {
         rawTitle: p.name,
         lat: p.lat,
         lng: p.lng,
-        websiteUrl: p.mapsUrl ?? null,
+        mapsUrl: p.mapsUrl ?? null,
+        websiteUrl: p.venueWebsiteUrl ?? null,
+        placePhotoUrl: p.placePhotoUrl ?? null,
+        googlePlaceId: p.googlePlaceId ?? null,
         rawDescription: [p.address, p.notes].filter(Boolean).join(" · ") || null,
         categoryTags: [...(p.overrideCategory ?? [inferCategory(p.name, p.mapsUrl ?? undefined)]), ...(p.listName ? [`list:${p.listName}`] : [])],
         status: "UNORGANIZED",
-        extractionStatus: ExtractionStatus.ENRICHED,
+        extractionStatus: ExtractionStatus.PENDING,
         needsPlaceConfirmation: false,
         cityId: placeIdxToCityId[i + bi],
         destinationCity: placeIdxToCityName[i + bi],

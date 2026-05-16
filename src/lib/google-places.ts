@@ -363,6 +363,45 @@ export async function forwardGeocodeFromText(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Fetch website + photo for a known placeId without a second text search.
+// Used by the CSV import pipeline when forwardGeocodeFromText already returned
+// a placeId — skips the duplicate text search that findPlaceByNameCity would do.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PlaceDetailsResult {
+  photoUrl: string | null;
+  websiteUrl: string | null;
+}
+
+export async function fetchPlaceDetailsById(
+  placeId: string
+): Promise<PlaceDetailsResult | null> {
+  if (!API_KEY || !placeId) return null;
+  try {
+    const detailsRes = await fetch(
+      `${PLACES_DETAILS}?place_id=${placeId}&fields=website,photos&key=${API_KEY}`
+    );
+    if (!detailsRes.ok) return null;
+    const data = (await detailsRes.json()) as {
+      result?: { website?: string; photos?: Array<{ photo_reference: string }> };
+    };
+    const websiteUrl = data.result?.website ?? null;
+    const photoRef = data.result?.photos?.[0]?.photo_reference ?? null;
+    let photoUrl: string | null = null;
+    if (photoRef) {
+      const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${encodeURIComponent(photoRef)}&key=${API_KEY}`;
+      const photoRes = await fetch(photoApiUrl, { redirect: "follow" });
+      if (photoRes.ok && photoRes.url && photoRes.url !== photoApiUrl) {
+        photoUrl = photoRes.url;
+      }
+    }
+    return { photoUrl, websiteUrl };
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Reverse-geocode city from lat/lng.
 // Used to populate ManualActivity.city at creation time so community
 // write-through gets the correct physical city instead of trip.destinationCity.
