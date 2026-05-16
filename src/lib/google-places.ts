@@ -322,6 +322,7 @@ export interface ForwardGeocodeResult {
   placeId: string;
   name: string;
   formattedAddress: string | null;
+  types: string[];
 }
 
 export async function forwardGeocodeFromText(
@@ -339,6 +340,7 @@ export async function forwardGeocodeFromText(
         place_id: string;
         name: string;
         formatted_address?: string;
+        types?: string[];
         geometry?: { location?: { lat: number; lng: number } };
       }>;
     };
@@ -353,6 +355,7 @@ export async function forwardGeocodeFromText(
       placeId: first.place_id,
       name: first.name,
       formattedAddress: first.formatted_address ?? null,
+      types: first.types ?? [],
     };
   } catch {
     return null;

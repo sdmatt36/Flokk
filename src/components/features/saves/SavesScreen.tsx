@@ -14,6 +14,7 @@ import {
   Plus,
   X,
   Trash2,
+  Bookmark,
 } from "lucide-react";
 import { TourActionMenu } from "@/components/tours/TourActionMenu";
 import { haversineKm, WITHIN_REACH_KM } from "@/lib/geo";
@@ -51,6 +52,7 @@ type Save = {
   hasItineraryLink: boolean;
   tripStatus: string | null;
   tripEndDate: string | null;
+  sourceMethod: string | null;
 };
 
 type PlaceResult = {
@@ -137,6 +139,7 @@ function mapApiItem(item: ApiItem): Save {
     hasItineraryLink: item.hasItineraryLink ?? false,
     tripStatus: item.tripStatus ?? null,
     tripEndDate: item.tripEndDate ?? null,
+    sourceMethod: item.sourceMethod ?? null,
   };
 }
 
@@ -173,9 +176,12 @@ interface TabbedSavesState {
   upcoming: UpcomingTripSection[];
   past: PastCitySection[];
   unassigned: Save[];
-  counts: { upcoming: number; past: number; unassigned: number };
+  imported: Save[];
+  counts: { upcoming: number; past: number; unassigned: number; imported: number };
   suggestedTripMap: Map<string, Array<{ id: string; name: string }>>;
 }
+
+const IMPORT_SOURCE_METHODS = new Set(["maps_import"]);
 
 type SharedCardGridProps = {
   openDropdown: string | null;
@@ -282,6 +288,7 @@ function groupTabbedSaves(
 
   const pastCityMap = new Map<string, Save[]>();
   const unassigned: Save[] = [];
+  const imported: Save[] = [];
   const suggestedTripMap = new Map<string, Array<{ id: string; name: string }>>();
 
   for (const save of saves) {
@@ -392,7 +399,11 @@ function groupTabbedSaves(
       }
     }
 
-    unassigned.push(save);
+    if (IMPORT_SOURCE_METHODS.has(save.sourceMethod ?? "")) {
+      imported.push(save);
+    } else {
+      unassigned.push(save);
+    }
   }
 
   for (const section of upcomingSections) {
@@ -407,7 +418,7 @@ function groupTabbedSaves(
     }))
     .sort((a, b) => a.city.localeCompare(b.city));
 
-  unassigned.sort((a, b) => {
+  const sortByCity = (a: Save, b: Save) => {
     const cityA = (a.destinationCity ?? "").toLowerCase();
     const cityB = (b.destinationCity ?? "").toLowerCase();
     if (cityA !== cityB) {
@@ -416,16 +427,20 @@ function groupTabbedSaves(
       return cityA.localeCompare(cityB);
     }
     return (a.title ?? "").localeCompare(b.title ?? "");
-  });
+  };
+  unassigned.sort(sortByCity);
+  imported.sort(sortByCity);
 
   return {
     upcoming: upcomingSections,
     past: pastSections,
     unassigned,
+    imported,
     counts: {
       upcoming: upcomingSections.reduce((sum, s) => sum + s.explicitSaves.length + s.suggestedSaves.length, 0),
       past: pastSections.reduce((sum, s) => sum + s.saves.length, 0),
       unassigned: unassigned.length,
+      imported: imported.length,
     },
     suggestedTripMap,
   };
@@ -457,11 +472,14 @@ type SaveCardProps = {
 
 function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId, onAssignCity, suggestedForOptions, onAddToTrip, onGrowTripCity, growTripCityLabel, cardContext }: SaveCardProps) {
   const filteredTags = save.tags.filter(t => {
+    if (t.startsWith("list:")) return false;
     if (t.toLowerCase() === "other" && save.tags.some(t2 =>
       !["other", "vg", "vgn"].includes(t2.toLowerCase()) && t2.toLowerCase() !== t.toLowerCase()
     )) return false;
     return true;
   });
+  const listTag = save.tags.find(t => t.startsWith("list:"));
+  const listLabel = listTag ? listTag.slice(5) : null;
   const isDropdownOpen = openDropdown === save.id;
   const [deleting, setDeleting] = useState(false);
   const isTransit = save.tags.some(t => ["flight", "flights", "transportation", "transit", "train"].includes(t.toLowerCase()));
@@ -649,9 +667,15 @@ function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick
         ) : null}
 
         {/* Tags */}
-        <div style={{ marginBottom: "8px" }}>
+        <div style={{ marginBottom: listLabel ? "4px" : "8px" }}>
           <CategoryBadges slugs={filteredTags} variant="compact" />
         </div>
+        {listLabel && (
+          <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "6px" }}>
+            <Bookmark size={10} style={{ color: "#717171", flexShrink: 0 }} />
+            <span style={{ fontSize: "11px", color: "#717171", fontWeight: 500 }}>{listLabel}</span>
+          </div>
+        )}
 
         {/* Trip assignment dropdown (unassigned cards only) */}
         {!save.tripId && cardContext !== "past" && !suggestedForOptions?.length && (
@@ -1113,6 +1137,53 @@ function UnassignedTabContent({ items, sharedProps, onAssignCity }: {
   );
 }
 
+function ImportedTabContent({ items, sharedProps }: {
+  items: Save[];
+  sharedProps: SharedCardGridProps;
+}) {
+  if (items.length === 0) {
+    return <p style={{ color: "#6B7280", textAlign: "center", padding: "40px 0", fontSize: 14 }}>No imported saves yet. Import your Google Maps lists to get started.</p>;
+  }
+  const { cityGroups, otherPlaces, unassigned } = groupSaves(items);
+  return (
+    <section>
+      {cityGroups.map((group, i) => (
+        <CityGroupSection
+          key={group.city}
+          city={group.city}
+          saves={group.saves}
+          sharedProps={sharedProps}
+          onAssignCity={() => {}}
+          defaultExpanded={i === 0}
+        />
+      ))}
+      {otherPlaces.length > 0 && (
+        <OtherPlacesSection
+          saves={otherPlaces}
+          openDropdown={sharedProps.openDropdown}
+          setOpenDropdown={sharedProps.setOpenDropdown}
+          assignTrip={sharedProps.assignTrip}
+          onCardClick={sharedProps.onCardClick}
+          availableTrips={sharedProps.availableTrips}
+          onDeleted={sharedProps.onDeleted}
+          onIdentifyPlace={sharedProps.onIdentifyPlace}
+          onRateClick={sharedProps.onRateClick}
+          ratedItemId={sharedProps.ratedItemId}
+        />
+      )}
+      {unassigned.length > 0 && (
+        <CityGroupSection
+          city="No city matched"
+          saves={unassigned}
+          sharedProps={sharedProps}
+          onAssignCity={() => {}}
+          defaultExpanded={cityGroups.length === 0 && otherPlaces.length === 0}
+        />
+      )}
+    </section>
+  );
+}
+
 type SavedTourEntry = {
   id: string;
   title: string;
@@ -1281,7 +1352,7 @@ export function SavesScreen() {
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [ratedItemId, setRatedItemId] = useState<string | null>(null);
   const [assignCityItemId, setAssignCityItemId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"upcoming" | "past" | "unassigned" | "tours">("upcoming");
+  const [activeTab, setActiveTab] = useState<"upcoming" | "past" | "unassigned" | "imported" | "tours">("upcoming");
   const [savedTours, setSavedTours] = useState<Record<string, SavedTourEntry[]>>({});
   const [tripCityCoords, setTripCityCoords] = useState<Record<string, { lat: number; lng: number }>>({});
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
@@ -1705,7 +1776,7 @@ export function SavesScreen() {
   const tabbed = groupTabbedSaves(filteredSaves, availableTrips, tripCityCoords);
   const toursCount = Object.values(savedTours).reduce((sum, arr) => sum + arr.length, 0);
   const isEmptyLibrary = !loading && saves.length === 0;
-  const hasNoResults = !loading && !isEmptyLibrary && activeTab !== "tours" && tabbed.counts.upcoming === 0 && tabbed.counts.past === 0 && tabbed.counts.unassigned === 0;
+  const hasNoResults = !loading && !isEmptyLibrary && activeTab !== "tours" && tabbed.counts.upcoming === 0 && tabbed.counts.past === 0 && tabbed.counts.unassigned === 0 && tabbed.counts.imported === 0;
 
   return (
     <div
@@ -1877,6 +1948,7 @@ Your saved places, all in one spot
             { id: "upcoming", label: "Upcoming", count: tabbed.counts.upcoming },
             { id: "past", label: "Past", count: tabbed.counts.past },
             { id: "unassigned", label: "Unassigned", count: tabbed.counts.unassigned },
+            { id: "imported", label: "Imported", count: tabbed.counts.imported },
             { id: "tours", label: "Tours", count: toursCount },
           ] as const).map((tab) => (
             <button
@@ -1958,6 +2030,12 @@ Your saved places, all in one spot
                   items={tabbed.unassigned}
                   sharedProps={sharedGrid}
                   onAssignCity={(id) => { setAssignCityItemId(id); setManualCityQuery(""); setManualCity(""); setManualCountry(""); setManualCitySuggestions([]); setManualCityShowDropdown(false); }}
+                />
+              )}
+              {(search.trim() || activeTab === "imported") && (
+                <ImportedTabContent
+                  items={tabbed.imported}
+                  sharedProps={sharedGrid}
                 />
               )}
               {activeTab === "tours" && (

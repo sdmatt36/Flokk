@@ -4,6 +4,7 @@ import { ExtractionStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { forwardGeocodeFromText } from "@/lib/google-places";
+import { mapPlaceTypesToCanonicalSlugs } from "@/lib/categories";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -326,7 +327,7 @@ export async function POST(req: NextRequest) {
   const fileName = file.name.toLowerCase();
 
   // Parse ─────────────────────────────────────────────────────────────────────
-  type ParsedPlace = { name: string; lat: number; lng: number; address: string | null; mapsUrl: string | null; notes: string | null; listName: string | null };
+  type ParsedPlace = { name: string; lat: number; lng: number; address: string | null; mapsUrl: string | null; notes: string | null; listName: string | null; overrideCategory?: string[] };
   const parsed: ParsedPlace[] = [];
   let csvStats: { urlExtracted: number; forwardGeocoded: number; geocodeFailed: number } | null = null;
 
@@ -406,7 +407,8 @@ export async function POST(req: NextRequest) {
       const query = cityHint ? `${item.name} ${cityHint}` : item.name;
       const geo = await forwardGeocodeFromText(query);
       if (geo) {
-        parsed.push({ name: item.name, lat: geo.lat, lng: geo.lng, address: geo.formattedAddress, mapsUrl: item.mapsUrl, notes: item.note, listName });
+        const mappedSlugs = mapPlaceTypesToCanonicalSlugs(geo.types);
+        parsed.push({ name: item.name, lat: geo.lat, lng: geo.lng, address: geo.formattedAddress, mapsUrl: item.mapsUrl, notes: item.note, listName, overrideCategory: mappedSlugs.length > 0 ? mappedSlugs : undefined });
         forwardGeocoded++;
       } else {
         geocodeFailed++;
@@ -493,7 +495,7 @@ export async function POST(req: NextRequest) {
         lng: p.lng,
         websiteUrl: p.mapsUrl ?? null,
         rawDescription: [p.address, p.notes].filter(Boolean).join(" · ") || null,
-        categoryTags: [inferCategory(p.name, p.mapsUrl ?? undefined), ...(p.listName ? [`list:${p.listName}`] : [])],
+        categoryTags: [...(p.overrideCategory ?? [inferCategory(p.name, p.mapsUrl ?? undefined)]), ...(p.listName ? [`list:${p.listName}`] : [])],
         status: "UNORGANIZED",
         extractionStatus: ExtractionStatus.ENRICHED,
         needsPlaceConfirmation: false,
