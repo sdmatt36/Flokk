@@ -1943,7 +1943,7 @@ Your saved places, all in one spot
         )}
 
         {/* TAB BAR */}
-        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #E5E7EB", marginBottom: 20 }}>
+        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid #E5E7EB", marginBottom: 20, overflowX: "auto" }}>
           {([
             { id: "upcoming", label: "Upcoming", count: tabbed.counts.upcoming },
             { id: "past", label: "Past", count: tabbed.counts.past },
@@ -1966,6 +1966,8 @@ Your saved places, all in one spot
                 cursor: "pointer",
                 fontFamily: "inherit",
                 marginBottom: -1,
+                flexShrink: 0,
+                whiteSpace: "nowrap",
               }}
             >
               {tab.label} ({tab.count})
