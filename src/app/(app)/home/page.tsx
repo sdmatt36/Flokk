@@ -9,7 +9,6 @@ import {
   MapPin,
   Bookmark,
   Plus,
-  Compass,
   Calendar,
   Sparkles,
 } from "lucide-react";
@@ -17,6 +16,7 @@ import { AddTripButton } from "@/components/features/home/AddTripModal";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { bucketTrips, getTripPhase } from "@/lib/trip-phase";
 import { DropLinkTile } from "@/components/features/home/DropLinkTile";
+import { ImportMapsTile } from "@/components/features/home/ImportMapsTile";
 import { SourceFilterSaves } from "@/components/features/home/SourceFilterSaves";
 import { WelcomeBanner } from "@/components/features/home/WelcomeBanner";
 
@@ -303,18 +303,7 @@ export default async function HomePage() {
             <div className="order-5 md:order-none">
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px" }}>
               <DropLinkTile trips={allTrips.map(t => ({ id: t.id, title: t.title, startDate: t.startDate ? t.startDate.toISOString() : null, endDate: t.endDate ? t.endDate.toISOString() : null, status: t.status }))} />
-              <Link
-                href={heroTrip ? `/trips/${heroTrip.id}?tab=recommended` : "/discover"}
-                style={{ position: "relative", borderRadius: "16px", overflow: "hidden", display: "block", height: "160px", backgroundImage: "url('https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=400&q=80')", backgroundSize: "cover", backgroundPosition: "center", textDecoration: "none" }}
-              >
-                <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)" }} />
-                <div style={{ position: "absolute", inset: 0, background: CARD_GRADIENT }} />
-                <div style={{ position: "relative", padding: "16px", display: "flex", flexDirection: "column", justifyContent: "flex-end", height: "100%", boxSizing: "border-box" }}>
-                  <Compass size={20} style={{ color: "#fff", marginBottom: "8px" }} />
-                  <p style={{ fontWeight: 700, color: "#fff", fontSize: "17px" }}>Get inspired</p>
-                  <p style={{ color: "#fff", fontSize: "12px", opacity: 0.85, marginTop: "2px" }}>Picked for your family</p>
-                </div>
-              </Link>
+              <ImportMapsTile />
               <Link
                 href="/tour"
                 style={{ position: "relative", borderRadius: "16px", overflow: "hidden", display: "block", height: "160px", backgroundImage: "url('/images/tour-builder-hero.jpg')", backgroundSize: "cover", backgroundPosition: "center", textDecoration: "none" }}
