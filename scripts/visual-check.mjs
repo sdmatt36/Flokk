@@ -19,9 +19,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 
-// Load .env.local (Next.js convention — takes precedence over .env)
+// Load env files in Next.js priority order: .env.local overrides .env.production overrides .env
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, "..", ".env.local") });
+dotenv.config({ path: path.join(__dirname, "..", ".env.production") });
 dotenv.config({ path: path.join(__dirname, "..", ".env") });
 
 // ─── Required credentials ─────────────────────────────────────────────────────
@@ -58,23 +59,42 @@ async function mintSignInToken() {
   return data.url;
 }
 
-// Navigate a throwaway Playwright context to the Clerk ticket URL.
-// Clerk JS on the app's sign-in page validates the token, sets __session + refresh
-// cookies on www.flokktravel.com, and redirects to the post-sign-in destination.
-// All resulting cookies are extracted and returned for injection into capture contexts.
-async function establishSession() {
+// Navigate a throwaway Playwright context to the app's sign-in page with the
+// Clerk ticket as a query param. The app's /sign-in page (Next.js, Vercel-hosted)
+// embeds the Clerk <SignIn> component which processes the ticket, sets session
+// cookies on www.flokktravel.com, and redirects to /home.
+// Using real Chrome (channel: "chrome") avoids headless-browser detection on
+// Clerk's accounts.flokktravel.com domain, which is Cloudflare-protected.
+async function establishSession(appBaseUrl) {
   console.log("Minting Clerk sign-in token...");
   const ticketUrl = await mintSignInToken();
 
-  const setupBrowser = await chromium.launch();
+  // Extract the raw __clerk_ticket value and build the app-domain sign-in URL.
+  // The returned url points to accounts.flokktravel.com (Cloudflare-protected).
+  // The app's own /sign-in page processes the same ticket without bot-detection risk.
+  const clerkTicket = new URL(ticketUrl).searchParams.get("__clerk_ticket");
+  if (!clerkTicket) throw new Error(`No __clerk_ticket in Clerk API url: ${ticketUrl}`);
+  const appSignInUrl = `${appBaseUrl}/sign-in?__clerk_ticket=${clerkTicket}`;
+
+  // Use real Chrome to avoid any headless fingerprinting issues.
+  const setupBrowser = await chromium.launch({ channel: "chrome" });
   const setupCtx = await setupBrowser.newContext();
   const setupPage = await setupCtx.newPage();
 
   try {
-    console.log("Navigating to ticket URL to establish session...");
-    await setupPage.goto(ticketUrl, { waitUntil: "networkidle", timeout: 30000 });
-    // Clerk JS writes cookies after networkidle — brief wait ensures they're present
-    await setupPage.waitForTimeout(1500);
+    console.log(`Navigating to app sign-in with ticket (${appBaseUrl}/sign-in?__clerk_ticket=...)`);
+    await setupPage.goto(appSignInUrl, { waitUntil: "load", timeout: 45000 });
+
+    // Clerk <SignIn> component processes the ticket and redirects to /home.
+    // Wait up to 25s for the URL to move off the /sign-in path.
+    try {
+      await setupPage.waitForURL(url => !url.includes("/sign-in"), { timeout: 25000 });
+    } catch {
+      // Redirect may not fire — still try to extract cookies.
+    }
+
+    // Brief pause to let Clerk JS finish writing cookies after redirect settles.
+    await setupPage.waitForTimeout(2000);
 
     const cookies = await setupCtx.cookies();
     const sessionCookie = cookies.find(c => c.name === "__session");
@@ -125,7 +145,7 @@ if (rawUrl !== baseUrl) console.log(`Resolved ${rawUrl} → ${baseUrl} (www redi
 console.log(`Screenshotting against: ${baseUrl}`);
 
 // Establish auth session once; inject cookies into every capture context.
-const sessionCookies = await establishSession();
+const sessionCookies = await establishSession(baseUrl);
 
 // ─── Capture loop ─────────────────────────────────────────────────────────────
 
