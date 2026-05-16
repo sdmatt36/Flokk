@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { SaveCard, mapApiItem } from "@/components/features/saves/SaveCard";
 import type { ApiItem, Save } from "@/components/features/saves/SaveCard";
+import { SavesCardGrid } from "@/components/features/saves/SavesCardGrid";
 
 type CityData = {
   name: string;
@@ -159,7 +160,7 @@ export default function ImportedCityPage() {
           No imported saves found for this city.
         </p>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+        <SavesCardGrid>
           {saves.map((save) => (
             <SaveCard
               key={save.id}
@@ -175,7 +176,7 @@ export default function ImportedCityPage() {
               ratedItemId={ratedItemId}
             />
           ))}
-        </div>
+        </SavesCardGrid>
       )}
 
       {/* Share popup */}

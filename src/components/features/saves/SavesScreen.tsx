@@ -17,6 +17,7 @@ import { haversineKm, WITHIN_REACH_KM } from "@/lib/geo";
 import { CountryCityCard } from "@/app/(app)/countries/[slug]/_components/CountryCityCard";
 import { SaveCard, mapApiItem, SOURCE_LABEL_MAP, resolveTitle } from "@/components/features/saves/SaveCard";
 import type { Save, ApiItem } from "@/components/features/saves/SaveCard";
+import { SavesCardGrid } from "@/components/features/saves/SavesCardGrid";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -377,11 +378,11 @@ function CardGrid({ cards, openDropdown, setOpenDropdown, assignTrip, onTripClic
   onAssignCity?: (id: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-3 lg:grid-cols-3 md:grid-cols-2 sm:grid-cols-1" style={{ gap: "16px" }}>
+    <SavesCardGrid>
       {cards.map((save) => (
         <SaveCard key={save.id} save={save} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={onTripClick} onCardClick={onCardClick} availableTrips={availableTrips} onDeleted={onDeleted} onIdentifyPlace={onIdentifyPlace} onRateClick={onRateClick} ratedItemId={ratedItemId} onAssignCity={onAssignCity} />
       ))}
-    </div>
+    </SavesCardGrid>
   );
 }
 
@@ -529,7 +530,7 @@ function UpcomingTabContent({ sections, expandedSections, setExpandedSections, s
                 {section.suggestedSaves.length > 0 && ` • ${section.suggestedSaves.length} suggested`}
               </p>
             </div>
-            <div className="grid grid-cols-3 lg:grid-cols-3 md:grid-cols-2 sm:grid-cols-1" style={{ gap: 16 }}>
+            <SavesCardGrid>
               {explicitShown.map((save) => (
                 <SaveCard key={save.id} save={save} {...sharedProps} onTripClick={() => {}} cardContext="upcoming_explicit" />
               ))}
@@ -546,7 +547,7 @@ function UpcomingTabContent({ sections, expandedSections, setExpandedSections, s
                   />
                 );
               })}
-            </div>
+            </SavesCardGrid>
             {totalCount > 3 && (
               <button
                 type="button"
@@ -588,11 +589,11 @@ function PastTabContent({ sections, expandedSections, setExpandedSections, share
               <h3 style={{ fontSize: 18, fontWeight: 700, color: "#1B3A5C", margin: 0, fontFamily: "'Playfair Display', Georgia, serif" }}>{section.city}</h3>
               <span style={{ fontSize: 12, color: "#64748B" }}>{section.saves.length} {section.saves.length === 1 ? "save" : "saves"}</span>
             </div>
-            <div className="grid grid-cols-3 lg:grid-cols-3 md:grid-cols-2 sm:grid-cols-1" style={{ gap: 16 }}>
+            <SavesCardGrid>
               {shown.map((save) => (
                 <SaveCard key={save.id} save={save} {...sharedProps} onTripClick={() => {}} cardContext="past" />
               ))}
-            </div>
+            </SavesCardGrid>
             {section.saves.length > 3 && (
               <button
                 type="button"
