@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { getItemImage } from "@/lib/destination-images";
+import { ShareCardList } from "./ShareCardList";
+import type { ApiItem } from "@/components/features/saves/SaveCard";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +47,7 @@ export default async function CitySharePage({
       ? { sourceMethod: { in: IMPORT_SOURCE_METHODS } }
       : {};
 
-  const saves = await db.savedItem.findMany({
+  const rawSaves = await db.savedItem.findMany({
     where: {
       familyProfileId: share.ownerProfileId,
       deletedAt: null,
@@ -62,10 +63,37 @@ export default async function CitySharePage({
       destinationCity: true,
       destinationCountry: true,
       categoryTags: true,
+      sourceMethod: true,
+      sourcePlatform: true,
       websiteUrl: true,
-      mapsUrl: true,
+      sourceUrl: true,
+      lat: true,
+      lng: true,
+      userRating: true,
+      savedAt: true,
+      tripId: true,
+      dayIndex: true,
+      needsPlaceConfirmation: true,
+      communitySpotId: true,
+      isBooked: true,
+      trip: { select: { id: true, title: true } },
     },
   });
+
+  // Serialize Dates to strings for the client component boundary
+  const saves: ApiItem[] = rawSaves.map((s) => ({
+    ...s,
+    savedAt: s.savedAt.toISOString(),
+    sourcePlatform: s.sourcePlatform ?? null,
+    sourceUrl: s.sourceUrl ?? null,
+    tripId: s.tripId ?? null,
+    dayIndex: s.dayIndex ?? null,
+    communitySpotId: s.communitySpotId ?? null,
+    isBooked: s.isBooked ?? false,
+    needsPlaceConfirmation: s.needsPlaceConfirmation ?? false,
+    userRating: s.userRating ?? null,
+    trip: s.trip ?? null,
+  }));
 
   const cityName = city?.name ?? share.citySlug;
   const heroUrl = city?.heroPhotoUrl ?? city?.photoUrl ?? null;
@@ -97,63 +125,8 @@ export default async function CitySharePage({
           {saves.length} {saves.length === 1 ? "place" : "places"} shared ({scopeLabel})
         </p>
 
-        {/* Save cards */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 40 }}>
-          {saves.map((save) => {
-            const img = getItemImage(
-              save.rawTitle,
-              save.placePhotoUrl,
-              save.mediaThumbnailUrl,
-              save.categoryTags[0] ?? null,
-              save.destinationCity,
-              save.destinationCountry,
-            );
-            const title = save.rawTitle?.startsWith("http")
-              ? `Place in ${save.destinationCity ?? "Unknown"}`
-              : (save.rawTitle ?? "Saved place");
-            const linkUrl = save.websiteUrl ?? save.mapsUrl ?? null;
-
-            return (
-              <div
-                key={save.id}
-                style={{
-                  display: "flex",
-                  gap: 14,
-                  padding: "12px 14px",
-                  borderRadius: 12,
-                  border: "1px solid #EEEEEE",
-                  background: "#fff",
-                  boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-                  alignItems: "flex-start",
-                }}
-              >
-                <div style={{ width: 64, height: 64, borderRadius: 10, overflow: "hidden", flexShrink: 0, background: "#F0EDE8" }}>
-                  <img src={img} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontWeight: 600, fontSize: 14, color: "#1B3A5C", marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {title}
-                  </p>
-                  {save.categoryTags.length > 0 && (
-                    <p style={{ fontSize: 11, color: "#717171", marginBottom: 4 }}>
-                      {save.categoryTags[0].replace(/_/g, " ")}
-                    </p>
-                  )}
-                  {linkUrl && (
-                    <Link
-                      href={linkUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ fontSize: 12, color: "#C4664A", fontWeight: 600, textDecoration: "none" }}
-                    >
-                      Link
-                    </Link>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        {/* Save cards — rendered by client component */}
+        <ShareCardList saves={saves} />
 
         {/* CTA */}
         <div

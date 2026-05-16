@@ -2,20 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
-import { getItemImage } from "@/lib/destination-images";
-
-type CitySave = {
-  id: string;
-  rawTitle: string | null;
-  placePhotoUrl: string | null;
-  mediaThumbnailUrl: string | null;
-  destinationCity: string | null;
-  destinationCountry: string | null;
-  categoryTags: string[];
-  websiteUrl: string | null;
-  mapsUrl: string | null;
-};
+import { SaveCard, mapApiItem } from "@/components/features/saves/SaveCard";
+import type { ApiItem, Save } from "@/components/features/saves/SaveCard";
 
 type CityData = {
   name: string;
@@ -23,36 +11,44 @@ type CityData = {
   photoUrl: string | null;
 };
 
+type TripRow = { id: string; title: string; endDate?: string | null };
+
 export default function ImportedCityPage() {
   const params = useParams<{ citySlug: string }>();
   const router = useRouter();
   const citySlug = params.citySlug;
 
   const [city, setCity] = useState<CityData | null>(null);
-  const [saves, setSaves] = useState<CitySave[]>([]);
+  const [saves, setSaves] = useState<Save[]>([]);
   const [loading, setLoading] = useState(true);
   const [shareLoading, setShareLoading] = useState(false);
   const [sharePopupOpen, setSharePopupOpen] = useState(false);
   const [allCount, setAllCount] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [availableTrips, setAvailableTrips] = useState<TripRow[]>([]);
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [ratedItemId, setRatedItemId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!citySlug) return;
+
     fetch(`/api/saves/city/${citySlug}?scope=imports`)
       .then((r) => r.json())
-      .then((data: { city: CityData; saves: CitySave[]; scope: string }) => {
+      .then((data: { city: CityData; saves: ApiItem[]; scope: string }) => {
         setCity(data.city ?? null);
-        setSaves(data.saves ?? []);
+        setSaves((data.saves ?? []).map(mapApiItem));
       })
       .catch(() => {})
       .finally(() => setLoading(false));
 
-    // Fetch allCount for the share popup
     fetch(`/api/saves/city/${citySlug}?scope=all`)
       .then((r) => r.json())
-      .then((data: { saves: CitySave[] }) => {
-        setAllCount(data.saves?.length ?? 0);
-      })
+      .then((data: { saves: unknown[] }) => setAllCount(data.saves?.length ?? 0))
+      .catch(() => {});
+
+    fetch("/api/trips?status=ALL")
+      .then((r) => r.json())
+      .then((data: { trips?: TripRow[] }) => setAvailableTrips(data.trips ?? []))
       .catch(() => {});
   }, [citySlug]);
 
@@ -80,6 +76,27 @@ export default function ImportedCityPage() {
       setShareLoading(false);
       setSharePopupOpen(false);
     }
+  }
+
+  function handleDeleted(id: string) {
+    setSaves((prev) => prev.filter((s) => s.id !== id));
+  }
+
+  function handleAssignTrip(id: string, tripTitle: string) {
+    setOpenDropdown(null);
+    // Navigate to saves to handle trip creation/assignment flow
+    if (tripTitle === "+ Create new trip") {
+      router.push("/saves");
+      return;
+    }
+    const trip = availableTrips.find((t) => t.title === tripTitle);
+    if (!trip) return;
+    fetch(`/api/saves/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tripId: trip.id }),
+    }).catch(() => {});
+    setSaves((prev) => prev.map((s) => s.id === id ? { ...s, tripId: trip.id, assigned: trip.title } : s));
   }
 
   if (loading) {
@@ -142,70 +159,22 @@ export default function ImportedCityPage() {
           No imported saves found for this city.
         </p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {saves.map((save) => {
-            const img = getItemImage(
-              save.rawTitle,
-              save.placePhotoUrl,
-              save.mediaThumbnailUrl,
-              save.categoryTags[0] ?? null,
-              save.destinationCity,
-              save.destinationCountry,
-            );
-            const title = save.rawTitle?.startsWith("http")
-              ? `Place in ${save.destinationCity ?? "Unknown"}`
-              : (save.rawTitle ?? "Saved place");
-            const linkUrl = save.websiteUrl ?? save.mapsUrl ?? null;
-
-            return (
-              <div
-                key={save.id}
-                style={{
-                  display: "flex",
-                  gap: 14,
-                  padding: "12px 14px",
-                  borderRadius: 12,
-                  border: "1px solid #EEEEEE",
-                  background: "#fff",
-                  boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-                  alignItems: "flex-start",
-                }}
-              >
-                <div
-                  style={{
-                    width: 64,
-                    height: 64,
-                    borderRadius: 10,
-                    overflow: "hidden",
-                    flexShrink: 0,
-                    background: "#F0EDE8",
-                  }}
-                >
-                  <img src={img} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontWeight: 600, fontSize: 14, color: "#1B3A5C", marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {title}
-                  </p>
-                  {save.categoryTags.length > 0 && (
-                    <p style={{ fontSize: 11, color: "#717171", marginBottom: 4 }}>
-                      {save.categoryTags[0].replace(/_/g, " ")}
-                    </p>
-                  )}
-                  {linkUrl && (
-                    <Link
-                      href={linkUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{ fontSize: 12, color: "#C4664A", fontWeight: 600, textDecoration: "none" }}
-                    >
-                      Link
-                    </Link>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+          {saves.map((save) => (
+            <SaveCard
+              key={save.id}
+              save={save}
+              openDropdown={openDropdown}
+              setOpenDropdown={setOpenDropdown}
+              assignTrip={handleAssignTrip}
+              onTripClick={() => {}}
+              onCardClick={() => {}}
+              availableTrips={availableTrips}
+              onDeleted={handleDeleted}
+              onRateClick={(id, title) => setRatedItemId(id)}
+              ratedItemId={ratedItemId}
+            />
+          ))}
         </div>
       )}
 
