@@ -402,7 +402,18 @@ When a prompt edits any UI component, page layout, or styling, Code MUST run scr
 
   PREVIEW_URL=https://flokktravel.com node scripts/visual-check.mjs
 
-Screenshots write to /tmp/flokk-screenshots/. View the relevant ones with the view tool. If visual is wrong, iterate before commit. Include visual confirmation in the post-deploy report.
+Screenshots write to /tmp/flokk-screenshots/. View the relevant ones with the Read (image) tool. If visual is wrong, iterate before commit. Include visual confirmation in the post-deploy report.
+
+## Verification Gate — Discipline 9.30 (no workstream may be called complete without a screenshot)
+
+No workstream may be reported as done, shipped, or complete. Two permitted terminal states only:
+
+1. **"code complete, NOT verified"** — code pushed, no authenticated visual check run. Matt must eyeball. State this explicitly. Never disguise a deferral as completion.
+2. **"verified, screenshot attached"** — `scripts/visual-check.mjs` was run authenticated, relevant surface screenshotted, screenshot attached inline.
+
+`scripts/visual-check.mjs` auto-establishes a Clerk session via `POST api.clerk.com/v1/sign_in_tokens` using `CLERK_SECRET_KEY` + `ADMIN_CLERK_USER_ID` from `.env.local`. No manual cookie paste. Auth works when `PREVIEW_URL=https://flokktravel.com`.
+
+Full discipline body in FLOKK_DISCIPLINES.md § 9.30.
 
 ## Cross-Surface Visual Verification — Discipline 4.65 (shared components)
 

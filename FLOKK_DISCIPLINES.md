@@ -71,9 +71,9 @@ check.
 | country-japan | /countries/japan | CommunitySpotCard + CommunityTripCard + TourCard |
 | country-france | /countries/france | Same as above, different data |
 | city-tokyo | /cities/tokyo | SpotSection cards, TourCard |
-| saves | /saves | SaveCard, auth-gated (AUTH WALL until FLOKK_TEST_USER_TOKEN set) |
+| saves | /saves | SaveCard, auth-gated (auto-auth via Clerk sign-in token — Discipline 9.30) |
 | spot-detail | /spots/4dZcax0d4ct0 | Public CommunitySpot detail (Sky Cab, Seoul) |
-| trip-detail | /trips/cmmycshfj000004jpyadzdp8y | Auth-gated (AUTH WALL until FLOKK_TEST_USER_TOKEN set) |
+| trip-detail | /trips/cmmycshfj000004jpyadzdp8y | Auth-gated (auto-auth via Clerk sign-in token — Discipline 9.30) |
 
 **Scope:**
 - Triggered by changes to anything under `src/components/shared/`, `src/components/cards/`,
@@ -90,3 +90,23 @@ Screenshots are judged by Claude Code before commit. Pass criteria:
 3. No missing text content (titles, ratings, descriptions)
 4. No unexpected empty states on surfaces that should have data
 5. No AUTH WALL on public surfaces (private surfaces flagged but not blocking)
+
+## Discipline 9.30 — Verification Gate (no workstream may be called complete without a screenshot)
+
+**Rule:** No workstream may be reported as done, shipped, or complete. Two permitted terminal states, and only two:
+
+1. **"code complete, NOT verified"** — code is written and pushed, but no authenticated visual check has been run. Matt must eyeball before this can advance to state 2. State this explicitly. Never disguise it as completion.
+2. **"verified, screenshot attached"** — the durable Clerk sign-in-token credential in `scripts/visual-check.mjs` was run, the relevant surface was screenshotted authenticated, and the screenshot is attached inline. This is the only path to declaring a workstream done.
+
+**Credential:** `scripts/visual-check.mjs` auto-establishes a Clerk session via `POST api.clerk.com/v1/sign_in_tokens` using `CLERK_SECRET_KEY` and `ADMIN_CLERK_USER_ID` from `.env.local`. A fresh token is minted on each run. No manual cookie paste. Auth works when `PREVIEW_URL=https://flokktravel.com`.
+
+**How to run:**
+```
+PREVIEW_URL=https://flokktravel.com node scripts/visual-check.mjs
+```
+
+**What is verified:** The 9 canonical surfaces (Discipline 4.65) are screenshotted authenticated. For a specific workstream, the relevant surface(s) must be screenshotted and judged against the criteria in Discipline 4.65.
+
+**Why this exists:** Across multiple build sessions, authenticated surfaces were reported "complete" without visual verification because the session token (manually pasted `__session` cookie) expired in ~60 seconds. Regressions were found by Matt manually. The durable credential eliminates the manual step and makes state 2 achievable by Claude Code without human intervention.
+
+**Scope:** Every workstream that touches any surface listed in the Discipline 4.65 canonical set, any auth-gated page, or any component rendered inside those pages. API-only changes with no UI output are exempt.
