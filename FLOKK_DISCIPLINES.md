@@ -110,3 +110,26 @@ PREVIEW_URL=https://flokktravel.com node scripts/visual-check.mjs
 **Why this exists:** Across multiple build sessions, authenticated surfaces were reported "complete" without visual verification because the session token (manually pasted `__session` cookie) expired in ~60 seconds. Regressions were found by Matt manually. The durable credential eliminates the manual step and makes state 2 achievable by Claude Code without human intervention.
 
 **Scope:** Every workstream that touches any surface listed in the Discipline 4.65 canonical set, any auth-gated page, or any component rendered inside those pages. API-only changes with no UI output are exempt.
+
+---
+
+## Discipline 9.31 — Screenshot Specificity (verification claim must name surface and describe what is visible)
+
+A "verified, screenshot attached" claim is only valid if:
+
+1. The screenshot shows the **specific surface(s) the workstream changed**, not an unrelated canonical surface.
+2. The auth state is correct: auth-gated surfaces must show authenticated content (not an auth wall); public surfaces must be verified from a clean context with no session cookies.
+3. The report states **in words** what the screenshot demonstrates — what surface, what auth state, what elements are visible.
+
+**Rejected claim forms:**
+- Regression screenshots of unrelated surfaces ("saves-desktop.png" for a drill-down workstream)
+- Auth-wall screenshots of auth-gated surfaces
+- "All 9 canonical surfaces pass" when the changed surface is not in the canonical 9
+- Generic "surfaces pass" summaries without per-surface description
+
+**Required terminal state format:**
+> "verified, [surface name] screenshot attached, shows [specific description of what is visible and what confirms correctness]"
+
+Both screenshots must be attached for workstreams that change two surfaces.
+
+**Why this exists:** The drill-down card reuse workstream (May 2026) was reported "verified, screenshot attached" with screenshots of the main Saves tab (the donor surface, unchanged). The two actually changed surfaces — `/saves/imported/[citySlug]` and `/share/city/[token]` — were not screenshotted at all. The gate was bypassed by a technically-true-but-wrong claim. This discipline closes that gap.
