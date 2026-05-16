@@ -295,6 +295,12 @@ function groupTabbedSaves(
     const cityKey = (save.destinationCity ?? "").trim().toLowerCase();
     const countryKey = (save.destinationCountry ?? "").trim().toLowerCase();
 
+    // Maps imports go directly to Imported tab — bypass all trip routing
+    if (!save.tripId && IMPORT_SOURCE_METHODS.has(save.sourceMethod ?? "")) {
+      imported.push(save);
+      continue;
+    }
+
     // Explicit assignment to an upcoming trip
     if (save.tripId && upcomingTripIndex.has(save.tripId)) {
       upcomingTripIndex.get(save.tripId)!.explicitSaves.push(save);
@@ -399,11 +405,7 @@ function groupTabbedSaves(
       }
     }
 
-    if (IMPORT_SOURCE_METHODS.has(save.sourceMethod ?? "")) {
-      imported.push(save);
-    } else {
-      unassigned.push(save);
-    }
+    unassigned.push(save);
   }
 
   for (const section of upcomingSections) {
