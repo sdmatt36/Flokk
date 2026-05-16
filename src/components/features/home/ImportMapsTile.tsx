@@ -45,7 +45,7 @@ export function ImportMapsTile() {
           }}
         >
           <MapPin size={20} style={{ color: "#fff", marginBottom: "8px" }} />
-          <p style={{ fontWeight: 700, color: "#fff", fontSize: "17px" }}>Bring your saves</p>
+          <p style={{ fontWeight: 700, color: "#fff", fontSize: "17px" }}>Bring Your Saves</p>
           <p style={{ color: "#fff", fontSize: "12px", opacity: 0.85, marginTop: "2px" }}>
             Straight from Google Maps
           </p>

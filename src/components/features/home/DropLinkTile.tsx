@@ -67,7 +67,7 @@ export function DropLinkTile({ trips }: { trips: Trip[] }) {
           }}
         >
           <Bookmark size={20} style={{ color: "#fff", marginBottom: "8px" }} />
-          <p style={{ fontWeight: 700, color: "#fff", fontSize: "17px" }}>Drop a link</p>
+          <p style={{ fontWeight: 700, color: "#fff", fontSize: "17px" }}>Drop a Link</p>
           <p style={{ color: "#fff", fontSize: "12px", opacity: 0.85, marginTop: "2px" }}>
             Instagram, TikTok, anywhere
           </p>
