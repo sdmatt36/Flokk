@@ -23,6 +23,7 @@ import { PlaceActionRow } from "@/components/features/places/PlaceActionRow";
 import { resolveSaveLink } from "@/lib/save-link";
 import { getEntityStatus } from "@/lib/entity-status";
 import { EntityStatusPill } from "@/components/ui/EntityStatusPill";
+import { CountryCityCard } from "@/app/(app)/countries/[slug]/_components/CountryCityCard";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -1139,47 +1140,246 @@ function UnassignedTabContent({ items, sharedProps, onAssignCity }: {
   );
 }
 
-function ImportedTabContent({ items, sharedProps }: {
-  items: Save[];
-  sharedProps: SharedCardGridProps;
+type ImportedCity = {
+  cityName: string;
+  citySlug: string | null;
+  photoUrl: string | null;
+  importCount: number;
+  allCount: number;
+};
+
+type SharePopupState = {
+  cityName: string;
+  citySlug: string;
+  importCount: number;
+  allCount: number;
+};
+
+function CitySharePopup({
+  state,
+  onClose,
+}: {
+  state: SharePopupState;
+  onClose: () => void;
 }) {
+  const [loading, setLoading] = useState<"imports" | "all" | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function handleShare(scope: "imports" | "all") {
+    setLoading(scope);
+    try {
+      const res = await fetch("/api/saves/city-share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ citySlug: state.citySlug, scope }),
+      });
+      if (!res.ok) throw new Error("Failed to create share link");
+      const { url } = (await res.json()) as { url: string };
+      if (navigator.share) {
+        await navigator.share({ title: `My saves in ${state.cityName}`, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 9000,
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "center",
+        background: "rgba(0,0,0,0.35)",
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: "20px 20px 0 0",
+          padding: "24px 20px 36px",
+          width: "100%",
+          maxWidth: 480,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p style={{ fontWeight: 700, fontSize: 16, color: "#1B3A5C", marginBottom: 6 }}>
+          Share {state.cityName}
+        </p>
+        <p style={{ fontSize: 13, color: "#717171", marginBottom: 20 }}>
+          Choose what to include in your shared link.
+        </p>
+
+        <button
+          type="button"
+          disabled={!!loading}
+          onClick={() => handleShare("imports")}
+          style={{
+            display: "block",
+            width: "100%",
+            textAlign: "left",
+            padding: "14px 16px",
+            borderRadius: 12,
+            border: "1px solid #EEEEEE",
+            background: "#FAFAFA",
+            cursor: "pointer",
+            marginBottom: 10,
+            opacity: loading ? 0.6 : 1,
+          }}
+        >
+          <p style={{ fontWeight: 600, fontSize: 14, color: "#1B3A5C", marginBottom: 2 }}>
+            {loading === "imports" ? "Generating link..." : `Just my Google Maps imports (${state.importCount})`}
+          </p>
+          <p style={{ fontSize: 12, color: "#717171" }}>Only your imported Google Maps saves</p>
+        </button>
+
+        <button
+          type="button"
+          disabled={!!loading}
+          onClick={() => handleShare("all")}
+          style={{
+            display: "block",
+            width: "100%",
+            textAlign: "left",
+            padding: "14px 16px",
+            borderRadius: 12,
+            border: "1px solid #EEEEEE",
+            background: "#FAFAFA",
+            cursor: "pointer",
+            marginBottom: 16,
+            opacity: loading ? 0.6 : 1,
+          }}
+        >
+          <p style={{ fontWeight: 600, fontSize: 14, color: "#1B3A5C", marginBottom: 2 }}>
+            {loading === "all" ? "Generating link..." : `Everything I've saved in ${state.cityName} (${state.allCount})`}
+          </p>
+          <p style={{ fontSize: 12, color: "#717171" }}>All saves including trip-assigned ones</p>
+        </button>
+
+        {copied && (
+          <p style={{ fontSize: 13, color: "#C4664A", textAlign: "center", marginBottom: 12 }}>
+            Link copied to clipboard
+          </p>
+        )}
+
+        <button
+          type="button"
+          onClick={onClose}
+          style={{
+            display: "block",
+            width: "100%",
+            textAlign: "center",
+            padding: "12px",
+            borderRadius: 10,
+            border: "none",
+            background: "none",
+            cursor: "pointer",
+            fontSize: 14,
+            color: "#717171",
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ImportedTabContent({ items }: {
+  items: Save[];
+}) {
+  const [cities, setCities] = useState<ImportedCity[]>([]);
+  const [loadingCities, setLoadingCities] = useState(true);
+  const [sharePopup, setSharePopup] = useState<SharePopupState | null>(null);
+
+  useEffect(() => {
+    fetch("/api/saves/imported-cities")
+      .then((r) => r.json())
+      .then((data: { cities?: ImportedCity[] }) => {
+        setCities(data.cities ?? []);
+      })
+      .catch(() => setCities([]))
+      .finally(() => setLoadingCities(false));
+  }, [items.length]);
+
   if (items.length === 0) {
     return <p style={{ color: "#6B7280", textAlign: "center", padding: "40px 0", fontSize: 14 }}>No imported saves yet. Import your Google Maps lists to get started.</p>;
   }
-  const { cityGroups, otherPlaces, unassigned } = groupSaves(items);
+
+  if (loadingCities) {
+    return <p style={{ color: "#6B7280", textAlign: "center", padding: "40px 0", fontSize: 14 }}>Loading...</p>;
+  }
+
   return (
     <section>
-      {cityGroups.map((group, i) => (
-        <CityGroupSection
-          key={group.city}
-          city={group.city}
-          saves={group.saves}
-          sharedProps={sharedProps}
-          onAssignCity={() => {}}
-          defaultExpanded={i === 0}
-        />
-      ))}
-      {otherPlaces.length > 0 && (
-        <OtherPlacesSection
-          saves={otherPlaces}
-          openDropdown={sharedProps.openDropdown}
-          setOpenDropdown={sharedProps.setOpenDropdown}
-          assignTrip={sharedProps.assignTrip}
-          onCardClick={sharedProps.onCardClick}
-          availableTrips={sharedProps.availableTrips}
-          onDeleted={sharedProps.onDeleted}
-          onIdentifyPlace={sharedProps.onIdentifyPlace}
-          onRateClick={sharedProps.onRateClick}
-          ratedItemId={sharedProps.ratedItemId}
-        />
-      )}
-      {unassigned.length > 0 && (
-        <CityGroupSection
-          city="No city matched"
-          saves={unassigned}
-          sharedProps={sharedProps}
-          onAssignCity={() => {}}
-          defaultExpanded={cityGroups.length === 0 && otherPlaces.length === 0}
+      <div
+        className="grid grid-cols-3 lg:grid-cols-3 md:grid-cols-2 sm:grid-cols-2"
+        style={{ gap: 16 }}
+      >
+        {cities.map((c) => {
+          const slug = c.citySlug ?? c.cityName.toLowerCase().replace(/\s+/g, "-");
+          return (
+            <div key={c.cityName} style={{ position: "relative" }}>
+              <CountryCityCard
+                slug={slug}
+                name={c.cityName}
+                photoUrl={c.photoUrl}
+                spotCount={c.importCount}
+                href={`/saves/imported/${slug}`}
+                countLabel={`${c.importCount} ${c.importCount === 1 ? "save" : "saves"}`}
+              />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setSharePopup({
+                    cityName: c.cityName,
+                    citySlug: slug,
+                    importCount: c.importCount,
+                    allCount: c.allCount,
+                  });
+                }}
+                style={{
+                  position: "absolute",
+                  top: 10,
+                  right: 10,
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  background: "rgba(255,255,255,0.92)",
+                  border: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
+                  color: "#C4664A",
+                  fontSize: 14,
+                  zIndex: 1,
+                }}
+                aria-label={`Share ${c.cityName}`}
+              >
+                ↗
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {sharePopup && (
+        <CitySharePopup
+          state={sharePopup}
+          onClose={() => setSharePopup(null)}
         />
       )}
     </section>
@@ -1354,7 +1554,8 @@ export function SavesScreen() {
   const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [ratedItemId, setRatedItemId] = useState<string | null>(null);
   const [assignCityItemId, setAssignCityItemId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"upcoming" | "past" | "unassigned" | "imported" | "tours">("upcoming");
+  const initialTab = (searchParams.get("tab") ?? "upcoming") as "upcoming" | "past" | "unassigned" | "imported" | "tours";
+  const [activeTab, setActiveTab] = useState<"upcoming" | "past" | "unassigned" | "imported" | "tours">(initialTab);
   const [savedTours, setSavedTours] = useState<Record<string, SavedTourEntry[]>>({});
   const [tripCityCoords, setTripCityCoords] = useState<Record<string, { lat: number; lng: number }>>({});
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
@@ -2039,7 +2240,6 @@ Your saved places, all in one spot
               {(search.trim() || activeTab === "imported") && (
                 <ImportedTabContent
                   items={tabbed.imported}
-                  sharedProps={sharedGrid}
                 />
               )}
               {activeTab === "tours" && (

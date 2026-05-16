@@ -5,11 +5,15 @@ interface CountryCityCardProps {
   name: string;
   photoUrl: string | null;
   spotCount: number;
+  href?: string;
+  countLabel?: string;
 }
 
-export function CountryCityCard({ slug, name, photoUrl, spotCount }: CountryCityCardProps) {
+export function CountryCityCard({ slug, name, photoUrl, spotCount, href, countLabel }: CountryCityCardProps) {
+  const destination = href ?? `/cities/${slug}`;
+  const label = countLabel ?? `${spotCount} ${spotCount === 1 ? "spot" : "spots"}`;
   return (
-    <Link href={`/cities/${slug}`} style={{ textDecoration: "none", display: "flex", flexDirection: "column" }}>
+    <Link href={destination} style={{ textDecoration: "none", display: "flex", flexDirection: "column" }}>
       <div
         style={{
           backgroundColor: "#fff",
@@ -48,7 +52,7 @@ export function CountryCityCard({ slug, name, photoUrl, spotCount }: CountryCity
           </p>
           {spotCount > 0 && (
             <p style={{ fontSize: "11px", color: "#AAAAAA" }}>
-              {spotCount} {spotCount === 1 ? "spot" : "spots"}
+              {label}
             </p>
           )}
         </div>
