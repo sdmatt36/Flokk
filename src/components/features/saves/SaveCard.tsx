@@ -138,9 +138,10 @@ export type SaveCardProps = {
   growTripCityLabel?: string;
   cardContext?: "upcoming_explicit" | "past";
   readOnly?: boolean;
+  onShareToast?: (message: string) => void;
 };
 
-export function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId, onAssignCity, suggestedForOptions, onAddToTrip, onGrowTripCity, growTripCityLabel, cardContext, readOnly = false }: SaveCardProps) {
+export function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId, onAssignCity, suggestedForOptions, onAddToTrip, onGrowTripCity, growTripCityLabel, cardContext, readOnly = false, onShareToast }: SaveCardProps) {
   const filteredTags = save.tags.filter(t => {
     if (t.startsWith("list:")) return false;
     if (t.toLowerCase() === "other" && save.tags.some(t2 =>
@@ -431,6 +432,7 @@ export function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTr
                     : undefined
             }
             onRate={!isTransit && !readOnly && onRateClick ? () => { onRateClick!(save.id, save.title); } : undefined}
+            onShareToast={onShareToast}
           />
         </div>
       </div>

@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { SaveCard, mapApiItem } from "@/components/features/saves/SaveCard";
 import type { ApiItem, Save } from "@/components/features/saves/SaveCard";
 import { SavesCardGrid } from "@/components/features/saves/SavesCardGrid";
+import { RatingModal } from "@/components/features/saves/RatingModal";
+import { SaveDetailModal } from "@/components/features/saves/SaveDetailModal";
 
 type CityData = {
   name: string;
@@ -29,6 +31,9 @@ export default function ImportedCityPage() {
   const [availableTrips, setAvailableTrips] = useState<TripRow[]>([]);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [ratedItemId, setRatedItemId] = useState<string | null>(null);
+  const [ratingModal, setRatingModal] = useState<{ id: string; title: string } | null>(null);
+  const [modalItemId, setModalItemId] = useState<string | null>(null);
+  const [savedToast, setSavedToast] = useState<string | null>(null);
 
   useEffect(() => {
     if (!citySlug) return;
@@ -85,7 +90,6 @@ export default function ImportedCityPage() {
 
   function handleAssignTrip(id: string, tripTitle: string) {
     setOpenDropdown(null);
-    // Navigate to saves to handle trip creation/assignment flow
     if (tripTitle === "+ Create new trip") {
       router.push("/saves");
       return;
@@ -100,6 +104,11 @@ export default function ImportedCityPage() {
     setSaves((prev) => prev.map((s) => s.id === id ? { ...s, tripId: trip.id, assigned: trip.title } : s));
   }
 
+  function showToast(msg: string) {
+    setSavedToast(msg);
+    setTimeout(() => setSavedToast(null), 3000);
+  }
+
   if (loading) {
     return (
       <div style={{ padding: "80px 20px", textAlign: "center", color: "#6B7280", fontSize: 14 }}>
@@ -111,7 +120,7 @@ export default function ImportedCityPage() {
   const heroUrl = city?.photoUrl ?? null;
 
   return (
-    <div style={{ maxWidth: 680, margin: "0 auto", padding: "0 16px 80px" }}>
+    <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px 100px" }}>
       {/* Hero */}
       {heroUrl && (
         <div style={{ height: 200, borderRadius: 16, overflow: "hidden", marginBottom: 24, marginTop: 16 }}>
@@ -169,11 +178,12 @@ export default function ImportedCityPage() {
               setOpenDropdown={setOpenDropdown}
               assignTrip={handleAssignTrip}
               onTripClick={() => {}}
-              onCardClick={() => {}}
+              onCardClick={(id) => setModalItemId(id)}
               availableTrips={availableTrips}
               onDeleted={handleDeleted}
-              onRateClick={(id, title) => setRatedItemId(id)}
+              onRateClick={(id, title) => setRatingModal({ id, title })}
               ratedItemId={ratedItemId}
+              onShareToast={showToast}
             />
           ))}
         </SavesCardGrid>
@@ -232,6 +242,40 @@ export default function ImportedCityPage() {
               Cancel
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Rating modal */}
+      {ratingModal && (
+        <RatingModal
+          itemId={ratingModal.id}
+          title={ratingModal.title}
+          onClose={() => setRatingModal(null)}
+          onRated={(id, value) => {
+            setRatedItemId(id);
+            setSaves((prev) => prev.map((s) => s.id === id ? { ...s, userRating: value } : s));
+            showToast("Rating saved!");
+          }}
+        />
+      )}
+
+      {/* Detail modal */}
+      {modalItemId && (
+        <SaveDetailModal
+          itemId={modalItemId}
+          onClose={() => setModalItemId(null)}
+          onAssigned={(itemId, trip) =>
+            setSaves((prev) => prev.map((s) =>
+              s.id === itemId ? { ...s, tripId: trip.id || null, assigned: trip.title || null } : s
+            ))
+          }
+        />
+      )}
+
+      {/* Toast */}
+      {savedToast && (
+        <div style={{ position: "fixed", bottom: 80, left: "50%", transform: "translateX(-50%)", background: "#1B3A5C", color: "#fff", padding: "10px 20px", borderRadius: 20, fontSize: 13, fontWeight: 500, zIndex: 9999, whiteSpace: "nowrap" }}>
+          {savedToast}
         </div>
       )}
     </div>

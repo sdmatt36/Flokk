@@ -18,6 +18,7 @@ import { CountryCityCard } from "@/app/(app)/countries/[slug]/_components/Countr
 import { SaveCard, mapApiItem, SOURCE_LABEL_MAP, resolveTitle } from "@/components/features/saves/SaveCard";
 import type { Save, ApiItem } from "@/components/features/saves/SaveCard";
 import { SavesCardGrid } from "@/components/features/saves/SavesCardGrid";
+import { RatingModal } from "@/components/features/saves/RatingModal";
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -80,6 +81,7 @@ type SharedCardGridProps = {
   onIdentifyPlace?: (id: string) => void;
   onRateClick?: (id: string, title: string) => void;
   ratedItemId?: string | null;
+  onShareToast?: (message: string) => void;
 };
 
 function formatTripDateRange(startIso: string, endIso: string | null): string {
@@ -363,7 +365,7 @@ function SectionHeader({ icon, title, badge, count, action }: {
 
 // ─── CardGrid ─────────────────────────────────────────────────────────────────
 
-function CardGrid({ cards, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId, onAssignCity }: {
+function CardGrid({ cards, openDropdown, setOpenDropdown, assignTrip, onTripClick, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId, onAssignCity, onShareToast }: {
   cards: Save[];
   openDropdown: string | null;
   setOpenDropdown: (id: string | null) => void;
@@ -376,11 +378,12 @@ function CardGrid({ cards, openDropdown, setOpenDropdown, assignTrip, onTripClic
   onRateClick?: (id: string, title: string) => void;
   ratedItemId?: string | null;
   onAssignCity?: (id: string) => void;
+  onShareToast?: (message: string) => void;
 }) {
   return (
     <SavesCardGrid>
       {cards.map((save) => (
-        <SaveCard key={save.id} save={save} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={onTripClick} onCardClick={onCardClick} availableTrips={availableTrips} onDeleted={onDeleted} onIdentifyPlace={onIdentifyPlace} onRateClick={onRateClick} ratedItemId={ratedItemId} onAssignCity={onAssignCity} />
+        <SaveCard key={save.id} save={save} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={onTripClick} onCardClick={onCardClick} availableTrips={availableTrips} onDeleted={onDeleted} onIdentifyPlace={onIdentifyPlace} onRateClick={onRateClick} ratedItemId={ratedItemId} onAssignCity={onAssignCity} onShareToast={onShareToast} />
       ))}
     </SavesCardGrid>
   );
@@ -447,7 +450,7 @@ function groupSaves(saves: Save[]): SavesGrouping {
 
 // ─── OtherPlacesSection ───────────────────────────────────────────────────────
 
-function OtherPlacesSection({ saves, openDropdown, setOpenDropdown, assignTrip, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId }: {
+function OtherPlacesSection({ saves, openDropdown, setOpenDropdown, assignTrip, onCardClick, availableTrips, onDeleted, onIdentifyPlace, onRateClick, ratedItemId, onShareToast }: {
   saves: Save[];
   openDropdown: string | null;
   setOpenDropdown: (id: string | null) => void;
@@ -458,6 +461,7 @@ function OtherPlacesSection({ saves, openDropdown, setOpenDropdown, assignTrip, 
   onIdentifyPlace?: (id: string) => void;
   onRateClick?: (id: string, title: string) => void;
   ratedItemId?: string | null;
+  onShareToast?: (message: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   return (
@@ -473,7 +477,7 @@ function OtherPlacesSection({ saves, openDropdown, setOpenDropdown, assignTrip, 
         <span style={{ fontSize: "14px", color: "#717171", display: "inline-block", transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>▾</span>
       </div>
       {expanded && (
-        <CardGrid cards={saves} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={() => {}} onCardClick={onCardClick} availableTrips={availableTrips} onDeleted={onDeleted} onIdentifyPlace={onIdentifyPlace} onRateClick={onRateClick} ratedItemId={ratedItemId} />
+        <CardGrid cards={saves} openDropdown={openDropdown} setOpenDropdown={setOpenDropdown} assignTrip={assignTrip} onTripClick={() => {}} onCardClick={onCardClick} availableTrips={availableTrips} onDeleted={onDeleted} onIdentifyPlace={onIdentifyPlace} onRateClick={onRateClick} ratedItemId={ratedItemId} onShareToast={onShareToast} />
       )}
     </div>
   );
@@ -640,7 +644,7 @@ function CityGroupSection({ city, saves, sharedProps, onAssignCity, defaultExpan
       </div>
       {expanded && (
         <>
-          <CardGrid cards={shown} openDropdown={sharedProps.openDropdown} setOpenDropdown={sharedProps.setOpenDropdown} assignTrip={sharedProps.assignTrip} onTripClick={() => {}} onCardClick={sharedProps.onCardClick} availableTrips={sharedProps.availableTrips} onDeleted={sharedProps.onDeleted} onIdentifyPlace={sharedProps.onIdentifyPlace} onRateClick={sharedProps.onRateClick} ratedItemId={sharedProps.ratedItemId} onAssignCity={onAssignCity} />
+          <CardGrid cards={shown} openDropdown={sharedProps.openDropdown} setOpenDropdown={sharedProps.setOpenDropdown} assignTrip={sharedProps.assignTrip} onTripClick={() => {}} onCardClick={sharedProps.onCardClick} availableTrips={sharedProps.availableTrips} onDeleted={sharedProps.onDeleted} onIdentifyPlace={sharedProps.onIdentifyPlace} onRateClick={sharedProps.onRateClick} ratedItemId={sharedProps.ratedItemId} onAssignCity={onAssignCity} onShareToast={sharedProps.onShareToast} />
           {saves.length > PREVIEW && (
             <button type="button" onClick={() => setShowAll(a => !a)} style={SHOW_MORE_STYLE}>
               {showAll ? "Show less" : `Show all ${saves.length} saves →`}
@@ -690,6 +694,7 @@ function UnassignedTabContent({ items, sharedProps, onAssignCity }: {
           onIdentifyPlace={sharedProps.onIdentifyPlace}
           onRateClick={sharedProps.onRateClick}
           ratedItemId={sharedProps.ratedItemId}
+          onShareToast={sharedProps.onShareToast}
         />
       )}
 
@@ -1116,9 +1121,6 @@ export function SavesScreen() {
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [savedToast, setSavedToast] = useState<string | null>(null);
   const [ratingModal, setRatingModal] = useState<{ id: string; title: string } | null>(null);
-  const [ratingValue, setRatingValue] = useState<number>(0);
-  const [ratingNotes, setRatingNotes] = useState("");
-  const [ratingSubmitting, setRatingSubmitting] = useState(false);
   const [ratedItemId, setRatedItemId] = useState<string | null>(null);
   const [assignCityItemId, setAssignCityItemId] = useState<string | null>(null);
   const initialTab = (searchParams.get("tab") ?? "upcoming") as "upcoming" | "past" | "unassigned" | "imported" | "tours";
@@ -1773,8 +1775,9 @@ Your saved places, all in one spot
             availableTrips,
             onDeleted: handleItemDeleted,
             onIdentifyPlace: setIdentifyingItem,
-            onRateClick: (id, title) => { setRatingModal({ id, title }); setRatingValue(0); setRatingNotes(""); },
+            onRateClick: (id, title) => setRatingModal({ id, title }),
             ratedItemId,
+            onShareToast: (msg) => { setSavedToast(msg); setTimeout(() => setSavedToast(null), 3000); },
           };
           return (
             <>
@@ -2300,79 +2303,17 @@ Your saved places, all in one spot
 
       {/* RATING MODAL */}
       {ratingModal && (
-        <div
-          onClick={() => setRatingModal(null)}
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.4)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ backgroundColor: "#fff", borderRadius: "16px", padding: "24px", width: "100%", maxWidth: "360px", display: "flex", flexDirection: "column", gap: "16px" }}
-          >
-            <h2 style={{ fontFamily: "Playfair Display, serif", fontSize: 18, fontWeight: 700, color: "#1B3A5C", margin: 0, lineHeight: 1.3 }}>
-              {ratingModal.title.length > 40 ? ratingModal.title.slice(0, 40) + "…" : ratingModal.title}
-            </h2>
-
-            {/* Star selector */}
-            <div style={{ display: "flex", gap: "8px" }}>
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  onClick={() => setRatingValue(star)}
-                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: "28px", color: star <= ratingValue ? "#f59e0b" : "#d1d5db", lineHeight: 1 }}
-                >
-                  ★
-                </button>
-              ))}
-            </div>
-
-            {/* Notes */}
-            <textarea
-              placeholder="What did you think?"
-              value={ratingNotes}
-              onChange={(e) => setRatingNotes(e.target.value)}
-              rows={3}
-              style={{ border: "1px solid #E8E8E8", borderRadius: 8, padding: "10px 12px", fontSize: 14, color: "#0A1628", outline: "none", fontFamily: "Inter, sans-serif", resize: "vertical" }}
-            />
-
-            {/* Save button */}
-            <button
-              disabled={ratingValue === 0 || ratingSubmitting}
-              onClick={async () => {
-                if (ratingValue === 0) return;
-                setRatingSubmitting(true);
-                try {
-                  const res = await fetch(`/api/saves/${ratingModal.id}`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ userRating: ratingValue, notes: ratingNotes.trim() || undefined }),
-                  });
-                  if (res.ok) {
-                    setRatedItemId(ratingModal.id);
-                    setSaves((prev) => prev.map((s) => s.id === ratingModal.id ? { ...s, userRating: ratingValue } : s));
-                    setRatingModal(null);
-                    setSavedToast("Rating saved!");
-                    setTimeout(() => setSavedToast(null), 3000);
-                  }
-                } finally {
-                  setRatingSubmitting(false);
-                }
-              }}
-              style={{ padding: "12px 0", borderRadius: 8, border: "none", backgroundColor: ratingValue > 0 ? "#C4664A" : "#E8E8E8", color: ratingValue > 0 ? "#fff" : "#aaa", fontSize: 14, fontWeight: 600, cursor: ratingValue > 0 ? "pointer" : "default", fontFamily: "Inter, sans-serif" }}
-            >
-              {ratingSubmitting ? "Saving…" : "Save rating"}
-            </button>
-
-            {/* Cancel */}
-            <button
-              type="button"
-              onClick={() => setRatingModal(null)}
-              style={{ background: "none", border: "none", padding: 0, fontSize: "13px", color: "#717171", cursor: "pointer", fontFamily: "Inter, sans-serif", textAlign: "center" }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
+        <RatingModal
+          itemId={ratingModal.id}
+          title={ratingModal.title}
+          onClose={() => setRatingModal(null)}
+          onRated={(id, value) => {
+            setRatedItemId(id);
+            setSaves((prev) => prev.map((s) => s.id === id ? { ...s, userRating: value } : s));
+            setSavedToast("Rating saved!");
+            setTimeout(() => setSavedToast(null), 3000);
+          }}
+        />
       )}
 
       {/* Import from Maps modal */}
