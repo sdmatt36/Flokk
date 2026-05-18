@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { proxyImgUrl } from "@/lib/destination-images";
 
 const CATEGORY_FALLBACK: Record<string, string> = {
   food_and_drink:           "/images/fallbacks/food.svg",
@@ -58,7 +59,8 @@ export function SpotImage({
   const fallbackSrc = category && CATEGORY_FALLBACK[category]
     ? CATEGORY_FALLBACK[category]
     : "/images/fallbacks/other.svg";
-  const finalSrc = errored || !currentSrc ? fallbackSrc : currentSrc;
+  const rawFinalSrc = errored || !currentSrc ? fallbackSrc : currentSrc;
+  const finalSrc = proxyImgUrl(rawFinalSrc, category);
 
   async function handleError() {
     if (spotId && currentSrc && retriedSrc !== currentSrc) {

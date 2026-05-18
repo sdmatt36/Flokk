@@ -175,13 +175,17 @@ export function deservesUrl(rawName: string): boolean {
 // fetch(photoApiUrl, { redirect: "follow" }) in the entire codebase.
 // Every caller constructs its own photoApiUrl (upstream strategy stays
 // per-caller); only the tail is consolidated here.
+// Write-through: resolved Google CDN URLs are immediately persisted to Flokk
+// Storage. A raw googleusercontent URL is NEVER returned for persistence.
+// If persistRemoteImage fails, returns null — callers store nothing.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export async function resolveGooglePhotoUrl(photoApiUrl: string): Promise<string | null> {
   try {
     const res = await fetch(photoApiUrl, { redirect: "follow" });
     if (!res.ok || !res.url || res.url === photoApiUrl) return null;
-    return res.url;
+    const { persistRemoteImage } = await import("@/lib/imageStore");
+    return persistRemoteImage(res.url);
   } catch {
     return null;
   }
