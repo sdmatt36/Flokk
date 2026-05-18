@@ -15,12 +15,14 @@ const FOUNDERS = [
   {
     name: "Matt Greene",
     title: "Co-Founder",
+    subtitle: "Head of Product",
     image: "/images/team/matt.jpeg",
     linkedin: "https://www.linkedin.com/in/mattgreene36/",
   },
   {
     name: "Jenifer Dasho",
     title: "Co-Founder",
+    subtitle: "Head of Marketing",
     image: "/images/team/dasho.jpeg",
     linkedin: "https://www.linkedin.com/in/jenifer-luisi-dasho-22b7564/",
   },
@@ -49,6 +51,7 @@ const BELIEFS = [
 interface Person {
   name: string;
   title: string;
+  subtitle?: string;
   image: string;
   linkedin: string;
 }
@@ -82,6 +85,9 @@ function FounderCard({ person }: { person: Person }) {
           <p className="font-semibold text-[#1B3A5C] text-base leading-tight whitespace-nowrap">{person.name}</p>
         )}
         <p style={{ fontSize: "13px", color: "#717171", margin: "4px 0 0" }}>{person.title}</p>
+        {person.subtitle && (
+          <p style={{ fontSize: "13px", color: "#717171", margin: "1px 0 0" }}>{person.subtitle}</p>
+        )}
       </div>
     </div>
   );
