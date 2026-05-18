@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
 import { searchUnsplashPhotoWithCredit } from "@/lib/unsplash";
 import { promoteToCommunitySpot } from "@/lib/promote-saved-item-to-pick";
+import { resolveGooglePhotoUrl } from "@/lib/google-places";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -150,10 +151,7 @@ async function enrichActivity(title: string, cityName: string): Promise<Activity
       (async () => {
         if (!photoRef) return null;
         const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${encodeURIComponent(photoRef)}&key=${apiKey}`;
-        try {
-          const pr = await fetch(photoApiUrl, { redirect: "follow" });
-          return pr.ok && pr.url !== photoApiUrl ? pr.url : null;
-        } catch { return null; }
+        return resolveGooglePhotoUrl(photoApiUrl);
       })(),
       (async () => {
         try {

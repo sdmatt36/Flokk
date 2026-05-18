@@ -5,6 +5,7 @@ import { resolveProfileId } from "@/lib/profile-access";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
 import { getTripAccess, canEditTripContent } from "@/lib/trip-permissions";
 import { buildClonedItem, computeScheduledDate } from "@/lib/clone-saved-items";
+import { resolveGooglePhotoUrl } from "@/lib/google-places";
 
 export const maxDuration = 60;
 
@@ -292,9 +293,8 @@ export async function POST(req: Request) {
       if (!photoRef) continue;
 
       const redirectUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photoRef}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
-      const photoRes = await fetch(redirectUrl, { redirect: "follow" });
-      const finalUrl = photoRes.url;
-      if (finalUrl && finalUrl !== redirectUrl) {
+      const finalUrl = await resolveGooglePhotoUrl(redirectUrl);
+      if (finalUrl) {
         await db.savedItem.update({ where: { id: save.id }, data: { placePhotoUrl: finalUrl } });
       }
     } catch { continue; }

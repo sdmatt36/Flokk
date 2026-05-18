@@ -6,6 +6,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { haversineMeters, haversineKm } from "@/lib/geo";
 import { optimizeRouteOrder } from "@/lib/tour-route-optimization";
 import { resolveCanonicalUrl } from "@/lib/url-resolver";
+import { resolveGooglePhotoUrl } from "@/lib/google-places";
 import { aggregateTripContext, flatChildAges, describePace, topInterests } from "@/lib/trip-context-multi";
 import { DestinationType } from "@prisma/client";
 
@@ -288,15 +289,8 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     const photoRef = detailsData.result?.photos?.[0]?.photo_reference;
     let imageUrl: string | null = null;
     if (photoRef) {
-      try {
-        const photoRes = await fetch(
-          `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${encodeURIComponent(photoRef)}&key=${process.env.GOOGLE_MAPS_API_KEY}`,
-          { redirect: "follow" }
-        );
-        imageUrl = photoRes.url;
-      } catch {
-        console.log(`[tour-resolve-photo-err] "${stop.name}"`);
-      }
+      const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${encodeURIComponent(photoRef)}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+      imageUrl = await resolveGooglePhotoUrl(photoApiUrl);
     }
 
     const { lat, lng } = firstResult.geometry.location;

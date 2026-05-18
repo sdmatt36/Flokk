@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
+import { resolveGooglePhotoUrl } from "@/lib/google-places";
 
 let _client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -137,8 +138,7 @@ export async function enrichActivityImage(
 
     // Step 2 — Get photo URL and follow redirect to final lh3.googleusercontent.com URL
     const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photoRef}&key=${apiKey}`;
-    const photoRes = await fetch(photoUrl, { redirect: "follow" });
-    const finalImageUrl = photoRes.url ?? null;
+    const finalImageUrl = await resolveGooglePhotoUrl(photoUrl);
     if (!finalImageUrl) return null;
 
     // Step 3 — If manualActivity context provided, write to ManualActivity and sync SavedItem

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
 import he from "he";
 import { getVenueImage } from "@/lib/destination-images";
+import { resolveGooglePhotoUrl } from "@/lib/google-places";
 import { verifyWebsiteUrl } from "@/lib/activity-intelligence";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { mapPlaceTypesToCanonicalSlugs, normalizeCategorySlug } from "@/lib/categories";
@@ -370,9 +371,8 @@ async function getGooglePlacesPhoto(
     }
 
     const redirectUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photoRef}&key=${GOOGLE_MAPS_API_KEY}`;
-    const photoRes = await fetch(redirectUrl, { redirect: 'follow' });
-    const finalUrl = photoRes.url;
-    if (!finalUrl || finalUrl === redirectUrl) {
+    const finalUrl = await resolveGooglePhotoUrl(redirectUrl);
+    if (!finalUrl) {
       console.log(`[PLACES PHOTO] Redirect did not resolve for "${name}"`);
       return null;
     }

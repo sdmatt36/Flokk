@@ -2,6 +2,8 @@
 // Requires GOOGLE_PLACES_API_KEY in env.
 // Returns undefined if key is not configured or lookup fails.
 
+import { resolveGooglePhotoUrl } from "@/lib/google-places";
+
 export async function resolveVenueImage(
   placeName: string,
   city?: string
@@ -26,17 +28,7 @@ export async function resolveVenueImage(
     const photoApiUrl =
       `https://maps.googleapis.com/maps/api/place/photo` +
       `?maxwidth=800&photoreference=${photoRef}&key=${apiKey}`;
-    const photoRes = await fetch(photoApiUrl, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(5000),
-    });
-    // photoRes.url is the final CDN URL after redirect
-    const cdnUrl = photoRes.url;
-    if (!cdnUrl || cdnUrl.includes("maps.googleapis.com/maps/api/place/photo")) {
-      // Redirect didn't resolve to a real CDN URL — fall back to the API URL
-      return photoApiUrl;
-    }
-    return cdnUrl;
+    return await resolveGooglePhotoUrl(photoApiUrl) ?? undefined;
   } catch {
     return undefined;
   }

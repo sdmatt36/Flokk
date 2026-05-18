@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
+import { resolveGooglePhotoUrl } from "@/lib/google-places";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -181,14 +182,7 @@ async function enrichWithPlaces(name: string, cityName: string): Promise<PlaceEn
     let photoUrl: string | null = null;
     if (photoRef) {
       const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${encodeURIComponent(photoRef)}&key=${apiKey}`;
-      try {
-        const photoRes = await fetch(photoApiUrl, { redirect: "follow" });
-        if (photoRes.ok && photoRes.url && photoRes.url !== photoApiUrl) {
-          photoUrl = photoRes.url;
-        }
-      } catch {
-        // Photo resolution is best-effort
-      }
+      photoUrl = await resolveGooglePhotoUrl(photoApiUrl);
     }
 
     return { placeId: first.place_id, lat, lng, address, photoUrl };

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { findBestInsertionIndex } from "@/lib/tour-route-optimization";
 import { haversineKm } from "@/lib/geo";
+import { resolveGooglePhotoUrl } from "@/lib/google-places";
 
 // Note: helpers duplicated from generate/route.ts (refactor to shared lib deferred)
 
@@ -170,13 +171,8 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     const photoRef = detailsData.result?.photos?.[0]?.photo_reference;
     let imageUrl: string | null = null;
     if (photoRef) {
-      try {
-        const photoRes = await fetch(
-          `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${encodeURIComponent(photoRef)}&key=${process.env.GOOGLE_MAPS_API_KEY}`,
-          { redirect: "follow" }
-        );
-        imageUrl = photoRes.url;
-      } catch { /* non-fatal */ }
+      const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${encodeURIComponent(photoRef)}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+      imageUrl = await resolveGooglePhotoUrl(photoApiUrl);
     }
 
     const { lat, lng } = firstResult.geometry.location;

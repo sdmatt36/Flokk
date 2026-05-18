@@ -3,6 +3,7 @@
 // Correct field names: rawTitle, destinationCity, placePhotoUrl.
 
 import { db } from '../lib/db';
+import { resolveGooglePhotoUrl } from '../lib/google-places';
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
 
@@ -24,10 +25,7 @@ async function resolvePhoto(name: string, city: string): Promise<string | null> 
     if (!photoRef) return null;
 
     const redirectUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photoRef}&key=${GOOGLE_MAPS_API_KEY}`;
-    const photoRes = await fetch(redirectUrl, { redirect: 'follow' });
-    const finalUrl = photoRes.url;
-
-    return (finalUrl && finalUrl !== redirectUrl) ? finalUrl : null;
+    return resolveGooglePhotoUrl(redirectUrl);
   } catch {
     return null;
   }

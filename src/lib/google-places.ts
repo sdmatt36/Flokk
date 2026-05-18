@@ -171,6 +171,23 @@ export function deservesUrl(rawName: string): boolean {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Shared redirect-follow atom — the single place that calls
+// fetch(photoApiUrl, { redirect: "follow" }) in the entire codebase.
+// Every caller constructs its own photoApiUrl (upstream strategy stays
+// per-caller); only the tail is consolidated here.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function resolveGooglePhotoUrl(photoApiUrl: string): Promise<string | null> {
+  try {
+    const res = await fetch(photoApiUrl, { redirect: "follow" });
+    if (!res.ok || !res.url || res.url === photoApiUrl) return null;
+    return res.url;
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Find place by name + city — returns placeId, photoUrl, websiteUrl.
 // Used by the admin spot queue to auto-fetch a Google photo for spots that
 // have no photoUrl. Photo URL is resolved via redirect-follow (Places Photo API
@@ -221,12 +238,7 @@ export async function findPlaceByNameCity(
     let photoUrl: string | null = null;
     if (photoRef) {
       const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${encodeURIComponent(photoRef)}&key=${API_KEY}`;
-      const photoRes = await fetch(photoApiUrl, { redirect: "follow" });
-      // The Places Photo API responds with a redirect to the final CDN URL.
-      // After redirect:follow, photoRes.url is the resolved CDN URL.
-      if (photoRes.ok && photoRes.url && photoRes.url !== photoApiUrl) {
-        photoUrl = photoRes.url;
-      }
+      photoUrl = await resolveGooglePhotoUrl(photoApiUrl);
     }
 
     return { placeId, photoUrl, websiteUrl };
@@ -256,10 +268,7 @@ export async function textSearchPhoto(query: string): Promise<string | null> {
     const photoRef = first.photos[0].photo_reference;
     const photoUrlBuilder = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photoRef}&key=${key}`;
 
-    // Resolve the redirect to lh3.googleusercontent.com final URL for stable storage
-    const resolvedRes = await fetch(photoUrlBuilder, { redirect: "follow" });
-    if (!resolvedRes.ok) return null;
-    return resolvedRes.url;
+    return resolveGooglePhotoUrl(photoUrlBuilder);
   } catch {
     return null;
   }
@@ -390,10 +399,7 @@ export async function fetchPlaceDetailsById(
     let photoUrl: string | null = null;
     if (photoRef) {
       const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photoreference=${encodeURIComponent(photoRef)}&key=${API_KEY}`;
-      const photoRes = await fetch(photoApiUrl, { redirect: "follow" });
-      if (photoRes.ok && photoRes.url && photoRes.url !== photoApiUrl) {
-        photoUrl = photoRes.url;
-      }
+      photoUrl = await resolveGooglePhotoUrl(photoApiUrl);
     }
     return { photoUrl, websiteUrl };
   } catch {

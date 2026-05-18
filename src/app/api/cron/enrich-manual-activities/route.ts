@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveGooglePhotoUrl } from "@/lib/google-places";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -7,14 +8,8 @@ export const maxDuration = 60;
 const GOOGLE_KEY = process.env.GOOGLE_MAPS_API_KEY ?? "";
 
 async function resolvePhotoUrl(photoReference: string): Promise<string | null> {
-  try {
-    const url = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${encodeURIComponent(photoReference)}&key=${GOOGLE_KEY}`;
-    const res = await fetch(url, { redirect: "follow" });
-    if (!res.ok) return null;
-    return res.url;
-  } catch {
-    return null;
-  }
+  const url = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${encodeURIComponent(photoReference)}&key=${GOOGLE_KEY}`;
+  return resolveGooglePhotoUrl(url);
 }
 
 export async function GET(request: Request) {

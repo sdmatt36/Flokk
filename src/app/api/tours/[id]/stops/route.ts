@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { resolveGooglePhotoUrl } from "@/lib/google-places";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -56,15 +57,8 @@ async function resolvePlaceFull(name: string, address: string, destinationCity: 
     const photoRef = det.result?.photos?.[0]?.photo_reference ?? null;
     let imageUrl: string | null = null;
     if (photoRef) {
-      try {
-        const photoRes = await fetch(
-          `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${encodeURIComponent(photoRef)}&key=${key}`,
-          { redirect: "follow" }
-        );
-        if (photoRes.ok && photoRes.url && photoRes.url.includes("googleusercontent")) {
-          imageUrl = photoRes.url;
-        }
-      } catch { /* non-fatal */ }
+      const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${encodeURIComponent(photoRef)}&key=${key}`;
+      imageUrl = await resolveGooglePhotoUrl(photoApiUrl);
     }
 
     const types = det.result?.types ?? [];

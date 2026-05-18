@@ -4,6 +4,7 @@
 // Returns null on any failure — never throws.
 
 import { extractSearchableTitle } from "./extract-searchable-title";
+import { resolveGooglePhotoUrl } from "@/lib/google-places";
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? "";
 
@@ -107,15 +108,8 @@ export async function enrichWithPlaces(
       let imageUrl: string | null = null;
 
       if (photoRef) {
-        // Follow photo redirect to get CDN URL
-        const photoRes = await fetch(
-          `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${encodeURIComponent(photoRef)}&key=${GOOGLE_MAPS_API_KEY}`,
-          { redirect: "follow" }
-        );
-        const finalUrl = photoRes.url;
-        if (finalUrl && !finalUrl.includes("maps.googleapis.com/maps/api/place/photo")) {
-          imageUrl = finalUrl;
-        }
+        const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${encodeURIComponent(photoRef)}&key=${GOOGLE_MAPS_API_KEY}`;
+        imageUrl = await resolveGooglePhotoUrl(photoApiUrl);
       }
 
       // OpenGraph fallback: no Places image and website available
