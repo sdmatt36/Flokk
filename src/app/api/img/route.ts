@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, after } from "next/server";
 import { db } from "@/lib/db";
 import { persistRemoteImage } from "@/lib/imageStore";
 
@@ -141,10 +141,11 @@ export async function GET(request: NextRequest) {
       const contentType = imgRes.headers.get("content-type") ?? "image/jpeg";
       const bytes = await imgRes.arrayBuffer();
 
-      // Fire write-through + lazy heal without blocking the response
-      persistRemoteImage(rawUrl)
-        .then((flokUrl) => { if (flokUrl) lazyHeal(rawUrl, flokUrl).catch(() => {}); })
-        .catch(() => {});
+      // Write-through + lazy heal after response is sent
+      after(async () => {
+        const flokUrl = await persistRemoteImage(rawUrl).catch(() => null);
+        if (flokUrl) await lazyHeal(rawUrl, flokUrl).catch(() => {});
+      });
 
       return new Response(bytes, {
         headers: {
