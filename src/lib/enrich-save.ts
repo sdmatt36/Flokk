@@ -114,9 +114,8 @@ async function lookupGoogleMapsPlace(
     };
     if (typeof c.rating === "number") result.rating = c.rating;
     if (c.photos?.[0]?.photo_reference) {
-      result.photoUrl =
-        `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&` +
-        `photo_reference=${c.photos[0].photo_reference}&key=${GOOGLE_MAPS_API_KEY}`;
+      const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${c.photos[0].photo_reference}&key=${GOOGLE_MAPS_API_KEY}`;
+      result.photoUrl = await resolveGooglePhotoUrl(photoApiUrl) ?? undefined;
     }
     const slugs = mapPlaceTypesToCanonicalSlugs(c.types);
     result.category = slugs[0] ?? "experiences";
@@ -163,9 +162,8 @@ async function lookupByPlaceId(placeId: string): Promise<GoogleMapsLookupResult 
     };
     if (typeof r.rating === "number") result.rating = r.rating;
     if (r.photos?.[0]?.photo_reference) {
-      result.photoUrl =
-        `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&` +
-        `photo_reference=${r.photos[0].photo_reference}&key=${GOOGLE_MAPS_API_KEY}`;
+      const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${r.photos[0].photo_reference}&key=${GOOGLE_MAPS_API_KEY}`;
+      result.photoUrl = await resolveGooglePhotoUrl(photoApiUrl) ?? undefined;
     }
     const slugs = mapPlaceTypesToCanonicalSlugs(r.types);
     result.category = slugs[0] ?? "experiences";
@@ -307,7 +305,8 @@ async function getPlaceDetails(
     }
     if (typeof c.rating === "number") result.rating = c.rating;
     if (c.photos?.[0]?.photo_reference) {
-      result.photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${c.photos[0].photo_reference}&key=${GOOGLE_MAPS_API_KEY}`;
+      const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${c.photos[0].photo_reference}&key=${GOOGLE_MAPS_API_KEY}`;
+      result.photoUrl = await resolveGooglePhotoUrl(photoApiUrl) ?? undefined;
     }
     return result;
   } catch {
