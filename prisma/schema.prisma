@@ -815,9 +815,11 @@ model ManualActivity {
   tourId           String?
   deletedAt        DateTime?
   createdAt        DateTime @default(now())
-  shareToken       String?  @unique
-  savedItemId      String?   @unique
-  savedItem        SavedItem? @relation("ManualActivitySavedItem", fields: [savedItemId], references: [id], onDelete: SetNull)
+  shareToken            String?  @unique
+  savedItemId           String?   @unique
+  savedItem             SavedItem? @relation("ManualActivitySavedItem", fields: [savedItemId], references: [id], onDelete: SetNull)
+  enrichmentAttempts    Int      @default(0)
+  enrichmentFailedAt    DateTime?
 
   @@index([tourId])
   @@index([deletedAt])
