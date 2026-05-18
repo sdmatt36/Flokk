@@ -1,12 +1,15 @@
 /**
  * scrub-keybearing-urls.mjs
  *
- * One-shot: find every maps.googleapis.com URL in SavedItem.placePhotoUrl and
- * CommunitySpot.photoUrl, follow the redirect to get the actual CDN image,
- * persist it to Flokk Supabase Storage, and write the Flokk URL back.
+ * One-shot resumable sweep: null out every maps.googleapis.com URL in any image
+ * column across all tables (including soft-deleted rows and backup tables).
  *
- * If the redirect fails or the image is unrecoverable, sets the column to NULL.
- * NEVER writes a maps.googleapis.com URL back under any branch.
+ * Strategy: follow the 302 redirect from the stored maps.googleapis.com URL to
+ * the CDN image, persist to Flokk Supabase Storage. If redirect fails (expired),
+ * set column to NULL. NEVER writes a Google URL back under any branch.
+ *
+ * Idempotent: WHERE clause only targets maps.googleapis.com URLs — already-healed
+ * rows are never selected again.
  */
 
 import { createHash } from "node:crypto";
@@ -85,30 +88,33 @@ async function persistRemoteImage(remoteUrl) {
 }
 
 async function resolveAndPersist(mapsUrl) {
-  // Follow redirect from maps.googleapis.com → lh3.googleusercontent.com CDN URL
   try {
     const res = await fetch(mapsUrl, { redirect: "follow", signal: AbortSignal.timeout(15000) });
     if (!res.ok) return null;
-    if (!res.url || res.url === mapsUrl) return null; // no redirect happened
-    if (res.url.includes("maps.googleapis.com")) return null; // safety: redirect stayed on Google
+    if (!res.url || res.url === mapsUrl) return null;
+    if (res.url.includes("maps.googleapis.com")) return null;
     return persistRemoteImage(res.url);
   } catch {
     return null;
   }
 }
 
-async function scrubTable({ client, tableName, urlCol, deletedAtGuard }) {
+async function scrubTable({ client, tableName, urlCol }) {
   const stats = { persisted: 0, nulled: 0, errors: 0 };
-  const deletedFilter = deletedAtGuard ? `AND "deletedAt" IS NULL` : "";
 
+  // No deletedAt filter — scrub ALL rows including soft-deleted
   const { rows } = await client.query(
     `SELECT id, "${urlCol}" FROM "${tableName}"
      WHERE "${urlCol}" LIKE '%maps.googleapis.com%'
-     ${deletedFilter}
      ORDER BY id`
   );
 
-  console.log(`\n[${tableName}.${urlCol}] ${rows.length} key-bearing rows to scrub`);
+  if (rows.length === 0) {
+    console.log(`[${tableName}.${urlCol}] 0 rows — skip`);
+    return stats;
+  }
+
+  console.log(`\n[${tableName}.${urlCol}] ${rows.length} key-bearing rows`);
 
   for (const row of rows) {
     const storedUrl = row[urlCol];
@@ -116,9 +122,8 @@ async function scrubTable({ client, tableName, urlCol, deletedAtGuard }) {
       const flokUrl = await resolveAndPersist(storedUrl);
 
       if (flokUrl) {
-        // Safety gate: never write a Google URL back
         if (flokUrl.includes("googleapis.com") || flokUrl.includes("googleusercontent.com")) {
-          console.warn(`  [SAFETY BLOCK] ${row.id}: resolved to Google URL, nulling instead`);
+          console.warn(`  [SAFETY BLOCK] ${row.id}: resolved to Google URL, nulling`);
           await client.query(`UPDATE "${tableName}" SET "${urlCol}" = NULL WHERE id = $1`, [row.id]);
           stats.nulled++;
         } else {
@@ -129,7 +134,7 @@ async function scrubTable({ client, tableName, urlCol, deletedAtGuard }) {
       } else {
         await client.query(`UPDATE "${tableName}" SET "${urlCol}" = NULL WHERE id = $1`, [row.id]);
         stats.nulled++;
-        console.log(`  ✗ ${row.id} → NULL (redirect failed or image expired)`);
+        console.log(`  ✗ ${row.id} → NULL (expired)`);
       }
     } catch (err) {
       console.error(`  [ERROR] ${row.id}: ${err.message}`);
@@ -137,26 +142,49 @@ async function scrubTable({ client, tableName, urlCol, deletedAtGuard }) {
     }
   }
 
-  console.log(`[${tableName}.${urlCol}] DONE → persisted: ${stats.persisted}, nulled: ${stats.nulled}, errors: ${stats.errors}`);
+  console.log(`[${tableName}.${urlCol}] persisted: ${stats.persisted}, nulled: ${stats.nulled}, errors: ${stats.errors}`);
   return stats;
 }
 
+// All image columns across all tables including backup tables.
+// No deletedAt guards — soft-deleted rows must also be scrubbed.
+const TARGETS = [
+  { tableName: "SavedItem",                    urlCol: "placePhotoUrl"   },
+  { tableName: "SavedItem",                    urlCol: "mediaThumbnailUrl" },
+  { tableName: "SavedItem_backup_20260419",    urlCol: "placePhotoUrl"   },
+  { tableName: "SavedItem_backup_20260419",    urlCol: "mediaThumbnailUrl" },
+  { tableName: "CommunitySpot",                urlCol: "photoUrl"        },
+  { tableName: "CommunitySpot_backup_20260418", urlCol: "photoUrl"       },
+  { tableName: "TourStop",                     urlCol: "imageUrl"        },
+  { tableName: "ManualActivity",               urlCol: "imageUrl"        },
+  { tableName: "RecommendedItem",              urlCol: "heroImageUrl"    },
+  { tableName: "Trip",                         urlCol: "heroImageUrl"    },
+  { tableName: "Article",                      urlCol: "coverImage"      },
+  { tableName: "Article",                      urlCol: "thumbnailUrl"    },
+  { tableName: "City",                         urlCol: "heroPhotoUrl"    },
+  { tableName: "City",                         urlCol: "photoUrl"        },
+  { tableName: "Country",                      urlCol: "photoUrl"        },
+  { tableName: "Continent",                    urlCol: "photoUrl"        },
+  { tableName: "Event",                        urlCol: "imageUrl"        },
+  { tableName: "ItineraryItem",                urlCol: "imageUrl"        },
+  { tableName: "TravelVideo",                  urlCol: "thumbnailUrl"    },
+];
+
+// Verification query — re-run this independently to confirm gate.
+const VERIFY_SQL = TARGETS.map(
+  ({ tableName, urlCol }) =>
+    `SELECT '${tableName}.${urlCol}' AS col, COUNT(*) AS cnt FROM "${tableName}" WHERE "${urlCol}" LIKE '%maps.googleapis.com%'`
+).join("\nUNION ALL\n");
+
 async function main() {
-  console.log("=== Flokk key-bearing URL scrub ===");
-  console.log(`SUPABASE_SERVICE_ROLE_KEY present: ${SUPABASE_SERVICE_ROLE_KEY.length > 0}`);
+  console.log("=== Flokk key-bearing URL scrub (all tables, all rows) ===");
 
   const pool = new pg.Pool({ connectionString: DATABASE_URL });
   const client = await pool.connect();
 
   try {
-    const tables = [
-      { tableName: "SavedItem",     urlCol: "placePhotoUrl", deletedAtGuard: true  },
-      { tableName: "CommunitySpot", urlCol: "photoUrl",      deletedAtGuard: false },
-    ];
-
     const totals = { persisted: 0, nulled: 0, errors: 0 };
-
-    for (const t of tables) {
+    for (const t of TARGETS) {
       const s = await scrubTable({ client, ...t });
       totals.persisted += s.persisted;
       totals.nulled    += s.nulled;
@@ -164,27 +192,19 @@ async function main() {
     }
 
     console.log("\n=== FINAL TOTALS ===");
-    console.log(`Persisted to Flokk Storage: ${totals.persisted}`);
-    console.log(`Nulled (expired/unrecoverable): ${totals.nulled}`);
-    console.log(`Errors: ${totals.errors}`);
+    console.log(`Persisted: ${totals.persisted}, Nulled: ${totals.nulled}, Errors: ${totals.errors}`);
 
-    // Verification: confirm zero maps.googleapis.com rows remain
-    console.log("\n=== Verification ===");
-    const { rows: remaining } = await client.query(`
-      SELECT 'SavedItem.placePhotoUrl' AS col, COUNT(*) AS cnt FROM "SavedItem" WHERE "placePhotoUrl" LIKE '%maps.googleapis.com%' AND "deletedAt" IS NULL
-      UNION ALL
-      SELECT 'CommunitySpot.photoUrl', COUNT(*) FROM "CommunitySpot" WHERE "photoUrl" LIKE '%maps.googleapis.com%'
-    `);
+    console.log("\n=== Verification (zero must appear for all rows) ===");
+    const { rows: remaining } = await client.query(VERIFY_SQL);
+    let fail = false;
     for (const r of remaining) {
-      console.log(`  ${r.col}: ${r.cnt} remaining`);
+      if (parseInt(r.cnt) > 0) {
+        console.error(`  FAIL ${r.col}: ${r.cnt} remaining`);
+        fail = true;
+      }
     }
-    const anyLeft = remaining.some(r => parseInt(r.cnt) > 0);
-    if (anyLeft) {
-      console.error("  *** FAIL: key-bearing URLs still present ***");
-      process.exit(1);
-    } else {
-      console.log("  ✓ Zero key-bearing URLs remain in all columns");
-    }
+    if (fail) { process.exit(1); }
+    else { console.log("  ✓ Zero key-bearing URLs remain across all columns"); }
 
   } finally {
     client.release();
