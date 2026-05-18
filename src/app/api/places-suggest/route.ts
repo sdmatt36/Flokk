@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
   // Try Google Places first
   if (GOOGLE_API_KEY) {
     const fullQuery = [query.trim(), city, country].filter(Boolean).join(", ");
-    const fields = "name,formatted_address,website,geometry,photos";
+    const fields = "name,formatted_address,website,geometry";
     const url = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(fullQuery)}&inputtype=textquery&fields=${fields}&key=${GOOGLE_API_KEY}`;
 
     try {
@@ -39,17 +39,13 @@ export async function POST(req: NextRequest) {
         const isConfident = queryWords.some(w => nameWords.includes(w));
 
         if (isConfident) {
-          let photoUrl: string | null = null;
-          if (c.photos?.[0]?.photo_reference) {
-            photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=80&photoreference=${c.photos[0].photo_reference}&key=${GOOGLE_API_KEY}`;
-          }
           return NextResponse.json({
             name: c.name,
             address: c.formatted_address,
             website: c.website ?? null,
             lat: c.geometry?.location.lat ?? null,
             lng: c.geometry?.location.lng ?? null,
-            photoUrl,
+            photoUrl: null,
           });
         }
       }
