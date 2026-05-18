@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { resolveGooglePhotoUrl } from "@/lib/google-places";
 
 export const dynamic = "force-dynamic";
 
@@ -28,10 +29,9 @@ export async function PATCH(
   if (typeof body.lat === "number") updateData.lat = body.lat;
   if (typeof body.lng === "number") updateData.lng = body.lng;
   if (typeof body.needsPlaceConfirmation === "boolean") updateData.needsPlaceConfirmation = body.needsPlaceConfirmation;
-  // Build photo URL server-side so the API key is never exposed to the client
   if (typeof body.photoReference === "string" && body.photoReference) {
-    updateData.placePhotoUrl =
-      `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${body.photoReference}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+    const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${body.photoReference}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
+    updateData.placePhotoUrl = await resolveGooglePhotoUrl(photoApiUrl);
   } else if (body.photoReference === null) {
     updateData.placePhotoUrl = null;
   }

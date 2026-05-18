@@ -12,6 +12,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { resolveGooglePhotoUrl } from "@/lib/google-places";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 minute Vercel function timeout
@@ -64,10 +65,8 @@ async function getPlaceDetails(
   if (c.website) result.website = c.website;
   if (typeof c.rating === "number") result.rating = c.rating;
   if (c.photos?.[0]?.photo_reference) {
-    result.photoUrl =
-      `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800` +
-      `&photo_reference=${c.photos[0].photo_reference}` +
-      `&key=${GOOGLE_MAPS_API_KEY}`;
+    const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${c.photos[0].photo_reference}&key=${GOOGLE_MAPS_API_KEY}`;
+    result.photoUrl = await resolveGooglePhotoUrl(photoApiUrl) ?? undefined;
   }
   return result;
 }
