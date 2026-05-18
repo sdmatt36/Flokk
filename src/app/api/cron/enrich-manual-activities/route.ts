@@ -53,10 +53,9 @@ export async function GET(request: Request) {
 
   for (const activity of activities) {
     processed++;
-    const update: { website?: string; imageUrl?: string } = {};
-
     try {
       const query = [activity.title, activity.city].filter(Boolean).join(" ");
+      const update: { website?: string; imageUrl?: string } = {};
 
       // Text Search to get place_id
       const searchRes = await fetch(
@@ -92,39 +91,40 @@ export async function GET(request: Request) {
           }
         }
       }
+
+      // Always increment attempt counter regardless of success or failure — mirror enrich-saved-items
+      const willBeThirdAttempt = (activity.enrichmentAttempts ?? 0) + 1 >= 3;
+      const noDataFound = Object.keys(update).length === 0;
+
+      const updateData: Record<string, unknown> = {
+        ...update,
+        enrichmentAttempts: { increment: 1 },
+      };
+
+      if (willBeThirdAttempt && noDataFound) {
+        updateData.enrichmentFailedAt = new Date();
+        gaveUp++;
+        console.log(`[enrich-manual-activities] Gave up on "${activity.title}" after 3 attempts`);
+      }
+
+      await db.manualActivity.update({
+        where: { id: activity.id },
+        data: updateData,
+      });
+
+      if (Object.keys(update).length > 0) {
+        enriched++;
+        console.log(
+          `[enrich-manual-activities] Enriched: ${activity.title} | website: ${update.website ?? "—"} | image: ${!!update.imageUrl}`
+        );
+      } else if (!willBeThirdAttempt) {
+        console.log(`[enrich-manual-activities] No enrichment found for "${activity.title}" (attempt ${(activity.enrichmentAttempts ?? 0) + 1})`);
+      }
     } catch (err) {
+      // Exception during Places calls or DB write — do NOT increment, retry on next run
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[enrich-manual-activities] Error for ${activity.id} (${activity.title}):`, msg);
       errors.push(`${activity.title}: ${msg}`);
-    }
-
-    // Always increment attempt counter regardless of success or failure — mirror enrich-saved-items
-    const willBeThirdAttempt = (activity.enrichmentAttempts ?? 0) + 1 >= 3;
-    const noDataFound = Object.keys(update).length === 0;
-
-    const updateData: Record<string, unknown> = {
-      ...update,
-      enrichmentAttempts: { increment: 1 },
-    };
-
-    if (willBeThirdAttempt && noDataFound) {
-      updateData.enrichmentFailedAt = new Date();
-      gaveUp++;
-      console.log(`[enrich-manual-activities] Gave up on "${activity.title}" after 3 attempts`);
-    }
-
-    await db.manualActivity.update({
-      where: { id: activity.id },
-      data: updateData,
-    });
-
-    if (Object.keys(update).length > 0) {
-      enriched++;
-      console.log(
-        `[enrich-manual-activities] Enriched: ${activity.title} | website: ${update.website ?? "—"} | image: ${!!update.imageUrl}`
-      );
-    } else if (!willBeThirdAttempt) {
-      console.log(`[enrich-manual-activities] No enrichment found for "${activity.title}" (attempt ${(activity.enrichmentAttempts ?? 0) + 1})`);
     }
   }
 
