@@ -12,7 +12,7 @@ import Link from "next/link";
 import { RecommendationDrawer, type DrawerRec } from "./RecommendationDrawer";
 import { parseDateForDisplay } from "@/lib/dates";
 import { getDestinationCoords } from "@/lib/destination-coords";
-import { getTripCoverImage, proxyImgUrl } from "@/lib/destination-images";
+import { getTripCoverImage } from "@/lib/destination-images";
 
 export type ActivityItem = {
   id: string;
@@ -206,9 +206,7 @@ function ItemDetailModal({
   onAddToItinerary: (tripId?: string) => Promise<void>;
 }) {
   const router = useRouter();
-  const photoUrl = proxyImgUrl(
-    item.placePhotoUrl ?? item.mediaThumbnailUrl ?? getTripCoverImage(destinationCity, destinationCountry, null)
-  );
+  const photoUrl = item.placePhotoUrl ?? item.mediaThumbnailUrl ?? getTripCoverImage(destinationCity, destinationCountry, null);
   const [adding, setAdding] = useState(false);
   const [addedName, setAddedName] = useState<string | null>(null);
   const [showPicker, setShowPicker] = useState(false);

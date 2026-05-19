@@ -333,16 +333,6 @@ export function getTripCoverImage(
  * 5. type-based Unsplash fallback (train, flight, hotel, food)
  * 6. generic travel fallback
  */
-// Route external photo URLs through the /api/img proxy so a placeholder is
-// served on failure and lazy-heal fires for legacy Google CDN rows.
-// Local static paths (starting with /) pass through unchanged.
-export function proxyImgUrl(url: string, cat?: string | null): string {
-  if (!url || url.startsWith("/") || url.startsWith("data:")) return url;
-  const safe = url.startsWith("http://") ? url.replace("http://", "https://") : url;
-  const catParam = cat ? `&cat=${encodeURIComponent(cat)}` : "";
-  return `/api/img?url=${encodeURIComponent(safe)}${catParam}`;
-}
-
 export function getItemImage(
   title?: string | null,
   placePhotoUrl?: string | null,
@@ -352,10 +342,10 @@ export function getItemImage(
   country?: string | null,
 ): string {
   const place = placePhotoUrl?.trim();
-  if (place) return proxyImgUrl(place.replace("http://", "https://"), type);
+  if (place) return place.replace("http://", "https://");
 
   const thumb = mediaThumbnailUrl?.trim();
-  if (thumb) return proxyImgUrl(thumb.replace("http://", "https://"), type);
+  if (thumb) return thumb.replace("http://", "https://");
 
   const venue = title ? getVenueImage(title) : null;
   if (venue) return venue;
