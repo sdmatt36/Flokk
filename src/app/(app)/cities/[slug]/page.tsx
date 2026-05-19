@@ -1,9 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { Pool } from "pg";
 
+import { db } from "@/lib/db";
 import { normalizeCategorySlug } from "@/lib/categories";
 import { CityHero } from "./_components/CityHero";
 import { SectionNav } from "./_components/SectionNav";
@@ -15,14 +13,6 @@ import { ScopedSearchBar } from "@/components/shared/ScopedSearchBar";
 import { LateralPeerNav } from "@/components/shared/LateralPeerNav";
 import { FlokkersAlsoLove } from "@/components/shared/FlokkersAlsoLove";
 import { BackBar } from "@/components/shared/BackBar";
-
-// ── DB ────────────────────────────────────────────────────────────────────────
-
-function getDb() {
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  const adapter = new PrismaPg(pool);
-  return new PrismaClient({ adapter });
-}
 
 // ── Category buckets ─────────────────────────────────────────────────────────
 
@@ -59,7 +49,6 @@ type SpotItem = {
 };
 
 async function loadCity(slug: string) {
-  const db = getDb();
   try {
     const city = await db.city.findUnique({
       where: { slug },
@@ -206,8 +195,9 @@ async function loadCity(slug: string) {
     const allSpots: SpotItem[] = [...spotMap.values(), ...prOnlyMap.values()];
 
     return { city, spots: allSpots, trips, tours, spotCount, tripCount, tourCount, ratingCount, siblingCities };
-  } finally {
-    await db.$disconnect();
+  } catch (err) {
+    console.error("[loadCity] error", err);
+    return null;
   }
 }
 
