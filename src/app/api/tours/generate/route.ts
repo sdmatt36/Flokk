@@ -330,6 +330,7 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
 }
 
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -891,6 +892,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
     }
 
     // ── Attempt 0: initial stream ──────────────────────────────────────────────
+    const tGenerationStart = Date.now();
     let { completedStops, rejectedCount, partialTour } = await runStream(0);
 
     // ── Attempt 1: rejection retry (hard city-mismatch + soft theme-weak) ─────
@@ -1148,6 +1150,9 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
       }
     }
 
+    const tGenerationEnd = Date.now();
+    console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=generation_complete ms=${tGenerationEnd - tGenerationStart} total_elapsed_ms=${tGenerationEnd - t0} stops=${finalStopsFromDb.length}`);
+
     // ── GRADER v1 ─────────────────────────────────────────────────────────────
     // CONTRACT B: never blocks the user — all grader errors fall through silently.
     // ONE bounded regeneration max. Grader result always persisted to DB.
@@ -1180,8 +1185,10 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
             familyNote: s.familyNote,
           }));
 
+        const tGrade1Start = Date.now();
         const grade1 = await gradeTour(buildGraderStops(finalStopsFromDb), graderFamilyCtxObj, graderInputs);
         dbGraderRanAt = new Date();
+        console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=grade1_complete ms=${Date.now() - tGrade1Start} total_elapsed_ms=${Date.now() - t0} score=${grade1.score} regenerate=${grade1.regenerate}`);
 
         if (!grade1.regenerate) {
           dbGraderStatus = "pass";
@@ -1194,6 +1201,8 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
 
           // One bounded regeneration: clears DB stops and re-streams
           try {
+          const tRegenStart = Date.now();
+          console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=regen_start total_elapsed_ms=${tRegenStart - t0}`);
           const regenResult = await runStream(9, regenInstruction);
           completedStops = regenResult.completedStops;
 
@@ -1250,7 +1259,9 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
           }
 
           // Grade regen candidate and keep the higher-scoring version
+          const tGrade2Start = Date.now();
           const grade2 = await gradeTour(buildGraderStops(regenFinalStops), graderFamilyCtxObj, graderInputs);
+          console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=grade2_complete ms=${Date.now() - tGrade2Start} regen_total_ms=${Date.now() - tRegenStart} total_elapsed_ms=${Date.now() - t0} score=${grade2.score}`);
           if (grade2.score >= grade1.score) {
             finalStopsFromDb = regenFinalStops;
             dbGraderScore = grade2.score;
@@ -1286,10 +1297,17 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
         }
 
         // Persist grader result — fire-and-forget, never block the user
+        const tWriteStart = Date.now();
+        console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=write_start total_elapsed_ms=${tWriteStart - t0}`);
         db.generatedTour.update({
           where: { id: tourId },
           data: { graderScore: dbGraderScore, graderStatus: dbGraderStatus, graderFlags: dbGraderFlags ?? Prisma.JsonNull, graderRanAt: dbGraderRanAt },
-        }).catch(err => console.error("[tour-grader] persist failed:", err));
+        }).then(() => {
+          console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=write_committed ms=${Date.now() - tWriteStart} total_elapsed_ms=${Date.now() - t0} committed=true`);
+        }).catch(err => {
+          console.error(`[grader-timing] tourId=${tourId ?? "?"} phase=write_failed ms=${Date.now() - tWriteStart} total_elapsed_ms=${Date.now() - t0} committed=false`);
+          console.error("[tour-grader] persist failed:", err);
+        });
 
       } catch (graderErr) {
         console.error("[tour-grader] grader pipeline failed, shipping without grade:", graderErr);
@@ -1369,6 +1387,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
 
     // ── Response ───────────────────────────────────────────────────────────────
     const finalPartialTour = finalStopsFromDb.length < targetStops || !!clusterViolation;
+    console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=handler_returning total_elapsed_ms=${Date.now() - t0}`);
     return NextResponse.json({
       tourId,
       title: tourGeneratedTitle ?? tourTitle,
