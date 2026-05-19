@@ -17,6 +17,14 @@ export const maxDuration = 120;
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY ?? "";
 
+// Hard time budget — must stay well under Vercel's 120s maxDuration so the
+// graceful-exit path (graderRanAt write + NextResponse) always wins the race.
+const BUDGET_MS           = 95_000;
+const RESERVE_WALK_RETRY  = 35_000;
+const RESERVE_FILL_PASS   = 35_000;
+const RESERVE_GRADE1      = 12_000;
+const RESERVE_REGEN       = 55_000;
+
 async function resolveDestinationCanonical(destinationCity: string): Promise<{
   destinationPlaceId: string;
   destinationName: string;
@@ -929,7 +937,13 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
     //   1. Run retry in dry-run mode (no DB writes, original rows untouched)
     //   2. If retry improves violations: atomically delete originals + write retry
     //   3. If retry doesn't improve: discard retry buffer, original rows survive
-    if (transport === "Walking" && walkViolations > 0) {
+    // Walk-retry skipped when: (a) pass-0 was short — fill loop clustering hint handles it;
+    // (b) budget is too tight for a ~35s dry-run stream; (c) no violations.
+    if (transport === "Walking" && walkViolations > 0 && completedStops.length < targetStops) {
+      console.log(`[tour-walk-retry-skip] short pass (${completedStops.length}/${targetStops} stops) — fill loop handles clustering`);
+    } else if (transport === "Walking" && walkViolations > 0 && Date.now() - t0 + RESERVE_WALK_RETRY > BUDGET_MS) {
+      console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=walk_retry_budget_skip total_elapsed_ms=${Date.now() - t0}`);
+    } else if (transport === "Walking" && walkViolations > 0) {
       const clusteringHint = `CRITICAL: All stops MUST be in one walkable cluster — every stop within 1.5km of every other stop. Pick a single neighborhood or area and find all ${targetStops} stops within it. If you cannot find ${targetStops} venues meeting this constraint, return your best ${targetStops} options that are tightly clustered, NOT a smaller list spread out. Geographic clustering is more important than minor theme variety. Every consecutive stop pair MUST be within ${maxWalk} minutes walk (~${maxDistMeters}m).`;
       console.log(`[tour-walk-retry] ${walkViolations} walk violations — dry-run retry with clustering hint`);
       const retryResult = await runStream(2, clusteringHint, true); // dryRun=true
@@ -991,6 +1005,10 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
       const MAX_FILL_PASSES = 3;
 
       while (completedStops.length < targetStops && fillPass < MAX_FILL_PASSES) {
+        if (Date.now() - t0 + RESERVE_FILL_PASS > BUDGET_MS) {
+          console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=fill_budget_skip have=${completedStops.length}/${targetStops} total_elapsed_ms=${Date.now() - t0}`);
+          break;
+        }
         fillPass++;
         const missing = targetStops - completedStops.length;
         const alreadyAccepted = completedStops.map(s => s.name);
@@ -1194,6 +1212,12 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
             familyNote: s.familyNote,
           }));
 
+        if (Date.now() - t0 + RESERVE_GRADE1 > BUDGET_MS) {
+          // Not enough headroom to run grade1 and still return within budget.
+          dbGraderStatus = finalStopsFromDb.length < targetStops ? "partial_budget" : "ungraded_budget";
+          console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=grade1_budget_skip status=${dbGraderStatus} total_elapsed_ms=${Date.now() - t0}`);
+        } else {
+
         const tGrade1Start = Date.now();
         const grade1 = await gradeTour(buildGraderStops(finalStopsFromDb), graderFamilyCtxObj, graderInputs);
         console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=grade1_complete ms=${Date.now() - tGrade1Start} total_elapsed_ms=${Date.now() - t0} score=${grade1.score} regenerate=${grade1.regenerate}`);
@@ -1202,6 +1226,12 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
           dbGraderStatus = "pass";
           dbGraderScore = grade1.score;
           dbGraderFlags = grade1.flags as unknown as Prisma.InputJsonValue;
+        } else if (Date.now() - t0 + RESERVE_REGEN > BUDGET_MS) {
+          // Not enough headroom to run regen and still return within budget.
+          dbGraderStatus = "ungraded_budget";
+          dbGraderScore = grade1.score;
+          dbGraderFlags = grade1.flags as unknown as Prisma.InputJsonValue;
+          console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=regen_budget_skip score=${grade1.score} total_elapsed_ms=${Date.now() - t0}`);
         } else {
           console.log(`[tour-grader] grade1 score=${grade1.score} regenerate=true — running bounded regeneration`);
           const originalSnapshot = [...finalStopsFromDb];
@@ -1304,6 +1334,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
             dbGraderStatus = "low_confidence";
           }
         }
+        } // close: else { // grade1 ran (not budget-skipped)
 
         // Persist grader result — awaited in its own try/catch so write failure never propagates
         try {
@@ -1322,6 +1353,29 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
 
       } catch (graderErr) {
         console.error("[tour-grader] grader pipeline failed, shipping without grade:", graderErr);
+      }
+    }
+
+    // ── GUARANTEE: graderRanAt is ALWAYS written before we return ─────────────
+    // If the grader block above ran and committed, this is a no-op (dbGraderRanAt !== null).
+    // Fires for: 0-stop complete failures, budget-skip paths, and any graderErr throw.
+    if (!dbGraderRanAt && tourId) {
+      const safeStatus = finalStopsFromDb.length > 0 ? "ungraded_budget" : "partial_budget";
+      dbGraderStatus = dbGraderStatus ?? safeStatus;
+      dbGraderRanAt = new Date();
+      try {
+        await db.generatedTour.update({
+          where: { id: tourId },
+          data: {
+            graderStatus: dbGraderStatus,
+            graderRanAt: dbGraderRanAt,
+            graderScore: dbGraderScore,
+            graderFlags: dbGraderFlags ?? Prisma.JsonNull,
+          },
+        });
+        console.log(`[grader-timing] tourId=${tourId} phase=safety_write status=${dbGraderStatus} total_elapsed_ms=${Date.now() - t0}`);
+      } catch (safeWriteErr) {
+        console.error(`[grader] SAFETY_WRITE_FAILED tourId=${tourId}:`, safeWriteErr);
       }
     }
 
