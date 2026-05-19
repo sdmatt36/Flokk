@@ -102,10 +102,12 @@ async function resolveAndPersist(mapsUrl) {
 async function scrubTable({ client, tableName, urlCol }) {
   const stats = { persisted: 0, nulled: 0, errors: 0 };
 
-  // No deletedAt filter — scrub ALL rows including soft-deleted
+  // No deletedAt filter — scrub ALL rows including soft-deleted.
+  // Pattern covers all Google API URL families: place/photo, staticmap, streetview, geocode, embed.
   const { rows } = await client.query(
     `SELECT id, "${urlCol}" FROM "${tableName}"
      WHERE "${urlCol}" LIKE '%maps.googleapis.com%'
+        OR "${urlCol}" LIKE '%key=AIza%'
      ORDER BY id`
   );
 
@@ -170,10 +172,10 @@ const TARGETS = [
   { tableName: "TravelVideo",                  urlCol: "thumbnailUrl"    },
 ];
 
-// Verification query — re-run this independently to confirm gate.
+// Verification query — covers all Google API URL families (place/photo, staticmap, etc.)
 const VERIFY_SQL = TARGETS.map(
   ({ tableName, urlCol }) =>
-    `SELECT '${tableName}.${urlCol}' AS col, COUNT(*) AS cnt FROM "${tableName}" WHERE "${urlCol}" LIKE '%maps.googleapis.com%'`
+    `SELECT '${tableName}.${urlCol}' AS col, COUNT(*) AS cnt FROM "${tableName}" WHERE "${urlCol}" LIKE '%maps.googleapis.com%' OR "${urlCol}" LIKE '%key=AIza%'`
 ).join("\nUNION ALL\n");
 
 async function main() {

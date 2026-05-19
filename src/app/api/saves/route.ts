@@ -1,5 +1,6 @@
 function sanitizeThumbnailUrl(url: string | null | undefined): string | null {
   if (!url) return null;
+  if (/[?&]key=AIza/i.test(url)) return null; // reject key-bearing Google API URLs
   return url;
 }
 
@@ -153,11 +154,12 @@ export async function POST(request: Request) {
 
     const sourcePlatform = inferPlatformFromUrl(url);
 
-    // Reject template placeholders and non-http image values
+    // Reject template placeholders, non-http values, and key-bearing Google API URLs
     function sanitizeImageUrl(img: string | undefined | null): string | null {
       if (!img) return null;
       if (!img.startsWith("http")) return null;
       if (img.includes("{") || img.includes("}")) return null;
+      if (/[?&]key=AIza/i.test(img)) return null; // staticmap, place/photo, streetview, etc.
       return img;
     }
 
