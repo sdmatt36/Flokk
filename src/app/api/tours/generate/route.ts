@@ -1187,7 +1187,6 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
 
         const tGrade1Start = Date.now();
         const grade1 = await gradeTour(buildGraderStops(finalStopsFromDb), graderFamilyCtxObj, graderInputs);
-        dbGraderRanAt = new Date();
         console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=grade1_complete ms=${Date.now() - tGrade1Start} total_elapsed_ms=${Date.now() - t0} score=${grade1.score} regenerate=${grade1.regenerate}`);
 
         if (!grade1.regenerate) {
@@ -1296,18 +1295,20 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
           }
         }
 
-        // Persist grader result — fire-and-forget, never block the user
-        const tWriteStart = Date.now();
-        console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=write_start total_elapsed_ms=${tWriteStart - t0}`);
-        db.generatedTour.update({
-          where: { id: tourId },
-          data: { graderScore: dbGraderScore, graderStatus: dbGraderStatus, graderFlags: dbGraderFlags ?? Prisma.JsonNull, graderRanAt: dbGraderRanAt },
-        }).then(() => {
+        // Persist grader result — awaited in its own try/catch so write failure never propagates
+        try {
+          dbGraderRanAt = new Date();
+          const tWriteStart = Date.now();
+          console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=write_start total_elapsed_ms=${tWriteStart - t0}`);
+          await db.generatedTour.update({
+            where: { id: tourId },
+            data: { graderScore: dbGraderScore, graderStatus: dbGraderStatus, graderFlags: dbGraderFlags ?? Prisma.JsonNull, graderRanAt: dbGraderRanAt },
+          });
           console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=write_committed ms=${Date.now() - tWriteStart} total_elapsed_ms=${Date.now() - t0} committed=true`);
-        }).catch(err => {
-          console.error(`[grader-timing] tourId=${tourId ?? "?"} phase=write_failed ms=${Date.now() - tWriteStart} total_elapsed_ms=${Date.now() - t0} committed=false`);
-          console.error("[tour-grader] persist failed:", err);
-        });
+        } catch (err) {
+          console.error(`[grader] WRITE_FAILED tourId=${tourId ?? "?"} graderScore=${dbGraderScore} status=${dbGraderStatus} err=${err instanceof Error ? err.message : String(err)}`);
+          // Do NOT rethrow. A grader-write failure must never turn a good tour into a user-facing error.
+        }
 
       } catch (graderErr) {
         console.error("[tour-grader] grader pipeline failed, shipping without grade:", graderErr);
