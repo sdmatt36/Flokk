@@ -120,6 +120,21 @@ function checkClosedVenues(stops: GraderStop[]): GraderFlag[] {
   return flags;
 }
 
+function checkInsufficientStops(stops: GraderStop[], inputDurationHr: number | null): GraderFlag[] {
+  const minStops = inputDurationHr === null ? 3
+    : inputDurationHr <= 2 ? 2
+    : inputDurationHr <= 5 ? 3
+    : 4;
+  if (stops.length < minStops) {
+    return [{
+      code: "INSUFFICIENT_STOPS",
+      severity: "critical",
+      detail: `Tour has ${stops.length} stop(s); minimum for a ${inputDurationHr ?? "?"}h tour is ${minStops}`,
+    }];
+  }
+  return [];
+}
+
 function isHardFail(flags: GraderFlag[]): boolean {
   const criticals = flags.filter(f => f.severity === "critical").length;
   const highs = flags.filter(f => f.severity === "high").length;
@@ -211,6 +226,7 @@ export async function gradeTour(
 ): Promise<GraderResult> {
   // Deterministic checks
   const flags: GraderFlag[] = [
+    ...checkInsufficientStops(stops, inputs.inputDurationHr),
     ...checkDuplicates(stops),
     ...checkGeoIncoherence(stops, inputs.transport),
     ...checkClosedVenues(stops),

@@ -1265,7 +1265,8 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
             finalStopsFromDb = regenFinalStops;
             dbGraderScore = grade2.score;
             dbGraderFlags = grade2.flags as unknown as Prisma.InputJsonValue;
-            dbGraderStatus = grade2.score >= 70 ? "regenerated_pass" : "low_confidence";
+            const grade2StillInsufficient = grade2.flags.some(f => f.code === "INSUFFICIENT_STOPS");
+            dbGraderStatus = (grade2.score >= 70 && !grade2StillInsufficient) ? "regenerated_pass" : "low_confidence";
             console.log(`[tour-grader] kept regen: grade2=${grade2.score} >= grade1=${grade1.score} status=${dbGraderStatus}`);
           } else {
             // Restore original snapshot — regen was worse
