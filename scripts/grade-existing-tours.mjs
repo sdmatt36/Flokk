@@ -8,8 +8,6 @@
  *   node scripts/grade-existing-tours.mjs
  */
 
-import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "@prisma/client";
 import pg from "pg";
 import Anthropic from "@anthropic-ai/sdk";
 import { readFileSync } from "fs";
@@ -30,16 +28,13 @@ function loadEnv(filename) {
 loadEnv(".env.local");
 loadEnv(".env.production");
 
-const DATABASE_URL = process.env.DIRECT_URL ?? process.env.DATABASE_URL;
+const DATABASE_URL = process.env.DATABASE_URL;
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 if (!DATABASE_URL) { console.error("Missing DATABASE_URL"); process.exit(1); }
 if (!ANTHROPIC_API_KEY) { console.error("Missing ANTHROPIC_API_KEY"); process.exit(1); }
 
 const pool = new pg.Pool({ connectionString: DATABASE_URL });
-const adapter = new PrismaPg(pool);
-const db = new PrismaClient({ adapter });
-
 const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
 // ── Geo helper ────────────────────────────────────────────────────────────────
@@ -80,7 +75,7 @@ function checkDuplicates(stops) {
       }
       if (a.lat && a.lng && b.lat && b.lng) {
         const distM = haversineKm({ lat: a.lat, lng: a.lng }, { lat: b.lat, lng: b.lng }) * 1000;
-        if (distM <= 50 && a.placeTypes.some(t => b.placeTypes.includes(t))) {
+        if (distM <= 50 && (a.placeTypes || []).some(t => (b.placeTypes || []).includes(t))) {
           flags.push({ code: "DUP_STOP", severity: "high", detail: `Stops ${i+1} "${a.name}" and ${j+1} "${b.name}" are ${Math.round(distM)}m apart with overlapping types` });
         }
       }
@@ -197,7 +192,7 @@ async function gradeTour(stops, familyCtx, inputs) {
   return { score, flags, reasons, regenerate };
 }
 
-// ── Build family context from profile ─────────────────────────────────────────
+// ── Age computation ───────────────────────────────────────────────────────────
 function ageFromBirthDate(birthDate) {
   if (!birthDate) return null;
   const birth = new Date(birthDate);
@@ -208,154 +203,173 @@ function ageFromBirthDate(birthDate) {
   return age >= 0 ? age : null;
 }
 
-async function buildFamilyCtx(tour) {
-  const isNoChildren = ["adults_only", "solo", "couple", "friends"].includes(tour.inputGroup ?? "");
-  if (isNoChildren) return { ages: [], dietary: [], foodAllergies: [], pace: null, travelStyle: null, interestKeys: [] };
-
-  try {
-    const profile = await db.familyProfile.findUnique({
-      where: { id: tour.familyProfileId },
-      include: {
-        members: { select: { role: true, birthDate: true, dietaryRequirements: true, foodAllergies: true } },
-        interests: { select: { interestKey: true } },
-      },
-    });
-    if (!profile) return { ages: [], dietary: [], foodAllergies: [], pace: null, travelStyle: null, interestKeys: [] };
-
-    const ages = profile.members
-      .filter(m => m.role === "CHILD")
-      .map(m => ageFromBirthDate(m.birthDate))
-      .filter(a => a !== null);
-    const dietary = [...new Set(profile.members.flatMap(m => m.dietaryRequirements ?? []))];
-    const foodAllergies = [...new Set(profile.members.flatMap(m => m.foodAllergies ?? []))];
-    const interestKeys = profile.interests.map(i => i.interestKey);
-    return { ages, dietary, foodAllergies, pace: profile.pace, travelStyle: profile.travelStyle, interestKeys };
-  } catch {
-    return { ages: [], dietary: [], foodAllergies: [], pace: null, travelStyle: null, interestKeys: [] };
-  }
-}
-
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   console.log("=== Flokk Grader V1 — Baseline Run (all non-deleted tours) ===\n");
 
-  const tours = await db.generatedTour.findMany({
-    where: { deletedAt: null },
-    include: {
-      stops: {
-        where: { deletedAt: null },
-        orderBy: { orderIndex: "asc" },
-      },
-    },
-    orderBy: { createdAt: "asc" },
-  });
+  const client = await pool.connect();
 
-  console.log(`Found ${tours.length} tours to grade.\n`);
+  try {
+    // Fetch all non-deleted tours
+    const { rows: tours } = await client.query(`
+      SELECT id, title, "destinationCity", prompt, transport, "inputGroup",
+             "inputVibe", "inputDurationHr", "familyProfileId", "createdAt"
+      FROM "GeneratedTour"
+      WHERE "deletedAt" IS NULL
+      ORDER BY "createdAt" ASC
+    `);
 
-  const results = [];
+    console.log(`Found ${tours.length} tours to grade.\n`);
+    const results = [];
 
-  for (const tour of tours) {
-    process.stdout.write(`Grading [${tour.id.slice(-8)}] "${tour.title.slice(0, 40)}" (${tour.destinationCity}) — ${tour.stops.length} stops ... `);
+    for (const tour of tours) {
+      const { rows: stops } = await client.query(`
+        SELECT id, name, lat, lng, "placeId", "placeTypes", why, "familyNote"
+        FROM "TourStop"
+        WHERE "tourId" = $1 AND "deletedAt" IS NULL
+        ORDER BY "orderIndex" ASC
+      `, [tour.id]);
 
-    if (tour.stops.length === 0) {
-      console.log("SKIP (0 stops)");
-      results.push({ tour, score: null, status: "no_stops", flags: [], reasons: [] });
-      continue;
-    }
+      process.stdout.write(`Grading [${tour.id.slice(-8)}] "${(tour.title || "").slice(0, 40)}" (${tour.destinationCity}) — ${stops.length} stops ... `);
 
-    const familyCtx = await buildFamilyCtx(tour);
-    const inputs = {
-      prompt: tour.prompt,
-      transport: tour.transport,
-      inputGroup: tour.inputGroup ?? "family_kids",
-      inputVibe: tour.inputVibe ?? [],
-      inputDurationHr: tour.inputDurationHr,
-    };
-    const graderStops = tour.stops.map(s => ({
-      placeId: s.placeId,
-      name: s.name,
-      lat: s.lat,
-      lng: s.lng,
-      placeTypes: s.placeTypes ?? [],
-      businessStatus: null, // not stored on existing stops
-      why: s.why,
-      familyNote: s.familyNote,
-    }));
-
-    let grade;
-    try {
-      grade = await gradeTour(graderStops, familyCtx, inputs);
-    } catch (err) {
-      console.log(`ERROR: ${err.message}`);
-      results.push({ tour, score: null, status: "grader_error", flags: [], reasons: [] });
-      continue;
-    }
-
-    const status = grade.regenerate ? "low_confidence" : "pass";
-    console.log(`score=${grade.score} ${status} flags=[${grade.flags.map(f => f.code).join(",")}]`);
-    results.push({ tour, score: grade.score, status, flags: grade.flags, reasons: grade.reasons });
-
-    // Write grader result to DB
-    await db.generatedTour.update({
-      where: { id: tour.id },
-      data: {
-        graderScore: grade.score,
-        graderStatus: status,
-        graderFlags: grade.flags,
-        graderRanAt: new Date(),
-      },
-    });
-  }
-
-  // ── Summary table ──────────────────────────────────────────────────────────
-  console.log("\n=== SUMMARY TABLE ===");
-  console.log(`${"ID".padEnd(10)} ${"City".padEnd(22)} ${"Score".padEnd(6)} ${"Status".padEnd(18)} Flags`);
-  console.log("─".repeat(80));
-
-  const graded = results.filter(r => r.score !== null);
-  for (const r of results) {
-    const id = r.tour.id.slice(-8);
-    const city = (r.tour.destinationCity ?? "").slice(0, 20).padEnd(22);
-    const score = r.score !== null ? String(r.score).padEnd(6) : "N/A   ";
-    const status = r.status.padEnd(18);
-    const flagCodes = r.flags.map(f => `${f.code}(${f.severity.slice(0,1)})`).join(" ") || "—";
-    console.log(`${id.padEnd(10)} ${city} ${score} ${status} ${flagCodes}`);
-  }
-
-  // ── Distribution ───────────────────────────────────────────────────────────
-  console.log("\n=== DISTRIBUTION ===");
-  const statusCounts = {};
-  let totalScore = 0;
-  for (const r of graded) {
-    statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
-    totalScore += r.score;
-  }
-  console.log("Count by status:");
-  for (const [s, c] of Object.entries(statusCounts)) {
-    console.log(`  ${s}: ${c}`);
-  }
-  const meanScore = graded.length > 0 ? (totalScore / graded.length).toFixed(1) : "N/A";
-  console.log(`Mean score: ${meanScore} (n=${graded.length})`);
-
-  const lowConfidence = graded.filter(r => r.score < 70);
-  if (lowConfidence.length > 0) {
-    console.log(`\nTours scoring < 70 (${lowConfidence.length} tours):`);
-    for (const r of lowConfidence) {
-      console.log(`  [${r.tour.id.slice(-8)}] "${r.tour.title.slice(0, 40)}" (${r.tour.destinationCity}) score=${r.score}`);
-      for (const f of r.flags) {
-        console.log(`    FLAG [${f.code}] ${f.severity}: ${f.detail}`);
+      if (stops.length === 0) {
+        console.log("SKIP (0 stops)");
+        results.push({ tour, score: null, status: "no_stops", flags: [], reasons: [] });
+        continue;
       }
-      if (r.reasons.length > 0) {
-        console.log(`    Reasons: ${r.reasons.join(" | ")}`);
-      }
-    }
-  } else {
-    console.log("\nAll graded tours scored >= 70.");
-  }
 
-  console.log("\n=== DONE ===");
-  await db.$disconnect();
-  await pool.end();
+      // Build family context from profile
+      const isNoChildren = ["adults_only", "solo", "couple", "friends"].includes(tour.inputGroup ?? "");
+      let familyCtx = { ages: [], dietary: [], foodAllergies: [], pace: null, travelStyle: null, interestKeys: [] };
+
+      if (!isNoChildren && tour.familyProfileId) {
+        try {
+          const { rows: members } = await client.query(`
+            SELECT role, "birthDate", "dietaryRequirements", "foodAllergies"
+            FROM "FamilyMember"
+            WHERE "familyProfileId" = $1
+          `, [tour.familyProfileId]);
+
+          const { rows: interests } = await client.query(`
+            SELECT "interestKey" FROM "DeclaredInterest" WHERE "familyProfileId" = $1
+          `, [tour.familyProfileId]);
+
+          const { rows: profiles } = await client.query(`
+            SELECT pace, "travelStyle" FROM "FamilyProfile" WHERE id = $1
+          `, [tour.familyProfileId]);
+
+          const ages = members
+            .filter(m => m.role === "CHILD")
+            .map(m => ageFromBirthDate(m.birthDate))
+            .filter(a => a !== null);
+
+          const allDietary = [...new Set(members.flatMap(m => m.dietaryRequirements || []))];
+          const allAllergies = [...new Set(members.flatMap(m => m.foodAllergies || []))];
+
+          familyCtx = {
+            ages,
+            dietary: allDietary,
+            foodAllergies: allAllergies,
+            pace: profiles[0]?.pace ?? null,
+            travelStyle: profiles[0]?.travelStyle ?? null,
+            interestKeys: interests.map(i => i.interestKey),
+          };
+        } catch { /* profile lookup failed — use empty context */ }
+      }
+
+      const inputs = {
+        prompt: tour.prompt,
+        transport: tour.transport,
+        inputGroup: tour.inputGroup ?? "family_kids",
+        inputVibe: tour.inputVibe ?? [],
+        inputDurationHr: tour.inputDurationHr,
+      };
+
+      const graderStops = stops.map(s => ({
+        placeId: s.placeId,
+        name: s.name,
+        lat: s.lat != null ? parseFloat(s.lat) : null,
+        lng: s.lng != null ? parseFloat(s.lng) : null,
+        placeTypes: s.placeTypes ?? [],
+        businessStatus: null, // not stored on existing stops
+        why: s.why,
+        familyNote: s.familyNote,
+      }));
+
+      let grade;
+      try {
+        grade = await gradeTour(graderStops, familyCtx, inputs);
+      } catch (err) {
+        console.log(`ERROR: ${err.message}`);
+        results.push({ tour, score: null, status: "grader_error", flags: [], reasons: [] });
+        continue;
+      }
+
+      const status = grade.regenerate ? "low_confidence" : "pass";
+      const flagStr = grade.flags.map(f => `${f.code}(${f.severity.slice(0,1)})`).join(",") || "none";
+      console.log(`score=${grade.score} ${status} flags=[${flagStr}]`);
+      results.push({ tour, score: grade.score, status, flags: grade.flags, reasons: grade.reasons });
+
+      // Write grader result to DB
+      await client.query(`
+        UPDATE "GeneratedTour"
+        SET "graderScore" = $1, "graderStatus" = $2, "graderFlags" = $3, "graderRanAt" = $4
+        WHERE id = $5
+      `, [grade.score, status, JSON.stringify(grade.flags), new Date(), tour.id]);
+    }
+
+    // ── Summary table ──────────────────────────────────────────────────────────
+    console.log("\n=== SUMMARY TABLE ===");
+    console.log(`${"ID".padEnd(10)} ${"City".padEnd(22)} ${"Score".padEnd(6)} ${"Status".padEnd(18)} Flags`);
+    console.log("─".repeat(80));
+
+    const graded = results.filter(r => r.score !== null);
+    for (const r of results) {
+      const id = r.tour.id.slice(-8);
+      const city = (r.tour.destinationCity ?? "").slice(0, 20).padEnd(22);
+      const score = r.score !== null ? String(r.score).padEnd(6) : "N/A   ";
+      const status = r.status.padEnd(18);
+      const flagCodes = r.flags.map(f => `${f.code}(${f.severity.slice(0,1)})`).join(" ") || "—";
+      console.log(`${id.padEnd(10)} ${city} ${score} ${status} ${flagCodes}`);
+    }
+
+    // ── Distribution ───────────────────────────────────────────────────────────
+    console.log("\n=== DISTRIBUTION ===");
+    const statusCounts = {};
+    let totalScore = 0;
+    for (const r of graded) {
+      statusCounts[r.status] = (statusCounts[r.status] ?? 0) + 1;
+      totalScore += r.score;
+    }
+    console.log("Count by status:");
+    for (const [s, c] of Object.entries(statusCounts)) {
+      console.log(`  ${s}: ${c}`);
+    }
+    const meanScore = graded.length > 0 ? (totalScore / graded.length).toFixed(1) : "N/A";
+    console.log(`Mean score: ${meanScore} (n=${graded.length})`);
+
+    const lowConfidence = graded.filter(r => r.score < 70);
+    if (lowConfidence.length > 0) {
+      console.log(`\nTours scoring < 70 (${lowConfidence.length} tours):`);
+      for (const r of lowConfidence) {
+        console.log(`  [${r.tour.id.slice(-8)}] "${(r.tour.title || "").slice(0, 40)}" (${r.tour.destinationCity}) score=${r.score}`);
+        for (const f of r.flags) {
+          console.log(`    FLAG [${f.code}] ${f.severity}: ${f.detail}`);
+        }
+        if (r.reasons.length > 0) {
+          console.log(`    Reasons: ${r.reasons.join(" | ")}`);
+        }
+      }
+    } else {
+      console.log("\nAll graded tours scored >= 70.");
+    }
+
+    console.log("\n=== DONE ===");
+
+  } finally {
+    client.release();
+    await pool.end();
+  }
 }
 
 main().catch(err => { console.error(err); process.exit(1); });
