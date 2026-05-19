@@ -25,6 +25,17 @@ const RESERVE_FILL_PASS   = 35_000;
 const RESERVE_GRADE1      = 12_000;
 const RESERVE_REGEN       = 55_000;
 
+// Returns the id of the stop best matching the user's named start point.
+// Tries case-insensitive name containment (either direction), falls back to [0]?.id.
+function findStartPointId(startPoint: string, stops: Array<{ id: string; name: string | null }>): string | undefined {
+  const norm = startPoint.toLowerCase().trim();
+  const match = stops.find(s => {
+    const sName = (s.name ?? "").toLowerCase();
+    return sName.includes(norm) || norm.includes(sName);
+  });
+  return match?.id ?? stops[0]?.id;
+}
+
 async function resolveDestinationCanonical(destinationCity: string): Promise<{
   destinationPlaceId: string;
   destinationName: string;
@@ -391,7 +402,7 @@ export async function POST(req: NextRequest) {
     targetStops = 4;
   } else if (durationLabel === "Full day (8 hrs)") {
     maxMinutes = 480;
-    targetStops = 8;
+    targetStops = inputGroup === "family_kids" ? 6 : 8;
   } else {
     // "Half day (4 hrs)" or unrecognised — default 4 hrs
     maxMinutes = 240;
@@ -1138,7 +1149,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
     const stopsWithCoords = finalStopsFromDb.filter(s => s.lat != null && s.lng != null);
     if (stopsWithCoords.length >= 3) {
       try {
-        const pinnedFirstId = inputStartPoint ? finalStopsFromDb[0]?.id : undefined;
+        const pinnedFirstId = inputStartPoint ? findStartPointId(inputStartPoint, finalStopsFromDb) : undefined;
         console.log(`[tour-start-point] inputStartPoint="${inputStartPoint ?? "none"}" preOptimStop1="${finalStopsFromDb[0]?.name ?? "none"}" pinnedFirstId="${pinnedFirstId ?? "none"}"`);
         const optimized = optimizeRouteOrder(
           stopsWithCoords.map(s => ({ id: s.id, lat: s.lat!, lng: s.lng! })),
@@ -1289,7 +1300,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
           const regenWithCoords = regenFinalStops.filter(s => s.lat != null && s.lng != null);
           if (regenWithCoords.length >= 3) {
             try {
-              const pf2 = inputStartPoint ? regenFinalStops[0]?.id : undefined;
+              const pf2 = inputStartPoint ? findStartPointId(inputStartPoint, regenFinalStops) : undefined;
               const opt2 = optimizeRouteOrder(regenWithCoords.map(s => ({ id: s.id, lat: s.lat!, lng: s.lng! })), pf2);
               await Promise.all(opt2.map((s, i) => db.tourStop.update({ where: { id: s.id }, data: { orderIndex: i } })));
               regenFinalStops = await db.tourStop.findMany({ where: { tourId, deletedAt: null }, orderBy: { orderIndex: "asc" } });
