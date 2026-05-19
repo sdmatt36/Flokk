@@ -757,6 +757,8 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
     // ── Pre-stream: emit_tour_metadata (title + subtitle) ─────────────────────
     let tourGeneratedTitle: string | null = null;
     let tourGeneratedSubtitle: string | null = null;
+    const tMetaStart = Date.now();
+    console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=metadata_start total_elapsed_ms=${tMetaStart - t0}`);
     try {
       const metadataResponse = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
@@ -787,6 +789,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
     } catch (err) {
       console.error("[tour-metadata] failed, proceeding without metadata:", err);
     }
+    console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=metadata_complete ms=${Date.now() - tMetaStart} total_elapsed_ms=${Date.now() - t0}`);
 
     type PersistedStop = ResolvedStop & { id: string; orderIndex: number };
 
@@ -804,6 +807,8 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
         await db.tourStop.deleteMany({ where: { tourId } });
       }
 
+      const tStreamPassStart = Date.now();
+      console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=stream_start attempt=${attempt}${dryRun ? "_dry" : ""} total_elapsed_ms=${tStreamPassStart - t0}`);
       const completedStops: PersistedStop[] = [];
       let orderIndex = 0;
       let currentToolName: string | null = null;
@@ -887,6 +892,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
       }
 
       if (completedStops.length < targetStops) partialTour = true;
+      console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=stream_complete attempt=${attempt}${dryRun ? "_dry" : ""} ms=${Date.now() - tStreamPassStart} accepted=${completedStops.length} rejected=${rejectedCount} total_elapsed_ms=${Date.now() - t0}`);
 
       return { completedStops, rejectedCount, partialTour };
     }
@@ -988,6 +994,8 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
         fillPass++;
         const missing = targetStops - completedStops.length;
         const alreadyAccepted = completedStops.map(s => s.name);
+        const tFillStart = Date.now();
+        console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=fill_start pass=${fillPass} need=${missing} total_elapsed_ms=${tFillStart - t0}`);
         console.log(`[tour-fill] pass ${fillPass}/${MAX_FILL_PASSES}: need ${missing} more stops (have ${completedStops.length}/${targetStops})`);
 
         const fillInstruction = `ALREADY ACCEPTED STOPS — DO NOT REPEAT THESE (they are already in the tour):\n${alreadyAccepted.map((n, i) => `${i + 1}. ${n}`).join("\n")}\n\nYou must emit exactly ${missing} NEW stop(s) that are DIFFERENT from the above list. Choose DIFFERENT venue types and areas of the city than what is already listed. All original constraints still apply.`;
@@ -1068,6 +1076,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
           }
         }
 
+        console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=fill_complete pass=${fillPass} ms=${Date.now() - tFillStart} stops_added=${completedStops.length - beforeFill} total_elapsed_ms=${Date.now() - t0}`);
         if (completedStops.length === beforeFill) {
           console.log(`[tour-fill] pass ${fillPass} added 0 stops — stopping fill loop`);
           break;
