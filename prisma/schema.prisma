@@ -1205,6 +1205,10 @@ model GeneratedTour {
   inputVibe             String[]      @default([])
   inputDurationHr       Int?
   inputStartPoint       String?
+  graderScore           Int?
+  graderStatus          String?
+  graderFlags           Json?
+  graderRanAt           DateTime?
   stops                 TourStop[]
   cityId                String?       @db.Text
   city                  City?         @relation(fields: [cityId], references: [id], onDelete: SetNull)

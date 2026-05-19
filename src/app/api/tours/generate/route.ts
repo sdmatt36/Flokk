@@ -8,7 +8,8 @@ import { optimizeRouteOrder } from "@/lib/tour-route-optimization";
 import { resolveCanonicalUrl } from "@/lib/url-resolver";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
 import { aggregateTripContext, flatChildAges, describePace, topInterests } from "@/lib/trip-context-multi";
-import { DestinationType } from "@prisma/client";
+import { DestinationType, Prisma } from "@prisma/client";
+import { gradeTour, graderFlagsToInstruction, type GraderFamilyContext, type GraderGenerationInputs, type GraderStop } from "@/lib/tour-grader";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -117,7 +118,7 @@ function scrubEmDash(s: string | null | undefined): string | null {
   return s.replace(/—/g, ", ").replace(/,\s*,/g, ",").replace(/\s{2,}/g, " ").trim();
 }
 
-type ResolvedStop = RawStop & { imageUrl: string | null; websiteUrl: string | null; placeId: string | null; ticketRequired: string | null; placeTypes: string[] };
+type ResolvedStop = RawStop & { imageUrl: string | null; websiteUrl: string | null; placeId: string | null; ticketRequired: string | null; placeTypes: string[]; businessStatus: string | null };
 
 function deriveTicketSignal(
   types: string[],
@@ -220,7 +221,7 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     }
 
     const detailsRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${firstResult.place_id}&fields=name,formatted_address,geometry,photos,address_components,website,types,price_level,editorial_summary&language=en&key=${process.env.GOOGLE_MAPS_API_KEY}`
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${firstResult.place_id}&fields=name,formatted_address,geometry,photos,address_components,website,types,price_level,editorial_summary,business_status&language=en&key=${process.env.GOOGLE_MAPS_API_KEY}`
     );
     const detailsData = await detailsRes.json() as {
       result?: {
@@ -230,6 +231,7 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
         types?: string[];
         price_level?: number;
         editorial_summary?: { overview?: string };
+        business_status?: string;
       };
     };
 
@@ -299,12 +301,13 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     const placeTypes = detailsData.result?.types ?? [];
     const priceLevel = detailsData.result?.price_level;
     const editorialSummary = detailsData.result?.editorial_summary?.overview;
+    const businessStatus = detailsData.result?.business_status ?? null;
     const ticketRequired = deriveTicketSignal(placeTypes, priceLevel, editorialSummary);
-    console.log(`[tour-resolve] OK "${stop.name}" -> ${lat},${lng}${imageUrl ? " [photo]" : ""} ticket=${ticketRequired}`);
-    return { ...stop, lat, lng, imageUrl, websiteUrl, placeId: firstResult.place_id, ticketRequired, placeTypes };
+    console.log(`[tour-resolve] OK "${stop.name}" -> ${lat},${lng}${imageUrl ? " [photo]" : ""} ticket=${ticketRequired} status=${businessStatus ?? "unknown"}`);
+    return { ...stop, lat, lng, imageUrl, websiteUrl, placeId: firstResult.place_id, ticketRequired, placeTypes, businessStatus };
   } catch (e) {
     console.error("[tour-resolve] error:", stop.name, e);
-    if (stop.lat && stop.lng && stop.lat !== 0 && stop.lng !== 0) return { ...stop, imageUrl: null, websiteUrl: resolveCanonicalUrl({ name: stop.name, city: destinationCity }), placeId: null, ticketRequired: null, placeTypes: [] };
+    if (stop.lat && stop.lng && stop.lat !== 0 && stop.lng !== 0) return { ...stop, imageUrl: null, websiteUrl: resolveCanonicalUrl({ name: stop.name, city: destinationCity }), placeId: null, ticketRequired: null, placeTypes: [], businessStatus: null };
     return null;
   }
 }
@@ -382,6 +385,14 @@ export async function POST(req: NextRequest) {
     let childAgesContext = "ages not specified";
     let childNames: string[] = [];
 
+    // Grader context — structured version of what the generator actually receives
+    let graderAges: number[] = [];
+    let graderDietary: string[] = [];
+    let graderFoodAllergies: string[] = [];
+    let graderPaceStr: string | null = null;
+    let graderStyleStr: string | null = null;
+    let graderInterestKeys: string[] = [];
+
     if (tripId) {
       const aggCtx = await aggregateTripContext(tripId);
       const allChildAges = flatChildAges(aggCtx);
@@ -400,11 +411,17 @@ export async function POST(req: NextRequest) {
       if (interests.length > 0) parts.push(`Interests: ${interests.join(", ")}`);
       if (aggCtx.dietaryRestrictions.length > 0) parts.push(`Dietary (must accommodate ALL families): ${aggCtx.dietaryRestrictions.join(", ")}`);
       familyContext = parts.join(". ");
+
+      graderAges = allChildAges;
+      graderDietary = aggCtx.dietaryRestrictions;
+      graderInterestKeys = interests;
+      graderPaceStr = pace || null;
+      graderStyleStr = aggCtx.styleCues.length > 0 ? aggCtx.styleCues.join(", ") : null;
     } else {
       const profile = await db.familyProfile.findUnique({
         where: { id: profileId },
         include: {
-          members: { select: { name: true, role: true, dietaryRequirements: true, birthDate: true } },
+          members: { select: { name: true, role: true, dietaryRequirements: true, foodAllergies: true, birthDate: true } },
           interests: { select: { interestKey: true } },
         },
       });
@@ -430,20 +447,38 @@ export async function POST(req: NextRequest) {
 
         const interestList = profile.interests.map(i => i.interestKey).join(", ");
         const allDietary = [...new Set(profile.members.flatMap(m => m.dietaryRequirements as string[]))];
+        const allAllergies = [...new Set(profile.members.flatMap(m => m.foodAllergies as string[]))];
         const parts: string[] = [];
         if (memberList) parts.push(`Family: ${memberList}`);
         if (profile.travelStyle) parts.push(`Travel style: ${profile.travelStyle}`);
         if (profile.pace) parts.push(`Pace: ${profile.pace}`);
         if (interestList) parts.push(`Interests: ${interestList}`);
         if (allDietary.length > 0) parts.push(`Dietary notes: ${allDietary.join(", ")}`);
+        if (allAllergies.length > 0) parts.push(`Food allergies (hard constraint, never include conflicting venues): ${allAllergies.join(", ")}`);
         familyContext = parts.join(". ");
+
+        graderAges = childAges;
+        graderDietary = allDietary;
+        graderFoodAllergies = allAllergies;
+        graderInterestKeys = profile.interests.map(i => i.interestKey);
+        graderPaceStr = profile.pace ?? null;
+        graderStyleStr = profile.travelStyle ?? null;
       }
     }
 
     if (isNoChildren) {
       familyContext = "";
       youngestChildAge = null;
+      graderAges = [];
+      graderDietary = [];
+      graderFoodAllergies = [];
+      graderPaceStr = null;
+      graderStyleStr = null;
+      graderInterestKeys = [];
     }
+
+    // businessStatusMap: populated during stop resolution so the grader can check CLOSED_VENUE
+    const businessStatusMap = new Map<string, string | null>();
 
     const maxWalk = maxWalkMinutes(youngestChildAge);
     const maxDistMeters = maxWalk * 80;
@@ -816,6 +851,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
                   });
                 }
 
+                businessStatusMap.set(resolved.placeId ?? resolved.name, resolved.businessStatus ?? null);
                 completedStops.push({ ...resolved, id: stopId, orderIndex: idx });
               }
             }
@@ -995,6 +1031,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
                       placeTypes: resolved.placeTypes ?? [],
                     },
                   });
+                  businessStatusMap.set(resolved.placeId ?? resolved.name, resolved.businessStatus ?? null);
                   completedStops.push({ ...resolved, id: stopId, orderIndex: idx });
                   console.log(`[tour-fill] added "${resolved.name}" (${completedStops.length}/${targetStops})`);
                 }
@@ -1088,6 +1125,140 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
           error: e instanceof Error ? e.message : String(e),
         });
         // finalStopsFromDb already holds pre-optimization fetch — use it as-is.
+      }
+    }
+
+    // ── GRADER v1 ─────────────────────────────────────────────────────────────
+    // CONTRACT B: never blocks the user — all grader errors fall through silently.
+    // ONE bounded regeneration max. Grader result always persisted to DB.
+    let dbGraderScore: number | null = null;
+    let dbGraderStatus: string | null = null;
+    let dbGraderFlags: Prisma.InputJsonValue | null = null;
+    let dbGraderRanAt: Date | null = null;
+
+    if (finalStopsFromDb.length > 0) {
+      try {
+        const graderInputs: GraderGenerationInputs = { prompt, transport, inputGroup, inputVibe, inputDurationHr };
+        const graderFamilyCtxObj: GraderFamilyContext = {
+          ages: graderAges,
+          dietary: graderDietary,
+          foodAllergies: graderFoodAllergies,
+          pace: graderPaceStr,
+          travelStyle: graderStyleStr,
+          interestKeys: graderInterestKeys,
+        };
+
+        const buildGraderStops = (dbStops: typeof finalStopsFromDb): GraderStop[] =>
+          dbStops.map(s => ({
+            placeId: s.placeId,
+            name: s.name,
+            lat: s.lat,
+            lng: s.lng,
+            placeTypes: s.placeTypes,
+            businessStatus: businessStatusMap.get(s.placeId ?? s.name) ?? null,
+            why: s.why,
+            familyNote: s.familyNote,
+          }));
+
+        const grade1 = await gradeTour(buildGraderStops(finalStopsFromDb), graderFamilyCtxObj, graderInputs);
+        dbGraderRanAt = new Date();
+
+        if (!grade1.regenerate) {
+          dbGraderStatus = "pass";
+          dbGraderScore = grade1.score;
+          dbGraderFlags = grade1.flags as unknown as Prisma.InputJsonValue;
+        } else {
+          console.log(`[tour-grader] grade1 score=${grade1.score} regenerate=true — running bounded regeneration`);
+          const originalSnapshot = [...finalStopsFromDb];
+          const regenInstruction = graderFlagsToInstruction(grade1.flags, grade1.reasons);
+
+          // One bounded regeneration: clears DB stops and re-streams
+          const regenResult = await runStream(9, regenInstruction);
+          completedStops = regenResult.completedStops;
+
+          // Fill loop for the regen pass (same logic as original, up to 3 passes)
+          let regenFillPass = 0;
+          while (completedStops.length < targetStops && regenFillPass < 3) {
+            regenFillPass++;
+            const missing = targetStops - completedStops.length;
+            const alreadyAccepted = completedStops.map(s => s.name);
+            const rfFillInstruction = `ALREADY ACCEPTED STOPS — DO NOT REPEAT THESE:\n${alreadyAccepted.map((n, i) => `${i + 1}. ${n}`).join("\n")}\n\nEmit exactly ${missing} NEW stop(s).\n\n${regenInstruction}`;
+            const rfFillTool: Anthropic.Tool = { ...emitTourStopTool, description: `Emit exactly ${missing} new stop(s). Do NOT repeat any already-accepted stop.` };
+            const rfStream = anthropic.messages.stream({
+              model: "claude-sonnet-4-6", max_tokens: 4096,
+              system: `${systemPrompt}\n\n${rfFillInstruction}`,
+              tools: [rfFillTool], tool_choice: { type: "tool", name: "emit_tour_stop" },
+              messages: [{ role: "user", content: userMessage }],
+            });
+            let rfToolName: string | null = null, rfToolJson = "";
+            let rfOrderIndex = completedStops.length;
+            const beforeRf = completedStops.length;
+            for await (const event of rfStream) {
+              if (event.type === "content_block_start" && event.content_block.type === "tool_use") { rfToolName = event.content_block.name; rfToolJson = ""; }
+              else if (event.type === "content_block_delta" && event.delta.type === "input_json_delta") { rfToolJson += event.delta.partial_json; }
+              else if (event.type === "content_block_stop" && rfToolName === "emit_tour_stop") {
+                try {
+                  const rs = JSON.parse(rfToolJson) as RawStop;
+                  rs.why = scrubEmDash(rs.why) ?? ""; rs.familyNote = scrubEmDash(rs.familyNote) ?? "";
+                  if (!alreadyAccepted.some(n => n.toLowerCase() === (rs.name ?? "").toLowerCase())) {
+                    const res2 = await resolveAgainstPlaces(rs, destinationCity, transport, destinationCenter);
+                    if (res2 && !hasWeakThemeRelevance(rs.themeRelevance)) {
+                      const sid = crypto.randomUUID(); const idx2 = rfOrderIndex++;
+                      await db.tourStop.create({ data: { id: sid, tourId, orderIndex: idx2, name: res2.name, address: res2.address || null, lat: res2.lat || null, lng: res2.lng || null, durationMin: res2.duration || null, travelTimeMin: res2.travelTime || null, why: res2.why || null, familyNote: res2.familyNote || null, imageUrl: res2.imageUrl, websiteUrl: res2.websiteUrl, placeId: res2.placeId ?? null, ticketRequired: res2.ticketRequired, placeTypes: res2.placeTypes ?? [] } });
+                      businessStatusMap.set(res2.placeId ?? res2.name, res2.businessStatus ?? null);
+                      completedStops.push({ ...res2, id: sid, orderIndex: idx2 });
+                    }
+                  }
+                } catch { /* skip */ }
+                rfToolName = null; rfToolJson = "";
+              }
+            }
+            if (completedStops.length === beforeRf) break;
+          }
+
+          // Re-fetch and re-optimize the regen candidate
+          let regenFinalStops = await db.tourStop.findMany({ where: { tourId, deletedAt: null }, orderBy: { orderIndex: "asc" } });
+          const regenWithCoords = regenFinalStops.filter(s => s.lat != null && s.lng != null);
+          if (regenWithCoords.length >= 3) {
+            try {
+              const pf2 = inputStartPoint ? regenFinalStops[0]?.id : undefined;
+              const opt2 = optimizeRouteOrder(regenWithCoords.map(s => ({ id: s.id, lat: s.lat!, lng: s.lng! })), pf2);
+              await Promise.all(opt2.map((s, i) => db.tourStop.update({ where: { id: s.id }, data: { orderIndex: i } })));
+              regenFinalStops = await db.tourStop.findMany({ where: { tourId, deletedAt: null }, orderBy: { orderIndex: "asc" } });
+            } catch { /* optimization failure — use unoptimized */ }
+          }
+
+          // Grade regen candidate and keep the higher-scoring version
+          const grade2 = await gradeTour(buildGraderStops(regenFinalStops), graderFamilyCtxObj, graderInputs);
+          if (grade2.score >= grade1.score) {
+            finalStopsFromDb = regenFinalStops;
+            dbGraderScore = grade2.score;
+            dbGraderFlags = grade2.flags as unknown as Prisma.InputJsonValue;
+            dbGraderStatus = grade2.score >= 70 ? "regenerated_pass" : "low_confidence";
+            console.log(`[tour-grader] kept regen: grade2=${grade2.score} >= grade1=${grade1.score} status=${dbGraderStatus}`);
+          } else {
+            // Restore original snapshot — regen was worse
+            await db.tourStop.deleteMany({ where: { tourId } });
+            let restoreIdx = 0;
+            for (const s of originalSnapshot) {
+              await db.tourStop.create({ data: { id: s.id, tourId, orderIndex: restoreIdx++, name: s.name, address: s.address, lat: s.lat, lng: s.lng, durationMin: s.durationMin, travelTimeMin: s.travelTimeMin, why: s.why, familyNote: s.familyNote, imageUrl: s.imageUrl, websiteUrl: s.websiteUrl, placeId: s.placeId, ticketRequired: s.ticketRequired, placeTypes: s.placeTypes ?? [] } });
+            }
+            finalStopsFromDb = await db.tourStop.findMany({ where: { tourId, deletedAt: null }, orderBy: { orderIndex: "asc" } });
+            dbGraderScore = grade1.score;
+            dbGraderFlags = grade1.flags as unknown as Prisma.InputJsonValue;
+            dbGraderStatus = "low_confidence";
+            console.log(`[tour-grader] kept original: grade2=${grade2.score} < grade1=${grade1.score} status=low_confidence`);
+          }
+        }
+
+        // Persist grader result — fire-and-forget, never block the user
+        db.generatedTour.update({
+          where: { id: tourId },
+          data: { graderScore: dbGraderScore, graderStatus: dbGraderStatus, graderFlags: dbGraderFlags ?? Prisma.JsonNull, graderRanAt: dbGraderRanAt },
+        }).catch(err => console.error("[tour-grader] persist failed:", err));
+
+      } catch (graderErr) {
+        console.error("[tour-grader] grader pipeline failed, shipping without grade:", graderErr);
       }
     }
 
