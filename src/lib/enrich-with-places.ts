@@ -4,7 +4,7 @@
 // Returns null on any failure — never throws.
 
 import { extractSearchableTitle } from "./extract-searchable-title";
-import { resolveGooglePhotoUrl } from "@/lib/google-places";
+import { resolveGooglePhotoUrl, PLACES_INFRA_STATUSES } from "@/lib/google-places";
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? "";
 
@@ -63,7 +63,11 @@ export async function enrichWithPlaces(
       const searchRes = await fetch(
         `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&language=en&key=${GOOGLE_MAPS_API_KEY}`
       );
-      const searchData = await searchRes.json() as { results?: { place_id: string }[] };
+      const searchData = await searchRes.json() as { status?: string; results?: { place_id: string }[] };
+      if (PLACES_INFRA_STATUSES.has(searchData.status ?? "")) {
+        console.error(`[places] INFRA status=${searchData.status} context=enrichWithPlaces:textsearch query="${query}"`);
+        return { imageUrl: null, website: null, city: null, placeId: null, lat: null, lng: null };
+      }
       const placeId = searchData.results?.[0]?.place_id ?? null;
       if (!placeId) continue;
 
@@ -72,6 +76,7 @@ export async function enrichWithPlaces(
         `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,website,photos,address_components,geometry&language=en&key=${GOOGLE_MAPS_API_KEY}`
       );
       const detailsData = await detailsRes.json() as {
+        status?: string;
         result?: {
           name?: string;
           website?: string;
@@ -80,6 +85,10 @@ export async function enrichWithPlaces(
           geometry?: { location?: { lat: number; lng: number } };
         };
       };
+      if (PLACES_INFRA_STATUSES.has(detailsData.status ?? "")) {
+        console.error(`[places] INFRA status=${detailsData.status} context=enrichWithPlaces:details placeId="${placeId}"`);
+        return { imageUrl: null, website: null, city: null, placeId: null, lat: null, lng: null };
+      }
       const result = detailsData.result;
       if (!result) continue;
 

@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
 import he from "he";
 import { getVenueImage } from "@/lib/destination-images";
-import { resolveGooglePhotoUrl } from "@/lib/google-places";
+import { resolveGooglePhotoUrl, PLACES_INFRA_STATUSES } from "@/lib/google-places";
 import { verifyWebsiteUrl } from "@/lib/activity-intelligence";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { mapPlaceTypesToCanonicalSlugs, normalizeCategorySlug } from "@/lib/categories";
@@ -103,6 +103,10 @@ async function lookupGoogleMapsPlace(
         types?: string[];
       }[];
     };
+    if (PLACES_INFRA_STATUSES.has(data.status)) {
+      console.error(`[places] INFRA status=${data.status} context=lookupGoogleMapsPlace name="${placeName}"`);
+      return null;
+    }
     if (data.status !== "OK" || !data.candidates[0]) return null;
     const c = data.candidates[0];
     if (!c.name || !c.geometry) return null;
@@ -152,6 +156,10 @@ async function lookupByPlaceId(placeId: string): Promise<GoogleMapsLookupResult 
         types?: string[];
       };
     };
+    if (PLACES_INFRA_STATUSES.has(data.status)) {
+      console.error(`[places] INFRA status=${data.status} context=lookupByPlaceId placeId="${placeId}"`);
+      return null;
+    }
     if (data.status !== "OK" || !data.result) return null;
     const r = data.result;
     if (!r.name || !r.geometry) return null;
@@ -275,6 +283,10 @@ async function geocode(
       status: string;
       results: { geometry: { location: { lat: number; lng: number } } }[];
     };
+    if (PLACES_INFRA_STATUSES.has(data.status)) {
+      console.error(`[places] INFRA status=${data.status} context=geocode query="${[title, city, country].filter(Boolean).join(", ")}"`);
+      return null;
+    }
     if (data.status !== "OK" || !data.results[0]) return null;
     return data.results[0].geometry.location;
   } catch {
@@ -296,6 +308,10 @@ async function getPlaceDetails(
       status: string;
       candidates: { website?: string; rating?: number; photos?: { photo_reference: string }[] }[];
     };
+    if (PLACES_INFRA_STATUSES.has(data.status)) {
+      console.error(`[places] INFRA status=${data.status} context=getPlaceDetails title="${title}"`);
+      return {};
+    }
     if (data.status !== "OK" || !data.candidates[0]) return {};
     const c = data.candidates[0];
     const result: { website?: string; photoUrl?: string; rating?: number } = {};

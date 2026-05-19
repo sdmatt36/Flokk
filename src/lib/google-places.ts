@@ -10,6 +10,29 @@ const API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? "";
 const PLACES_TEXT_SEARCH = "https://maps.googleapis.com/maps/api/place/textsearch/json";
 const PLACES_DETAILS = "https://maps.googleapis.com/maps/api/place/details/json";
 
+// Google API statuses that indicate platform-level failure, not "no matching place".
+// REQUEST_DENIED = key invalid/restricted/billing suspended
+// OVER_QUERY_LIMIT / OVER_DAILY_LIMIT = quota exhausted
+// UNKNOWN_ERROR = transient server-side failure
+export const PLACES_INFRA_STATUSES = new Set([
+  "REQUEST_DENIED",
+  "OVER_QUERY_LIMIT",
+  "OVER_DAILY_LIMIT",
+  "UNKNOWN_ERROR",
+]);
+
+// Thrown when a Places/Geocoding API call returns an infrastructure failure
+// status. Distinct from "no results found" — these indicate the key or billing
+// is broken and no subsequent call will succeed.
+export class PlacesInfraError extends Error {
+  readonly googleStatus: string;
+  constructor(googleStatus: string, context: string) {
+    super(`Google Places infra failure: ${googleStatus} (${context})`);
+    this.name = "PlacesInfraError";
+    this.googleStatus = googleStatus;
+  }
+}
+
 export interface PlacesResult {
   placeId: string;
   name: string;
@@ -128,7 +151,11 @@ export async function lookupPlace(rawName: string, city: string): Promise<Places
     const searchRes = await fetch(
       `${PLACES_TEXT_SEARCH}?query=${encodeURIComponent(query)}&key=${API_KEY}`
     );
-    const searchData = (await searchRes.json()) as { results?: { place_id: string }[] };
+    const searchData = (await searchRes.json()) as { status?: string; results?: { place_id: string }[] };
+    if (PLACES_INFRA_STATUSES.has(searchData.status ?? "")) {
+      console.error(`[places] INFRA status=${searchData.status} context=lookupPlace query="${query}"`);
+      return null;
+    }
     const placeId = searchData.results?.[0]?.place_id;
     if (!placeId) return null;
 
@@ -218,7 +245,11 @@ export async function findPlaceByNameCity(
     const searchRes = await fetch(
       `${PLACES_TEXT_SEARCH}?query=${encodeURIComponent(query)}&key=${API_KEY}`
     );
-    const searchData = (await searchRes.json()) as { results?: { place_id: string }[] };
+    const searchData = (await searchRes.json()) as { status?: string; results?: { place_id: string }[] };
+    if (PLACES_INFRA_STATUSES.has(searchData.status ?? "")) {
+      console.error(`[places] INFRA status=${searchData.status} context=findPlaceByNameCity query="${query}"`);
+      return null;
+    }
     const placeId = searchData.results?.[0]?.place_id;
     if (!placeId) return null;
 
@@ -265,7 +296,11 @@ export async function textSearchPhoto(query: string): Promise<string | null> {
       `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${key}`
     );
     if (!searchRes.ok) return null;
-    const searchData = await searchRes.json() as { results?: Array<{ photos?: Array<{ photo_reference: string }> }> };
+    const searchData = await searchRes.json() as { status?: string; results?: Array<{ photos?: Array<{ photo_reference: string }> }> };
+    if (PLACES_INFRA_STATUSES.has(searchData.status ?? "")) {
+      console.error(`[places] INFRA status=${searchData.status} context=textSearchPhoto query="${query}"`);
+      return null;
+    }
     const first = searchData.results?.[0];
     if (!first?.photos?.[0]?.photo_reference) return null;
 
@@ -302,7 +337,11 @@ export async function resolveCountry(
     const searchRes = await fetch(
       `${PLACES_TEXT_SEARCH}?query=${encodeURIComponent(query)}&key=${API_KEY}`
     );
-    const searchData = (await searchRes.json()) as { results?: { place_id: string }[] };
+    const searchData = (await searchRes.json()) as { status?: string; results?: { place_id: string }[] };
+    if (PLACES_INFRA_STATUSES.has(searchData.status ?? "")) {
+      console.error(`[places] INFRA status=${searchData.status} context=resolveCountry query="${query}"`);
+      return null;
+    }
     const placeId = searchData.results?.[0]?.place_id;
     if (!placeId) return null;
 
@@ -357,6 +396,10 @@ export async function forwardGeocodeFromText(
         geometry?: { location?: { lat: number; lng: number } };
       }>;
     };
+    if (PLACES_INFRA_STATUSES.has(data.status)) {
+      console.error(`[places] INFRA status=${data.status} context=forwardGeocodeFromText query="${query}"`);
+      return null;
+    }
     if (data.status !== "OK" || !data.results?.length) return null;
     const first = data.results[0];
     const lat = first.geometry?.location?.lat;
@@ -396,8 +439,13 @@ export async function fetchPlaceDetailsById(
     );
     if (!detailsRes.ok) return null;
     const data = (await detailsRes.json()) as {
+      status?: string;
       result?: { website?: string; photos?: Array<{ photo_reference: string }> };
     };
+    if (PLACES_INFRA_STATUSES.has(data.status ?? "")) {
+      console.error(`[places] INFRA status=${data.status} context=fetchPlaceDetailsById placeId="${placeId}"`);
+      return null;
+    }
     const websiteUrl = data.result?.website ?? null;
     const photoRef = data.result?.photos?.[0]?.photo_reference ?? null;
     let photoUrl: string | null = null;
@@ -447,6 +495,10 @@ export async function reverseGeocodeCityFromCoords(
         address_components: Array<{ long_name: string; types: string[] }>;
       }>;
     };
+    if (PLACES_INFRA_STATUSES.has(data.status)) {
+      console.error(`[places] INFRA status=${data.status} context=reverseGeocodeCityFromCoords lat=${input.lat} lng=${input.lng}`);
+      return null;
+    }
     if (data.status !== "OK" || !data.results?.length) return null;
 
     for (const result of data.results) {

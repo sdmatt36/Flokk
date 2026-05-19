@@ -6,7 +6,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { haversineMeters, haversineKm } from "@/lib/geo";
 import { optimizeRouteOrder } from "@/lib/tour-route-optimization";
 import { resolveCanonicalUrl } from "@/lib/url-resolver";
-import { resolveGooglePhotoUrl } from "@/lib/google-places";
+import { resolveGooglePhotoUrl, PLACES_INFRA_STATUSES, PlacesInfraError } from "@/lib/google-places";
 import { aggregateTripContext, flatChildAges, describePace, topInterests } from "@/lib/trip-context-multi";
 import { DestinationType, Prisma } from "@prisma/client";
 import { gradeTour, graderFlagsToInstruction, type GraderFamilyContext, type GraderGenerationInputs, type GraderStop } from "@/lib/tour-grader";
@@ -36,6 +36,10 @@ async function resolveDestinationCanonical(destinationCity: string): Promise<{
         structured_formatting: { main_text: string };
       }>;
     };
+    if (PLACES_INFRA_STATUSES.has(acData.status)) {
+      console.error(`[places] INFRA status=${acData.status} context=resolveDestinationCanonical input="${destinationCity}"`);
+      return null;
+    }
     if (acData.status !== "OK" || !acData.predictions?.length) return null;
     const top = acData.predictions[0];
     const placeId = top.place_id;
@@ -171,7 +175,11 @@ async function getDestinationCenter(destinationCity: string): Promise<{ lat: num
     const res = await fetch(
       `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(destinationCity)}&language=en&key=${process.env.GOOGLE_MAPS_API_KEY}`
     );
-    const data = await res.json() as { results?: Array<{ geometry?: { location?: { lat: number; lng: number } } }> };
+    const data = await res.json() as { status?: string; results?: Array<{ geometry?: { location?: { lat: number; lng: number } } }> };
+    if (PLACES_INFRA_STATUSES.has(data.status ?? "")) {
+      console.error(`[places] INFRA status=${data.status} context=getDestinationCenter city="${destinationCity}"`);
+      return null;
+    }
     const loc = data.results?.[0]?.geometry?.location;
     if (!loc) { console.log(`[tour-resolve] geocode failed: ${destinationCity} no results`); return null; }
     console.log(`[tour-resolve] geocode ${destinationCity} → ${loc.lat},${loc.lng}`);
@@ -211,8 +219,12 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
       `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${query}&language=en&key=${process.env.GOOGLE_MAPS_API_KEY}`
     );
     const searchData = await searchRes.json() as {
+      status?: string;
       results?: Array<{ place_id: string; geometry?: { location?: { lat: number; lng: number } } }>;
     };
+    if (PLACES_INFRA_STATUSES.has(searchData.status ?? "")) {
+      throw new PlacesInfraError(searchData.status ?? "UNKNOWN_ERROR", `resolveAgainstPlaces:textsearch name="${stop.name}"`);
+    }
 
     const firstResult = searchData.results?.[0];
     if (!firstResult?.geometry?.location) {
@@ -224,6 +236,7 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
       `https://maps.googleapis.com/maps/api/place/details/json?place_id=${firstResult.place_id}&fields=name,formatted_address,geometry,photos,address_components,website,types,price_level,editorial_summary,business_status&language=en&key=${process.env.GOOGLE_MAPS_API_KEY}`
     );
     const detailsData = await detailsRes.json() as {
+      status?: string;
       result?: {
         address_components?: Array<{ long_name: string; short_name: string; types: string[] }>;
         photos?: Array<{ photo_reference: string }>;
@@ -234,6 +247,9 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
         business_status?: string;
       };
     };
+    if (PLACES_INFRA_STATUSES.has(detailsData.status ?? "")) {
+      throw new PlacesInfraError(detailsData.status ?? "UNKNOWN_ERROR", `resolveAgainstPlaces:details placeId="${firstResult.place_id}"`);
+    }
 
     const components = detailsData.result?.address_components ?? [];
 
@@ -306,6 +322,7 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     console.log(`[tour-resolve] OK "${stop.name}" -> ${lat},${lng}${imageUrl ? " [photo]" : ""} ticket=${ticketRequired} status=${businessStatus ?? "unknown"}`);
     return { ...stop, lat, lng, imageUrl, websiteUrl, placeId: firstResult.place_id, ticketRequired, placeTypes, businessStatus };
   } catch (e) {
+    if (e instanceof PlacesInfraError) throw e;
     console.error("[tour-resolve] error:", stop.name, e);
     if (stop.lat && stop.lng && stop.lat !== 0 && stop.lng !== 0) return { ...stop, imageUrl: null, websiteUrl: resolveCanonicalUrl({ name: stop.name, city: destinationCity }), placeId: null, ticketRequired: null, placeTypes: [], businessStatus: null };
     return null;
@@ -372,6 +389,7 @@ export async function POST(req: NextRequest) {
     targetStops = 6;
   }
 
+  let tourId: string | undefined;
   try {
     const profileId = await resolveProfileId(userId);
     if (!profileId) {
@@ -536,7 +554,7 @@ export async function POST(req: NextRequest) {
       ? `Community-rated places in ${destinationCity} from real families (use these first when relevant):\n${seededPlaces.map(p => `${p.name} — ${p.address} (rated ${p.avgRating.toFixed(1)}/5)`).join("\n")}\n\n`
       : "";
 
-    const tourId: string = crypto.randomUUID();
+    tourId = crypto.randomUUID();
     const tourTitle = prompt.trim().length <= 10
       ? `${destinationCity} tour`
       : prompt.trim().slice(0, 60);
@@ -832,7 +850,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
                   await db.tourStop.create({
                     data: {
                       id: stopId,
-                      tourId,
+                      tourId: tourId!,
                       orderIndex: idx,
                       name: resolved.name,
                       address: resolved.address || null,
@@ -856,6 +874,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
               }
             }
           } catch (e) {
+            if (e instanceof PlacesInfraError) throw e;
             console.error("[tours/generate] failed to parse stop tool call:", e);
             partialTour = true;
           }
@@ -1037,6 +1056,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
                 }
               }
             } catch (e) {
+              if (e instanceof PlacesInfraError) throw e;
               console.error("[tour-fill] parse error:", e);
             }
             fillToolName = null;
@@ -1173,6 +1193,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
           const regenInstruction = graderFlagsToInstruction(grade1.flags, grade1.reasons);
 
           // One bounded regeneration: clears DB stops and re-streams
+          try {
           const regenResult = await runStream(9, regenInstruction);
           completedStops = regenResult.completedStops;
 
@@ -1209,7 +1230,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
                       completedStops.push({ ...res2, id: sid, orderIndex: idx2 });
                     }
                   }
-                } catch { /* skip */ }
+                } catch (rfErr) { if (rfErr instanceof PlacesInfraError) throw rfErr; }
                 rfToolName = null; rfToolJson = "";
               }
             }
@@ -1248,6 +1269,19 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
             dbGraderFlags = grade1.flags as unknown as Prisma.InputJsonValue;
             dbGraderStatus = "low_confidence";
             console.log(`[tour-grader] kept original: grade2=${grade2.score} < grade1=${grade1.score} status=low_confidence`);
+          }
+          } catch (regenInfraErr) {
+            if (!(regenInfraErr instanceof PlacesInfraError)) throw regenInfraErr;
+            console.error(`[tour-grader] PlacesInfraError during regen: ${regenInfraErr.message} — restoring original`);
+            await db.tourStop.deleteMany({ where: { tourId } });
+            let restoreIdx = 0;
+            for (const s of originalSnapshot) {
+              await db.tourStop.create({ data: { id: s.id, tourId, orderIndex: restoreIdx++, name: s.name, address: s.address, lat: s.lat, lng: s.lng, durationMin: s.durationMin, travelTimeMin: s.travelTimeMin, why: s.why, familyNote: s.familyNote, imageUrl: s.imageUrl, websiteUrl: s.websiteUrl, placeId: s.placeId, ticketRequired: s.ticketRequired, placeTypes: s.placeTypes ?? [] } });
+            }
+            finalStopsFromDb = await db.tourStop.findMany({ where: { tourId, deletedAt: null }, orderBy: { orderIndex: "asc" } });
+            dbGraderScore = grade1.score;
+            dbGraderFlags = grade1.flags as unknown as Prisma.InputJsonValue;
+            dbGraderStatus = "low_confidence";
           }
         }
 
@@ -1370,6 +1404,13 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
     });
 
   } catch (err) {
+    if (err instanceof PlacesInfraError) {
+      console.error(`[tours/generate] PLACES_UPSTREAM_DENIED: ${err.message}`);
+      if (tourId) {
+        await db.generatedTour.delete({ where: { id: tourId } }).catch(() => {});
+      }
+      return NextResponse.json({ error: "PLACES_UPSTREAM_DENIED" }, { status: 502 });
+    }
     console.error("[tours/generate] error:", err);
     return NextResponse.json({ error: "Tour generation failed" }, { status: 500 });
   }
