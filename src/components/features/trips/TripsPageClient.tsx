@@ -598,7 +598,7 @@ export function TripsPageClient({
               style={{ display: "flex", alignItems: "center", gap: "6px", border: "1px solid #1B3A5C", color: "#1B3A5C", borderRadius: "12px", padding: "8px 16px", fontSize: "14px", fontWeight: 500, textDecoration: "none", backgroundColor: "transparent" }}
             >
               <Sparkles size={14} />
-              Build a Tour
+              Custom Tour
             </Link>
             <Link
               href="/trips/past/new"
