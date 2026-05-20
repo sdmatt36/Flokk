@@ -3,7 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 
-const IMPORT_SOURCE_METHODS = ["maps_import"];
+const IMPORT_SOURCE_METHODS = ["maps_import", "SHARED_TRIP_IMPORT"];
 
 export async function GET(
   request: NextRequest,
