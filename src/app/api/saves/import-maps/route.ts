@@ -185,6 +185,7 @@ const GEOCODE_API = "https://maps.googleapis.com/maps/api/geocode/json";
 
 interface GeoDetail {
   cityName: string;
+  adminArea1: string | null; // state / prefecture / province — fallback when locality is a sub-city area
   countryCode: string; // ISO 2-letter
   countryName: string;
 }
@@ -209,6 +210,7 @@ async function geocodeCluster(lat: number, lng: number): Promise<GeoDetail | nul
     if (data.status !== "OK" || !data.results?.length) return null;
 
     let cityName: string | null = null;
+    let adminArea1: string | null = null;
     let countryCode = "";
     let countryName = "";
 
@@ -216,6 +218,9 @@ async function geocodeCluster(lat: number, lng: number): Promise<GeoDetail | nul
       for (const comp of result.address_components) {
         if (!cityName && (comp.types.includes("locality") || comp.types.includes("administrative_area_level_3") || comp.types.includes("administrative_area_level_2"))) {
           cityName = comp.long_name;
+        }
+        if (!adminArea1 && comp.types.includes("administrative_area_level_1")) {
+          adminArea1 = comp.long_name;
         }
         if (comp.types.includes("country")) {
           countryCode = comp.short_name; // ISO 2-letter
@@ -226,49 +231,72 @@ async function geocodeCluster(lat: number, lng: number): Promise<GeoDetail | nul
     }
 
     if (!cityName) return null;
-    return { cityName, countryCode, countryName };
+    return { cityName, adminArea1, countryCode, countryName };
   } catch {
     return null;
   }
 }
 
 // ── City resolution + auto-creation ──────────────────────────────────────────
-// Returns cityId or null. Auto-creates City row only when clusterSize >= 3.
+// Returns { id, resolvedName }. resolvedName may differ from geo.cityName when
+// the locality is a sub-city area (e.g. "Shinjuku City" → "Tokyo") and the
+// adminArea1 parent city exists in our City table.
+// Auto-creates City row only when clusterSize >= 3.
+interface CityResolution { id: string | null; resolvedName: string; }
+
 async function resolveOrCreateCity(
   geo: GeoDetail,
   clusterSize: number,
-  slugCache: Map<string, string | null>
-): Promise<string | null> {
+  slugCache: Map<string, CityResolution>
+): Promise<CityResolution> {
   const cacheKey = `${geo.cityName.toLowerCase()}_${geo.countryCode}`;
   if (slugCache.has(cacheKey)) return slugCache.get(cacheKey)!;
 
   // 1. Try existing City by name (case-insensitive match)
   const existing = await db.city.findFirst({
     where: { name: { equals: geo.cityName, mode: "insensitive" } },
-    select: { id: true },
+    select: { id: true, name: true },
   });
   if (existing) {
-    slugCache.set(cacheKey, existing.id);
-    return existing.id;
+    const result: CityResolution = { id: existing.id, resolvedName: existing.name };
+    slugCache.set(cacheKey, result);
+    return result;
   }
 
-  // 2. Below threshold — don't auto-create
+  // 2. Locality didn't match — try adminArea1 as parent city fallback.
+  // Handles cases where Google returns a ward/district name instead of the
+  // parent city (e.g. "Shinjuku City" when the parent is "Tokyo").
+  if (geo.adminArea1) {
+    const parentCity = await db.city.findFirst({
+      where: { name: { equals: geo.adminArea1, mode: "insensitive" } },
+      select: { id: true, name: true },
+    });
+    if (parentCity) {
+      const result: CityResolution = { id: parentCity.id, resolvedName: parentCity.name };
+      slugCache.set(cacheKey, result);
+      return result;
+    }
+  }
+
+  // 3. Below threshold — don't auto-create
   if (clusterSize < 3) {
-    slugCache.set(cacheKey, null);
-    return null;
+    const result: CityResolution = { id: null, resolvedName: geo.cityName };
+    slugCache.set(cacheKey, result);
+    return result;
   }
 
-  // 3. Look up Country by ISO code
+  // 4. Look up Country by ISO code
   const country = await db.country.findFirst({
     where: { code: geo.countryCode },
     select: { id: true },
   });
   if (!country) {
-    slugCache.set(cacheKey, null);
-    return null;
+    const result: CityResolution = { id: null, resolvedName: geo.cityName };
+    slugCache.set(cacheKey, result);
+    return result;
   }
 
-  // 4. Generate a unique slug
+  // 5. Generate a unique slug
   const baseSlug = geo.cityName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   let slug = baseSlug;
   const slugConflict = await db.city.findUnique({ where: { slug } });
@@ -278,7 +306,7 @@ async function resolveOrCreateCity(
     if (slug2Conflict) slug = `${baseSlug}-${Date.now()}`;
   }
 
-  // 5. Create City (featured: false, priorityRank: 999 — won't surface in Discover)
+  // 6. Create City (featured: false, priorityRank: 999 — won't surface in Discover)
   try {
     const city = await db.city.create({
       data: {
@@ -289,19 +317,20 @@ async function resolveOrCreateCity(
         priorityRank: 999,
         tags: [],
       },
-      select: { id: true },
+      select: { id: true, name: true },
     });
-    slugCache.set(cacheKey, city.id);
-    return city.id;
+    const result: CityResolution = { id: city.id, resolvedName: city.name };
+    slugCache.set(cacheKey, result);
+    return result;
   } catch {
     // Race condition — another request created the same city
     const retry = await db.city.findFirst({
       where: { name: { equals: geo.cityName, mode: "insensitive" } },
-      select: { id: true },
+      select: { id: true, name: true },
     });
-    const id = retry?.id ?? null;
-    slugCache.set(cacheKey, id);
-    return id;
+    const result: CityResolution = { id: retry?.id ?? null, resolvedName: retry?.name ?? geo.cityName };
+    slugCache.set(cacheKey, result);
+    return result;
   }
 }
 
@@ -474,13 +503,14 @@ export async function POST(req: NextRequest) {
   // Resolve cityIds sequentially to avoid duplicate City creation races
   const cityIdByCluster: (string | null)[] = new Array(clusters.length).fill(null);
   const cityNameByCluster: (string | null)[] = new Array(clusters.length).fill(null);
-  const slugCache = new Map<string, string | null>();
+  const slugCache = new Map<string, CityResolution>();
 
   for (let i = 0; i < clustersToGeocode.length; i++) {
     const geo = geoResults[i];
     if (!geo) continue;
-    cityIdByCluster[i] = await resolveOrCreateCity(geo, clusters[i].count, slugCache);
-    cityNameByCluster[i] = geo.cityName;
+    const resolution = await resolveOrCreateCity(geo, clusters[i].count, slugCache);
+    cityIdByCluster[i] = resolution.id;
+    cityNameByCluster[i] = resolution.resolvedName;
   }
 
   // Build place → cityId + cityName maps via cluster index
