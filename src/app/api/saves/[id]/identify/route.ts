@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
+import { toDurableImageUrl } from "@/lib/imageStore";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export async function PATCH(
   if (typeof body.needsPlaceConfirmation === "boolean") updateData.needsPlaceConfirmation = body.needsPlaceConfirmation;
   if (typeof body.photoReference === "string" && body.photoReference) {
     const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${body.photoReference}&key=${process.env.GOOGLE_MAPS_API_KEY}`;
-    updateData.placePhotoUrl = await resolveGooglePhotoUrl(photoApiUrl);
+    updateData.placePhotoUrl = await toDurableImageUrl(await resolveGooglePhotoUrl(photoApiUrl));
   } else if (body.photoReference === null) {
     updateData.placePhotoUrl = null;
   }

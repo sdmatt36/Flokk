@@ -59,3 +59,23 @@ export async function persistRemoteImage(remoteUrl: string): Promise<string | nu
     return null;
   }
 }
+
+/**
+ * Persist any photo URL to Supabase Storage and return a durable URL.
+ * Falls back to the original URL if persistRemoteImage fails or returns null
+ * (e.g. SUPABASE_SERVICE_ROLE_KEY absent, image fetch error, upload error).
+ * Returns null only when the input is null/undefined/empty.
+ * Never throws.
+ */
+export async function toDurableImageUrl(
+  url: string | null | undefined
+): Promise<string | null> {
+  if (!url) return null;
+  try {
+    const persisted = await persistRemoteImage(url);
+    return persisted ?? url;
+  } catch (err) {
+    console.error("[toDurableImageUrl] persistRemoteImage threw, falling back to source URL", { url, err });
+    return url;
+  }
+}

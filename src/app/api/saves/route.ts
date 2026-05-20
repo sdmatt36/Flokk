@@ -41,6 +41,7 @@ import { normalizeCategorySlug } from "@/lib/categories";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
 import { writeThroughCommunitySpot } from "@/lib/community-write-through";
 import { inferLodgingType } from "@/lib/infer-lodging-type";
+import { toDurableImageUrl } from "@/lib/imageStore";
 
 const ManualSaveSchema = z.object({
   sourceMethod: z.literal("URL_PASTE"),
@@ -98,7 +99,7 @@ export async function POST(request: Request) {
           categoryTags: normalizeAndDedupeCategoryTags(parsed.category ? [normalizeCategorySlug(parsed.category) ?? parsed.category] : []),
           notes: parsed.notes?.trim() || null,
           websiteUrl: parsed.website?.trim() || null,
-          placePhotoUrl: parsed.placePhotoUrl ?? null,
+          placePhotoUrl: await toDurableImageUrl(parsed.placePhotoUrl ?? null),
           tripId: parsed.tripId ?? null,
           lodgingType: inferLodgingType({ url: parsed.website, name: parsed.title }) ?? null,
           extractionStatus: "ENRICHED",

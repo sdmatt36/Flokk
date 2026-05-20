@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { forwardGeocodeFromText, fetchPlaceDetailsById } from "@/lib/google-places";
 import { mapPlaceTypesToCanonicalSlugs } from "@/lib/categories";
+import { toDurableImageUrl } from "@/lib/imageStore";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -450,7 +451,7 @@ export async function POST(req: NextRequest) {
           listName,
           overrideCategory: mappedSlugs.length > 0 ? mappedSlugs : undefined,
           googlePlaceId: geo.placeId,
-          placePhotoUrl: details?.photoUrl ?? null,
+          placePhotoUrl: await toDurableImageUrl(details?.photoUrl ?? null),
           venueWebsiteUrl: details?.websiteUrl ?? null,
         });
         forwardGeocoded++;

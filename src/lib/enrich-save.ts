@@ -9,6 +9,7 @@ import { resolveGooglePhotoUrl, PLACES_INFRA_STATUSES } from "@/lib/google-place
 import { verifyWebsiteUrl } from "@/lib/activity-intelligence";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { mapPlaceTypesToCanonicalSlugs, normalizeCategorySlug } from "@/lib/categories";
+import { toDurableImageUrl } from "@/lib/imageStore";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
@@ -659,7 +660,7 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   if (workingDescription) updateData.rawDescription = workingDescription;
   if (coords) { updateData.lat = coords.lat; updateData.lng = coords.lng; }
   if (place.website && !item.sourceUrl) updateData.sourceUrl = place.website;
-  if (place.photoUrl) updateData.placePhotoUrl = place.photoUrl;
+  if (place.photoUrl) updateData.placePhotoUrl = await toDurableImageUrl(place.photoUrl);
   if (sbThumbnail && !/[?&]key=AIza/i.test(sbThumbnail)) updateData.mediaThumbnailUrl = sbThumbnail;
   if (typeof place.rating === "number") updateData.relevanceScore = place.rating;
   if (description && !workingDescription) updateData.rawDescription = description;

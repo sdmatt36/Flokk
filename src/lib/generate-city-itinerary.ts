@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { searchUnsplashPhotoWithCredit } from "@/lib/unsplash";
 import { promoteToCommunitySpot } from "@/lib/promote-saved-item-to-pick";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
+import { toDurableImageUrl } from "@/lib/imageStore";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -165,7 +166,7 @@ async function enrichActivity(title: string, cityName: string): Promise<Activity
       })(),
     ]);
 
-    return { lat, lng, placePhotoUrl, websiteUrl, enriched: true };
+    return { lat, lng, placePhotoUrl: await toDurableImageUrl(placePhotoUrl), websiteUrl, enriched: true };
   } catch {
     return { lat: null, lng: null, placePhotoUrl: null, websiteUrl: null, enriched: false };
   }

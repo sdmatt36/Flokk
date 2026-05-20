@@ -5,6 +5,7 @@
 
 import { extractSearchableTitle } from "./extract-searchable-title";
 import { resolveGooglePhotoUrl, PLACES_INFRA_STATUSES } from "@/lib/google-places";
+import { toDurableImageUrl } from "@/lib/imageStore";
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? "";
 
@@ -140,7 +141,7 @@ export async function enrichWithPlaces(
         }
       }
 
-      return { imageUrl, website, city: extractedCity, placeId, lat, lng };
+      return { imageUrl: await toDurableImageUrl(imageUrl), website, city: extractedCity, placeId, lat, lng };
     }
 
     // All candidates exhausted without a valid Places match
