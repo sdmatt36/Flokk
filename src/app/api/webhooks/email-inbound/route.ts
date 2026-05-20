@@ -1177,13 +1177,22 @@ Field notes:
       if (cancelOrigCode) {
         const tier1Match = await db.itineraryItem.findFirst({
           where: { familyProfileId: familyProfile.id, confirmationCode: cancelOrigCode, cancelledAt: null },
-          select: { id: true, title: true, type: true },
+          select: { id: true, title: true, type: true, tripId: true },
         });
         if (tier1Match) {
           await db.itineraryItem.update({
             where: { id: tier1Match.id },
             data: { status: "CANCELLED", cancelledAt: new Date(), cancelledBy: "email_cancellation", cancellationReason: cancelReason },
           });
+          if (tier1Match.tripId) {
+            const tier1DocDelete = await db.$executeRaw`
+              DELETE FROM "TripDocument"
+              WHERE "tripId" = ${tier1Match.tripId}
+                AND type = 'booking'
+                AND content::jsonb->>'confirmationCode' = ${cancelOrigCode}
+            `;
+            console.log(`[email-cancellation] tier1 deleted ${tier1DocDelete} TripDocument row(s) for confirmationCode=${cancelOrigCode}`);
+          }
           logCtx.itineraryItemIds = [tier1Match.id];
           console.log(`[email-inbound] cancellation tier1: soft-deleted ${tier1Match.id} (${tier1Match.title}) via originalBookingCode ${cancelOrigCode}`);
           await logExtraction({ ...logCtx, outcome: "cancellation_matched", errorMessage: `tier1: originalBookingCode match on ${cancelOrigCode}` });
@@ -1207,7 +1216,7 @@ Field notes:
               { bookingSource: { contains: cancelVendor, mode: "insensitive" } },
             ],
           },
-          select: { id: true, title: true, type: true },
+          select: { id: true, title: true, type: true, tripId: true, confirmationCode: true },
         });
 
         if (tier2Candidates.length === 1) {
@@ -1216,6 +1225,22 @@ Field notes:
             where: { id: match.id },
             data: { status: "CANCELLED", cancelledAt: new Date(), cancelledBy: "email_cancellation", cancellationReason: cancelReason },
           });
+          if (match.tripId) {
+            const tier2DocDelete = match.confirmationCode
+              ? await db.$executeRaw`
+                  DELETE FROM "TripDocument"
+                  WHERE "tripId" = ${match.tripId}
+                    AND type = 'booking'
+                    AND content::jsonb->>'confirmationCode' = ${match.confirmationCode}
+                `
+              : await db.$executeRaw`
+                  DELETE FROM "TripDocument"
+                  WHERE "tripId" = ${match.tripId}
+                    AND type = 'booking'
+                    AND content::jsonb->>'vendorName' ILIKE ${cancelVendor}
+                `;
+            console.log(`[email-cancellation] tier2 deleted ${tier2DocDelete} TripDocument row(s) for ${match.confirmationCode ? `confirmationCode=${match.confirmationCode}` : `vendorName=${cancelVendor}`}`);
+          }
           logCtx.itineraryItemIds = [match.id];
           console.log(`[email-inbound] cancellation tier2: soft-deleted ${match.id} (${match.title}) via vendor match "${cancelVendor}"`);
           await logExtraction({ ...logCtx, outcome: "cancellation_matched", errorMessage: `tier2: vendor+single match for "${cancelVendor}"` });
