@@ -953,6 +953,23 @@ Field notes:
     console.log(`[email-inbound] trip match: "${matchedTrip?.title ?? "UNASSIGNED"}" | resolvedTripId: ${resolvedTripId ?? "null"} | confidence: ${confidenceScore}`);
     logCtx.matchedTripId = resolvedTripId;
 
+    // Bug-fix: when a flight matched a trip whose destination doesn't actually
+    // match the flight's toCity/toAirport, clear the match so auto-create fires.
+    // Without this, a long-range existing trip (e.g. a 6-month Kamakura window)
+    // catches flights to entirely different destinations via P2's date-only fallback.
+    if (extracted.type === "flight" && matchedTrip) {
+      const flightDestKeywords = [extracted.toCity, extracted.toAirport]
+        .filter((v): v is string => typeof v === "string" && v.length > 0)
+        .flatMap((v) => normalizeLocationToKeywords(v));
+      const destMatchesTrip = flightDestKeywords.length > 0 &&
+        tripMatchesDestination(matchedTrip, flightDestKeywords);
+      if (!destMatchesTrip) {
+        console.log(`[email-match] flight toCity "${extracted.toCity}" does not match trip "${matchedTrip.title}" — clearing match so auto-create fires`);
+        matchedTrip = null;
+        resolvedTripId = null;
+      }
+    }
+
     // Auto-create trip when no match found, confidence >= 0.9, type is flight or hotel, and destination is known
     // Lowered from 0.9 to 0.85 (Chat 32 P5) — Unassigned Bookings fallback catches misses.
     if (!matchedTrip && confidenceScore >= 0.85) {
