@@ -667,9 +667,15 @@ Field notes:
     try {
       const clean = content.text.replace(/```json|```/g, "").trim();
       extracted = JSON.parse(clean) as Record<string, unknown>;
-    } catch {
+    } catch (parseErr) {
+      const rawSnippet = (content?.text ?? "").slice(0, 400);
+      const parseMsg = parseErr instanceof Error ? parseErr.message : "unknown";
       console.error("[email-inbound] JSON parse failed:", content.text);
-      await logExtraction({ ...logCtx, outcome: "error", errorMessage: "JSON parse failed" });
+      await logExtraction({
+        ...logCtx,
+        outcome: "error",
+        errorMessage: `JSON parse failed: ${parseMsg} | raw[0..400]: ${rawSnippet}`,
+      });
       return NextResponse.json({ received: true, status: "parse_error" });
     }
 
