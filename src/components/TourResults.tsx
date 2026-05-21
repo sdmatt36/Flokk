@@ -161,6 +161,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
   const [isAdding, setIsAdding] = useState(false);
   const [isFoodStopLoading, setIsFoodStopLoading] = useState(false);
   const [foodStopError, setFoodStopError] = useState<string | null>(null);
+  const [foodStopMealType, setFoodStopMealType] = useState<"auto" | "breakfast" | "lunch" | "dinner">("auto");
   const addNameRef = useRef<HTMLInputElement>(null);
 
   // Reorder debounce ref — persist after drag settles
@@ -411,7 +412,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
       const res = await fetch(`/api/tours/${tourId}/add-food-stop`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ mealType: foodStopMealType }),
       });
       if (res.ok) {
         router.refresh();
@@ -422,6 +423,10 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
           if (data.reason === "no_meal_gap") msg = "This tour doesn't span lunch or dinner hours.";
           else if (data.reason === "no_candidates") msg = "No restaurants found near the tour route.";
           else if (data.reason === "all_filtered_out") msg = "No suitable restaurants found nearby.";
+          else if (data.reason === "already_has_food_stop") msg = "This tour already has a sit-down meal stop.";
+          else if (data.reason === "too_few_stops") msg = "This tour needs at least 2 stops to add a food stop.";
+          else if (data.reason === "wrong_owner") msg = "You don't have permission to modify this tour.";
+          else if (data.reason === "tour_not_found") msg = "Tour not found.";
           else if (data.message) msg = data.message;
         } catch { /* fall through to default msg */ }
         setFoodStopError(msg);
@@ -697,6 +702,22 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
               Add your own stop
             </button>
             <div className="mb-3">
+              <div className="flex gap-1.5 mb-2">
+                {(["auto", "breakfast", "lunch", "dinner"] as const).map(type => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setFoodStopMealType(type)}
+                    className={`flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition-colors ${
+                      foodStopMealType === type
+                        ? "border-[#1B3A5C] bg-[#1B3A5C] text-white"
+                        : "border-[#1B3A5C]/30 bg-white text-[#1B3A5C] hover:border-[#1B3A5C] hover:bg-[#1B3A5C]/5"
+                    }`}
+                  >
+                    {type === "auto" ? "Auto" : type.charAt(0).toUpperCase() + type.slice(1)}
+                  </button>
+                ))}
+              </div>
               <button
                 type="button"
                 onClick={handleAddFoodStop}

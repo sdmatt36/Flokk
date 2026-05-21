@@ -10,13 +10,32 @@ const PRIMARY_NON_FOOD_TYPES = new Set([
   "museum", "park", "amusement_park", "spa",
 ]);
 
-type InsertResult =
-  | { stop: { id: string; name: string; orderIndex: number } }
-  | { error: string };
+export type MealType = "breakfast" | "lunch" | "dinner" | "auto";
+
+export type InsertResult =
+  | {
+      ok: true;
+      tourStop: { id: string; name: string; orderIndex: number };
+      pickedPlace: { name: string; placeId: string; rating: number; address: string };
+    }
+  | {
+      ok: false;
+      reason:
+        | "tour_not_found"
+        | "wrong_owner"
+        | "too_few_stops"
+        | "already_has_food_stop"
+        | "no_meal_gap"
+        | "no_candidates"
+        | "all_filtered_out"
+        | "internal_error";
+      message: string;
+    };
 
 export async function addFoodStopToTour(
   tourId: string,
-  familyProfileId: string
+  familyProfileId: string,
+  mealType: MealType = "auto"
 ): Promise<InsertResult> {
   const tour = await db.generatedTour.findUnique({
     where: { id: tourId },
@@ -31,15 +50,27 @@ export async function addFoodStopToTour(
     },
   });
 
-  if (!tour) return { error: "Tour not found" };
-  if (tour.familyProfileId !== familyProfileId) return { error: "Forbidden" };
-  if (tour.stops.length < 2) return { error: "Tour needs at least 2 stops" };
+  if (!tour) {
+    console.log(`[add-food-stop] tourId=${tourId} reason=tour_not_found`);
+    return { ok: false, reason: "tour_not_found", message: "Tour not found." };
+  }
+  if (tour.familyProfileId !== familyProfileId) {
+    console.log(`[add-food-stop] tourId=${tourId} reason=wrong_owner`);
+    return { ok: false, reason: "wrong_owner", message: "You don't have permission to modify this tour." };
+  }
+  if (tour.stops.length < 2) {
+    console.log(`[add-food-stop] tourId=${tourId} reason=too_few_stops`);
+    return { ok: false, reason: "too_few_stops", message: "This tour needs at least 2 stops to add a food stop." };
+  }
 
   const alreadyHasFood = tour.stops.some(s => {
     const types = s.placeTypes as string[];
     return types.some(t => FOOD_PLACE_TYPES.has(t)) && !types.some(t => PRIMARY_NON_FOOD_TYPES.has(t));
   });
-  if (alreadyHasFood) return { error: "Tour already has a meal stop" };
+  if (alreadyHasFood) {
+    console.log(`[add-food-stop] tourId=${tourId} reason=already_has_food_stop`);
+    return { ok: false, reason: "already_has_food_stop", message: "This tour already has a sit-down meal stop." };
+  }
 
   const profile = await db.familyProfile.findUnique({
     where: { id: familyProfileId },
@@ -56,11 +87,34 @@ export async function addFoodStopToTour(
     ...new Set((profile?.members ?? []).flatMap(m => m.dietaryRequirements as string[])),
   ];
 
-  const lines: string[] = [
-    `Recommend one specific, real restaurant in ${tour.destinationCity} for a walking tour meal stop.`,
-  ];
+  // Build prompt based on mealType
+  const lines: string[] = [];
+  if (mealType === "breakfast") {
+    lines.push(
+      `Recommend one specific, real breakfast spot in ${tour.destinationCity} for a walking tour. The user wants a breakfast stop.`
+    );
+    lines.push(
+      "Good picks: cafes, bakeries, breakfast restaurants, coffee shops with food. Prefer places with a sit-down breakfast menu."
+    );
+  } else if (mealType === "lunch") {
+    lines.push(
+      `Recommend one specific, real lunch restaurant in ${tour.destinationCity} for a walking tour. The user wants a lunch stop.`
+    );
+    lines.push("Prefer sit-down restaurants with a lunch menu.");
+  } else if (mealType === "dinner") {
+    lines.push(
+      `Recommend one specific, real dinner restaurant in ${tour.destinationCity} for a walking tour. The user wants a dinner stop.`
+    );
+    lines.push("Prefer sit-down dinner restaurants with a full evening menu.");
+  } else {
+    lines.push(
+      `Recommend one specific, real restaurant in ${tour.destinationCity} for a walking tour meal stop.`
+    );
+  }
   if (allAllergies.length > 0)
-    lines.push(`Hard constraint — avoid any restaurant that serves or cross-contaminates: ${allAllergies.join(", ")}.`);
+    lines.push(
+      `Hard constraint — avoid any restaurant that serves or cross-contaminates: ${allAllergies.join(", ")}.`
+    );
   if (allDietary.length > 0)
     lines.push(`Dietary preferences: ${allDietary.join(", ")}.`);
   if (hasChildren)
@@ -87,10 +141,14 @@ export async function addFoodStopToTour(
     why = parsed.why?.trim() ?? "";
     familyNote = parsed.familyNote?.trim() ?? "";
   } catch {
-    return { error: "Could not generate restaurant recommendation" };
+    console.log(`[add-food-stop] tourId=${tourId} reason=internal_error (claude_parse_failed)`);
+    return { ok: false, reason: "internal_error", message: "Couldn't add a food stop. Try again." };
   }
 
-  if (!restaurantName) return { error: "AI did not return a restaurant name" };
+  if (!restaurantName) {
+    console.log(`[add-food-stop] tourId=${tourId} reason=internal_error (no_restaurant_name)`);
+    return { ok: false, reason: "internal_error", message: "Couldn't add a food stop. Try again." };
+  }
 
   const gKey = process.env.GOOGLE_MAPS_API_KEY;
   let lat: number | null = null;
@@ -99,6 +157,7 @@ export async function addFoodStopToTour(
   let placeId: string | null = null;
   let imageUrl: string | null = null;
   let websiteUrl: string | null = null;
+  let rating = 0;
   const placeTypes: string[] = [];
 
   if (gKey) {
@@ -113,6 +172,7 @@ export async function addFoodStopToTour(
           formatted_address?: string;
           geometry?: { location: { lat: number; lng: number } };
           types?: string[];
+          rating?: number;
         }>;
       };
       const first = searchData.results?.[0];
@@ -121,6 +181,7 @@ export async function addFoodStopToTour(
         address = first.formatted_address ?? null;
         lat = first.geometry?.location.lat ?? null;
         lng = first.geometry?.location.lng ?? null;
+        rating = first.rating ?? 0;
         placeTypes.push(...(first.types ?? []));
 
         const detailsRes = await fetch(
@@ -178,5 +239,17 @@ export async function addFoodStopToTour(
     },
   });
 
-  return { stop: { id: newStop.id, name: newStop.name, orderIndex: newStop.orderIndex } };
+  const pickedPlace = {
+    name: restaurantName,
+    placeId: placeId ?? "",
+    rating,
+    address: address ?? "",
+  };
+
+  console.log(`[add-food-stop] tourId=${tourId} reason=ok place=${pickedPlace.name}`);
+  return {
+    ok: true,
+    tourStop: { id: newStop.id, name: newStop.name, orderIndex: newStop.orderIndex },
+    pickedPlace,
+  };
 }
