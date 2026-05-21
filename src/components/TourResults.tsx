@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, ChevronDown, ChevronUp, Clock, ExternalLink, Footprints, GripVertical, Loader2, MapPin, Plus, X } from "lucide-react";
 import { bucketTrips } from "@/lib/trip-phase";
 import TourMapBlock from "@/components/tours/TourMapBlock";
+import AddStopSheet from "@/components/tours/AddStopSheet";
 import {
   DndContext,
   PointerSensor,
@@ -152,6 +153,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
 
   // Add-stop form
   const [showAddForm, setShowAddForm] = useState(false);
+  const [isAddStopSheetOpen, setIsAddStopSheetOpen] = useState(false);
   const [addName, setAddName] = useState("");
   const [addAddress, setAddAddress] = useState("");
   const [addDuration, setAddDuration] = useState("30");
@@ -653,11 +655,11 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
         ) : (
           <button
             type="button"
-            onClick={() => { setShowAddForm(true); setTimeout(() => addNameRef.current?.focus(), 50); }}
+            onClick={() => setIsAddStopSheetOpen(true)}
             className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#1B3A5C]/30 bg-white px-4 py-3 text-sm text-[#1B3A5C] hover:border-[#1B3A5C] hover:bg-[#1B3A5C]/5 transition-colors"
           >
             <Plus size={14} />
-            Add your own stop
+            Add Stop
           </button>
         )
       )}
@@ -887,6 +889,15 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
         </div>
       )}
 
+      <AddStopSheet
+        tourId={tourId ?? ""}
+        isOpen={isAddStopSheetOpen}
+        onClose={() => setIsAddStopSheetOpen(false)}
+        onPickPlaceIKnow={() => {
+          setShowAddForm(true);
+          setTimeout(() => addNameRef.current?.focus(), 50);
+        }}
+      />
     </div>
   );
 }
