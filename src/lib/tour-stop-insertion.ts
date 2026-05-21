@@ -2,9 +2,12 @@ import { db } from "@/lib/db";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
 import Anthropic from "@anthropic-ai/sdk";
 
-const FOOD_PLACE_TYPES = new Set([
-  "restaurant", "cafe", "bakery", "bar", "food",
-  "meal_takeaway", "meal_delivery", "coffee_shop",
+const FOOD_PLACE_TYPES = new Set(["restaurant", "meal_takeaway"]);
+
+// Stops whose primary identity is NOT food even if Google tags them with food/restaurant
+const PRIMARY_NON_FOOD_TYPES = new Set([
+  "lodging", "tourist_attraction", "shopping_mall",
+  "museum", "park", "amusement_park", "spa",
 ]);
 
 type InsertResult =
@@ -32,9 +35,10 @@ export async function addFoodStopToTour(
   if (tour.familyProfileId !== familyProfileId) return { error: "Forbidden" };
   if (tour.stops.length < 2) return { error: "Tour needs at least 2 stops" };
 
-  const alreadyHasFood = tour.stops.some(s =>
-    (s.placeTypes as string[]).some(t => FOOD_PLACE_TYPES.has(t))
-  );
+  const alreadyHasFood = tour.stops.some(s => {
+    const types = s.placeTypes as string[];
+    return types.some(t => FOOD_PLACE_TYPES.has(t)) && !types.some(t => PRIMARY_NON_FOOD_TYPES.has(t));
+  });
   if (alreadyHasFood) return { error: "Tour already has a meal stop" };
 
   const profile = await db.familyProfile.findUnique({

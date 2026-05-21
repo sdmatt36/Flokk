@@ -415,16 +415,16 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
       });
       if (res.ok) {
         router.refresh();
-      } else if (res.status === 422) {
-        const data = await res.json() as { reason?: string; message?: string };
-        let msg = data.message ?? "Couldn't add a food stop.";
-        if (data.reason === "no_meal_gap") msg = "This tour doesn't span lunch or dinner hours.";
-        else if (data.reason === "no_candidates") msg = "No restaurants found near the tour route.";
-        else if (data.reason === "all_filtered_out") msg = "No suitable restaurants found nearby.";
-        setFoodStopError(msg);
-        setTimeout(() => setFoodStopError(null), 6000);
       } else {
-        setFoodStopError("Couldn't add a food stop. Try again.");
+        let msg = "Couldn't add a food stop. Try again.";
+        try {
+          const data = await res.json() as { reason?: string; message?: string };
+          if (data.reason === "no_meal_gap") msg = "This tour doesn't span lunch or dinner hours.";
+          else if (data.reason === "no_candidates") msg = "No restaurants found near the tour route.";
+          else if (data.reason === "all_filtered_out") msg = "No suitable restaurants found nearby.";
+          else if (data.message) msg = data.message;
+        } catch { /* fall through to default msg */ }
+        setFoodStopError(msg);
         setTimeout(() => setFoodStopError(null), 6000);
       }
     } catch {
