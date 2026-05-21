@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AlertTriangle, ChevronDown, ChevronUp, Clock, ExternalLink, Footprints, GripVertical, Loader2, MapPin, Plus, X } from "lucide-react";
 import { bucketTrips } from "@/lib/trip-phase";
 import TourMapBlock from "@/components/tours/TourMapBlock";
@@ -130,6 +131,7 @@ function RemovalPlaceholder({ stop, onUndo }: { stop: Stop; onUndo: () => void }
 }
 
 export default function TourResults({ stops, removedStops, destinationCity, destinationCountry, prompt, title, subtitle, inputGroup, inputVibe, inputDurationHr, durationLabel, transport, tourId, walkViolations, originalTargetStops, onRemoveStop, onQuickUndo, onDeleteCommit, onPermanentRestore, onReplaceStops, readOnly = false }: Props) {
+  const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
   const [trips, setTrips] = useState<TripOption[]>([]);
   const [tripsLoading, setTripsLoading] = useState(false);
@@ -157,6 +159,8 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
   const [addDuration, setAddDuration] = useState("30");
   const [addNotes, setAddNotes] = useState("");
   const [isAdding, setIsAdding] = useState(false);
+  const [isFoodStopLoading, setIsFoodStopLoading] = useState(false);
+  const [foodStopError, setFoodStopError] = useState<string | null>(null);
   const addNameRef = useRef<HTMLInputElement>(null);
 
   // Reorder debounce ref — persist after drag settles
@@ -396,6 +400,38 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
       console.error("[regenerate] network error", e);
     } finally {
       setIsRegenerating(false);
+    }
+  }
+
+  async function handleAddFoodStop() {
+    if (!tourId || isFoodStopLoading) return;
+    setIsFoodStopLoading(true);
+    setFoodStopError(null);
+    try {
+      const res = await fetch(`/api/tours/${tourId}/add-food-stop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else if (res.status === 422) {
+        const data = await res.json() as { reason?: string; message?: string };
+        let msg = data.message ?? "Couldn't add a food stop.";
+        if (data.reason === "no_meal_gap") msg = "This tour doesn't span lunch or dinner hours.";
+        else if (data.reason === "no_candidates") msg = "No restaurants found near the tour route.";
+        else if (data.reason === "all_filtered_out") msg = "No suitable restaurants found nearby.";
+        setFoodStopError(msg);
+        setTimeout(() => setFoodStopError(null), 6000);
+      } else {
+        setFoodStopError("Couldn't add a food stop. Try again.");
+        setTimeout(() => setFoodStopError(null), 6000);
+      }
+    } catch {
+      setFoodStopError("Couldn't add a food stop. Try again.");
+      setTimeout(() => setFoodStopError(null), 6000);
+    } finally {
+      setIsFoodStopLoading(false);
     }
   }
 
@@ -651,14 +687,39 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
             </div>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => { setShowAddForm(true); setTimeout(() => addNameRef.current?.focus(), 50); }}
-            className="mb-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#1B3A5C]/30 bg-white px-4 py-3 text-sm text-[#1B3A5C] hover:border-[#1B3A5C] hover:bg-[#1B3A5C]/5 transition-colors"
-          >
-            <Plus size={14} />
-            Add your own stop
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => { setShowAddForm(true); setTimeout(() => addNameRef.current?.focus(), 50); }}
+              className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#1B3A5C]/30 bg-white px-4 py-3 text-sm text-[#1B3A5C] hover:border-[#1B3A5C] hover:bg-[#1B3A5C]/5 transition-colors"
+            >
+              <Plus size={14} />
+              Add your own stop
+            </button>
+            <div className="mb-3">
+              <button
+                type="button"
+                onClick={handleAddFoodStop}
+                disabled={isFoodStopLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-[#1B3A5C]/30 bg-white px-4 py-3 text-sm text-[#1B3A5C] hover:border-[#1B3A5C] hover:bg-[#1B3A5C]/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isFoodStopLoading ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    Finding a spot...
+                  </>
+                ) : (
+                  <>
+                    <Plus size={14} />
+                    Add a Food Stop (Flokk picks)
+                  </>
+                )}
+              </button>
+              {foodStopError && (
+                <p className="mt-2 text-xs text-[#C4664A]">{foodStopError}</p>
+              )}
+            </div>
+          </>
         )
       )}
 
