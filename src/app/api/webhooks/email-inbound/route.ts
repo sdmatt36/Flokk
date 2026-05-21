@@ -646,35 +646,50 @@ Field notes:
 
     console.log(`[email-inbound] calling Claude — body: ${emailContent.length} chars, attachments: ${filteredAttachments.length}, content blocks: ${contentBlocks.length}`);
 
-    const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1500,
-      messages: [{
-        role: "user",
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        content: contentBlocks as any,
-      }],
-    });
+    let extracted: Record<string, unknown> | undefined;
+    let lastResponseText = "";
+    let lastParseErr: unknown;
 
-    const content = response.content[0];
-    if (content.type !== "text") {
-      console.error("[email-inbound] unexpected Claude response type");
-      await logExtraction({ ...logCtx, outcome: "error", errorMessage: "unexpected Claude response type" });
-      return NextResponse.json({ received: true, status: "claude_error" });
+    for (let attempt = 1; attempt <= 2 && !extracted; attempt++) {
+      const response = await anthropic.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1500,
+        messages: [{
+          role: "user",
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          content: contentBlocks as any,
+        }],
+      });
+      const content = response.content[0];
+      if (content.type !== "text") {
+        lastResponseText = "(non-text response)";
+        if (attempt === 2) {
+          console.error("[email-inbound] unexpected Claude response type");
+          await logExtraction({ ...logCtx, outcome: "error", errorMessage: "unexpected Claude response type" });
+          return NextResponse.json({ received: true, status: "claude_error" });
+        }
+        continue;
+      }
+      lastResponseText = content.text;
+      try {
+        const clean = content.text.replace(/```json|```/g, "").trim();
+        extracted = JSON.parse(clean) as Record<string, unknown>;
+      } catch (parseErr) {
+        lastParseErr = parseErr;
+        if (attempt === 1) {
+          console.warn(`[email-inbound] JSON parse failed on attempt 1, retrying. raw[0..200]: ${content.text.slice(0, 200)}`);
+        }
+      }
     }
 
-    let extracted: Record<string, unknown>;
-    try {
-      const clean = content.text.replace(/```json|```/g, "").trim();
-      extracted = JSON.parse(clean) as Record<string, unknown>;
-    } catch (parseErr) {
-      const rawSnippet = (content?.text ?? "").slice(0, 400);
-      const parseMsg = parseErr instanceof Error ? parseErr.message : "unknown";
-      console.error("[email-inbound] JSON parse failed:", content.text);
+    if (!extracted) {
+      const rawSnippet = lastResponseText.slice(0, 400);
+      const parseMsg = lastParseErr instanceof Error ? lastParseErr.message : "unknown";
+      console.error("[email-inbound] JSON parse failed after retry:", lastResponseText);
       await logExtraction({
         ...logCtx,
         outcome: "error",
-        errorMessage: `JSON parse failed: ${parseMsg} | raw[0..400]: ${rawSnippet}`,
+        errorMessage: `JSON parse failed after 2 attempts: ${parseMsg} | raw[0..400]: ${rawSnippet}`,
       });
       return NextResponse.json({ received: true, status: "parse_error" });
     }
