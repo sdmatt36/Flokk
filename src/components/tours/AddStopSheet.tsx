@@ -1,17 +1,32 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import {
   ChevronLeft, ChevronRight, X, MapPin, Utensils,
   Coffee, Camera, Toilet, Armchair, Loader2,
 } from "lucide-react";
+
+type StopUpdate = {
+  id: string;
+  orderIndex: number;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  duration: number;
+  travelTime: number;
+  why: string;
+  familyNote: string;
+  imageUrl?: string | null;
+  websiteUrl?: string | null;
+};
 
 type AddStopSheetProps = {
   tourId: string;
   isOpen: boolean;
   onClose: () => void;
   onPickPlaceIKnow: () => void;
+  onStopsUpdated: (stops: StopUpdate[]) => void;
 };
 
 type View = "categories" | "food";
@@ -26,8 +41,7 @@ const CATEGORIES = [
   { key: "rest",         icon: Armchair,  label: "Rest",           implemented: false, action: null              },
 ] as const;
 
-export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow }: AddStopSheetProps) {
-  const router = useRouter();
+export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow, onStopsUpdated }: AddStopSheetProps) {
   const [view, setView] = useState<View>("categories");
   const [foodMealType, setFoodMealType] = useState<MealType>("auto");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -67,7 +81,10 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
         body: JSON.stringify({ category: "food", mealType: foodMealType }),
       });
       if (res.ok) {
-        router.refresh();
+        const data = (await res.json()) as { tourStop: unknown; pickedPlace: unknown; allStops: StopUpdate[] };
+        if (Array.isArray(data.allStops)) {
+          onStopsUpdated(data.allStops);
+        }
         onClose();
         return;
       }

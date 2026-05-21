@@ -897,6 +897,7 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
           setShowAddForm(true);
           setTimeout(() => addNameRef.current?.focus(), 50);
         }}
+        onStopsUpdated={(newStops) => onReplaceStops(newStops)}
       />
     </div>
   );

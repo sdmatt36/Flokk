@@ -70,5 +70,5 @@ export async function POST(
     return NextResponse.json({ reason: result.reason, message: result.message }, { status });
   }
 
-  return NextResponse.json({ tourStop: result.tourStop, pickedPlace: result.pickedPlace });
+  return NextResponse.json({ tourStop: result.tourStop, pickedPlace: result.pickedPlace, allStops: result.allStops });
 }

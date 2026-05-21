@@ -41,11 +41,28 @@ const CATEGORY_CONFIGS: Record<StopCategory, CategoryConfig> = {
   rest:      { placeTypes: new Set(), primaryExclusions: new Set(), allowMultiple: false, defaultDurationMinutes: 30, implemented: false },
 };
 
+// Matches the Stop type consumed by TourResults — DB field names mapped to UI names.
+export type UIStop = {
+  id: string;
+  orderIndex: number;
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
+  duration: number;
+  travelTime: number;
+  why: string;
+  familyNote: string;
+  imageUrl?: string | null;
+  websiteUrl?: string | null;
+};
+
 export type InsertResult =
   | {
       ok: true;
       tourStop: { id: string; name: string; orderIndex: number };
       pickedPlace: { name: string; placeId: string; rating: number; address: string };
+      allStops: UIStop[];
     }
   | {
       ok: false;
@@ -319,10 +336,37 @@ export async function addStopToTour(
 
   const pickedPlace = { name: placeName, placeId: placeId ?? "", rating, address: address ?? "" };
 
-  console.log(`[add-stop] tourId=${tourId} category=${category} reason=ok place=${pickedPlace.name}`);
+  // Re-query the full live stops list so the frontend can update local state immediately.
+  const updatedRows = await db.tourStop.findMany({
+    where: { tourId, deletedAt: null },
+    orderBy: { orderIndex: "asc" },
+    select: {
+      id: true, orderIndex: true, name: true, address: true,
+      lat: true, lng: true, durationMin: true, travelTimeMin: true,
+      why: true, familyNote: true, imageUrl: true, websiteUrl: true,
+    },
+  });
+
+  const allStops: UIStop[] = updatedRows.map(s => ({
+    id: s.id,
+    orderIndex: s.orderIndex,
+    name: s.name,
+    address: s.address ?? "",
+    lat: s.lat ?? 0,
+    lng: s.lng ?? 0,
+    duration: s.durationMin ?? 0,
+    travelTime: s.travelTimeMin ?? 0,
+    why: s.why ?? "",
+    familyNote: s.familyNote ?? "",
+    imageUrl: s.imageUrl ?? null,
+    websiteUrl: s.websiteUrl ?? null,
+  }));
+
+  console.log(`[add-stop] tourId=${tourId} category=${category} reason=ok place=${pickedPlace.name} allStopsCount=${allStops.length}`);
   return {
     ok: true,
     tourStop: { id: newStop.id, name: newStop.name, orderIndex: newStop.orderIndex },
     pickedPlace,
+    allStops,
   };
 }
