@@ -731,6 +731,14 @@ THIS IS STOP 1. The user expects to begin here.
 
     const kidsBathroomRule = isNoChildren || targetStops <= 2 ? "" : `KIDS BATHROOMS: ≥1 stop with reliable public bathrooms (museum, large park with facilities, shopping mall, transit hub, or fast-casual restaurant) MUST appear in your INITIAL generation. Do NOT defer this. The familyNote on that exact stop MUST explicitly mention bathroom availability — use a phrase like "Clean public restrooms available", "Public bathrooms on site", or "Restroom facilities available here". A stop without this exact note does NOT count as the bathroom stop.`;
 
+    const mealCadenceRule = `MEAL CADENCE (MANDATORY when applicable):
+- If the tour's total scheduled duration spans the lunch window (11:30-14:00) OR the dinner window (17:30-19:30), you MUST include at least one full meal stop in the tour.
+- A "meal stop" is a sit-down restaurant or substantial quick-service venue, duration 30-60 minutes. Sweet shops, dessert venues, snack stops, ice cream stands, beverage-only cafes, and bakery-only stops do NOT count as a meal.
+- Position the meal stop near the meal time itself: lunch stop should land around 12:00-13:00, dinner stop around 18:00-19:00. The meal stop must NOT be the first or last stop of the tour.
+- When the family includes children, strongly prefer kid-friendly venues (counter-style seating, casual atmosphere, kids menu when available).
+- Respect the family's stated dietary requirements and food allergies from the family context block above. These are HARD CONSTRAINTS, not preferences. A peanut-allergic family near a peanut-sauce-heavy cuisine: pick a different venue.
+- If the tour duration does not span either meal window (e.g. a 2-hour morning tour ending at 11am), do NOT force a meal stop just to have one.`;
+
     const groupFramingRule = `GROUP FRAMING: This tour is for ${inputGroupLabel}. Use ${GROUP_FRAMING[inputGroup] ?? '"the group"'} in every why and familyNote field. Never default to "adults-only" for a solo tour, or use group language for a solo traveler.`;
 
     const emDashRule = `COPY RULE — NO EM DASHES: Never use em dashes (—) anywhere in any output field. Replace with a comma, period, or parentheses. BAD: "Time Out Market — a legendary food hall." GOOD: "Time Out Market. A legendary food hall." or "Time Out Market (a legendary food hall)."`;
@@ -759,7 +767,7 @@ ${stopCountRule}
 ${namedPlaceRule}
 ${emDashRule}
 ${themeTermsRule}
-${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomRule + "\n" : ""}${nameRules ? nameRules + "\n" : ""}${groupFramingRule}${soloContextRule}${vibeInterpretationRules}${startingPointInstruction}${anchorInstruction}`;
+${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomRule + "\n" : ""}${mealCadenceRule ? mealCadenceRule + "\n" : ""}${nameRules ? nameRules + "\n" : ""}${groupFramingRule}${soloContextRule}${vibeInterpretationRules}${startingPointInstruction}${anchorInstruction}`;
 
     const userMessage = [
       seededContext || null,
