@@ -853,6 +853,9 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
         messages: [{ role: "user", content: userMessage }],
       });
 
+      // Phase A — drain stream, accumulate raw stops without blocking on Places
+      const rawQueue: Array<{ raw: RawStop; emissionIndex: number }> = [];
+      let emissionIndex = 0;
       for await (const event of stream) {
         if (event.type === "content_block_start" && event.content_block.type === "tool_use") {
           currentToolName = event.content_block.name;
@@ -864,59 +867,81 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
             const rawStop = JSON.parse(currentToolJson) as RawStop;
             rawStop.why = scrubEmDash(rawStop.why) ?? "";
             rawStop.familyNote = scrubEmDash(rawStop.familyNote) ?? "";
-            const resolved = await resolveAgainstPlaces(rawStop, destinationCity, transport, destinationCenter);
-            if (!resolved) {
-              rejectedCount++;
-            } else {
-              console.log(`[tour-relevance] "${resolved.name}" -> "${(rawStop.themeRelevance ?? "").slice(0, 120)}"`);
-              const weak = hasWeakThemeRelevance(rawStop.themeRelevance);
-              if (weak) {
-                // BUG FIX: previously incremented rejectedCount but still wrote to DB.
-                // Now correctly skips the stop when themeRelevance is weak.
-                console.log(`[tour-theme-weak] "${rawStop.name}" -> "${rawStop.themeRelevance ?? ""}"`);
-                rejectedCount++;
-              } else {
-                const stopId = crypto.randomUUID();
-                const idx = orderIndex++;
-
-                if (!dryRun) {
-                  await db.tourStop.create({
-                    data: {
-                      id: stopId,
-                      tourId: tourId!,
-                      orderIndex: idx,
-                      name: resolved.name,
-                      address: resolved.address || null,
-                      lat: resolved.lat || null,
-                      lng: resolved.lng || null,
-                      durationMin: resolved.duration || null,
-                      travelTimeMin: resolved.travelTime || null,
-                      why: resolved.why || null,
-                      familyNote: resolved.familyNote || null,
-                      imageUrl: resolved.imageUrl,
-                      websiteUrl: resolved.websiteUrl,
-                      placeId: resolved.placeId ?? null,
-                      ticketRequired: resolved.ticketRequired,
-                      placeTypes: resolved.placeTypes ?? [],
-                    },
-                  });
-                }
-
-                businessStatusMap.set(resolved.placeId ?? resolved.name, resolved.businessStatus ?? null);
-                completedStops.push({ ...resolved, id: stopId, orderIndex: idx });
-              }
-            }
+            rawQueue.push({ raw: rawStop, emissionIndex: emissionIndex++ });
           } catch (e) {
-            if (e instanceof PlacesInfraError) throw e;
             console.error("[tours/generate] failed to parse stop tool call:", e);
             partialTour = true;
           }
           currentToolName = null;
           currentToolJson = "";
-        } else if (event.type === "message_stop") {
-          console.log(`[tour-stream] attempt ${attempt}${dryRun ? " (dry-run)" : ""}: ${completedStops.length} accepted, ${rejectedCount} rejected`);
         }
       }
+
+      // Phase B — resolve all stops in parallel
+      const resolveStartMs = Date.now();
+      const resolveResults = await Promise.allSettled(
+        rawQueue.map(({ raw }) => resolveAgainstPlaces(raw, destinationCity, transport, destinationCenter))
+      );
+      for (const r of resolveResults) {
+        if (r.status === "rejected" && r.reason instanceof PlacesInfraError) throw r.reason;
+      }
+      console.log("[tour-gen] places-parallel-resolved", {
+        callSite: "main",
+        requested: rawQueue.length,
+        fulfilled: resolveResults.filter(r => r.status === "fulfilled").length,
+        rejected: resolveResults.filter(r => r.status === "rejected").length,
+        elapsedMs: Date.now() - resolveStartMs,
+      });
+
+      // Phase C — filter accepted stops and write to DB in emission order
+      for (let i = 0; i < rawQueue.length; i++) {
+        const { raw } = rawQueue[i];
+        const result = resolveResults[i];
+        if (result.status === "rejected" || !result.value) {
+          rejectedCount++;
+          continue;
+        }
+        const resolved = result.value;
+        console.log(`[tour-relevance] "${resolved.name}" -> "${(raw.themeRelevance ?? "").slice(0, 120)}"`);
+        const weak = hasWeakThemeRelevance(raw.themeRelevance);
+        if (weak) {
+          // BUG FIX: previously incremented rejectedCount but still wrote to DB.
+          // Now correctly skips the stop when themeRelevance is weak.
+          console.log(`[tour-theme-weak] "${raw.name}" -> "${raw.themeRelevance ?? ""}"`);
+          rejectedCount++;
+          continue;
+        }
+        const stopId = crypto.randomUUID();
+        const idx = orderIndex++;
+
+        if (!dryRun) {
+          await db.tourStop.create({
+            data: {
+              id: stopId,
+              tourId: tourId!,
+              orderIndex: idx,
+              name: resolved.name,
+              address: resolved.address || null,
+              lat: resolved.lat || null,
+              lng: resolved.lng || null,
+              durationMin: resolved.duration || null,
+              travelTimeMin: resolved.travelTime || null,
+              why: resolved.why || null,
+              familyNote: resolved.familyNote || null,
+              imageUrl: resolved.imageUrl,
+              websiteUrl: resolved.websiteUrl,
+              placeId: resolved.placeId ?? null,
+              ticketRequired: resolved.ticketRequired,
+              placeTypes: resolved.placeTypes ?? [],
+            },
+          });
+        }
+
+        businessStatusMap.set(resolved.placeId ?? resolved.name, resolved.businessStatus ?? null);
+        completedStops.push({ ...resolved, id: stopId, orderIndex: idx });
+      }
+
+      console.log(`[tour-stream] attempt ${attempt}${dryRun ? " (dry-run)" : ""}: ${completedStops.length} accepted, ${rejectedCount} rejected`);
 
       if (completedStops.length < targetStops) partialTour = true;
       console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=stream_complete attempt=${attempt}${dryRun ? "_dry" : ""} ms=${Date.now() - tStreamPassStart} accepted=${completedStops.length} rejected=${rejectedCount} total_elapsed_ms=${Date.now() - t0}`);
@@ -1056,6 +1081,9 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
         let fillOrderIndex = completedStops.length;
         const beforeFill = completedStops.length;
 
+        // Phase A — drain fill stream, accumulate non-duplicate raw stops
+        const fillRawQueue: Array<{ raw: RawStop; emissionIndex: number }> = [];
+        let fillEmissionIndex = 0;
         for await (const event of fillStream) {
           if (event.type === "content_block_start" && event.content_block.type === "tool_use") {
             fillToolName = event.content_block.name;
@@ -1073,34 +1101,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
               if (isDuplicate) {
                 console.log(`[tour-fill] duplicate skipped: "${rawStop.name}"`);
               } else {
-                const resolved = await resolveAgainstPlaces(rawStop, destinationCity, transport, destinationCenter);
-                if (resolved && !hasWeakThemeRelevance(rawStop.themeRelevance)) {
-                  const stopId = crypto.randomUUID();
-                  const idx = fillOrderIndex++;
-                  await db.tourStop.create({
-                    data: {
-                      id: stopId,
-                      tourId,
-                      orderIndex: idx,
-                      name: resolved.name,
-                      address: resolved.address || null,
-                      lat: resolved.lat || null,
-                      lng: resolved.lng || null,
-                      durationMin: resolved.duration || null,
-                      travelTimeMin: resolved.travelTime || null,
-                      why: resolved.why || null,
-                      familyNote: resolved.familyNote || null,
-                      imageUrl: resolved.imageUrl,
-                      websiteUrl: resolved.websiteUrl,
-                      placeId: resolved.placeId ?? null,
-                      ticketRequired: resolved.ticketRequired,
-                      placeTypes: resolved.placeTypes ?? [],
-                    },
-                  });
-                  businessStatusMap.set(resolved.placeId ?? resolved.name, resolved.businessStatus ?? null);
-                  completedStops.push({ ...resolved, id: stopId, orderIndex: idx });
-                  console.log(`[tour-fill] added "${resolved.name}" (${completedStops.length}/${targetStops})`);
-                }
+                fillRawQueue.push({ raw: rawStop, emissionIndex: fillEmissionIndex++ });
               }
             } catch (e) {
               if (e instanceof PlacesInfraError) throw e;
@@ -1111,6 +1112,57 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
           } else if (event.type === "message_stop") {
             console.log(`[tour-fill] pass ${fillPass} done: ${completedStops.length}/${targetStops}`);
           }
+        }
+
+        // Phase B — resolve all fill stops in parallel
+        const fillResolveStartMs = Date.now();
+        const fillResolveResults = await Promise.allSettled(
+          fillRawQueue.map(({ raw }) => resolveAgainstPlaces(raw, destinationCity, transport, destinationCenter))
+        );
+        for (const r of fillResolveResults) {
+          if (r.status === "rejected" && r.reason instanceof PlacesInfraError) throw r.reason;
+        }
+        console.log("[tour-gen] places-parallel-resolved", {
+          callSite: "fill",
+          requested: fillRawQueue.length,
+          fulfilled: fillResolveResults.filter(r => r.status === "fulfilled").length,
+          rejected: fillResolveResults.filter(r => r.status === "rejected").length,
+          elapsedMs: Date.now() - fillResolveStartMs,
+        });
+
+        // Phase C — filter and write accepted fill stops in emission order
+        for (let i = 0; i < fillRawQueue.length; i++) {
+          const { raw: rawStop } = fillRawQueue[i];
+          const fillResult = fillResolveResults[i];
+          if (fillResult.status === "rejected" || !fillResult.value || hasWeakThemeRelevance(rawStop.themeRelevance)) {
+            continue;
+          }
+          const resolved = fillResult.value;
+          const stopId = crypto.randomUUID();
+          const idx = fillOrderIndex++;
+          await db.tourStop.create({
+            data: {
+              id: stopId,
+              tourId,
+              orderIndex: idx,
+              name: resolved.name,
+              address: resolved.address || null,
+              lat: resolved.lat || null,
+              lng: resolved.lng || null,
+              durationMin: resolved.duration || null,
+              travelTimeMin: resolved.travelTime || null,
+              why: resolved.why || null,
+              familyNote: resolved.familyNote || null,
+              imageUrl: resolved.imageUrl,
+              websiteUrl: resolved.websiteUrl,
+              placeId: resolved.placeId ?? null,
+              ticketRequired: resolved.ticketRequired,
+              placeTypes: resolved.placeTypes ?? [],
+            },
+          });
+          businessStatusMap.set(resolved.placeId ?? resolved.name, resolved.businessStatus ?? null);
+          completedStops.push({ ...resolved, id: stopId, orderIndex: idx });
+          console.log(`[tour-fill] added "${resolved.name}" (${completedStops.length}/${targetStops})`);
         }
 
         console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=fill_complete pass=${fillPass} ms=${Date.now() - tFillStart} stops_added=${completedStops.length - beforeFill} total_elapsed_ms=${Date.now() - t0}`);
@@ -1280,6 +1332,10 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
             let rfToolName: string | null = null, rfToolJson = "";
             let rfOrderIndex = completedStops.length;
             const beforeRf = completedStops.length;
+
+            // Phase A — drain regen-fill stream, accumulate non-duplicate raw stops
+            const rfRawQueue: Array<{ raw: RawStop; emissionIndex: number }> = [];
+            let rfEmissionIndex = 0;
             for await (const event of rfStream) {
               if (event.type === "content_block_start" && event.content_block.type === "tool_use") { rfToolName = event.content_block.name; rfToolJson = ""; }
               else if (event.type === "content_block_delta" && event.delta.type === "input_json_delta") { rfToolJson += event.delta.partial_json; }
@@ -1288,18 +1344,41 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
                   const rs = JSON.parse(rfToolJson) as RawStop;
                   rs.why = scrubEmDash(rs.why) ?? ""; rs.familyNote = scrubEmDash(rs.familyNote) ?? "";
                   if (!alreadyAccepted.some(n => n.toLowerCase() === (rs.name ?? "").toLowerCase())) {
-                    const res2 = await resolveAgainstPlaces(rs, destinationCity, transport, destinationCenter);
-                    if (res2 && !hasWeakThemeRelevance(rs.themeRelevance)) {
-                      const sid = crypto.randomUUID(); const idx2 = rfOrderIndex++;
-                      await db.tourStop.create({ data: { id: sid, tourId, orderIndex: idx2, name: res2.name, address: res2.address || null, lat: res2.lat || null, lng: res2.lng || null, durationMin: res2.duration || null, travelTimeMin: res2.travelTime || null, why: res2.why || null, familyNote: res2.familyNote || null, imageUrl: res2.imageUrl, websiteUrl: res2.websiteUrl, placeId: res2.placeId ?? null, ticketRequired: res2.ticketRequired, placeTypes: res2.placeTypes ?? [] } });
-                      businessStatusMap.set(res2.placeId ?? res2.name, res2.businessStatus ?? null);
-                      completedStops.push({ ...res2, id: sid, orderIndex: idx2 });
-                    }
+                    rfRawQueue.push({ raw: rs, emissionIndex: rfEmissionIndex++ });
                   }
                 } catch (rfErr) { if (rfErr instanceof PlacesInfraError) throw rfErr; }
                 rfToolName = null; rfToolJson = "";
               }
             }
+
+            // Phase B — resolve all regen-fill stops in parallel
+            const rfResolveStartMs = Date.now();
+            const rfResolveResults = await Promise.allSettled(
+              rfRawQueue.map(({ raw }) => resolveAgainstPlaces(raw, destinationCity, transport, destinationCenter))
+            );
+            for (const r of rfResolveResults) {
+              if (r.status === "rejected" && r.reason instanceof PlacesInfraError) throw r.reason;
+            }
+            console.log("[tour-gen] places-parallel-resolved", {
+              callSite: "regenFill",
+              requested: rfRawQueue.length,
+              fulfilled: rfResolveResults.filter(r => r.status === "fulfilled").length,
+              rejected: rfResolveResults.filter(r => r.status === "rejected").length,
+              elapsedMs: Date.now() - rfResolveStartMs,
+            });
+
+            // Phase C — filter and write accepted regen-fill stops in emission order
+            for (let i = 0; i < rfRawQueue.length; i++) {
+              const { raw: rs } = rfRawQueue[i];
+              const rfResult = rfResolveResults[i];
+              if (rfResult.status === "rejected" || !rfResult.value || hasWeakThemeRelevance(rs.themeRelevance)) continue;
+              const res2 = rfResult.value;
+              const sid = crypto.randomUUID(); const idx2 = rfOrderIndex++;
+              await db.tourStop.create({ data: { id: sid, tourId, orderIndex: idx2, name: res2.name, address: res2.address || null, lat: res2.lat || null, lng: res2.lng || null, durationMin: res2.duration || null, travelTimeMin: res2.travelTime || null, why: res2.why || null, familyNote: res2.familyNote || null, imageUrl: res2.imageUrl, websiteUrl: res2.websiteUrl, placeId: res2.placeId ?? null, ticketRequired: res2.ticketRequired, placeTypes: res2.placeTypes ?? [] } });
+              businessStatusMap.set(res2.placeId ?? res2.name, res2.businessStatus ?? null);
+              completedStops.push({ ...res2, id: sid, orderIndex: idx2 });
+            }
+
             if (completedStops.length === beforeRf) break;
           }
 
