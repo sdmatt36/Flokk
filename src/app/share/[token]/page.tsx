@@ -258,11 +258,33 @@ export default async function SharePage({
       .map((r) => [r.manualActivityId!, r])
   );
 
+  // Build perDayNotesByDay BEFORE daysData.map() to avoid TDZ
+  const perDayNotesMap = new Map<number, { id: string; content: string }[]>();
+  for (const note of trip.tripNotes) {
+    if (note.dayIndex !== null) {
+      const existing = perDayNotesMap.get(note.dayIndex) ?? [];
+      existing.push({ id: note.id, content: note.content as string });
+      perDayNotesMap.set(note.dayIndex, existing);
+    }
+  }
+
   // ── Build DayData[] for ShareItineraryView (client component) ───────────
   const daysData: DayData[] = allDayIndices.map((di) => {
     const dayItems = dayItemsByDay[di] ?? [];
 
-    const serializableItems = dayItems.map((entry) => {
+    // Dedup: filter SavedItem entries whose title matches a ManualActivity on the same day
+    const manualTitlesForDay = new Set(
+      dayItems
+        .filter((e) => e.kind === "manual")
+        .map((e) => (e.data as { title: string }).title.toLowerCase().trim())
+    );
+    const dedupedDayItems = dayItems.filter((e) => {
+      if (e.kind !== "save") return true;
+      const saveTitle = ((e.data as { rawTitle: string | null }).rawTitle ?? "").toLowerCase().trim();
+      return !manualTitlesForDay.has(saveTitle);
+    });
+
+    const serializableItems = dedupedDayItems.map((entry) => {
       if (entry.kind === "save") {
         const s = entry.data;
         return {
@@ -353,7 +375,7 @@ export default async function SharePage({
       };
     });
 
-    const saveItems = dayItems
+    const saveItems = dedupedDayItems
       .map((entry) => {
         if (entry.kind === "save") {
           const s = entry.data;
@@ -390,25 +412,22 @@ export default async function SharePage({
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
 
+    const dayNotes = (perDayNotesMap.get(di) ?? [])
+      .map((n) => tiptapToPlaintext(n.content))
+      .filter((t) => t.trim().length > 0);
+
     return {
       index: di,
       label: dayLabel(di),
       city: trip.destinationCity,
       items: serializableItems,
       saveItems,
+      notes: dayNotes,
     };
   });
 
   // ── Contacts + notes derivation ─────────────────────────────────────────────
   const tripLevelNotes = trip.tripNotes.filter((n) => n.dayIndex === null);
-  const perDayNotesByDay: Record<number, typeof trip.tripNotes> = {};
-  for (const note of trip.tripNotes) {
-    if (note.dayIndex !== null) {
-      if (!perDayNotesByDay[note.dayIndex]) perDayNotesByDay[note.dayIndex] = [];
-      perDayNotesByDay[note.dayIndex].push(note);
-    }
-  }
-  const perDayNotesDayIndices = Object.keys(perDayNotesByDay).map(Number).sort((a, b) => a - b);
 
   // ── SECTION 3: Nearby saved places (proximity-filtered photo grid) ────────
   const validItinCoords = trip.itineraryItems.filter(
@@ -579,35 +598,6 @@ export default async function SharePage({
             heroImageUrl={heroImg}
             sourceTripId={trip.id}
           />
-        )}
-
-        {/* ── Per-day notes ── */}
-        {perDayNotesDayIndices.length > 0 && (
-          <section style={{ marginTop: "32px" }}>
-            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: "#1B3A5C", marginBottom: "12px" }}>
-              Day notes
-            </h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              {perDayNotesDayIndices.map((di) => (
-                <div key={di}>
-                  <p style={{ fontSize: "12px", fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
-                    {dayLabel(di)}
-                  </p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    {perDayNotesByDay[di].map((note) => {
-                      const text = tiptapToPlaintext(note.content);
-                      if (!text.trim()) return null;
-                      return (
-                        <div key={note.id} style={{ borderLeft: "2px solid #DDDDDD", paddingLeft: "12px" }}>
-                          <p style={{ fontSize: "13px", color: "#4B5563", lineHeight: 1.55, margin: 0 }}>{text}</p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
         )}
 
         {/* ── Nearby saved places (photo grid, 3+ only) ── */}

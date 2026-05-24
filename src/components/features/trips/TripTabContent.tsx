@@ -2535,6 +2535,18 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     if (sourceDayIndex !== null && sourceDayIndex !== newDayIndex) {
       checkConflictsAfterMove(sortId, sourceDayIndex, newDayIndex);
     }
+    // Compute new date string from tripStartDate + newDayIndex (for date-aware sync)
+    const newDateStr = tripStartDate
+      ? (() => {
+          const s = new Date(tripStartDate + "T12:00:00");
+          s.setDate(s.getDate() + newDayIndex);
+          const y = s.getFullYear();
+          const mo = String(s.getMonth() + 1).padStart(2, "0");
+          const d2 = String(s.getDate()).padStart(2, "0");
+          return `${y}-${mo}-${d2}`;
+        })()
+      : undefined;
+
     // Open the destination day so the user sees the item arrive
     setOpenDay(newDayIndex);
     if (sortId.startsWith("saved_")) {
@@ -2543,7 +2555,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       setRecAdditions(p => p.map(r => (r.savedItemId ?? r.title) === rawId ? { ...r, dayIndex: newDayIndex } : r));
       if (rawId) fetch(`/api/saves/${rawId}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dayIndex: newDayIndex }),
+        body: JSON.stringify({ dayIndex: newDayIndex, ...(newDateStr && { scheduledDate: newDateStr }) }),
       }).then(r => { if (!r.ok) throw new Error(); })
         .catch(() => { setRecAdditions(prev); showDragError(); });
     } else if (sortId.startsWith("activity_")) {
@@ -2552,7 +2564,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       setLocalActivities(p => p.map(a => a.id === id ? { ...a, dayIndex: newDayIndex } : a));
       fetch(`/api/trips/${tripId}/activities/${id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dayIndex: newDayIndex }),
+        body: JSON.stringify({ dayIndex: newDayIndex, ...(newDateStr && { date: newDateStr }) }),
       }).then(r => { if (!r.ok) throw new Error(); })
         .catch(() => { setLocalActivities(prev); showDragError(); });
     } else if (sortId.startsWith("flight_")) {
@@ -2561,7 +2573,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       setLocalFlights(p => p.map(f => f.id === id ? { ...f, dayIndex: newDayIndex } : f));
       fetch(`/api/trips/${tripId}/flights/${id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dayIndex: newDayIndex }),
+        body: JSON.stringify({ dayIndex: newDayIndex, ...(newDateStr && { departureDate: newDateStr }) }),
       }).then(r => { if (!r.ok) throw new Error(); })
         .catch(() => { setLocalFlights(prev); showDragError(); });
     } else if (sortId.startsWith("itinerary_")) {
@@ -2570,7 +2582,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       setLocalItineraryItems(p => p.map(it => it.id === id ? { ...it, dayIndex: newDayIndex } : it));
       fetch(`/api/trips/${tripId}/itinerary/${id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dayIndex: newDayIndex }),
+        body: JSON.stringify({ dayIndex: newDayIndex, ...(newDateStr && { scheduledDate: newDateStr }) }),
       }).then(r => { if (!r.ok) throw new Error(); })
         .catch(() => { setLocalItineraryItems(prev); showDragError(); });
     }

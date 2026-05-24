@@ -15,6 +15,7 @@ export interface DayData {
   city: string | null;
   items: SerializableItem[];
   saveItems: SaveableItem[];
+  notes?: string[];
 }
 
 type RelatedTrip = { id: string | null; city: string; country: string; img: string; tags: string[] };
@@ -390,6 +391,16 @@ export function ShareItineraryView({
                             <p style={{ fontSize: "13px", color: "#bbb", fontStyle: "italic" }}>
                               Travel day — no planned activities.
                             </p>
+                          )}
+
+                          {day.notes && day.notes.length > 0 && (
+                            <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                              {day.notes.map((text, ni) => (
+                                <div key={ni} style={{ borderLeft: "2px solid #DDDDDD", paddingLeft: "12px" }}>
+                                  <p style={{ fontSize: "13px", color: "#4B5563", lineHeight: 1.55, margin: 0 }}>{text}</p>
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
                       </div>
