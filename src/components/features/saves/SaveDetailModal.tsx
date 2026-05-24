@@ -134,6 +134,11 @@ export function SaveDetailModal({
   const [urlInput, setUrlInput] = useState("");
   const [urlError, setUrlError] = useState("");
   const [showPastTrips, setShowPastTrips] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editCountry, setEditCountry] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localTagsRef = useRef<string[]>([]);
   const initialNotes = useRef("");
@@ -213,6 +218,30 @@ export function SaveDetailModal({
     onClose();
   }
 
+
+  async function handleSaveEdits() {
+    if (!item) return;
+    setEditSaving(true);
+    try {
+      await fetch(`/api/saves/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rawTitle: editTitle.trim() || item.rawTitle,
+          destinationCity: editCity.trim() || null,
+          destinationCountry: editCountry.trim() || null,
+        }),
+      });
+      setItem(prev => prev ? {
+        ...prev,
+        rawTitle: editTitle.trim() || prev.rawTitle,
+        destinationCity: editCity.trim() || null,
+        destinationCountry: editCountry.trim() || null,
+      } : prev);
+      setEditMode(false);
+    } catch { /* silent */ }
+    finally { setEditSaving(false); }
+  }
 
   const tags = localTags;
   const gradient = getGradient(tags);
@@ -406,9 +435,69 @@ export function SaveDetailModal({
               </div>
             )}
 
-            <p style={{ fontSize: "12px", color: "#aaa", marginBottom: "16px" }}>
-              {item.sourceMethod === "IN_APP_SAVE" ? "Saved in app" : `Saved from ${SOURCE_LABEL[item.sourcePlatform ?? ""] || SOURCE_LABEL[item.sourceMethod ?? ""] || item.sourceMethod || "URL"}`} · {formatDate(item.savedAt)}
-            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <p style={{ fontSize: "12px", color: "#aaa", flex: 1, margin: 0 }}>
+                {item.sourceMethod === "IN_APP_SAVE" ? "Saved in app" : `Saved from ${SOURCE_LABEL[item.sourcePlatform ?? ""] || SOURCE_LABEL[item.sourceMethod ?? ""] || item.sourceMethod || "URL"}`} · {formatDate(item.savedAt)}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!editMode) {
+                    setEditTitle(item.rawTitle ?? "");
+                    setEditCity(item.destinationCity ?? "");
+                    setEditCountry(item.destinationCountry ?? "");
+                  }
+                  setEditMode(e => !e);
+                }}
+                style={{ fontSize: "11px", fontWeight: 600, color: "#717171", border: "1px solid #E0E0E0", borderRadius: "999px", padding: "3px 10px", background: "none", cursor: "pointer", flexShrink: 0, fontFamily: "inherit" }}
+              >
+                {editMode ? "Cancel" : "Edit"}
+              </button>
+            </div>
+
+            {editMode && (
+              <div style={{ marginBottom: "16px", padding: "14px", backgroundColor: "#FAFAFA", borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", display: "flex", flexDirection: "column", gap: "10px" }}>
+                <div>
+                  <label style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: "5px", display: "block" }}>Title</label>
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={e => setEditTitle(e.target.value)}
+                    style={{ width: "100%", border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "9px 12px", fontSize: "14px", color: "#1a1a1a", outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, backgroundColor: "#fff" }}
+                  />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                  <div>
+                    <label style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: "5px", display: "block" }}>City</label>
+                    <input
+                      type="text"
+                      value={editCity}
+                      onChange={e => setEditCity(e.target.value)}
+                      placeholder="e.g. Seoul"
+                      style={{ width: "100%", border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "9px 12px", fontSize: "14px", color: "#1a1a1a", outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, backgroundColor: "#fff" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase" as const, letterSpacing: "0.06em", marginBottom: "5px", display: "block" }}>Country</label>
+                    <input
+                      type="text"
+                      value={editCountry}
+                      onChange={e => setEditCountry(e.target.value)}
+                      placeholder="e.g. South Korea"
+                      style={{ width: "100%", border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "9px 12px", fontSize: "14px", color: "#1a1a1a", outline: "none", fontFamily: "inherit", boxSizing: "border-box" as const, backgroundColor: "#fff" }}
+                    />
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveEdits}
+                  disabled={editSaving}
+                  style={{ fontSize: "13px", fontWeight: 700, padding: "9px 16px", borderRadius: "10px", backgroundColor: editSaving ? "#E0E0E0" : "#1B3A5C", color: editSaving ? "#aaa" : "#fff", border: "none", cursor: editSaving ? "default" : "pointer", fontFamily: "inherit", alignSelf: "flex-start" as const }}
+                >
+                  {editSaving ? "Saving…" : "Save changes"}
+                </button>
+              </div>
+            )}
 
             {/* Match reason */}
             <div style={{ background: "#FDF6F3", borderRadius: "12px", padding: "12px 14px", marginBottom: "16px" }}>

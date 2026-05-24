@@ -105,6 +105,10 @@ export function AddToTripModal({
   const [lodgCost, setLodgCost] = useState("");
   const [lodgCurrency, setLodgCurrency] = useState("USD");
   const [lodgNotes, setLodgNotes] = useState("");
+  const [lodgVenueUrl, setLodgVenueUrl] = useState("");
+
+  // Activity dedup state
+  const [duplicatePending, setDuplicatePending] = useState<{ existingId: string } | null>(null);
 
   // Pre-select budget currency
   useEffect(() => {
@@ -128,7 +132,7 @@ export function AddToTripModal({
   const actCanSave = actTitle.trim() !== "" && (defaultDate ? true : actDate !== "") && actCategory !== "";
   const lodgCanSave = lodgName.trim() !== "" && lodgCheckInDate !== "" && lodgCheckOutDate !== "";
 
-  async function saveActivity() {
+  async function saveActivity(force = false) {
     if (!actCanSave) { setError("Activity name, date, and category are required."); return; }
     setSaving(true);
     setError("");
@@ -152,8 +156,15 @@ export function AddToTripModal({
           lat: actLat ?? null,
           lng: actLng ?? null,
           type: actCategory || undefined,
+          force,
         }),
       });
+      if (res.status === 409) {
+        const d = await res.json();
+        setDuplicatePending({ existingId: d.existingId });
+        setSaving(false);
+        return;
+      }
       if (!res.ok) { const d = await res.json(); setError(d.error ?? "Failed to save activity"); return; }
       onSaved(await res.json());
     } catch {
@@ -179,6 +190,7 @@ export function AddToTripModal({
           checkInTime: lodgCheckInTime || undefined,
           checkOutTime: lodgCheckOutTime || undefined,
           address: lodgAddress.trim() || undefined,
+          venueUrl: lodgVenueUrl.trim() || undefined,
           confirmationCode: lodgConfCode.trim() || undefined,
           totalCost: lodgCost ? parseFloat(lodgCost) : undefined,
           currency: lodgCurrency || undefined,
@@ -450,6 +462,11 @@ export function AddToTripModal({
                 <input type="text" value={lodgConfCode} onChange={e => setLodgConfCode(e.target.value)} placeholder="e.g. ABC123" style={{ ...inputStyle, fontFamily: "monospace" }} />
               </div>
 
+              <div>
+                <label style={labelStyle}>Booking URL (optional)</label>
+                <input type="url" value={lodgVenueUrl} onChange={e => setLodgVenueUrl(e.target.value)} placeholder="https://www.booking.com/..." style={inputStyle} />
+              </div>
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                 <div>
                   <label style={labelStyle}>Total cost (optional)</label>
@@ -471,9 +488,25 @@ export function AddToTripModal({
 
           {error && <p style={{ fontSize: "13px", color: "#C4664A", fontWeight: 600 }}>{error}</p>}
 
+          {duplicatePending && (
+            <div style={{ padding: "12px 14px", borderRadius: "12px", backgroundColor: "#FFFBEB", border: "1.5px solid #D97706" }}>
+              <p style={{ fontSize: "13px", color: "#92400E", fontWeight: 600, marginBottom: "8px" }}>
+                This activity already exists on this day. Save a second copy?
+              </p>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button type="button" onClick={() => { setDuplicatePending(null); saveActivity(true); }} style={{ fontSize: "13px", fontWeight: 700, padding: "6px 14px", borderRadius: "8px", backgroundColor: "#D97706", color: "#fff", border: "none", cursor: "pointer", fontFamily: "inherit" }}>
+                  Save anyway
+                </button>
+                <button type="button" onClick={() => setDuplicatePending(null)} style={{ fontSize: "13px", fontWeight: 600, padding: "6px 14px", borderRadius: "8px", backgroundColor: "transparent", color: "#92400E", border: "1px solid #D97706", cursor: "pointer", fontFamily: "inherit" }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
           <button
             type="button"
-            onClick={itemType === "activity" ? saveActivity : saveLodging}
+            onClick={itemType === "activity" ? () => saveActivity() : () => saveLodging()}
             disabled={!canSave || saving}
             style={{
               width: "100%",
