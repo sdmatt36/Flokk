@@ -44,23 +44,22 @@ export async function PATCH(
 
   const updated = await db.trip.update({ where: { id }, data });
 
-  // Fix 4: backfill scheduledDate on EMAIL_IMPORT items when startDate changes
+  // When startDate changes, recompute dayIndex for all ItineraryItems that have a scheduledDate.
+  // scheduledDate (the actual booking calendar date) is ground truth; dayIndex is always derived
+  // from it, not the other way around. Using a single UPDATE avoids N+1 and is atomic.
   if (startDate !== undefined && startDate) {
     try {
-      const items = await db.itineraryItem.findMany({
-        where: { tripId: id, sourceType: "EMAIL_IMPORT", dayIndex: { not: null } },
-        select: { id: true, dayIndex: true },
-      });
-      console.log(`[trip-patch] backfilling scheduledDate for ${items.length} items on trip ${id}`);
-      for (const item of items) {
-        if (item.dayIndex === null) continue;
-        const base = new Date(startDate);
-        base.setDate(base.getDate() + item.dayIndex);
-        const scheduledDate = base.toISOString().substring(0, 10);
-        await db.itineraryItem.update({ where: { id: item.id }, data: { scheduledDate } });
-      }
+      const recalcCount = await db.$executeRaw`
+        UPDATE "ItineraryItem" ii
+        SET "dayIndex" = (ii."scheduledDate"::date - DATE_TRUNC('day', t."startDate" + interval '12 hours')::date)
+        FROM "Trip" t
+        WHERE ii."tripId" = t.id
+          AND ii."tripId" = ${id}
+          AND ii."scheduledDate" IS NOT NULL
+      `;
+      console.log(`[trip-patch] recalculated dayIndex for ${recalcCount} ItineraryItems on trip ${id}`);
     } catch (e) {
-      console.error("[trip-patch] scheduledDate backfill error:", e);
+      console.error("[trip-patch] dayIndex recalculation error:", e);
     }
   }
 
