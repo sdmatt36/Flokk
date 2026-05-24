@@ -79,6 +79,16 @@ export async function POST(
     return NextResponse.json({ error: "Title and date required" }, { status: 400 });
   }
 
+  if (!body.force) {
+    const existing = await db.manualActivity.findFirst({
+      where: { tripId, title: { equals: title.trim(), mode: "insensitive" }, date },
+      select: { id: true },
+    });
+    if (existing) {
+      return NextResponse.json({ error: "duplicate", message: "An activity with this name already exists on this day." }, { status: 409 });
+    }
+  }
+
   // Apply default check-in/check-out time for lodging when user didn't supply one
   let resolvedTime: string | null = time ?? null;
   if (!resolvedTime && /hotel|hostel|resort|airbnb|inn|hyatt|hilton|marriott|sheraton|westin|check.?in/i.test(title ?? "")) {
@@ -104,7 +114,7 @@ export async function POST(
   if ((lat == null || lng == null) && (venueName || address)) {
     try {
       const activityCity = await getCityForDay(tripId, date);
-      const geocodeQuery = [title, venueName, address, activityCity].filter(Boolean).join(", ");
+      const geocodeQuery = [title, venueName, address, !address && activityCity].filter(Boolean).join(", ");
       const apiKey = process.env.GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_PLACES_API_KEY;
       if (apiKey) {
         const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(geocodeQuery)}&key=${apiKey}`;

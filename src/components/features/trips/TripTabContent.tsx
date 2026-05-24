@@ -2537,13 +2537,20 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     }
     // Open the destination day so the user sees the item arrive
     setOpenDay(newDayIndex);
+    const newDateStr = tripStartDate
+      ? (() => {
+          const d = new Date(tripStartDate + "T12:00:00");
+          d.setDate(d.getDate() + newDayIndex);
+          return d.toISOString().slice(0, 10);
+        })()
+      : null;
     if (sortId.startsWith("saved_")) {
       const rawId = sortId.slice(6);
       const prev = recAdditions;
       setRecAdditions(p => p.map(r => (r.savedItemId ?? r.title) === rawId ? { ...r, dayIndex: newDayIndex } : r));
       if (rawId) fetch(`/api/saves/${rawId}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dayIndex: newDayIndex }),
+        body: JSON.stringify({ dayIndex: newDayIndex, ...(newDateStr && { scheduledDate: newDateStr }) }),
       }).then(r => { if (!r.ok) throw new Error(); })
         .catch(() => { setRecAdditions(prev); showDragError(); });
     } else if (sortId.startsWith("activity_")) {
@@ -2552,7 +2559,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       setLocalActivities(p => p.map(a => a.id === id ? { ...a, dayIndex: newDayIndex } : a));
       fetch(`/api/trips/${tripId}/activities/${id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dayIndex: newDayIndex }),
+        body: JSON.stringify({ dayIndex: newDayIndex, ...(newDateStr && { date: newDateStr }) }),
       }).then(r => { if (!r.ok) throw new Error(); })
         .catch(() => { setLocalActivities(prev); showDragError(); });
     } else if (sortId.startsWith("flight_")) {
@@ -2570,7 +2577,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       setLocalItineraryItems(p => p.map(it => it.id === id ? { ...it, dayIndex: newDayIndex } : it));
       fetch(`/api/trips/${tripId}/itinerary/${id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dayIndex: newDayIndex }),
+        body: JSON.stringify({ dayIndex: newDayIndex, ...(newDateStr && { scheduledDate: newDateStr }) }),
       }).then(r => { if (!r.ok) throw new Error(); })
         .catch(() => { setLocalItineraryItems(prev); showDragError(); });
     }

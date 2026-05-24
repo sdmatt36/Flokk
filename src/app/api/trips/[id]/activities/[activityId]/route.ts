@@ -173,7 +173,17 @@ export async function DELETE(
 
   const { activityId } = await params;
 
-  await db.manualActivity.delete({ where: { id: activityId } });
+  const activity = await db.manualActivity.findUnique({
+    where: { id: activityId },
+    select: { savedItemId: true },
+  });
+
+  await db.$transaction(async (tx) => {
+    await tx.manualActivity.delete({ where: { id: activityId } });
+    if (activity?.savedItemId) {
+      await tx.savedItem.delete({ where: { id: activity.savedItemId } });
+    }
+  });
 
   return NextResponse.json({ success: true });
 }
