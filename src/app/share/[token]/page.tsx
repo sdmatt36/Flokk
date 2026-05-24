@@ -8,6 +8,7 @@ import { SharePageBottomBar } from "./SharePageBottomBar";
 import { ShareItineraryView, type DayData } from "./ShareItineraryView";
 import { AppHeader } from "@/components/ui/AppHeader";
 import { MapPin, Calendar } from "lucide-react";
+import { tiptapToPlaintext } from "@/lib/tiptap-to-plaintext";
 
 export const dynamic = "force-dynamic";
 
@@ -97,6 +98,21 @@ export default async function SharePage({
           wouldReturn: true,
           placeType: true,
         },
+      },
+      contacts: {
+        select: {
+          id: true,
+          name: true,
+          role: true,
+          phone: true,
+          whatsapp: true,
+          notes: true,
+          // email intentionally excluded — booking.com aliases are private channels
+        },
+        orderBy: { createdAt: "asc" },
+      },
+      tripNotes: {
+        orderBy: [{ dayIndex: "asc" }, { createdAt: "asc" }],
       },
     },
   });
@@ -383,6 +399,17 @@ export default async function SharePage({
     };
   });
 
+  // ── Contacts + notes derivation ─────────────────────────────────────────────
+  const tripLevelNotes = trip.tripNotes.filter((n) => n.dayIndex === null);
+  const perDayNotesByDay: Record<number, typeof trip.tripNotes> = {};
+  for (const note of trip.tripNotes) {
+    if (note.dayIndex !== null) {
+      if (!perDayNotesByDay[note.dayIndex]) perDayNotesByDay[note.dayIndex] = [];
+      perDayNotesByDay[note.dayIndex].push(note);
+    }
+  }
+  const perDayNotesDayIndices = Object.keys(perDayNotesByDay).map(Number).sort((a, b) => a - b);
+
   // ── SECTION 3: Nearby saved places (proximity-filtered photo grid) ────────
   const validItinCoords = trip.itineraryItems.filter(
     (it) =>
@@ -476,7 +503,71 @@ export default async function SharePage({
         </div>
       </div>
 
+      {/* ── Trip-level notes (dayIndex null) ── */}
+      {tripLevelNotes.length > 0 && (
+        <div style={{ maxWidth: "1100px", margin: "16px auto 0", padding: "0 24px" }}>
+          {tripLevelNotes.map((note) => {
+            const text = tiptapToPlaintext(note.content);
+            if (!text.trim()) return null;
+            return (
+              <div
+                key={note.id}
+                style={{ borderLeft: "3px solid #C4664A", paddingLeft: "14px", marginBottom: "8px" }}
+              >
+                <p style={{ fontSize: "14px", color: "#1B3A5C", lineHeight: 1.6, margin: 0 }}>{text}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "0 24px" }}>
+
+        {/* ── Contacts ── */}
+        {trip.contacts.length > 0 && (
+          <section style={{ marginTop: "28px" }}>
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: "#1B3A5C", marginBottom: "12px" }}>
+              Contacts
+            </h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {trip.contacts.map((contact) => (
+                <div
+                  key={contact.id}
+                  style={{ backgroundColor: "#FAFAF8", border: "1px solid #EEEEEE", borderRadius: "10px", padding: "14px 16px" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                    <span style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C" }}>{contact.name}</span>
+                    {contact.role && (
+                      <span style={{ fontSize: "11px", fontWeight: 600, color: "#C4664A", border: "1px solid #C4664A", borderRadius: "999px", padding: "2px 8px" }}>
+                        {contact.role}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    {contact.phone && (
+                      <a href={`tel:${contact.phone}`} style={{ fontSize: "13px", color: "#1B3A5C", textDecoration: "none" }}>
+                        {contact.phone}
+                      </a>
+                    )}
+                    {contact.whatsapp && (
+                      <a
+                        href={`https://wa.me/${contact.whatsapp.replace(/\D/g, "")}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: "13px", color: "#25D366", textDecoration: "none" }}
+                      >
+                        WhatsApp · {contact.whatsapp}
+                      </a>
+                    )}
+                    {contact.notes && (
+                      <p style={{ fontSize: "12px", color: "#717171", margin: "4px 0 0" }}>{contact.notes}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ── Day-by-day itinerary (client component handles day/category toggle) ── */}
         {daysData.length > 0 && (
@@ -488,6 +579,35 @@ export default async function SharePage({
             heroImageUrl={heroImg}
             sourceTripId={trip.id}
           />
+        )}
+
+        {/* ── Per-day notes ── */}
+        {perDayNotesDayIndices.length > 0 && (
+          <section style={{ marginTop: "32px" }}>
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: "#1B3A5C", marginBottom: "12px" }}>
+              Day notes
+            </h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {perDayNotesDayIndices.map((di) => (
+                <div key={di}>
+                  <p style={{ fontSize: "12px", fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
+                    {dayLabel(di)}
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {perDayNotesByDay[di].map((note) => {
+                      const text = tiptapToPlaintext(note.content);
+                      if (!text.trim()) return null;
+                      return (
+                        <div key={note.id} style={{ borderLeft: "2px solid #DDDDDD", paddingLeft: "12px" }}>
+                          <p style={{ fontSize: "13px", color: "#4B5563", lineHeight: 1.55, margin: 0 }}>{text}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         )}
 
         {/* ── Nearby saved places (photo grid, 3+ only) ── */}
