@@ -98,13 +98,24 @@ export async function POST(
     dayIndex = diff;
   }
 
+  // Dedup check — reject if same title+date already exists for this trip (unless caller passes force:true)
+  if (!body.force) {
+    const existing = await db.manualActivity.findFirst({
+      where: { tripId, title: { equals: title.trim(), mode: "insensitive" }, date },
+      select: { id: true },
+    });
+    if (existing) {
+      return NextResponse.json({ error: "duplicate", existingId: existing.id }, { status: 409 });
+    }
+  }
+
   // Use client-provided coords (from Places confirmation or AI fallback); geocode only if not supplied
   let lat: number | null = typeof clientLat === "number" ? clientLat : null;
   let lng: number | null = typeof clientLng === "number" ? clientLng : null;
   if ((lat == null || lng == null) && (venueName || address)) {
     try {
       const activityCity = await getCityForDay(tripId, date);
-      const geocodeQuery = [title, venueName, address, activityCity].filter(Boolean).join(", ");
+      const geocodeQuery = [title, venueName, address, !address && activityCity].filter(Boolean).join(", ");
       const apiKey = process.env.GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_PLACES_API_KEY;
       if (apiKey) {
         const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(geocodeQuery)}&key=${apiKey}`;
