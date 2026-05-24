@@ -673,7 +673,17 @@ Field notes:
       lastResponseText = content.text;
       try {
         const clean = content.text.replace(/```json|```/g, "").trim();
-        extracted = JSON.parse(clean) as Record<string, unknown>;
+        try {
+          extracted = JSON.parse(clean) as Record<string, unknown>;
+        } catch {
+          // Fallback: extract first {...} block when Claude prefixes with prose preamble
+          const jsonMatch = clean.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            extracted = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+          } else {
+            throw new SyntaxError("No JSON object found in response");
+          }
+        }
       } catch (parseErr) {
         lastParseErr = parseErr;
         if (attempt === 1) {
