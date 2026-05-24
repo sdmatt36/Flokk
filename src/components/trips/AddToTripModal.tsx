@@ -493,7 +493,7 @@ export function AddToTripModal({
 
           <button
             type="button"
-            onClick={itemType === "activity" ? saveActivity : saveLodging}
+            onClick={itemType === "activity" ? () => saveActivity() : () => saveLodging()}
             disabled={!canSave || saving}
             style={{
               width: "100%",
