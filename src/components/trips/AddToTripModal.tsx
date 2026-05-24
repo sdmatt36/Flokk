@@ -90,7 +90,6 @@ export function AddToTripModal({
   const [actLng, setActLng] = useState<number | null>(null);
   const [actCategory, setActCategory] = useState("");
   const [actShowMore, setActShowMore] = useState(false);
-  const [duplicatePending, setDuplicatePending] = useState(false);
   const [suggestion, setSuggestion] = useState<PlacesSuggestion | null>(null);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -106,7 +105,6 @@ export function AddToTripModal({
   const [lodgCost, setLodgCost] = useState("");
   const [lodgCurrency, setLodgCurrency] = useState("USD");
   const [lodgNotes, setLodgNotes] = useState("");
-  const [lodgVenueUrl, setLodgVenueUrl] = useState("");
 
   // Pre-select budget currency
   useEffect(() => {
@@ -130,11 +128,10 @@ export function AddToTripModal({
   const actCanSave = actTitle.trim() !== "" && (defaultDate ? true : actDate !== "") && actCategory !== "";
   const lodgCanSave = lodgName.trim() !== "" && lodgCheckInDate !== "" && lodgCheckOutDate !== "";
 
-  async function saveActivity(force = false) {
+  async function saveActivity() {
     if (!actCanSave) { setError("Activity name, date, and category are required."); return; }
     setSaving(true);
     setError("");
-    setDuplicatePending(false);
     try {
       const res = await fetch(`/api/trips/${tripId}/activities`, {
         method: "POST",
@@ -155,10 +152,8 @@ export function AddToTripModal({
           lat: actLat ?? null,
           lng: actLng ?? null,
           type: actCategory || undefined,
-          ...(force && { force: true }),
         }),
       });
-      if (res.status === 409) { setDuplicatePending(true); return; }
       if (!res.ok) { const d = await res.json(); setError(d.error ?? "Failed to save activity"); return; }
       onSaved(await res.json());
     } catch {
@@ -184,7 +179,6 @@ export function AddToTripModal({
           checkInTime: lodgCheckInTime || undefined,
           checkOutTime: lodgCheckOutTime || undefined,
           address: lodgAddress.trim() || undefined,
-          venueUrl: lodgVenueUrl.trim() || undefined,
           confirmationCode: lodgConfCode.trim() || undefined,
           totalCost: lodgCost ? parseFloat(lodgCost) : undefined,
           currency: lodgCurrency || undefined,
@@ -452,11 +446,6 @@ export function AddToTripModal({
               </div>
 
               <div>
-                <label style={labelStyle}>Website / booking link (optional)</label>
-                <input type="url" value={lodgVenueUrl} onChange={e => setLodgVenueUrl(e.target.value)} placeholder="e.g. https://booking.com/..." style={inputStyle} />
-              </div>
-
-              <div>
                 <label style={labelStyle}>Confirmation / booking reference (optional)</label>
                 <input type="text" value={lodgConfCode} onChange={e => setLodgConfCode(e.target.value)} placeholder="e.g. ABC123" style={{ ...inputStyle, fontFamily: "monospace" }} />
               </div>
@@ -480,15 +469,6 @@ export function AddToTripModal({
             </>
           )}
 
-          {duplicatePending && (
-            <div style={{ background: "#FFFBEB", border: "1px solid #D97706", borderRadius: "10px", padding: "12px 14px" }}>
-              <p style={{ fontSize: "13px", color: "#92400E", fontWeight: 600, marginBottom: "8px" }}>An activity with this name already exists on this day. Add it anyway?</p>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button type="button" onClick={() => saveActivity(true)} style={{ padding: "7px 14px", borderRadius: "8px", border: "none", backgroundColor: "#1B3A5C", color: "#fff", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Add anyway</button>
-                <button type="button" onClick={() => setDuplicatePending(false)} style={{ padding: "7px 14px", borderRadius: "8px", border: "1px solid #D97706", backgroundColor: "transparent", color: "#92400E", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
-              </div>
-            </div>
-          )}
           {error && <p style={{ fontSize: "13px", color: "#C4664A", fontWeight: 600 }}>{error}</p>}
 
           <button

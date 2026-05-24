@@ -390,30 +390,12 @@ export default async function SharePage({
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
 
-    // Fix 7: remove SavedItems whose title duplicates a ManualActivity on the same day
-    // (both have the same savedItemId FK — ManualActivity is canonical, SavedItem is the pair)
-    const manualTitlesOnDay = new Set(
-      dayItems
-        .filter((e) => e.kind === "manual")
-        .map((e) => (e.data as { title?: string }).title?.toLowerCase() ?? "")
-        .filter(Boolean)
-    );
-    const dedupedItems = serializableItems.filter(
-      (item) => item.kind !== "save" || !manualTitlesOnDay.has(item.title.toLowerCase())
-    );
-    const dedupedSaveItems = saveItems.filter(
-      (s) => !s.id.startsWith("save_") || !manualTitlesOnDay.has(s.title.toLowerCase())
-    );
-
     return {
       index: di,
       label: dayLabel(di),
       city: trip.destinationCity,
-      items: dedupedItems,
-      saveItems: dedupedSaveItems,
-      notes: (perDayNotesByDay[di] ?? [])
-        .map((n) => ({ id: n.id, content: tiptapToPlaintext(n.content) }))
-        .filter((n) => n.content.trim()),
+      items: serializableItems,
+      saveItems,
     };
   });
 
@@ -599,6 +581,34 @@ export default async function SharePage({
           />
         )}
 
+        {/* ── Per-day notes ── */}
+        {perDayNotesDayIndices.length > 0 && (
+          <section style={{ marginTop: "32px" }}>
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: "#1B3A5C", marginBottom: "12px" }}>
+              Day notes
+            </h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              {perDayNotesDayIndices.map((di) => (
+                <div key={di}>
+                  <p style={{ fontSize: "12px", fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "8px" }}>
+                    {dayLabel(di)}
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {perDayNotesByDay[di].map((note) => {
+                      const text = tiptapToPlaintext(note.content);
+                      if (!text.trim()) return null;
+                      return (
+                        <div key={note.id} style={{ borderLeft: "2px solid #DDDDDD", paddingLeft: "12px" }}>
+                          <p style={{ fontSize: "13px", color: "#4B5563", lineHeight: 1.55, margin: 0 }}>{text}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ── Nearby saved places (photo grid, 3+ only) ── */}
         {nearbySaves.length >= 3 && (

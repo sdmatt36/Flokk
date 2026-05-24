@@ -134,11 +134,6 @@ export function SaveDetailModal({
   const [urlInput, setUrlInput] = useState("");
   const [urlError, setUrlError] = useState("");
   const [showPastTrips, setShowPastTrips] = useState(false);
-  const [editMode, setEditMode] = useState(false);
-  const [editTitle, setEditTitle] = useState("");
-  const [editCity, setEditCity] = useState("");
-  const [editCountry, setEditCountry] = useState("");
-  const [editSaving, setEditSaving] = useState(false);
   const noteTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localTagsRef = useRef<string[]>([]);
   const initialNotes = useRef("");
@@ -163,9 +158,6 @@ export function SaveDetailModal({
         setLocalWebsiteUrl(data.item?.websiteUrl ?? null);
         setUserRating(data.item?.userRating ?? null);
         setLodgingType(data.item?.lodgingType ?? null);
-        setEditTitle(data.item?.rawTitle ?? "");
-        setEditCity(data.item?.destinationCity ?? "");
-        setEditCountry(data.item?.destinationCountry ?? "");
         initialNotes.current = data.item?.notes ?? "";
         const raw: string[] = data.item?.categoryTags ?? [];
         const tags: string[] = [...new Set(raw.map((t) => normalizeCategorySlug(t) ?? t.toLowerCase().trim()).filter((t): t is string => t.length > 0))];
@@ -206,36 +198,6 @@ export function SaveDetailModal({
       setAssignedTrip(trip);
       onAssigned?.(itemId, trip);
     } catch { /* silent */ }
-  }
-
-  async function handleSaveEdits() {
-    setEditSaving(true);
-    try {
-      const res = await fetch(`/api/saves/${itemId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rawTitle: editTitle.trim() || undefined,
-          destinationCity: editCity.trim() || null,
-          destinationCountry: editCountry.trim() || null,
-        }),
-      });
-      if (res.ok) {
-        const d = await res.json();
-        setItem((prev) =>
-          prev
-            ? {
-                ...prev,
-                rawTitle: d.savedItem.rawTitle,
-                destinationCity: d.savedItem.destinationCity,
-                destinationCountry: d.savedItem.destinationCountry,
-              }
-            : prev
-        );
-        setEditMode(false);
-      }
-    } catch { /* silent */ }
-    finally { setEditSaving(false); }
   }
 
   function handleClose() {
@@ -444,62 +406,9 @@ export function SaveDetailModal({
               </div>
             )}
 
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
-              <p style={{ fontSize: "12px", color: "#aaa", margin: 0 }}>
-                {item.sourceMethod === "IN_APP_SAVE" ? "Saved in app" : `Saved from ${SOURCE_LABEL[item.sourcePlatform ?? ""] || SOURCE_LABEL[item.sourceMethod ?? ""] || item.sourceMethod || "URL"}`} · {formatDate(item.savedAt)}
-              </p>
-              <button
-                type="button"
-                onClick={() => setEditMode((e) => !e)}
-                style={{ fontSize: "12px", fontWeight: 600, color: "#C4664A", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit", flexShrink: 0 }}
-              >
-                {editMode ? "Cancel" : "Edit details"}
-              </button>
-            </div>
-
-            {editMode && (
-              <div style={{ marginBottom: "16px", padding: "14px", backgroundColor: "#FAFAF8", borderRadius: "12px", border: "1px solid rgba(0,0,0,0.08)", display: "flex", flexDirection: "column", gap: "10px" }}>
-                <div>
-                  <label style={{ fontSize: "11px", fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: "4px" }}>Name</label>
-                  <input
-                    type="text"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    style={{ width: "100%", padding: "9px 12px", borderRadius: "8px", border: "1px solid rgba(0,0,0,0.12)", fontSize: "14px", color: "#1a1a1a", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
-                  />
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-                  <div>
-                    <label style={{ fontSize: "11px", fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: "4px" }}>City</label>
-                    <input
-                      type="text"
-                      value={editCity}
-                      onChange={(e) => setEditCity(e.target.value)}
-                      placeholder="e.g. Tokyo"
-                      style={{ width: "100%", padding: "9px 12px", borderRadius: "8px", border: "1px solid rgba(0,0,0,0.12)", fontSize: "13px", color: "#1a1a1a", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: "11px", fontWeight: 700, color: "#888", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: "4px" }}>Country</label>
-                    <input
-                      type="text"
-                      value={editCountry}
-                      onChange={(e) => setEditCountry(e.target.value)}
-                      placeholder="e.g. Japan"
-                      style={{ width: "100%", padding: "9px 12px", borderRadius: "8px", border: "1px solid rgba(0,0,0,0.12)", fontSize: "13px", color: "#1a1a1a", outline: "none", fontFamily: "inherit", boxSizing: "border-box" }}
-                    />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSaveEdits}
-                  disabled={editSaving}
-                  style={{ alignSelf: "flex-start", padding: "9px 20px", borderRadius: "999px", border: "none", backgroundColor: editSaving ? "#E0E0E0" : "#1B3A5C", color: editSaving ? "#aaa" : "#fff", fontSize: "13px", fontWeight: 700, cursor: editSaving ? "default" : "pointer" }}
-                >
-                  {editSaving ? "Saving…" : "Save changes"}
-                </button>
-              </div>
-            )}
+            <p style={{ fontSize: "12px", color: "#aaa", marginBottom: "16px" }}>
+              {item.sourceMethod === "IN_APP_SAVE" ? "Saved in app" : `Saved from ${SOURCE_LABEL[item.sourcePlatform ?? ""] || SOURCE_LABEL[item.sourceMethod ?? ""] || item.sourceMethod || "URL"}`} · {formatDate(item.savedAt)}
+            </p>
 
             {/* Match reason */}
             <div style={{ background: "#FDF6F3", borderRadius: "12px", padding: "12px 14px", marginBottom: "16px" }}>
