@@ -595,3 +595,18 @@ Captured as Discipline 4.18 in FLOKK_PRODUCT_SPEC.md v3.4. Triggering case: Gree
 ---
 
 *Last updated: Chat 43, May 1 2026. Source: direct codebase reads (Phases 1–4) + Supabase live queries (Phase 3.5–3.7).*
+
+---
+
+## Pre-Push Verification Gate
+
+Every commit pushed to `main` MUST pass all of the following before push:
+
+1. **`npx tsc --noEmit`** — type errors fail the gate.
+2. **`npm run build`** — Next.js static analysis must exit 0. Mandatory per Discipline 9.54. No exceptions, including docs-only commits.
+3. **Touched-surface declaration** (Discipline 9.51) — files modified + dependent surfaces + behaviors to preserve, listed before code is written.
+4. **Regression behavior set review** (Discipline 9.52) — read `docs/FLOKK_REGRESSION_BEHAVIOR_SET.md` entries for any surface modified. If a listed behavior might regress, HALT.
+5. **Shared-component halt** (Discipline 9.53) — modifications to `src/components/forms/`, `cards/`, `modals/`, or other multi-surface directories require strategic-chat confirmation before proceeding; multi-surface commits split along surface boundaries.
+6. **Plain commit message** — no Co-Authored-By trailers, no AI attribution, no emoji.
+
+After push, strategic chat verifies READY-state via `Vercel:list_deployments` and post-deploy behavior via `Vercel:web_fetch_vercel_url` (Disciplines 9.45 + 9.46). Code does not assume post-deploy verification has happened until strategic chat confirms.

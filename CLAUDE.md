@@ -9,6 +9,19 @@ Read this entire file before writing a single line of code.
 3. One prompt at a time. Never modify files that touch the same feature simultaneously.
 4. Every prompt ends with: git add -A && git commit -m "description" && git push
 
+## Pre-Push Verification Gate
+
+Every commit pushed to `main` MUST pass all of the following before push:
+
+1. **`npx tsc --noEmit`** — type errors fail the gate.
+2. **`npm run build`** — Next.js static analysis must exit 0. Mandatory per Discipline 9.54. No exceptions, including docs-only commits.
+3. **Touched-surface declaration** (Discipline 9.51) — files modified + dependent surfaces + behaviors to preserve, listed before code is written.
+4. **Regression behavior set review** (Discipline 9.52) — read `docs/FLOKK_REGRESSION_BEHAVIOR_SET.md` entries for any surface modified. If a listed behavior might regress, HALT.
+5. **Shared-component halt** (Discipline 9.53) — modifications to `src/components/forms/`, `cards/`, `modals/`, or other multi-surface directories require strategic-chat confirmation before proceeding; multi-surface commits split along surface boundaries.
+6. **Plain commit message** — no Co-Authored-By trailers, no AI attribution, no emoji.
+
+After push, strategic chat verifies READY-state via `Vercel:list_deployments` and post-deploy behavior via `Vercel:web_fetch_vercel_url` (Disciplines 9.45 + 9.46). Code does not assume post-deploy verification has happened until strategic chat confirms.
+
 ## Code Standards
 - No hardcoded user IDs. Fixes must work for ALL users.
 - Backfill scripts required when adding fields to existing data.
