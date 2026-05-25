@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 
 const FLIGHT_BOOKING_PREFIX = "flight-booking:";
+const LODGING_ITEM_PREFIX = "lodging-item:";
 
 // ── PATCH ─────────────────────────────────────────────────────────────────────
 
@@ -19,6 +20,14 @@ export async function PATCH(
   if (documentId.startsWith(FLIGHT_BOOKING_PREFIX)) {
     return NextResponse.json(
       { error: "Use /api/trips/[id]/flight-bookings/[bookingId] to edit flight bookings" },
+      { status: 400 }
+    );
+  }
+
+  // ── lodging-item: synthetic doc — edit the underlying ItineraryItem directly ──
+  if (documentId.startsWith(LODGING_ITEM_PREFIX)) {
+    return NextResponse.json(
+      { error: "Edit this lodging booking from the Itinerary tab" },
       { status: 400 }
     );
   }
@@ -118,6 +127,26 @@ export async function DELETE(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id: tripId, documentId } = await params;
+
+  // ── lodging-item: synthetic doc — delete the ItineraryItem (and matched check-out) ──
+  if (documentId.startsWith(LODGING_ITEM_PREFIX)) {
+    const itemId = documentId.slice(LODGING_ITEM_PREFIX.length);
+    const item = await db.itineraryItem.findUnique({
+      where: { id: itemId },
+      select: { id: true, tripId: true, confirmationCode: true },
+    });
+    if (!item || item.tripId !== tripId) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    if (item.confirmationCode) {
+      await db.itineraryItem.deleteMany({
+        where: { tripId, confirmationCode: item.confirmationCode, type: "LODGING" },
+      });
+    } else {
+      await db.itineraryItem.delete({ where: { id: itemId } });
+    }
+    return NextResponse.json({ success: true });
+  }
 
   // ── flight-booking: synthetic doc — delete FlightBooking + its Flight rows ──
   if (documentId.startsWith(FLIGHT_BOOKING_PREFIX)) {

@@ -525,6 +525,9 @@ export default async function SharePage({
       {/* ── Trip-level notes (dayIndex null) ── */}
       {tripLevelNotes.length > 0 && (
         <div style={{ maxWidth: "1100px", margin: "16px auto 0", padding: "0 24px" }}>
+          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: "#1B3A5C", marginBottom: "12px" }}>
+            Notes
+          </h2>
           {tripLevelNotes.map((note) => {
             const text = tiptapToPlaintext(note.content);
             if (!text.trim()) return null;

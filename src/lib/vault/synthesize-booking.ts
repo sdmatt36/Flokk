@@ -221,6 +221,61 @@ export function synthesizeHotelVaultDocument(opts: {
   };
 }
 
+// ── ORPHAN HOTEL synthesizer ──────────────────────────────────────────────────
+// Used when a LODGING ItineraryItem (check-in or check-out) exists but no
+// TripDocument was created for it (e.g. forward with no email body, or pre-Phase-Vault).
+
+function normalizeLodgingName(title: string): string {
+  return title
+    .replace(/^check-(?:in|out):\s*/i, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, "")
+    .slice(0, 20)
+    .trim();
+}
+
+function fuzzyLodgingMatch(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  return a === b || a.includes(b) || b.includes(a);
+}
+
+function sliceDate(d: Date | string | null | undefined): string | null {
+  if (!d) return null;
+  if (d instanceof Date) return d.toISOString().slice(0, 10);
+  return String(d).slice(0, 10);
+}
+
+export function synthesizeOrphanHotelVaultDocument(opts: {
+  checkInItem?: ItineraryItem | null;
+  checkOutItem?: ItineraryItem | null;
+}): VaultDocument {
+  const { checkInItem, checkOutItem } = opts;
+  const anchor = checkInItem ?? checkOutItem;
+  if (!anchor) throw new Error("synthesizeOrphanHotelVaultDocument: at least one item required");
+
+  const hotelName = (anchor.title ?? "")
+    .replace(/^check-(?:in|out):\s*/i, "")
+    .trim() || "Hotel";
+
+  const content: RawContent = {
+    type: "hotel",
+    confirmationCode: (checkInItem ?? checkOutItem)?.confirmationCode ?? null,
+    checkIn: checkInItem ? sliceDate(checkInItem.scheduledDate as Date | string | null) : null,
+    checkOut: checkOutItem ? sliceDate(checkOutItem.scheduledDate as Date | string | null) : null,
+    address: checkInItem?.address ?? null,
+    bookingSource: checkInItem?.bookingSource ?? null,
+    managementUrl: checkInItem?.managementUrl ?? null,
+  };
+
+  return {
+    id: `lodging-item:${anchor.id}`,
+    label: hotelName,
+    type: "booking",
+    url: null,
+    content: JSON.stringify(content),
+  };
+}
+
 // ── ACTIVITY / TRAIN / CAR_RENTAL / RESTAURANT synthesizer ───────────────────
 
 export function synthesizeActivityLikeVaultDocument(opts: {
@@ -289,8 +344,9 @@ export async function synthesizeVaultDocuments(tripId: string, prisma?: any): Pr
   })) as TripDocument[];
 
   const results: VaultDocument[] = [];
-  // Track conf codes covered by TripDocument-sourced flight bookings for orphan dedup
+  // Track conf codes covered by TripDocument-sourced bookings for orphan dedup
   const tdFlightConfCodes = new Set<string>();
+  const coveredLodgingConfCodes = new Set<string>();
 
   for (const doc of tripDocs) {
     if (doc.type !== "booking") {
@@ -333,6 +389,7 @@ export async function synthesizeVaultDocuments(tripId: string, prisma?: any): Pr
       );
 
     } else if (bookingType === "hotel") {
+      if (confCode) coveredLodgingConfCodes.add(confCode);
       const items = confCode
         ? ((await db.itineraryItem.findMany({
             where: { tripId, confirmationCode: confCode, type: "LODGING" },
@@ -390,8 +447,55 @@ export async function synthesizeVaultDocuments(tripId: string, prisma?: any): Pr
     );
   }
 
+  // 4. Append LODGING ItineraryItems with no corresponding TripDocument (orphan hotels).
+  // Mirrors the flight orphan path above: any check-in or check-out whose confirmationCode
+  // is not covered by a TripDocument hotel card is synthesized into a read-only card.
+  const allLodgingItems = (await db.itineraryItem.findMany({
+    where: { tripId, type: "LODGING" },
+    orderBy: { scheduledDate: "asc" },
+  })) as ItineraryItem[];
+
+  const lodgingCheckIns = allLodgingItems.filter((it: ItineraryItem) => /^check-in:/i.test(it.title ?? ""));
+  const lodgingCheckOuts = allLodgingItems.filter((it: ItineraryItem) => /^check-out:/i.test(it.title ?? ""));
+
+  // Check-ins whose confCode is not covered by any TripDocument hotel card
+  const orphanCheckIns = lodgingCheckIns.filter((it: ItineraryItem) =>
+    !it.confirmationCode || !coveredLodgingConfCodes.has(it.confirmationCode)
+  );
+
+  // Pair each orphan check-in with a check-out: confCode first, then fuzzy name
+  const usedCheckOutIds = new Set<string>();
+  for (const ci of orphanCheckIns) {
+    let matchedCheckOut: ItineraryItem | null = null;
+
+    if (ci.confirmationCode) {
+      matchedCheckOut = lodgingCheckOuts.find((co: ItineraryItem) =>
+        !usedCheckOutIds.has(co.id) && co.confirmationCode === ci.confirmationCode
+      ) ?? null;
+    }
+
+    if (!matchedCheckOut) {
+      const ciName = normalizeLodgingName(ci.title ?? "");
+      matchedCheckOut = lodgingCheckOuts.find((co: ItineraryItem) =>
+        !usedCheckOutIds.has(co.id) && fuzzyLodgingMatch(ciName, normalizeLodgingName(co.title ?? ""))
+      ) ?? null;
+    }
+
+    if (matchedCheckOut) usedCheckOutIds.add(matchedCheckOut.id);
+    results.push(synthesizeOrphanHotelVaultDocument({ checkInItem: ci, checkOutItem: matchedCheckOut }));
+  }
+
+  // Orphan check-outs with no paired check-in and no TripDocument coverage
+  const orphanCheckOuts = lodgingCheckOuts.filter((co: ItineraryItem) =>
+    !usedCheckOutIds.has(co.id) &&
+    (!co.confirmationCode || !coveredLodgingConfCodes.has(co.confirmationCode))
+  );
+  for (const co of orphanCheckOuts) {
+    results.push(synthesizeOrphanHotelVaultDocument({ checkInItem: null, checkOutItem: co }));
+  }
+
   console.log(
-    `[vault-synthesize] tripId=${tripId} tripDocs=${tripDocs.length} orphanFlightBookings=${fbConfCodesSeen.size + allFlightBookings.filter(fb => !fb.confirmationCode && fb.flights.length > 0).length} total=${results.length} tripRange=${tripStartDate ?? "?"}–${tripEndDate ?? "?"}`
+    `[vault-synthesize] tripId=${tripId} tripDocs=${tripDocs.length} orphanFlightBookings=${fbConfCodesSeen.size + allFlightBookings.filter(fb => !fb.confirmationCode && fb.flights.length > 0).length} orphanLodging=${orphanCheckIns.length + orphanCheckOuts.length} total=${results.length} tripRange=${tripStartDate ?? "?"}–${tripEndDate ?? "?"}`
   );
 
   return results;
