@@ -429,6 +429,50 @@ export default async function SharePage({
   // ── Contacts + notes derivation ─────────────────────────────────────────────
   const tripLevelNotes = trip.tripNotes.filter((n) => n.dayIndex === null);
 
+  // ── Synthetic hotel contacts from LODGING ItineraryItems ──────────────────
+  function normalizeLodgingContactName(s: string): string {
+    return s
+      .replace(/^check-(?:in|out):\s*/i, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]/g, "")
+      .slice(0, 20)
+      .trim();
+  }
+
+  function mapLodgingTypeToBadge(t: string | null | undefined): string {
+    switch (t) {
+      case "hotel": return "Hotel";
+      case "bnb": return "B&B";
+      case "vacation_rental": return "Vacation Rental";
+      case "resort": return "Resort";
+      case "campsite": return "Campsite";
+      case "hostel": return "Hostel";
+      default: return "Stay";
+    }
+  }
+
+  const existingContactKeys = new Set(
+    trip.contacts.map((c) => normalizeLodgingContactName(c.name))
+  );
+
+  const lodgingByKey = new Map<string, typeof trip.itineraryItems[0]>();
+  for (const item of trip.itineraryItems) {
+    if (item.type !== "LODGING") continue;
+    const key = normalizeLodgingContactName(item.title ?? "");
+    if (!key) continue;
+    if (!lodgingByKey.has(key)) lodgingByKey.set(key, item);
+  }
+
+  const syntheticHotelContacts = Array.from(lodgingByKey.entries())
+    .filter(([key]) => !existingContactKeys.has(key))
+    .map(([, item]) => ({
+      id: `lodging-contact:${item.id}`,
+      name: (item.title ?? "").replace(/^check-(?:in|out):\s*/i, "").trim(),
+      role: mapLodgingTypeToBadge(item.lodgingType),
+      address: item.address ?? null,
+      venueUrl: item.venueUrl ?? null,
+    }));
+
   // ── SECTION 3: Nearby saved places (proximity-filtered photo grid) ────────
   const validItinCoords = trip.itineraryItems.filter(
     (it) =>
@@ -546,7 +590,7 @@ export default async function SharePage({
       <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "0 24px" }}>
 
         {/* ── Contacts ── */}
-        {trip.contacts.length > 0 && (
+        {(trip.contacts.length > 0 || syntheticHotelContacts.length > 0) && (
           <section style={{ marginTop: "28px" }}>
             <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: "#1B3A5C", marginBottom: "12px" }}>
               Contacts
@@ -585,6 +629,43 @@ export default async function SharePage({
                       <p style={{ fontSize: "12px", color: "#717171", margin: "4px 0 0" }}>{contact.notes}</p>
                     )}
                   </div>
+                </div>
+              ))}
+              {syntheticHotelContacts.map((hotel) => (
+                <div
+                  key={hotel.id}
+                  style={{ backgroundColor: "#FAFAF8", border: "1px solid #EEEEEE", borderRadius: "10px", padding: "14px 16px" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: hotel.address || hotel.venueUrl ? "6px" : 0 }}>
+                    <span style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C" }}>{hotel.name}</span>
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#C4664A", border: "1px solid #C4664A", borderRadius: "999px", padding: "2px 8px" }}>
+                      {hotel.role}
+                    </span>
+                  </div>
+                  {(hotel.address || hotel.venueUrl) && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      {hotel.address && (
+                        <a
+                          href={`https://maps.google.com/?q=${encodeURIComponent(hotel.address)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: "13px", color: "#1B3A5C", textDecoration: "none" }}
+                        >
+                          {hotel.address}
+                        </a>
+                      )}
+                      {hotel.venueUrl && (
+                        <a
+                          href={hotel.venueUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: "13px", color: "#C4664A", textDecoration: "none" }}
+                        >
+                          View property →
+                        </a>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
