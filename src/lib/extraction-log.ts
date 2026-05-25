@@ -11,7 +11,7 @@ export type ExtractionLogInput = {
   itineraryItemIds?: string[];
   tripDocumentId?: string | null;
   confidenceScore?: number | null;
-  outcome: "success" | "partial" | "dropped" | "error" | "duplicate_skipped" | "duplicate_merged" | "duplicate_attached" | "cancellation_matched" | "cancellation_unmatched" | "cancellation_ambiguous" | "attachment_unreadable" | "cancellation_restored";
+  outcome: "success" | "partial" | "dropped" | "error" | "duplicate_skipped" | "duplicate_merged" | "duplicate_attached" | "cancellation_matched" | "cancellation_unmatched" | "cancellation_ambiguous" | "attachment_unreadable" | "cancellation_restored" | "needs_attachment" | "success_updated" | "schedule_change_no_match";
   errorMessage?: string | null;
   rawEmailSize?: number | null;
   rawEmail?: string | null;

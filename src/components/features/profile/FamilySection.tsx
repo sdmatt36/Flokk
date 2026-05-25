@@ -528,7 +528,55 @@ export function FamilySection() {
       </button>
 
       <SenderEmailsCard />
+      <EmailImportAlerts />
       <InterestsCard />
+    </div>
+  );
+}
+
+// ── Email import alerts ───────────────────────────────────────────────────────
+
+type ImportAlert = { id: string; senderEmail: string; subject: string | null; attachmentMimeTypes: string[]; createdAt: string };
+
+function EmailImportAlerts() {
+  const [entries, setEntries] = useState<ImportAlert[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/profile/email-imports/recent")
+      .then((r) => r.json())
+      .then((d: { entries?: ImportAlert[] }) => { setEntries(d.entries ?? []); setLoaded(true); })
+      .catch(() => setLoaded(true));
+  }, []);
+
+  if (!loaded || entries.length === 0) return null;
+
+  return (
+    <div style={{ marginTop: "24px", borderTop: "1px solid #F0F0F0", paddingTop: "24px" }}>
+      <p style={{ fontSize: "13px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 4px" }}>
+        Emails needing attention
+      </p>
+      <p style={{ fontSize: "13px", color: "#717171", margin: "0 0 12px", lineHeight: 1.5 }}>
+        These emails had attachments but could not be fully imported. Re-forward with the attachment inline, or forward the plain-text booking confirmation instead.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+        {entries.map((e) => (
+          <div key={e.id} style={{
+            padding: "10px 14px",
+            borderRadius: "8px",
+            border: "1px solid rgba(196,102,74,0.2)",
+            borderLeft: "3px solid #C4664A",
+            backgroundColor: "#FDF8F6",
+          }}>
+            <p style={{ margin: 0, fontSize: "13px", color: "#1B3A5C", fontWeight: 500 }}>
+              {e.subject ?? "(no subject)"}
+            </p>
+            <p style={{ margin: "2px 0 0", fontSize: "12px", color: "#717171" }}>
+              From {e.senderEmail} · {new Date(e.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -544,12 +544,17 @@ export async function POST(req: NextRequest) {
       ? text.substring(0, 8000)
       : html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().substring(0, 8000);
 
+    // Detect schedule-change emails by subject before Claude sees them.
+    // Southwest and other carriers return prose (not JSON) when the prompt has no
+    // "schedule_change" type — this pre-detection injects a corrective instruction.
+    const isScheduleChange = /schedule[\s.-]?change|itinerary[\s.-]?change|flight[\s.-]?update|made\s+a\s+change\s+to\s+your/i.test(subject ?? "");
+
     const hasAttachments = filteredAttachments.length > 0;
     const attachmentNote = hasAttachments
       ? `\n\nNOTE: ${filteredAttachments.length} attachment(s) are included in this extraction context. Use their content to extract all booking details — dates, stations, routes, times — that may not appear in the email body.`
       : `\n\nATTACHMENT-ONLY EMAILS: Some rail/airline carriers (e.g. SJ, Ryanair) send emails where all journey details are in an attached PDF. If the body is only generic boilerplate ("your tickets are attached", "download the app") and NO attachments are provided here, return confidence ≤ 0.3 and null for all date/location fields. Do NOT hallucinate dates or routes from the booking reference alone.`;
 
-    const promptText = `${isGetYourGuide && gygActivityHint ? `CRITICAL: This is a GetYourGuide booking. The activity name is "${gygActivityHint}". Use this exact string as the activityName field. Do NOT use "GetYourGuide" as the activityName or title. Put "GetYourGuide" in the vendorName field only.\n\n` : ""}First, determine whether this email represents a NEW booking confirmation, a CANCELLATION of an existing booking, or a REFUND acknowledgment. Do not assume it is a booking — read the subject and content to classify it first.
+    const promptText = `${isGetYourGuide && gygActivityHint ? `CRITICAL: This is a GetYourGuide booking. The activity name is "${gygActivityHint}". Use this exact string as the activityName field. Do NOT use "GetYourGuide" as the activityName or title. Put "GetYourGuide" in the vendorName field only.\n\n` : ""}${isScheduleChange ? `CRITICAL: This email is a SCHEDULE CHANGE notification from an airline — the carrier has modified departure times, dates, or routing on an existing booking. Extract the UPDATED flight details using type="flight". Extract the confirmation code from the subject line or email body. This is NOT a cancellation — it is a time/date update only. Return all fields as if this were a new flight booking with the revised schedule.\n\n` : ""}First, determine whether this email represents a NEW booking confirmation, a CANCELLATION of an existing booking, or a REFUND acknowledgment. Do not assume it is a booking — read the subject and content to classify it first.
 
 IMPORTANT: If the sender is a transportation or accommodation vendor (airline, rail operator, hotel chain), do NOT assume the email is a booking confirmation. Vendor identity tells you who sent the email, not what kind of email it is. An LNER email may be a refund acknowledgment, not a train booking. A Marriott email may be a cancellation confirmation, not a hotel reservation. Always read the subject line and body to determine the type before extracting any fields.
 
@@ -708,7 +713,7 @@ Field notes:
     logCtx.confidenceScore = (extracted?.confidence as number | null) ?? null;
 
     const isRefundOrCancellation = ["cancellation", "refund"].includes(extracted?.type as string);
-    const minConfidence = isRefundOrCancellation ? 0.3 : 0.5;
+    const minConfidence = isRefundOrCancellation ? 0.3 : 0.4;
     if (!extracted || (extracted.confidence as number) < minConfidence) {
       console.log("[email-inbound] low confidence:", extracted?.confidence);
       const urlMatch = (text || html || '').match(/https?:\/\/[^\s<>"]+/);
@@ -813,7 +818,14 @@ Field notes:
       } else {
         console.log('[trips-save] no URL found in low-confidence email, skipping');
       }
-      await logExtraction({ ...logCtx, outcome: "dropped", errorMessage: `low confidence: ${extracted?.confidence ?? "null"}` });
+      const needsAttachmentDrop = rawAttachments.length > 0;
+      await logExtraction({
+        ...logCtx,
+        outcome: needsAttachmentDrop ? "needs_attachment" : "dropped",
+        errorMessage: needsAttachmentDrop
+          ? `Email body insufficient; attachment not parseable: ${logCtx.attachmentMimeTypes?.join(", ") ?? "unknown"}`
+          : `low confidence: ${extracted?.confidence ?? "null"}`,
+      });
       return NextResponse.json({ received: true, status: "low_confidence" });
     }
 
@@ -1537,6 +1549,7 @@ Field notes:
       // The upsert key includes fromAirport+toAirport, so airport corrections
       // (e.g. NRT→HND) create new rows rather than updating existing ones,
       // leaving duplicates. deleteMany is idempotent — returns 0 on first write.
+      let scheduleChangedExistingCount = 0;
       if (outboundConf) {
         const deleted = await db.itineraryItem.deleteMany({
           where: {
@@ -1551,6 +1564,7 @@ Field notes:
           },
         });
         if (deleted.count > 0) {
+          scheduleChangedExistingCount = deleted.count;
           console.log(`[email-inbound] cleared ${deleted.count} stale FLIGHT/ACTIVITY ItineraryItem(s) for ${outboundConf} on trip ${resolvedTripId}`);
         }
       }
@@ -1944,7 +1958,10 @@ Field notes:
       if (writtenTrips.length > 1) {
         console.log(`[email-inbound] multi-trip summary: wrote to ${writtenTrips.length} trips: ${writtenTrips.map(t => t.tripId).join(", ")}`);
       }
-      await logExtraction({ ...logCtx, outcome: "success" });
+      const flightOutcome = isScheduleChange
+        ? (scheduleChangedExistingCount > 0 ? "success_updated" : "schedule_change_no_match")
+        : "success";
+      await logExtraction({ ...logCtx, outcome: flightOutcome });
       return NextResponse.json({
         received: true, status: "success", type: "flight",
         primaryTripId: resolvedTripId,
