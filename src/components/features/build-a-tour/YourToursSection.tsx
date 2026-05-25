@@ -145,7 +145,7 @@ export default function YourToursSection({ savedTours, loadingTours, onLoadTour,
       </div>
 
       {/* Card grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {displayedCards.map((item) => {
           if (item.type === "destination") {
             const { groupKey, tours } = item;
@@ -172,7 +172,7 @@ export default function YourToursSection({ savedTours, loadingTours, onLoadTour,
               >
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.72) 100%)" }} />
                 <div style={{
-                  position: "absolute", top: "10px", left: "10px",
+                  position: "absolute", top: "10px", right: "10px",
                   padding: "4px 10px",
                   background: "rgba(27,58,92,0.92)",
                   borderRadius: "14px",
@@ -216,16 +216,26 @@ export default function YourToursSection({ savedTours, loadingTours, onLoadTour,
             >
               <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.72) 100%)" }} />
 
-              {/* Stop count chip */}
-              <div style={{
-                position: "absolute", top: "10px", left: "10px",
-                padding: "4px 10px",
-                background: "rgba(27,58,92,0.92)",
-                borderRadius: "14px",
-                fontSize: "11px", fontWeight: 500, color: "white",
-                fontFamily: "DM Sans, system-ui, sans-serif",
-              }}>
-                {tour.stopCount} stops
+              {/* Stop count + timestamp chips — top-right, stacked */}
+              <div style={{ position: "absolute", top: "10px", right: "10px", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+                <div style={{
+                  padding: "4px 10px",
+                  background: "rgba(27,58,92,0.92)",
+                  borderRadius: "14px",
+                  fontSize: "11px", fontWeight: 500, color: "white",
+                  fontFamily: "DM Sans, system-ui, sans-serif",
+                }}>
+                  {tour.stopCount} stops
+                </div>
+                <div style={{
+                  padding: "3px 8px",
+                  background: "rgba(0,0,0,0.45)",
+                  borderRadius: "14px",
+                  fontSize: "10px", fontWeight: 400, color: "rgba(255,255,255,0.9)",
+                  fontFamily: "DM Sans, system-ui, sans-serif",
+                }}>
+                  {relativeDate(tour.createdAt)}
+                </div>
               </div>
 
               {/* Delete button — hover-reveal, always visible on touch */}
@@ -233,7 +243,7 @@ export default function YourToursSection({ savedTours, loadingTours, onLoadTour,
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setDeletingTourId(tour.id); }}
                 style={{
-                  position: "absolute", top: 8, right: 8,
+                  position: "absolute", top: 8, left: 8,
                   width: 32, height: 32,
                   background: "rgba(0,0,0,0.5)",
                   borderRadius: "50%",
@@ -261,7 +271,7 @@ export default function YourToursSection({ savedTours, loadingTours, onLoadTour,
                   {tour.title || "Untitled tour"}
                 </p>
                 <p style={{ fontSize: "13px", fontWeight: 400, color: "rgba(255,255,255,0.95)", margin: 0, fontFamily: "DM Sans, system-ui, sans-serif" }}>
-                  {tour.stopCount} stops · {tour.transport} · {relativeDate(tour.createdAt)}
+                  {tour.transport}
                 </p>
               </div>
             </div>

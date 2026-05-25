@@ -78,6 +78,7 @@ export default function TourMapBlock({ stops, transport }: TourMapBlockProps) {
         style: "mapbox://styles/mapbox/outdoors-v12",
         center: [avgLng, avgLat],
         zoom: 13,
+        scrollZoom: false,
       });
 
       mapRef.current = map;

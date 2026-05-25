@@ -141,6 +141,8 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState<{ tripTitle: string; tripId: string; day: number; tourId: string } | null>(null);
   const [imgLoaded, setImgLoaded] = useState<Record<string, boolean>>({});
+  const [expandedWhy, setExpandedWhy] = useState<Record<string, boolean>>({});
+  const [expandedFamily, setExpandedFamily] = useState<Record<string, boolean>>({});
 
   const [showRemoved, setShowRemoved] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -552,13 +554,44 @@ export default function TourResults({ stops, removedStops, destinationCity, dest
                           )}
                         </div>
 
-                        {stop.why && stop.why !== "Added manually" && (
-                          <p className="text-xs text-gray-600 leading-relaxed line-clamp-2">{decodeHtmlEntities(stop.why)}</p>
-                        )}
+                        {stop.why && stop.why !== "Added manually" && (() => {
+                          const decoded = decodeHtmlEntities(stop.why);
+                          const isLong = decoded.length > 120;
+                          const isExpanded = expandedWhy[stop.id];
+                          return (
+                            <div>
+                              <p className={`text-xs text-gray-600 leading-relaxed${isLong && !isExpanded ? " line-clamp-2" : ""}`}>{decoded}</p>
+                              {isLong && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setExpandedWhy(prev => ({ ...prev, [stop.id]: !prev[stop.id] })); }}
+                                  className="text-xs text-[#1B3A5C]/50 hover:text-[#1B3A5C] mt-0.5 flex items-center gap-0.5"
+                                >
+                                  {isExpanded ? <><ChevronUp size={11} /> Show less</> : <><ChevronDown size={11} /> Show more</>}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
 
-                        {stop.familyNote && (
-                          <p className="text-xs text-[#C4664A] italic line-clamp-2">{stop.familyNote}</p>
-                        )}
+                        {stop.familyNote && (() => {
+                          const isLong = stop.familyNote.length > 120;
+                          const isExpanded = expandedFamily[stop.id];
+                          return (
+                            <div>
+                              <p className={`text-xs text-[#C4664A] italic${isLong && !isExpanded ? " line-clamp-2" : ""}`}>{stop.familyNote}</p>
+                              {isLong && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setExpandedFamily(prev => ({ ...prev, [stop.id]: !prev[stop.id] })); }}
+                                  className="text-xs text-[#C4664A]/60 hover:text-[#C4664A] mt-0.5 flex items-center gap-0.5 italic"
+                                >
+                                  {isExpanded ? <><ChevronUp size={11} /> Show less</> : <><ChevronDown size={11} /> Show more</>}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {/* Directions to next stop */}
                         {(() => {
