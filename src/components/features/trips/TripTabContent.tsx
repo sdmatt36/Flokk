@@ -8209,34 +8209,15 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       {tab === "vault" && (
         <div style={{ maxWidth: "640px", display: "flex", flexDirection: "column", gap: "32px" }}>
 
-          {/* ── CRUISE BOOKINGS ── */}
+          {/* ── BOOKINGS & CONTACTS ── */}
           <div>
             <div style={{ marginBottom: "14px" }}>
-              <p style={{ fontSize: "16px", fontWeight: 800, color: "#1a1a1a", marginBottom: "2px" }}>Cruise</p>
-              <p style={{ fontSize: "12px", color: "#717171" }}>Sailing details imported from your confirmation email</p>
+              <p style={{ fontSize: "16px", fontWeight: 800, color: "#1a1a1a", marginBottom: "2px" }}>Bookings & Contacts</p>
+              <p style={{ fontSize: "12px", color: "#717171" }}>Flights, cruises, bookings, and contacts for this trip</p>
             </div>
 
-            {cruiseBookings.length === 0 && (
-              <div style={{ backgroundColor: "#F0F5FF", border: "1px solid rgba(43,108,176,0.2)", borderRadius: "14px", padding: "18px 20px" }}>
-                <p style={{ fontSize: "14px", fontWeight: 700, color: "#1B3A5C", marginBottom: "6px" }}>Going on a cruise?</p>
-                <p style={{ fontSize: "13px", color: "#4A6080", lineHeight: 1.6, marginBottom: "12px" }}>
-                  Forward your cruise confirmation email and we&apos;ll automatically import your full port schedule — every stop, arrival and departure times, sea days, and cabin details.
-                </p>
-                <p style={{ fontSize: "12px", color: "#4A6080", marginBottom: "4px", fontWeight: 600 }}>Forward confirmations to:</p>
-                <a
-                  href="mailto:trips@flokktravel.com"
-                  style={{ fontSize: "13px", fontWeight: 700, color: "#2B6CB0", textDecoration: "none", letterSpacing: "0.01em" }}
-                >
-                  trips@flokktravel.com
-                </a>
-                <p style={{ fontSize: "11px", color: "#8AA0BC", marginTop: "10px" }}>
-                  Works with Viking, Royal Caribbean, Celebrity, Norwegian, MSC, Princess, Holland America, and more.
-                </p>
-              </div>
-            )}
-
             {cruiseBookings.length > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "16px" }}>
                 {cruiseBookings.map(cruise => {
                   function fmtCruiseDate(d: string | null): string {
                     if (!d) return "";
@@ -8292,16 +8273,9 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                 })}
               </div>
             )}
-          </div>
 
-          {/* ── IMPORTED BOOKINGS ── */}
-          {documents.filter(d => d.type === "booking").length > 0 && (
-            <div>
-              <div style={{ marginBottom: "14px" }}>
-                <p style={{ fontSize: "16px", fontWeight: 800, color: "#1a1a1a", marginBottom: "2px" }}>Imported Bookings</p>
-                <p style={{ fontSize: "12px", color: "#717171" }}>Automatically populated from your confirmation emails</p>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {documents.filter(d => d.type === "booking").length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "8px" }}>
                 {documents.filter(d => d.type === "booking").map(d => {
                   let booking: Record<string, unknown> = {};
                   try { booking = JSON.parse(d.content ?? "{}"); } catch { /* ignore */ }
@@ -8541,79 +8515,83 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                   );
                 })}
               </div>
-            </div>
-          )}
-
-          {/* ── CONTACTS ── */}
-          <div>
-            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "14px" }}>
-              <div>
-                <p style={{ fontSize: "16px", fontWeight: 800, color: "#1a1a1a", marginBottom: "2px" }}>Contacts</p>
-                <p style={{ fontSize: "12px", color: "#717171" }}>Hotel, driver, guide — everyone on this trip</p>
-              </div>
-              <button onClick={() => setShowAddContact(v => !v)} style={{ fontSize: "13px", color: "#C4664A", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit", whiteSpace: "nowrap" }}>
-                {showAddContact ? "Cancel" : "+ Add"}
-              </button>
-            </div>
-
-            {showAddContact && (
-              <div style={{ backgroundColor: "#FAFAFA", border: "1px solid #E8E8E8", borderRadius: "14px", padding: "16px", marginBottom: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                  <input type="text" value={newContact.name} onChange={e => setNewContact(p => ({ ...p, name: e.target.value }))} placeholder="Name *" style={{ border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "9px 12px", fontSize: "13px", outline: "none", fontFamily: "inherit" }} />
-                  <input type="text" value={newContact.role} onChange={e => setNewContact(p => ({ ...p, role: e.target.value }))} placeholder="Role (e.g. Driver)" style={{ border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "9px 12px", fontSize: "13px", outline: "none", fontFamily: "inherit" }} />
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
-                  <input type="tel" value={newContact.phone} onChange={e => setNewContact(p => ({ ...p, phone: e.target.value }))} placeholder="Phone" style={{ border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "9px 12px", fontSize: "13px", outline: "none", fontFamily: "inherit" }} />
-                  <input type="tel" value={newContact.whatsapp} onChange={e => setNewContact(p => ({ ...p, whatsapp: e.target.value }))} placeholder="WhatsApp number" style={{ border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "9px 12px", fontSize: "13px", outline: "none", fontFamily: "inherit" }} />
-                </div>
-                <input type="email" value={newContact.email} onChange={e => setNewContact(p => ({ ...p, email: e.target.value }))} placeholder="Email" style={{ border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "9px 12px", fontSize: "13px", outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <button
-                    disabled={!newContact.name.trim()}
-                    onClick={async () => {
-                      if (!newContact.name.trim() || !tripId) return;
-                      const res = await fetch(`/api/trips/${tripId}/vault/contacts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newContact) });
-                      if (!res.ok) return;
-                      const saved = await res.json();
-                      setContacts(p => [...p, saved]);
-                      setShowAddContact(false);
-                      setNewContact({ name: "", role: "", phone: "", whatsapp: "", email: "" });
-                    }}
-                    style={{ flex: 1, padding: "10px", borderRadius: "10px", border: "none", backgroundColor: newContact.name.trim() ? "#1B3A5C" : "#E0E0E0", color: newContact.name.trim() ? "#fff" : "#aaa", fontSize: "13px", fontWeight: 700, cursor: newContact.name.trim() ? "pointer" : "default", fontFamily: "inherit" }}
-                  >
-                    Save contact
-                  </button>
-                  <button onClick={() => { setShowAddContact(false); setNewContact({ name: "", role: "", phone: "", whatsapp: "", email: "" }); }} style={{ padding: "10px 16px", borderRadius: "10px", border: "1px solid #E8E8E8", backgroundColor: "#fff", color: "#717171", fontSize: "13px", cursor: "pointer", fontFamily: "inherit" }}>
-                    Cancel
-                  </button>
-                </div>
-              </div>
             )}
 
-            {contacts.length === 0 && !showAddContact ? (
-              <p style={{ fontSize: "13px", color: "#bbb", fontStyle: "italic" }}>Add your hotel, driver, or tour guide</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {contacts.map(c => (
-                  <div key={c.id} style={{ backgroundColor: "#fff", border: "1px solid #EEEEEE", borderRadius: "12px", padding: "14px 16px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                        <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{c.name}</span>
-                        {c.role && <span style={{ fontSize: "11px", color: "#717171", backgroundColor: "#F5F5F5", borderRadius: "999px", padding: "2px 8px" }}>{c.role}</span>}
-                      </div>
-                      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                        {c.phone && <span style={{ fontSize: "13px", color: "#555" }}>📞 {c.phone}</span>}
-                        {c.whatsapp && <a href={`https://wa.me/${c.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: "#25D366", fontWeight: 600 }}>WhatsApp →</a>}
-                        {c.email && <a href={`mailto:${c.email}`} style={{ fontSize: "13px", color: "#1B3A5C" }}>{c.email}</a>}
-                      </div>
-                    </div>
-                    <button onClick={async () => { await fetch(`/api/trips/${tripId}/vault/contacts/${c.id}`, { method: "DELETE" }); setContacts(p => p.filter(x => x.id !== c.id)); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px", flexShrink: 0 }} title="Delete">
-                      <Trash2 size={14} />
+            <div style={{ marginTop: "20px", paddingTop: "20px", borderTop: "1px solid #EEEEEE" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a" }}>Contacts</p>
+                <button onClick={() => setShowAddContact(v => !v)} style={{ fontSize: "13px", color: "#C4664A", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                  {showAddContact ? "Cancel" : "+ Add"}
+                </button>
+              </div>
+
+              {showAddContact && (
+                <div style={{ backgroundColor: "#FAFAFA", border: "1px solid #E8E8E8", borderRadius: "14px", padding: "16px", marginBottom: "12px", display: "flex", flexDirection: "column", gap: "10px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    <input type="text" value={newContact.name} onChange={e => setNewContact(p => ({ ...p, name: e.target.value }))} placeholder="Name *" style={{ border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "9px 12px", fontSize: "13px", outline: "none", fontFamily: "inherit" }} />
+                    <input type="text" value={newContact.role} onChange={e => setNewContact(p => ({ ...p, role: e.target.value }))} placeholder="Role (e.g. Driver)" style={{ border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "9px 12px", fontSize: "13px", outline: "none", fontFamily: "inherit" }} />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    <input type="tel" value={newContact.phone} onChange={e => setNewContact(p => ({ ...p, phone: e.target.value }))} placeholder="Phone" style={{ border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "9px 12px", fontSize: "13px", outline: "none", fontFamily: "inherit" }} />
+                    <input type="tel" value={newContact.whatsapp} onChange={e => setNewContact(p => ({ ...p, whatsapp: e.target.value }))} placeholder="WhatsApp number" style={{ border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "9px 12px", fontSize: "13px", outline: "none", fontFamily: "inherit" }} />
+                  </div>
+                  <input type="email" value={newContact.email} onChange={e => setNewContact(p => ({ ...p, email: e.target.value }))} placeholder="Email" style={{ border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "9px 12px", fontSize: "13px", outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" }} />
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      disabled={!newContact.name.trim()}
+                      onClick={async () => {
+                        if (!newContact.name.trim() || !tripId) return;
+                        const res = await fetch(`/api/trips/${tripId}/vault/contacts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(newContact) });
+                        if (!res.ok) return;
+                        const saved = await res.json();
+                        setContacts(p => [...p, saved]);
+                        setShowAddContact(false);
+                        setNewContact({ name: "", role: "", phone: "", whatsapp: "", email: "" });
+                      }}
+                      style={{ flex: 1, padding: "10px", borderRadius: "10px", border: "none", backgroundColor: newContact.name.trim() ? "#1B3A5C" : "#E0E0E0", color: newContact.name.trim() ? "#fff" : "#aaa", fontSize: "13px", fontWeight: 700, cursor: newContact.name.trim() ? "pointer" : "default", fontFamily: "inherit" }}
+                    >
+                      Save contact
+                    </button>
+                    <button onClick={() => { setShowAddContact(false); setNewContact({ name: "", role: "", phone: "", whatsapp: "", email: "" }); }} style={{ padding: "10px 16px", borderRadius: "10px", border: "1px solid #E8E8E8", backgroundColor: "#fff", color: "#717171", fontSize: "13px", cursor: "pointer", fontFamily: "inherit" }}>
+                      Cancel
                     </button>
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              )}
+
+              {contacts.length === 0 && !showAddContact ? (
+                <p style={{ fontSize: "13px", color: "#bbb", fontStyle: "italic" }}>Add your hotel, driver, or tour guide</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {contacts.map(c => (
+                    <div key={c.id} style={{ backgroundColor: "#fff", border: "1px solid #EEEEEE", borderRadius: "12px", padding: "14px 16px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                          <span style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>{c.name}</span>
+                          {c.role && <span style={{ fontSize: "11px", color: "#717171", backgroundColor: "#F5F5F5", borderRadius: "999px", padding: "2px 8px" }}>{c.role}</span>}
+                        </div>
+                        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                          {c.phone && <span style={{ fontSize: "13px", color: "#555" }}>📞 {c.phone}</span>}
+                          {c.whatsapp && <a href={`https://wa.me/${c.whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: "#25D366", fontWeight: 600 }}>WhatsApp →</a>}
+                          {c.email && <a href={`mailto:${c.email}`} style={{ fontSize: "13px", color: "#1B3A5C" }}>{c.email}</a>}
+                        </div>
+                      </div>
+                      <button onClick={async () => { await fetch(`/api/trips/${tripId}/vault/contacts/${c.id}`, { method: "DELETE" }); setContacts(p => p.filter(x => x.id !== c.id)); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px", flexShrink: 0 }} title="Delete">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <p style={{ fontSize: "12px", color: "#9CA3AF", fontStyle: "italic", marginTop: "20px", textAlign: "center" }}>
+              Forward confirmation emails to{" "}
+              <a href="mailto:trips@flokktravel.com" style={{ color: "#C4664A", textDecoration: "none", fontWeight: 600 }}>
+                trips@flokktravel.com
+              </a>
+              {" "}to import bookings automatically.
+            </p>
           </div>
 
           {/* ── DOCUMENTS & LINKS ── */}
