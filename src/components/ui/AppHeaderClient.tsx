@@ -25,6 +25,7 @@ const NAV_ITEMS = [
   { label: "Trips", href: "/trips", private: true },
   { label: "Saves", href: "/saves", private: true },
   { label: "Discover", href: "/discover", private: false },
+  { label: "Tours", href: "/tours", private: false },
   { label: "Travel Intel", href: "/travel-intel", private: false },
 ];
 
