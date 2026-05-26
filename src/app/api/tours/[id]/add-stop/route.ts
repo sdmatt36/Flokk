@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { resolveProfileId } from "@/lib/profile-access";
-import { addStopToTour, type CategoryOptions, type StopCategory, type MealType } from "@/lib/tour-stop-insertion";
+import {
+  addStopToTour,
+  type StopCategory,
+  type MealType,
+  type PrefetchedCandidate,
+} from "@/lib/tour-stop-insertion";
 
 export const maxDuration = 30;
 
@@ -21,6 +25,27 @@ const STATUS_MAP: Record<string, number> = {
 const VALID_CATEGORIES = new Set<StopCategory>(["food", "bathroom", "snack", "photo_spot", "rest"]);
 const VALID_MEAL_TYPES  = new Set<MealType>(["auto", "breakfast", "lunch", "dinner"]);
 
+function parsePrefetchedCandidate(v: unknown): PrefetchedCandidate | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (typeof v !== "object") return undefined;
+  const c = v as Record<string, unknown>;
+  if (typeof c.name !== "string" || typeof c.durationMin !== "number") return undefined;
+  return {
+    name:           c.name,
+    address:        typeof c.address === "string" ? c.address : null,
+    lat:            typeof c.lat === "number" ? c.lat : null,
+    lng:            typeof c.lng === "number" ? c.lng : null,
+    durationMin:    c.durationMin,
+    why:            typeof c.why === "string" ? c.why : null,
+    familyNote:     typeof c.familyNote === "string" ? c.familyNote : null,
+    imageUrl:       typeof c.imageUrl === "string" ? c.imageUrl : null,
+    websiteUrl:     typeof c.websiteUrl === "string" ? c.websiteUrl : null,
+    placeId:        typeof c.placeId === "string" ? c.placeId : null,
+    ticketRequired: typeof c.ticketRequired === "string" ? c.ticketRequired : null,
+    placeTypes:     Array.isArray(c.placeTypes) ? (c.placeTypes as unknown[]).filter((x): x is string => typeof x === "string") : [],
+  };
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -28,10 +53,6 @@ export async function POST(
   const { userId } = await auth();
   if (!userId)
     return NextResponse.json({ reason: "unauthorized", message: "Unauthorized." }, { status: 401 });
-
-  const profileId = await resolveProfileId(userId);
-  if (!profileId)
-    return NextResponse.json({ reason: "unauthorized", message: "Profile not found." }, { status: 404 });
 
   const { id: tourId } = await params;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
@@ -44,20 +65,18 @@ export async function POST(
   }
   const category = body.category as StopCategory;
 
-  let options: CategoryOptions;
-  if (category === "food") {
-    const mealType: MealType =
-      typeof body.mealType === "string" && VALID_MEAL_TYPES.has(body.mealType as MealType)
+  const mealType: MealType | undefined =
+    category === "food"
+      ? typeof body.mealType === "string" && VALID_MEAL_TYPES.has(body.mealType as MealType)
         ? (body.mealType as MealType)
-        : "auto";
-    options = { category: "food", mealType };
-  } else {
-    options = { category } as CategoryOptions;
-  }
+        : "auto"
+      : undefined;
+
+  const prefetchedCandidate = parsePrefetchedCandidate(body.prefetchedCandidate);
 
   let result;
   try {
-    result = await addStopToTour(tourId, profileId, options);
+    result = await addStopToTour({ tourId, userId, category, mealType, prefetchedCandidate });
   } catch {
     return NextResponse.json(
       { reason: "internal_error", message: "Couldn't add a stop. Try again." },
