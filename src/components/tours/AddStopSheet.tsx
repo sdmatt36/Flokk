@@ -30,7 +30,7 @@ type AddStopSheetProps = {
   onStopsUpdated: (stops: StopUpdate[]) => void;
 };
 
-type View = "categories" | "food" | "bathroom";
+type View = "categories" | "food" | "bathroom" | "snack";
 type MealType = "auto" | "breakfast" | "lunch" | "dinner";
 type BathroomState = "idle" | "loading" | "preview" | "error";
 type BathroomError = "no_candidates" | "places_resolution_failed" | "out_of_area" | "auth" | "unknown";
@@ -38,7 +38,7 @@ type BathroomError = "no_candidates" | "places_resolution_failed" | "out_of_area
 const CATEGORIES = [
   { key: "place_i_know", icon: MapPin,    label: "A place I know", implemented: true,  action: "manual"          },
   { key: "food",         icon: Utensils,  label: "Food",           implemented: true,  action: "food_subscreen"  },
-  { key: "snack",        icon: Coffee,    label: "Snack",          implemented: false, action: null              },
+  { key: "snack",        icon: Coffee,    label: "Snack",          implemented: true,  action: "snack_flow"      },
   { key: "bathroom",     icon: Toilet,    label: "Bathroom",       implemented: true,  action: "bathroom_flow"   },
   { key: "photo_spot",   icon: Camera,    label: "Photo spot",     implemented: false, action: null              },
   { key: "rest",         icon: Armchair,  label: "Rest",           implemented: false, action: null              },
@@ -55,6 +55,11 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
   const [bathroomInsertAfterStopId, setBathroomInsertAfterStopId] = useState<string | null>(null);
   const [bathroomError, setBathroomError] = useState<BathroomError | null>(null);
 
+  const [snackState, setSnackState] = useState<BathroomState>("idle");
+  const [snackCandidate, setSnackCandidate] = useState<PrefetchedCandidate | null>(null);
+  const [snackInsertAfterStopId, setSnackInsertAfterStopId] = useState<string | null>(null);
+  const [snackError, setSnackError] = useState<BathroomError | null>(null);
+
   useEffect(() => {
     if (!isOpen) {
       setView("categories");
@@ -65,6 +70,10 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
       setBathroomCandidate(null);
       setBathroomInsertAfterStopId(null);
       setBathroomError(null);
+      setSnackState("idle");
+      setSnackCandidate(null);
+      setSnackInsertAfterStopId(null);
+      setSnackError(null);
     }
   }, [isOpen]);
 
@@ -83,6 +92,11 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
     if (cat.action === "bathroom_flow") {
       setView("bathroom");
       fireBathroomSuggest();
+      return;
+    }
+    if (cat.action === "snack_flow") {
+      setView("snack");
+      fireSnackSuggest();
       return;
     }
   }
@@ -209,6 +223,89 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
     return "Something went wrong. Try again or pick a place manually.";
   }
 
+  async function fireSnackSuggest() {
+    setSnackState("loading");
+    setSnackCandidate(null);
+    setSnackInsertAfterStopId(null);
+    setSnackError(null);
+    try {
+      const res = await fetch(`/api/tours/${tourId}/suggest-stop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: "snack" }),
+      });
+      if (res.status === 200) {
+        const json = await res.json() as { candidate: PrefetchedCandidate; insertAfterStopId: string };
+        setSnackCandidate(json.candidate);
+        setSnackInsertAfterStopId(json.insertAfterStopId);
+        setSnackState("preview");
+        return;
+      }
+      if (res.status === 404) {
+        setSnackError("auth");
+        setSnackState("error");
+        return;
+      }
+      if (res.status === 422) {
+        const json = await res.json() as { error?: string };
+        setSnackError((json.error as BathroomError) ?? "unknown");
+        setSnackState("error");
+        return;
+      }
+      setSnackError("unknown");
+      setSnackState("error");
+    } catch {
+      setSnackError("unknown");
+      setSnackState("error");
+    }
+  }
+
+  async function fireSnackAccept() {
+    if (!snackCandidate) return;
+    setSnackState("loading");
+    try {
+      const res = await fetch(`/api/tours/${tourId}/add-stop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: "snack", prefetchedCandidate: snackCandidate, insertAfterStopId: snackInsertAfterStopId }),
+      });
+      if (res.status === 200) {
+        const json = await res.json() as { allStops: StopUpdate[] };
+        onStopsUpdated(json.allStops);
+        onClose();
+        return;
+      }
+      setSnackError("unknown");
+      setSnackState("error");
+    } catch {
+      setSnackError("unknown");
+      setSnackState("error");
+    }
+  }
+
+  function fireSnackDecline() {
+    setView("categories");
+    setSnackState("idle");
+    setSnackCandidate(null);
+    setSnackInsertAfterStopId(null);
+    setSnackError(null);
+  }
+
+  function snackHeaderTitle() {
+    if (snackState === "error") return "No match";
+    return "Snack stop";
+  }
+
+  function snackErrorCopy() {
+    if (!snackError || snackError === "no_candidates" || snackError === "places_resolution_failed" || snackError === "out_of_area") {
+      return "We couldn't find a snack spot on this route right now.";
+    }
+    if (snackError === "auth") {
+      return "Your session expired. Please sign in again.";
+    }
+    return "Something went wrong. Try again or pick a place manually.";
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center">
       {/* Backdrop */}
@@ -240,6 +337,18 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
                 <ChevronLeft size={20} />
               </button>
               <h2 className="font-serif text-lg text-[#1B3A5C]">{bathroomHeaderTitle()}</h2>
+            </div>
+          ) : view === "snack" ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={fireSnackDecline}
+                className="p-1 rounded-md hover:bg-[#1B3A5C]/5 text-[#1B3A5C]"
+                aria-label="Back to categories"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <h2 className="font-serif text-lg text-[#1B3A5C]">{snackHeaderTitle()}</h2>
             </div>
           ) : (
             <div className="flex items-center gap-2">
@@ -357,6 +466,86 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
 
                   {/* CTA */}
                   {bathroomError === "auth" ? (
+                    <button
+                      type="button"
+                      onClick={() => window.location.reload()}
+                      className="w-full rounded-xl border border-[#1B3A5C] text-[#1B3A5C] px-4 py-3 text-sm font-medium hover:bg-[#1B3A5C]/5 transition-colors"
+                    >
+                      Refresh page
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => { onPickPlaceIKnow(); onClose(); }}
+                      className="w-full rounded-xl border border-[#1B3A5C] text-[#1B3A5C] px-4 py-3 text-sm font-medium hover:bg-[#1B3A5C]/5 transition-colors"
+                    >
+                      Use A place I know instead
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          ) : view === "snack" ? (
+            <div className="flex flex-col gap-4">
+              {snackState === "loading" && (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Loader2 size={28} className="animate-spin text-[#1B3A5C]" />
+                  <p className="text-sm text-[#4A5568]">Finding a snack spot on your route…</p>
+                </div>
+              )}
+
+              {snackState === "preview" && snackCandidate && (
+                <>
+                  <div className="flex gap-3">
+                    {snackCandidate.imageUrl && (
+                      <img
+                        src={snackCandidate.imageUrl}
+                        alt={snackCandidate.name}
+                        className="w-24 h-24 rounded-lg object-cover shrink-0"
+                      />
+                    )}
+                    <div className="flex flex-col gap-1.5 min-w-0">
+                      <h3 className="font-serif font-bold text-lg text-[#1B3A5C] leading-tight">
+                        {snackCandidate.name}
+                      </h3>
+                      <span className="inline-flex self-start text-xs border border-[#1B3A5C]/30 text-[#1B3A5C] rounded-full px-2 py-0.5">
+                        {snackCandidate.durationMin} min stop
+                      </span>
+                      {snackCandidate.why && (
+                        <p className="text-sm text-[#4A5568] leading-snug">{snackCandidate.why}</p>
+                      )}
+                      {snackCandidate.familyNote && (
+                        <p className="text-sm italic text-[#C4664A] leading-snug">{snackCandidate.familyNote}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3 mt-2">
+                    <button
+                      type="button"
+                      onClick={fireSnackAccept}
+                      className="w-full rounded-xl bg-[#C4664A] text-white px-4 py-3 text-sm font-medium hover:bg-[#B85D42] transition-colors"
+                    >
+                      Add to tour
+                    </button>
+                    <button
+                      type="button"
+                      onClick={fireSnackDecline}
+                      className="w-full rounded-xl border border-[#1B3A5C]/20 text-[#1B3A5C] px-4 py-3 text-sm font-medium hover:bg-[#1B3A5C]/5 transition-colors"
+                    >
+                      Try a different category
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {snackState === "error" && (
+                <>
+                  <div className="border-l-4 border-[#C4664A] bg-[#FFF5F2] rounded-r-lg px-4 py-3">
+                    <p className="text-sm text-[#1B3A5C]">{snackErrorCopy()}</p>
+                  </div>
+
+                  {snackError === "auth" ? (
                     <button
                       type="button"
                       onClick={() => window.location.reload()}

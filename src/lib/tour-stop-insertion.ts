@@ -741,3 +741,253 @@ Return ONLY a JSON object, no prose, no markdown:
   console.log(`[bathroom-suggest] tourId=${tourId} place="${aiName}" ACCEPTED insertAfterStopId=${priorStopId} dist=${distKm.toFixed(1)}km`);
   return { candidate, insertAfterStopId: priorStopId };
 }
+
+// ─── Snack candidate resolver ──────────────────────────────────────────────────
+
+export async function resolveSnackCandidate(opts: {
+  tourId: string;
+  userId: string;
+}): Promise<BathroomCandidateResult> {
+  const { tourId, userId } = opts;
+
+  const familyProfileId = await resolveProfileId(userId);
+  if (!familyProfileId) {
+    console.log(`[snack-suggest] tourId=${tourId} error=no_profile`);
+    return { error: "no_candidates" };
+  }
+
+  const tour = await db.generatedTour.findUnique({
+    where: { id: tourId },
+    select: {
+      familyProfileId: true,
+      destinationCity: true,
+      destinationCenterLat: true,
+      destinationCenterLng: true,
+      transport: true,
+      inputGroup: true,
+      stops: {
+        where: { deletedAt: null },
+        orderBy: { orderIndex: "asc" },
+        select: { id: true, name: true, lat: true, lng: true, orderIndex: true },
+      },
+    },
+  });
+
+  if (!tour || tour.familyProfileId !== familyProfileId) {
+    console.log(`[snack-suggest] tourId=${tourId} error=not_found_or_wrong_owner`);
+    return { error: "no_candidates" };
+  }
+
+  if (tour.stops.length === 0) {
+    console.log(`[snack-suggest] tourId=${tourId} error=no_stops`);
+    return { error: "no_candidates" };
+  }
+
+  const profile = await db.familyProfile.findUnique({
+    where: { id: familyProfileId },
+    select: {
+      members: { select: { role: true, birthDate: true } },
+    },
+  });
+
+  const kidsAgesStr = childrenAgesSummary(
+    (profile?.members ?? []).map(m => ({ role: m.role as string, birthDate: m.birthDate }))
+  );
+
+  // Find the adjacent stop pair with the greatest haversine distance for midpoint biasing
+  const validStops = tour.stops.filter(
+    (s): s is typeof s & { lat: number; lng: number } => s.lat !== null && s.lng !== null
+  );
+
+  let priorStopId: string;
+  let priorStopName: string;
+  let nextStopName: string;
+  let midpointLat: number;
+  let midpointLng: number;
+
+  if (validStops.length < 2) {
+    const last = tour.stops[tour.stops.length - 1];
+    priorStopId   = last.id;
+    priorStopName = last.name;
+    nextStopName  = "(end of tour)";
+    midpointLat   = last.lat ?? (tour.destinationCenterLat ?? 0);
+    midpointLng   = last.lng ?? (tour.destinationCenterLng ?? 0);
+  } else {
+    let maxDist = -1;
+    let bestIdx = 0;
+    for (let i = 0; i < validStops.length - 1; i++) {
+      const dist = haversineKm(
+        { lat: validStops[i].lat, lng: validStops[i].lng },
+        { lat: validStops[i + 1].lat, lng: validStops[i + 1].lng }
+      );
+      if (dist > maxDist) { maxDist = dist; bestIdx = i; }
+    }
+    priorStopId   = validStops[bestIdx].id;
+    priorStopName = validStops[bestIdx].name;
+    nextStopName  = validStops[bestIdx + 1].name;
+    midpointLat   = (validStops[bestIdx].lat + validStops[bestIdx + 1].lat) / 2;
+    midpointLng   = (validStops[bestIdx].lng + validStops[bestIdx + 1].lng) / 2;
+  }
+
+  const transport = tour.transport ?? "Walking";
+
+  const systemPrompt = `You are recommending ONE quick snack stop for a family currently on a guided tour in ${tour.destinationCity}.
+
+Family context: ${kidsAgesStr}. Transport mode between stops: ${transport}.
+They just visited "${priorStopName}" and are heading to "${nextStopName}". Suggest a specific, named snack spot between these two stops.
+
+ACCEPTABLE VENUE TYPES (in priority order):
+1. Artisan ice cream shops, gelato parlors, dessert cafes — kid-favorite.
+2. Bakeries and patisseries with window-service pastries or breads.
+3. Crepe stands, waffle shops, boba and bubble tea shops.
+4. High-quality food market stalls selling walkable treats.
+
+RULES:
+- The venue MUST be a real, named, locatable place in ${tour.destinationCity}. NOT a generic "any Starbucks" — name a specific one.
+- This is NOT a meal stop — nothing requiring a table or 45+ minutes. Aim for 15-20 minutes maximum.
+- durationMin: 20.
+- why: one sentence on why this snack spot works here (location, local fame, type of snack).
+- familyNote: one short phrase for the kids (e.g. "Best soft-serve in the neighborhood — don't skip the cone.").
+
+Return ONLY a JSON object, no prose, no markdown:
+{ "name": "...", "why": "...", "familyNote": "...", "durationMin": 20 }`;
+
+  let aiName = "";
+  let aiWhy = "";
+  let aiFamilyNote = "";
+  let aiDurationMin = 20;
+
+  try {
+    const anthropic = new Anthropic();
+    const aiResponse = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 256,
+      messages: [{ role: "user", content: systemPrompt }],
+    });
+    const text = aiResponse.content[0].type === "text" ? aiResponse.content[0].text : "";
+    const clean = text.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(clean) as { name?: string; why?: string; familyNote?: string; durationMin?: number };
+    aiName        = parsed.name?.trim() ?? "";
+    aiWhy         = parsed.why?.trim() ?? "";
+    aiFamilyNote  = parsed.familyNote?.trim() ?? "";
+    aiDurationMin = typeof parsed.durationMin === "number" ? parsed.durationMin : 20;
+  } catch {
+    console.log(`[snack-suggest] tourId=${tourId} error=claude_parse_failed`);
+    return { error: "no_candidates" };
+  }
+
+  if (!aiName) {
+    console.log(`[snack-suggest] tourId=${tourId} error=no_place_name`);
+    return { error: "no_candidates" };
+  }
+
+  const gKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!gKey) {
+    console.log(`[snack-suggest] tourId=${tourId} error=no_places_key`);
+    return { error: "places_resolution_failed" };
+  }
+
+  type PlacesResult = {
+    place_id: string;
+    formatted_address?: string;
+    geometry?: { location: { lat: number; lng: number } };
+    types?: string[];
+  };
+
+  let firstResult: PlacesResult | null = null;
+  try {
+    const query = `${aiName} ${tour.destinationCity}`;
+    const searchRes = await fetch(
+      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${gKey}`
+    );
+    const searchData = await searchRes.json() as { results?: PlacesResult[] };
+    firstResult = searchData.results?.[0] ?? null;
+  } catch {
+    console.log(`[snack-suggest] tourId=${tourId} place="${aiName}" error=places_fetch_failed`);
+    return { error: "places_resolution_failed" };
+  }
+
+  if (!firstResult?.geometry?.location) {
+    console.log(`[snack-suggest] tourId=${tourId} place="${aiName}" error=no_places_result`);
+    return { error: "places_resolution_failed" };
+  }
+
+  const resolvedLat = firstResult.geometry.location.lat;
+  const resolvedLng = firstResult.geometry.location.lng;
+
+  type AddressComponent = { long_name: string; short_name: string; types: string[] };
+  let addressComponents: AddressComponent[] = [];
+  let websiteUrl: string | null = null;
+  let imageUrl: string | null = null;
+  let resolvedAddress: string | null = firstResult.formatted_address ?? null;
+
+  try {
+    const detailsRes = await fetch(
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${firstResult.place_id}&fields=address_components,formatted_address,website,photos&key=${gKey}`
+    );
+    const detailsData = await detailsRes.json() as {
+      result?: {
+        address_components?: AddressComponent[];
+        formatted_address?: string;
+        website?: string;
+        photos?: Array<{ photo_reference: string }>;
+      };
+    };
+    addressComponents = detailsData.result?.address_components ?? [];
+    resolvedAddress   = detailsData.result?.formatted_address ?? resolvedAddress;
+    websiteUrl        = detailsData.result?.website ?? null;
+    const photoRef    = detailsData.result?.photos?.[0]?.photo_reference ?? null;
+    if (photoRef) {
+      const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${encodeURIComponent(photoRef)}&key=${gKey}`;
+      imageUrl = await resolveGooglePhotoUrl(photoApiUrl);
+    }
+  } catch {
+    // Details fetch is non-fatal; city guard falls through to distance guard
+  }
+
+  // City-match guard
+  const cityNorm = tour.destinationCity.toLowerCase().split(",")[0].trim();
+  const CITY_COMPONENT_TYPES = ["locality", "administrative_area_level_1", "postal_town", "sublocality"];
+  const cityComponents = addressComponents.filter(c => c.types?.some(t => CITY_COMPONENT_TYPES.includes(t)));
+  const cityMatch =
+    cityComponents.length > 0 &&
+    cityComponents.some(c => {
+      const long  = (c.long_name ?? "").toLowerCase();
+      const short = (c.short_name ?? "").toLowerCase();
+      return (
+        long.includes(cityNorm)  || short.includes(cityNorm) ||
+        cityNorm.includes(long)  || cityNorm.includes(short)
+      );
+    });
+
+  // Distance guard: result must be within 2km of the segment midpoint
+  const distKm = haversineKm(
+    { lat: resolvedLat, lng: resolvedLng },
+    { lat: midpointLat, lng: midpointLng }
+  );
+  const distanceMatch = distKm <= 2;
+
+  if (!cityMatch && !distanceMatch) {
+    const componentNames = cityComponents.map(c => c.long_name).join(", ") || "none";
+    console.log(`[snack-suggest] tourId=${tourId} place="${aiName}" REJECTED city=${componentNames} dist=${distKm.toFixed(1)}km`);
+    return { error: "out_of_area" };
+  }
+
+  const candidate: PrefetchedCandidate = {
+    name: aiName,
+    address: resolvedAddress,
+    lat: resolvedLat,
+    lng: resolvedLng,
+    durationMin: aiDurationMin,
+    why: aiWhy || null,
+    familyNote: aiFamilyNote || null,
+    imageUrl,
+    websiteUrl,
+    placeId: firstResult.place_id,
+    ticketRequired: "free",
+    placeTypes: firstResult.types ?? [],
+  };
+
+  console.log(`[snack-suggest] tourId=${tourId} place="${aiName}" ACCEPTED insertAfterStopId=${priorStopId} dist=${distKm.toFixed(1)}km`);
+  return { candidate, insertAfterStopId: priorStopId };
+}
