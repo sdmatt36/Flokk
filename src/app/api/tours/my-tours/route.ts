@@ -29,10 +29,8 @@ export async function GET() {
       stops: {
         where: { deletedAt: null },
         orderBy: { orderIndex: "asc" },
-        take: 5,
-        select: {
-          savedItem: { select: { placePhotoUrl: true } },
-        },
+        take: 1,
+        select: { imageUrl: true },
       },
     },
     orderBy: { createdAt: "desc" },
@@ -57,7 +55,7 @@ export async function GET() {
     const destinationDisplayName = formatDestinationDisplay(structured, t.destinationCity);
 
     if (!grouped[groupKey]) grouped[groupKey] = [];
-    const stopPhoto = t.stops.find(s => s.savedItem?.placePhotoUrl)?.savedItem?.placePhotoUrl ?? null;
+    const stopPhoto = t.stops[0]?.imageUrl ?? null;
     const coverImage = stopPhoto ?? getTripCoverImage(t.destinationCity, t.destinationCountry);
     grouped[groupKey].push({
       id: t.id,
