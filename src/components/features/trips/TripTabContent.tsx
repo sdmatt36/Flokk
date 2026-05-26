@@ -8216,6 +8216,14 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               <p style={{ fontSize: "12px", color: "#717171" }}>Flights, cruises, bookings, and contacts for this trip</p>
             </div>
 
+            <p style={{ fontSize: "12px", color: "#717171", fontStyle: "italic", marginTop: "8px", marginBottom: "20px", textAlign: "left" }}>
+              Forward confirmation emails to{" "}
+              <a href="mailto:trips@flokktravel.com" style={{ color: "#C4664A", textDecoration: "none", fontWeight: 600 }}>
+                trips@flokktravel.com
+              </a>
+              {" "}to import bookings automatically.
+            </p>
+
             {cruiseBookings.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "16px" }}>
                 {cruiseBookings.map(cruise => {
@@ -8585,13 +8593,6 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               )}
             </div>
 
-            <p style={{ fontSize: "12px", color: "#9CA3AF", fontStyle: "italic", marginTop: "20px", textAlign: "center" }}>
-              Forward confirmation emails to{" "}
-              <a href="mailto:trips@flokktravel.com" style={{ color: "#C4664A", textDecoration: "none", fontWeight: 600 }}>
-                trips@flokktravel.com
-              </a>
-              {" "}to import bookings automatically.
-            </p>
           </div>
 
           {/* ── DOCUMENTS & LINKS ── */}
