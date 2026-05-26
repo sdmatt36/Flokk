@@ -283,19 +283,17 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
     const sortedBookings = [...validBookings].sort(
       (a, b) => (BOOKING_SORT[a.type] ?? 3) - (BOOKING_SORT[b.type] ?? 3)
     );
-    if (tripId === "cmpmb6epe000004l5hacyps9z") {
-      console.log("[trip-map-debug] activeDay:", activeDay);
-      console.log("[trip-map-debug] allSavedItems:", allSavedItems.length, allSavedItems.map(s => ({ title: s.title, dayIndex: s.dayIndex })));
-      console.log("[trip-map-debug] sortedBookings:", sortedBookings.length, sortedBookings.map(b => ({ title: b.title, dayIndex: b.dayIndex })));
-      console.log("[trip-map-debug] validActivities:", validActivities.length, validActivities.map(a => ({ title: a.title, dayIndex: a.dayIndex })));
-      console.log("[trip-map-debug] validSaved:", validSaved.length, validSaved.map(s => ({ title: s.title, dayIndex: s.dayIndex })));
-      const _debugPins = [
-        ...sortedBookings.map((p) => ({ src: "booking", title: p.title, dayIndex: p.dayIndex })),
-        ...validActivities.map((a) => ({ src: "activity", title: a.title, dayIndex: a.dayIndex })),
-        ...validSaved.map((s) => ({ src: "saved", title: s.title, dayIndex: s.dayIndex })),
-      ].map((p, i) => ({ pos: i + 1, ...p }));
-      console.log("[trip-map-debug] pinsToRender (pre-map):", _debugPins);
-    }
+    // Q1 fix: validSaved and validActivities can contain the same per-day items
+    // (activities flow via buildDayItems transformation; saved flows via internal
+    // /api/saves fetch). When activeDay is set and savedItems prop is empty,
+    // the existing prop-based dedup has nothing to match. Extend dedup against
+    // validActivities by lat/lng proximity.
+    const dedupedSaved = validSaved.filter(s => {
+      if (s.lat == null || s.lng == null) return true;
+      return !validActivities.some(
+        a => Math.abs(a.lat - s.lat) < 0.0001 && Math.abs(a.lng - s.lng) < 0.0001
+      );
+    });
     const pinsToRender: MarkerDef[] = ([
       ...sortedBookings.map((p) => ({
         num: 0,
@@ -305,7 +303,7 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
         color: "#C4664A" as const,
       })),
       ...validActivities.map((a) => ({ num: 0, label: a.title, lat: a.lat, lng: a.lng, color: "#C4664A" as const })),
-      ...validSaved.map((s) => ({ num: 0, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" as const })),
+      ...dedupedSaved.map((s) => ({ num: 0, label: s.title, lat: s.lat, lng: s.lng, color: "#C4664A" as const })),
     ] as MarkerDef[]).map((pin, index) => ({ ...pin, num: index + 1 }));
 
     // Render all valid-coord pins — no proximity filter, no anchor, just isValidCoord
