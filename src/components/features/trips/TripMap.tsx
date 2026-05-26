@@ -283,6 +283,19 @@ export function TripMap({ activeDay, flyTarget, onFlyTargetConsumed, tripId, des
     const sortedBookings = [...validBookings].sort(
       (a, b) => (BOOKING_SORT[a.type] ?? 3) - (BOOKING_SORT[b.type] ?? 3)
     );
+    if (tripId === "cmpmb6epe000004l5hacyps9z") {
+      console.log("[trip-map-debug] activeDay:", activeDay);
+      console.log("[trip-map-debug] allSavedItems:", allSavedItems.length, allSavedItems.map(s => ({ title: s.title, dayIndex: s.dayIndex })));
+      console.log("[trip-map-debug] sortedBookings:", sortedBookings.length, sortedBookings.map(b => ({ title: b.title, dayIndex: b.dayIndex })));
+      console.log("[trip-map-debug] validActivities:", validActivities.length, validActivities.map(a => ({ title: a.title, dayIndex: a.dayIndex })));
+      console.log("[trip-map-debug] validSaved:", validSaved.length, validSaved.map(s => ({ title: s.title, dayIndex: s.dayIndex })));
+      const _debugPins = [
+        ...sortedBookings.map((p) => ({ src: "booking", title: p.title, dayIndex: p.dayIndex })),
+        ...validActivities.map((a) => ({ src: "activity", title: a.title, dayIndex: a.dayIndex })),
+        ...validSaved.map((s) => ({ src: "saved", title: s.title, dayIndex: s.dayIndex })),
+      ].map((p, i) => ({ pos: i + 1, ...p }));
+      console.log("[trip-map-debug] pinsToRender (pre-map):", _debugPins);
+    }
     const pinsToRender: MarkerDef[] = ([
       ...sortedBookings.map((p) => ({
         num: 0,
