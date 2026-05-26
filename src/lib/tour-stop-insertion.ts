@@ -119,6 +119,42 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
   return R * 2 * Math.atan2(Math.sqrt(aVal), Math.sqrt(1 - aVal));
 }
 
+// Used by Snack, Photo spot, and Rest resolvers where the candidate venue is
+// location-specific. NOT used by Bathroom (hotel-lobby trick is segment-agnostic).
+function findNearestStopInsertionPoint(
+  candidateLat: number,
+  candidateLng: number,
+  stops: Array<{ id: string; lat: number | null; lng: number | null; orderIndex: number }>
+): { insertAfterStopId: string; distanceKm: number } {
+  const valid = stops
+    .filter(s => s.lat !== null && s.lng !== null)
+    .sort((a, b) => a.orderIndex - b.orderIndex);
+
+  if (valid.length === 0) {
+    throw new Error("Cannot compute insertion point: no stops with coordinates");
+  }
+
+  let nearest = valid[0];
+  let minDistance = haversineKm(
+    { lat: candidateLat, lng: candidateLng },
+    { lat: nearest.lat as number, lng: nearest.lng as number }
+  );
+
+  for (let i = 1; i < valid.length; i++) {
+    const s = valid[i];
+    const d = haversineKm(
+      { lat: candidateLat, lng: candidateLng },
+      { lat: s.lat as number, lng: s.lng as number }
+    );
+    if (d < minDistance) {
+      minDistance = d;
+      nearest = s;
+    }
+  }
+
+  return { insertAfterStopId: nearest.id, distanceKm: minDistance };
+}
+
 function childrenAgesSummary(members: Array<{ role: string; birthDate: Date | null }>): string {
   const today = new Date();
   const ages = members
@@ -794,12 +830,13 @@ export async function resolveSnackCandidate(opts: {
     (profile?.members ?? []).map(m => ({ role: m.role as string, birthDate: m.birthDate }))
   );
 
-  // Find the adjacent stop pair with the greatest haversine distance for midpoint biasing
+  // priorStopName/nextStopName feed the Sonnet prompt context; midpointLat/midpointLng
+  // feed the distance guard. Insertion point is computed separately via
+  // findNearestStopInsertionPoint after the candidate's actual coordinates are resolved.
   const validStops = tour.stops.filter(
     (s): s is typeof s & { lat: number; lng: number } => s.lat !== null && s.lng !== null
   );
 
-  let priorStopId: string;
   let priorStopName: string;
   let nextStopName: string;
   let midpointLat: number;
@@ -807,7 +844,6 @@ export async function resolveSnackCandidate(opts: {
 
   if (validStops.length < 2) {
     const last = tour.stops[tour.stops.length - 1];
-    priorStopId   = last.id;
     priorStopName = last.name;
     nextStopName  = "(end of tour)";
     midpointLat   = last.lat ?? (tour.destinationCenterLat ?? 0);
@@ -822,7 +858,6 @@ export async function resolveSnackCandidate(opts: {
       );
       if (dist > maxDist) { maxDist = dist; bestIdx = i; }
     }
-    priorStopId   = validStops[bestIdx].id;
     priorStopName = validStops[bestIdx].name;
     nextStopName  = validStops[bestIdx + 1].name;
     midpointLat   = (validStops[bestIdx].lat + validStops[bestIdx + 1].lat) / 2;
@@ -988,6 +1023,25 @@ Return ONLY a JSON object, no prose, no markdown:
     placeTypes: firstResult.types ?? [],
   };
 
-  console.log(`[snack-suggest] tourId=${tourId} place="${aiName}" ACCEPTED insertAfterStopId=${priorStopId} dist=${distKm.toFixed(1)}km`);
-  return { candidate, insertAfterStopId: priorStopId };
+  // Snack venues are location-specific — use candidate-anchored insertion:
+  // place the snack right after whichever existing stop is geographically
+  // closest to the candidate.
+  const { insertAfterStopId, distanceKm: nearestDistKm } = findNearestStopInsertionPoint(
+    resolvedLat,
+    resolvedLng,
+    tour.stops.map(s => ({ id: s.id, lat: s.lat, lng: s.lng, orderIndex: s.orderIndex }))
+  );
+
+  console.log(
+    `[snack-suggest] Anchoring snack at stop ${insertAfterStopId} (${nearestDistKm.toFixed(2)}km from candidate)`
+  );
+
+  if (nearestDistKm > 2) {
+    console.warn(
+      `[snack-suggest] Candidate is ${nearestDistKm.toFixed(2)}km from nearest stop. Inserting anyway.`
+    );
+  }
+
+  console.log(`[snack-suggest] tourId=${tourId} place="${aiName}" ACCEPTED insertAfterStopId=${insertAfterStopId} dist=${distKm.toFixed(1)}km`);
+  return { candidate, insertAfterStopId };
 }
