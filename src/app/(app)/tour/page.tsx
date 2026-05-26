@@ -392,7 +392,6 @@ export default function TourPage() {
 
   function handleRemoveStop(stopId: string) {
     setStops(prev => prev.filter(s => s.id !== stopId));
-    setResults(prev => prev ? { ...prev, walkViolations: undefined } : prev);
     // Do NOT move to removedStops here — that happens when the server-side DELETE fires (handleDeleteCommit)
   }
 
@@ -425,7 +424,6 @@ export default function TourPage() {
 
   function handleReplaceStops(newActiveStops: Stop[]) {
     setStops(newActiveStops);
-    setResults(prev => prev ? { ...prev, walkViolations: undefined } : prev);
   }
 
   const handlePublishClick = () => {

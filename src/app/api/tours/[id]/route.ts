@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { haversineMeters } from "@/lib/geo";
+
+function maxWalkMinutes(youngestChildAge: number | null): number {
+  if (youngestChildAge === null) return 15;
+  if (youngestChildAge < 5) return 6;
+  if (youngestChildAge <= 10) return 10;
+  return 15;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +26,14 @@ export async function GET(
 
   const tour = await db.generatedTour.findUnique({
     where: { id },
-    include: { stops: { orderBy: { orderIndex: "asc" } } },
+    include: {
+      stops: { orderBy: { orderIndex: "asc" } },
+      familyProfile: {
+        select: {
+          members: { select: { role: true, birthDate: true } },
+        },
+      },
+    },
   });
 
   if (!tour || tour.deletedAt || tour.familyProfileId !== profileId) {
@@ -44,6 +59,33 @@ export async function GET(
   const activeStops = tour.stops.filter(s => !s.deletedAt);
   const deletedStops = tour.stops.filter(s => s.deletedAt).reverse();
 
+  // Compute walk violations from current stop state
+  let walkViolations: number | null = null;
+  if (tour.transport === "Walking" && activeStops.length >= 2) {
+    const today = new Date();
+    const childAges = (tour.familyProfile?.members ?? [])
+      .filter(m => m.role === "CHILD" && m.birthDate)
+      .map(m => {
+        const birth = m.birthDate!;
+        let age = today.getFullYear() - birth.getFullYear();
+        const mon = today.getMonth() - birth.getMonth();
+        if (mon < 0 || (mon === 0 && today.getDate() < birth.getDate())) age--;
+        return age;
+      });
+    const youngestAge = childAges.length > 0 ? Math.min(...childAges) : null;
+    const maxDistMeters = maxWalkMinutes(youngestAge) * 80;
+    let count = 0;
+    for (let i = 1; i < activeStops.length; i++) {
+      const prev = activeStops[i - 1];
+      const curr = activeStops[i];
+      if (prev.lat != null && prev.lng != null && curr.lat != null && curr.lng != null) {
+        const dist = haversineMeters(prev.lat, prev.lng, curr.lat, curr.lng);
+        if (dist > maxDistMeters) count++;
+      }
+    }
+    walkViolations = count;
+  }
+
   return NextResponse.json({
     tourId: tour.id,
     originalTargetStops: tour.originalTargetStops,
@@ -56,6 +98,7 @@ export async function GET(
     generatedAt: tour.createdAt.toISOString(),
     stops: activeStops.map(formatStop),
     removedStops: deletedStops.map(formatStop),
+    walkViolations,
   });
 }
 
