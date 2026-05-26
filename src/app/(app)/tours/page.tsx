@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Playfair_Display } from "next/font/google";
+import { db } from "@/lib/db";
+import { FilteredToursSection } from "@/app/(app)/discover/_components/FilteredToursSection";
+import type { TourCardItem } from "@/components/shared/cards/TourCard";
 
 const playfair = Playfair_Display({ subsets: ["latin"], display: "swap" });
 
@@ -9,7 +11,41 @@ export const metadata: Metadata = {
   description: "Stop-by-stop tours built by Flokkers and Flokk's AI.",
 };
 
-export default function ToursPage() {
+async function fetchTours(): Promise<TourCardItem[]> {
+  const rows = await db.generatedTour.findMany({
+    where: { isPublic: true, deletedAt: null },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+    select: {
+      id: true,
+      title: true,
+      destinationCity: true,
+      destinationCountry: true,
+      shareToken: true,
+      transport: true,
+      _count: { select: { stops: { where: { deletedAt: null } } } },
+      stops: {
+        where: { deletedAt: null },
+        orderBy: { orderIndex: "asc" },
+        take: 1,
+        select: { imageUrl: true },
+      },
+    },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    destinationCity: r.destinationCity,
+    destinationCountry: r.destinationCountry,
+    shareToken: r.shareToken,
+    transport: r.transport,
+    stopCount: r._count.stops,
+    firstStopImageUrl: r.stops[0]?.imageUrl ?? null,
+  }));
+}
+
+export default async function ToursPage() {
+  const tours = await fetchTours();
   return (
     <main>
       <div
@@ -27,21 +63,8 @@ export default function ToursPage() {
         </p>
       </div>
 
-      <section className="max-w-2xl mx-auto px-6 py-24 text-center">
-        <h2 className={`${playfair.className} text-3xl text-[#1B3A5C]`}>
-          Coming soon.
-        </h2>
-        <p className="text-sm md:text-base italic text-[#1B3A5C]/70 mt-3">
-          The full tours index is on its way. For now, head to{" "}
-          <Link href="/tour" className="underline underline-offset-2">
-            Tour Builder
-          </Link>{" "}
-          to create your own, or browse{" "}
-          <Link href="/discover" className="underline underline-offset-2">
-            Discover
-          </Link>
-          .
-        </p>
+      <section className="max-w-7xl mx-auto px-6 py-12">
+        <FilteredToursSection tours={tours} />
       </section>
     </main>
   );
