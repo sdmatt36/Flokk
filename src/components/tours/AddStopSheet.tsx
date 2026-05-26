@@ -30,7 +30,7 @@ type AddStopSheetProps = {
   onStopsUpdated: (stops: StopUpdate[]) => void;
 };
 
-type View = "categories" | "food" | "bathroom" | "snack";
+type View = "categories" | "food" | "bathroom" | "snack" | "photo_spot";
 type MealType = "auto" | "breakfast" | "lunch" | "dinner";
 type BathroomState = "idle" | "loading" | "preview" | "error";
 type BathroomError = "no_candidates" | "places_resolution_failed" | "out_of_area" | "auth" | "unknown";
@@ -40,7 +40,7 @@ const CATEGORIES = [
   { key: "food",         icon: Utensils,  label: "Food",           implemented: true,  action: "food_subscreen"  },
   { key: "snack",        icon: Coffee,    label: "Snack",          implemented: true,  action: "snack_flow"      },
   { key: "bathroom",     icon: Toilet,    label: "Bathroom",       implemented: true,  action: "bathroom_flow"   },
-  { key: "photo_spot",   icon: Camera,    label: "Photo spot",     implemented: false, action: null              },
+  { key: "photo_spot",   icon: Camera,    label: "Photo spot",     implemented: true,  action: "photo_spot_flow" },
   { key: "rest",         icon: Armchair,  label: "Rest",           implemented: false, action: null              },
 ] as const;
 
@@ -60,6 +60,11 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
   const [snackInsertAfterStopId, setSnackInsertAfterStopId] = useState<string | null>(null);
   const [snackError, setSnackError] = useState<BathroomError | null>(null);
 
+  const [photoSpotState, setPhotoSpotState] = useState<BathroomState>("idle");
+  const [photoSpotCandidate, setPhotoSpotCandidate] = useState<PrefetchedCandidate | null>(null);
+  const [photoSpotInsertAfterStopId, setPhotoSpotInsertAfterStopId] = useState<string | null>(null);
+  const [photoSpotError, setPhotoSpotError] = useState<BathroomError | null>(null);
+
   useEffect(() => {
     if (!isOpen) {
       setView("categories");
@@ -74,6 +79,10 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
       setSnackCandidate(null);
       setSnackInsertAfterStopId(null);
       setSnackError(null);
+      setPhotoSpotState("idle");
+      setPhotoSpotCandidate(null);
+      setPhotoSpotInsertAfterStopId(null);
+      setPhotoSpotError(null);
     }
   }, [isOpen]);
 
@@ -97,6 +106,11 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
     if (cat.action === "snack_flow") {
       setView("snack");
       fireSnackSuggest();
+      return;
+    }
+    if (cat.action === "photo_spot_flow") {
+      setView("photo_spot");
+      firePhotoSpotSuggest();
       return;
     }
   }
@@ -306,6 +320,89 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
     return "Something went wrong. Try again or pick a place manually.";
   }
 
+  async function firePhotoSpotSuggest() {
+    setPhotoSpotState("loading");
+    setPhotoSpotCandidate(null);
+    setPhotoSpotInsertAfterStopId(null);
+    setPhotoSpotError(null);
+    try {
+      const res = await fetch(`/api/tours/${tourId}/suggest-stop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: "photo_spot" }),
+      });
+      if (res.status === 200) {
+        const json = await res.json() as { candidate: PrefetchedCandidate; insertAfterStopId: string };
+        setPhotoSpotCandidate(json.candidate);
+        setPhotoSpotInsertAfterStopId(json.insertAfterStopId);
+        setPhotoSpotState("preview");
+        return;
+      }
+      if (res.status === 404) {
+        setPhotoSpotError("auth");
+        setPhotoSpotState("error");
+        return;
+      }
+      if (res.status === 422) {
+        const json = await res.json() as { error?: string };
+        setPhotoSpotError((json.error as BathroomError) ?? "unknown");
+        setPhotoSpotState("error");
+        return;
+      }
+      setPhotoSpotError("unknown");
+      setPhotoSpotState("error");
+    } catch {
+      setPhotoSpotError("unknown");
+      setPhotoSpotState("error");
+    }
+  }
+
+  async function firePhotoSpotAccept() {
+    if (!photoSpotCandidate) return;
+    setPhotoSpotState("loading");
+    try {
+      const res = await fetch(`/api/tours/${tourId}/add-stop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: "photo_spot", prefetchedCandidate: photoSpotCandidate, insertAfterStopId: photoSpotInsertAfterStopId }),
+      });
+      if (res.status === 200) {
+        const json = await res.json() as { allStops: StopUpdate[] };
+        onStopsUpdated(json.allStops);
+        onClose();
+        return;
+      }
+      setPhotoSpotError("unknown");
+      setPhotoSpotState("error");
+    } catch {
+      setPhotoSpotError("unknown");
+      setPhotoSpotState("error");
+    }
+  }
+
+  function firePhotoSpotDecline() {
+    setView("categories");
+    setPhotoSpotState("idle");
+    setPhotoSpotCandidate(null);
+    setPhotoSpotInsertAfterStopId(null);
+    setPhotoSpotError(null);
+  }
+
+  function photoSpotHeaderTitle() {
+    if (photoSpotState === "error") return "No match";
+    return "Photo spot";
+  }
+
+  function photoSpotErrorCopy() {
+    if (!photoSpotError || photoSpotError === "no_candidates" || photoSpotError === "places_resolution_failed" || photoSpotError === "out_of_area") {
+      return "We couldn't find a photo spot on this route right now.";
+    }
+    if (photoSpotError === "auth") {
+      return "Your session expired. Please sign in again.";
+    }
+    return "Something went wrong. Try again or pick a place manually.";
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center">
       {/* Backdrop */}
@@ -349,6 +446,18 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
                 <ChevronLeft size={20} />
               </button>
               <h2 className="font-serif text-lg text-[#1B3A5C]">{snackHeaderTitle()}</h2>
+            </div>
+          ) : view === "photo_spot" ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={firePhotoSpotDecline}
+                className="p-1 rounded-md hover:bg-[#1B3A5C]/5 text-[#1B3A5C]"
+                aria-label="Back to categories"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <h2 className="font-serif text-lg text-[#1B3A5C]">{photoSpotHeaderTitle()}</h2>
             </div>
           ) : (
             <div className="flex items-center gap-2">
@@ -546,6 +655,86 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
                   </div>
 
                   {snackError === "auth" ? (
+                    <button
+                      type="button"
+                      onClick={() => window.location.reload()}
+                      className="w-full rounded-xl border border-[#1B3A5C] text-[#1B3A5C] px-4 py-3 text-sm font-medium hover:bg-[#1B3A5C]/5 transition-colors"
+                    >
+                      Refresh page
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => { onPickPlaceIKnow(); onClose(); }}
+                      className="w-full rounded-xl border border-[#1B3A5C] text-[#1B3A5C] px-4 py-3 text-sm font-medium hover:bg-[#1B3A5C]/5 transition-colors"
+                    >
+                      Use A place I know instead
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          ) : view === "photo_spot" ? (
+            <div className="flex flex-col gap-4">
+              {photoSpotState === "loading" && (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Loader2 size={28} className="animate-spin text-[#1B3A5C]" />
+                  <p className="text-sm text-[#4A5568]">Finding a photo spot on your route…</p>
+                </div>
+              )}
+
+              {photoSpotState === "preview" && photoSpotCandidate && (
+                <>
+                  <div className="flex gap-3">
+                    {photoSpotCandidate.imageUrl && (
+                      <img
+                        src={photoSpotCandidate.imageUrl}
+                        alt={photoSpotCandidate.name}
+                        className="w-24 h-24 rounded-lg object-cover shrink-0"
+                      />
+                    )}
+                    <div className="flex flex-col gap-1.5 min-w-0">
+                      <h3 className="font-serif font-bold text-lg text-[#1B3A5C] leading-tight">
+                        {photoSpotCandidate.name}
+                      </h3>
+                      <span className="inline-flex self-start text-xs border border-[#1B3A5C]/30 text-[#1B3A5C] rounded-full px-2 py-0.5">
+                        {photoSpotCandidate.durationMin} min stop
+                      </span>
+                      {photoSpotCandidate.why && (
+                        <p className="text-sm text-[#4A5568] leading-snug">{photoSpotCandidate.why}</p>
+                      )}
+                      {photoSpotCandidate.familyNote && (
+                        <p className="text-sm italic text-[#C4664A] leading-snug">{photoSpotCandidate.familyNote}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3 mt-2">
+                    <button
+                      type="button"
+                      onClick={firePhotoSpotAccept}
+                      className="w-full rounded-xl bg-[#C4664A] text-white px-4 py-3 text-sm font-medium hover:bg-[#B85D42] transition-colors"
+                    >
+                      Add to tour
+                    </button>
+                    <button
+                      type="button"
+                      onClick={firePhotoSpotDecline}
+                      className="w-full rounded-xl border border-[#1B3A5C]/20 text-[#1B3A5C] px-4 py-3 text-sm font-medium hover:bg-[#1B3A5C]/5 transition-colors"
+                    >
+                      Try a different category
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {photoSpotState === "error" && (
+                <>
+                  <div className="border-l-4 border-[#C4664A] bg-[#FFF5F2] rounded-r-lg px-4 py-3">
+                    <p className="text-sm text-[#1B3A5C]">{photoSpotErrorCopy()}</p>
+                  </div>
+
+                  {photoSpotError === "auth" ? (
                     <button
                       type="button"
                       onClick={() => window.location.reload()}
