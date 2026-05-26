@@ -30,7 +30,7 @@ type AddStopSheetProps = {
   onStopsUpdated: (stops: StopUpdate[]) => void;
 };
 
-type View = "categories" | "food" | "bathroom" | "snack" | "photo_spot";
+type View = "categories" | "food" | "bathroom" | "snack" | "photo_spot" | "rest";
 type MealType = "auto" | "breakfast" | "lunch" | "dinner";
 type BathroomState = "idle" | "loading" | "preview" | "error";
 type BathroomError = "no_candidates" | "places_resolution_failed" | "out_of_area" | "auth" | "unknown";
@@ -41,7 +41,7 @@ const CATEGORIES = [
   { key: "snack",        icon: Coffee,    label: "Snack",          implemented: true,  action: "snack_flow"      },
   { key: "bathroom",     icon: Toilet,    label: "Bathroom",       implemented: true,  action: "bathroom_flow"   },
   { key: "photo_spot",   icon: Camera,    label: "Photo spot",     implemented: true,  action: "photo_spot_flow" },
-  { key: "rest",         icon: Armchair,  label: "Rest",           implemented: false, action: null              },
+  { key: "rest",         icon: Armchair,  label: "Rest",           implemented: true,  action: "rest_flow"       },
 ] as const;
 
 export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow, onStopsUpdated }: AddStopSheetProps) {
@@ -65,6 +65,11 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
   const [photoSpotInsertAfterStopId, setPhotoSpotInsertAfterStopId] = useState<string | null>(null);
   const [photoSpotError, setPhotoSpotError] = useState<BathroomError | null>(null);
 
+  const [restState, setRestState] = useState<BathroomState>("idle");
+  const [restCandidate, setRestCandidate] = useState<PrefetchedCandidate | null>(null);
+  const [restInsertAfterStopId, setRestInsertAfterStopId] = useState<string | null>(null);
+  const [restError, setRestError] = useState<BathroomError | null>(null);
+
   useEffect(() => {
     if (!isOpen) {
       setView("categories");
@@ -83,6 +88,10 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
       setPhotoSpotCandidate(null);
       setPhotoSpotInsertAfterStopId(null);
       setPhotoSpotError(null);
+      setRestState("idle");
+      setRestCandidate(null);
+      setRestInsertAfterStopId(null);
+      setRestError(null);
     }
   }, [isOpen]);
 
@@ -111,6 +120,11 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
     if (cat.action === "photo_spot_flow") {
       setView("photo_spot");
       firePhotoSpotSuggest();
+      return;
+    }
+    if (cat.action === "rest_flow") {
+      setView("rest");
+      fireRestSuggest();
       return;
     }
   }
@@ -403,6 +417,89 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
     return "Something went wrong. Try again or pick a place manually.";
   }
 
+  async function fireRestSuggest() {
+    setRestState("loading");
+    setRestCandidate(null);
+    setRestInsertAfterStopId(null);
+    setRestError(null);
+    try {
+      const res = await fetch(`/api/tours/${tourId}/suggest-stop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: "rest" }),
+      });
+      if (res.status === 200) {
+        const json = await res.json() as { candidate: PrefetchedCandidate; insertAfterStopId: string };
+        setRestCandidate(json.candidate);
+        setRestInsertAfterStopId(json.insertAfterStopId);
+        setRestState("preview");
+        return;
+      }
+      if (res.status === 404) {
+        setRestError("auth");
+        setRestState("error");
+        return;
+      }
+      if (res.status === 422) {
+        const json = await res.json() as { error?: string };
+        setRestError((json.error as BathroomError) ?? "unknown");
+        setRestState("error");
+        return;
+      }
+      setRestError("unknown");
+      setRestState("error");
+    } catch {
+      setRestError("unknown");
+      setRestState("error");
+    }
+  }
+
+  async function fireRestAccept() {
+    if (!restCandidate) return;
+    setRestState("loading");
+    try {
+      const res = await fetch(`/api/tours/${tourId}/add-stop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category: "rest", prefetchedCandidate: restCandidate, insertAfterStopId: restInsertAfterStopId }),
+      });
+      if (res.status === 200) {
+        const json = await res.json() as { allStops: StopUpdate[] };
+        onStopsUpdated(json.allStops);
+        onClose();
+        return;
+      }
+      setRestError("unknown");
+      setRestState("error");
+    } catch {
+      setRestError("unknown");
+      setRestState("error");
+    }
+  }
+
+  function fireRestDecline() {
+    setView("categories");
+    setRestState("idle");
+    setRestCandidate(null);
+    setRestInsertAfterStopId(null);
+    setRestError(null);
+  }
+
+  function restHeaderTitle() {
+    if (restState === "error") return "No match";
+    return "Rest stop";
+  }
+
+  function restErrorCopy() {
+    if (!restError || restError === "no_candidates" || restError === "places_resolution_failed" || restError === "out_of_area") {
+      return "We couldn't find a rest spot on this route right now.";
+    }
+    if (restError === "auth") {
+      return "Your session expired. Please sign in again.";
+    }
+    return "Something went wrong. Try again or pick a place manually.";
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center">
       {/* Backdrop */}
@@ -458,6 +555,18 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
                 <ChevronLeft size={20} />
               </button>
               <h2 className="font-serif text-lg text-[#1B3A5C]">{photoSpotHeaderTitle()}</h2>
+            </div>
+          ) : view === "rest" ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={fireRestDecline}
+                className="p-1 rounded-md hover:bg-[#1B3A5C]/5 text-[#1B3A5C]"
+                aria-label="Back to categories"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <h2 className="font-serif text-lg text-[#1B3A5C]">{restHeaderTitle()}</h2>
             </div>
           ) : (
             <div className="flex items-center gap-2">
@@ -735,6 +844,86 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
                   </div>
 
                   {photoSpotError === "auth" ? (
+                    <button
+                      type="button"
+                      onClick={() => window.location.reload()}
+                      className="w-full rounded-xl border border-[#1B3A5C] text-[#1B3A5C] px-4 py-3 text-sm font-medium hover:bg-[#1B3A5C]/5 transition-colors"
+                    >
+                      Refresh page
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => { onPickPlaceIKnow(); onClose(); }}
+                      className="w-full rounded-xl border border-[#1B3A5C] text-[#1B3A5C] px-4 py-3 text-sm font-medium hover:bg-[#1B3A5C]/5 transition-colors"
+                    >
+                      Use A place I know instead
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          ) : view === "rest" ? (
+            <div className="flex flex-col gap-4">
+              {restState === "loading" && (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Loader2 size={28} className="animate-spin text-[#1B3A5C]" />
+                  <p className="text-sm text-[#4A5568]">Looking for a rest spot…</p>
+                </div>
+              )}
+
+              {restState === "preview" && restCandidate && (
+                <>
+                  <div className="flex gap-3">
+                    {restCandidate.imageUrl && (
+                      <img
+                        src={restCandidate.imageUrl}
+                        alt={restCandidate.name}
+                        className="w-24 h-24 rounded-lg object-cover shrink-0"
+                      />
+                    )}
+                    <div className="flex flex-col gap-1.5 min-w-0">
+                      <h3 className="font-serif font-bold text-lg text-[#1B3A5C] leading-tight">
+                        {restCandidate.name}
+                      </h3>
+                      <span className="inline-flex self-start text-xs border border-[#1B3A5C]/30 text-[#1B3A5C] rounded-full px-2 py-0.5">
+                        {restCandidate.durationMin} min stop
+                      </span>
+                      {restCandidate.why && (
+                        <p className="text-sm text-[#4A5568] leading-snug">{restCandidate.why}</p>
+                      )}
+                      {restCandidate.familyNote && (
+                        <p className="text-sm italic text-[#C4664A] leading-snug">{restCandidate.familyNote}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-3 mt-2">
+                    <button
+                      type="button"
+                      onClick={fireRestAccept}
+                      className="w-full rounded-xl bg-[#C4664A] text-white px-4 py-3 text-sm font-medium hover:bg-[#B85D42] transition-colors"
+                    >
+                      Add to tour
+                    </button>
+                    <button
+                      type="button"
+                      onClick={fireRestDecline}
+                      className="w-full rounded-xl border border-[#1B3A5C]/20 text-[#1B3A5C] px-4 py-3 text-sm font-medium hover:bg-[#1B3A5C]/5 transition-colors"
+                    >
+                      Try a different category
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {restState === "error" && (
+                <>
+                  <div className="border-l-4 border-[#C4664A] bg-[#FFF5F2] rounded-r-lg px-4 py-3">
+                    <p className="text-sm text-[#1B3A5C]">{restErrorCopy()}</p>
+                  </div>
+
+                  {restError === "auth" ? (
                     <button
                       type="button"
                       onClick={() => window.location.reload()}

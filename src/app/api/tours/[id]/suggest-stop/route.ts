@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { resolveBathroomCandidate, resolveSnackCandidate, resolvePhotoSpotCandidate } from "@/lib/tour-stop-insertion";
+import { resolveBathroomCandidate, resolveSnackCandidate, resolvePhotoSpotCandidate, resolveRestCandidate } from "@/lib/tour-stop-insertion";
 
 export const maxDuration = 30;
 
@@ -27,6 +27,9 @@ export async function POST(
       break;
     case "photo_spot":
       result = await resolvePhotoSpotCandidate({ tourId, userId });
+      break;
+    case "rest":
+      result = await resolveRestCandidate({ tourId, userId });
       break;
     default:
       console.log(`[suggest-stop] tourId=${tourId} reason=unsupported_category category=${body.category}`);

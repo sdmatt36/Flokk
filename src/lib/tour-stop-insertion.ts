@@ -1305,3 +1305,265 @@ Return ONLY a JSON object, no prose, no markdown:
   console.log(`[photo-spot-suggest] tourId=${tourId} place="${aiName}" ACCEPTED insertAfterStopId=${insertAfterStopId} dist=${distKm.toFixed(1)}km`);
   return { candidate, insertAfterStopId };
 }
+
+export async function resolveRestCandidate(opts: {
+  tourId: string;
+  userId: string;
+}): Promise<BathroomCandidateResult> {
+  const { tourId, userId } = opts;
+
+  const familyProfileId = await resolveProfileId(userId);
+  if (!familyProfileId) {
+    console.log(`[rest-suggest] tourId=${tourId} error=no_profile`);
+    return { error: "no_candidates" };
+  }
+
+  const tour = await db.generatedTour.findUnique({
+    where: { id: tourId },
+    select: {
+      familyProfileId: true,
+      destinationCity: true,
+      destinationCenterLat: true,
+      destinationCenterLng: true,
+      transport: true,
+      inputGroup: true,
+      stops: {
+        where: { deletedAt: null },
+        orderBy: { orderIndex: "asc" },
+        select: { id: true, name: true, lat: true, lng: true, orderIndex: true },
+      },
+    },
+  });
+
+  if (!tour || tour.familyProfileId !== familyProfileId) {
+    console.log(`[rest-suggest] tourId=${tourId} error=not_found_or_wrong_owner`);
+    return { error: "no_candidates" };
+  }
+
+  if (tour.stops.length === 0) {
+    console.log(`[rest-suggest] tourId=${tourId} error=no_stops`);
+    return { error: "no_candidates" };
+  }
+
+  const profile = await db.familyProfile.findUnique({
+    where: { id: familyProfileId },
+    select: {
+      members: { select: { role: true, birthDate: true } },
+    },
+  });
+
+  const kidsAgesStr = childrenAgesSummary(
+    (profile?.members ?? []).map(m => ({ role: m.role as string, birthDate: m.birthDate }))
+  );
+
+  const validStops = tour.stops.filter(
+    (s): s is typeof s & { lat: number; lng: number } => s.lat !== null && s.lng !== null
+  );
+
+  let priorStopName: string;
+  let nextStopName: string;
+  let midpointLat: number;
+  let midpointLng: number;
+
+  if (validStops.length < 2) {
+    const last = tour.stops[tour.stops.length - 1];
+    priorStopName = last.name;
+    nextStopName  = "(end of tour)";
+    midpointLat   = last.lat ?? (tour.destinationCenterLat ?? 0);
+    midpointLng   = last.lng ?? (tour.destinationCenterLng ?? 0);
+  } else {
+    let maxDist = -1;
+    let bestIdx = 0;
+    for (let i = 0; i < validStops.length - 1; i++) {
+      const dist = haversineKm(
+        { lat: validStops[i].lat, lng: validStops[i].lng },
+        { lat: validStops[i + 1].lat, lng: validStops[i + 1].lng }
+      );
+      if (dist > maxDist) { maxDist = dist; bestIdx = i; }
+    }
+    priorStopName = validStops[bestIdx].name;
+    nextStopName  = validStops[bestIdx + 1].name;
+    midpointLat   = (validStops[bestIdx].lat + validStops[bestIdx + 1].lat) / 2;
+    midpointLng   = (validStops[bestIdx].lng + validStops[bestIdx + 1].lng) / 2;
+  }
+
+  const transport = tour.transport ?? "Walking";
+
+  const systemPrompt = `You are recommending ONE rest stop where a family can pause and recover on a guided tour in ${tour.destinationCity}.
+
+Family context: ${kidsAgesStr}. Transport mode: ${transport}.
+They just visited "${priorStopName}" and are heading to "${nextStopName}".
+Suggest a calm, comfortable place to sit and rest between these two stops.
+
+ACCEPTABLE VENUE TYPES (in priority order):
+1. Hotels with public lobby seating — major chains (Hyatt, Marriott, Hilton) and well-known boutique hotels in tourist areas typically welcome walk-ins to use their lobby seating. Use the same hotel-lobby logic as Bathroom resolvers.
+2. Parks with benches and shade — especially valuable if children are young (under 8).
+3. Quiet plazas or squares with public seating.
+4. Covered shopping arcade seating areas, atrium lobbies, or department store rest zones.
+
+RULES:
+- The venue MUST be a real, named, locatable place in ${tour.destinationCity}. Name a specific park, hotel, or plaza — not "any bench."
+- Do NOT recommend paid venues, tourist attractions, restaurants, or cafes (use Food for that, Snack for treats).
+- No entry fee. Sitting is free.
+- durationMin: 20.
+- why: one sentence on location and why this feels like a genuine recovery spot on this route.
+- familyNote: one short phrase why this rest spot is family-friendly (e.g. "Shaded benches and a small fountain — perfect for younger kids to stretch out.").
+
+Return ONLY a JSON object, no prose, no markdown:
+{ "name": "...", "why": "...", "familyNote": "...", "durationMin": 20 }`;
+
+  let aiName = "";
+  let aiWhy = "";
+  let aiFamilyNote = "";
+  let aiDurationMin = 20;
+
+  try {
+    const anthropic = new Anthropic();
+    const aiResponse = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 256,
+      messages: [{ role: "user", content: systemPrompt }],
+    });
+    const text = aiResponse.content[0].type === "text" ? aiResponse.content[0].text : "";
+    const clean = text.replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(clean) as { name?: string; why?: string; familyNote?: string; durationMin?: number };
+    aiName        = parsed.name?.trim() ?? "";
+    aiWhy         = parsed.why?.trim() ?? "";
+    aiFamilyNote  = parsed.familyNote?.trim() ?? "";
+    aiDurationMin = typeof parsed.durationMin === "number" ? parsed.durationMin : 20;
+  } catch {
+    console.log(`[rest-suggest] tourId=${tourId} error=claude_parse_failed`);
+    return { error: "no_candidates" };
+  }
+
+  if (!aiName) {
+    console.log(`[rest-suggest] tourId=${tourId} error=no_place_name`);
+    return { error: "no_candidates" };
+  }
+
+  const gKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!gKey) {
+    console.log(`[rest-suggest] tourId=${tourId} error=no_places_key`);
+    return { error: "places_resolution_failed" };
+  }
+
+  type PlacesResult = {
+    place_id: string;
+    formatted_address?: string;
+    geometry?: { location: { lat: number; lng: number } };
+    types?: string[];
+  };
+
+  let firstResult: PlacesResult | null = null;
+  try {
+    const query = `${aiName} ${tour.destinationCity}`;
+    const searchRes = await fetch(
+      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${gKey}`
+    );
+    const searchData = await searchRes.json() as { results?: PlacesResult[] };
+    firstResult = searchData.results?.[0] ?? null;
+  } catch {
+    console.log(`[rest-suggest] tourId=${tourId} place="${aiName}" error=places_fetch_failed`);
+    return { error: "places_resolution_failed" };
+  }
+
+  if (!firstResult?.geometry?.location) {
+    console.log(`[rest-suggest] tourId=${tourId} place="${aiName}" error=no_places_result`);
+    return { error: "places_resolution_failed" };
+  }
+
+  const resolvedLat = firstResult.geometry.location.lat;
+  const resolvedLng = firstResult.geometry.location.lng;
+
+  type AddressComponent = { long_name: string; short_name: string; types: string[] };
+  let addressComponents: AddressComponent[] = [];
+  let websiteUrl: string | null = null;
+  let imageUrl: string | null = null;
+  let resolvedAddress: string | null = firstResult.formatted_address ?? null;
+
+  try {
+    const detailsRes = await fetch(
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${firstResult.place_id}&fields=address_components,formatted_address,website,photos&key=${gKey}`
+    );
+    const detailsData = await detailsRes.json() as {
+      result?: {
+        address_components?: AddressComponent[];
+        formatted_address?: string;
+        website?: string;
+        photos?: Array<{ photo_reference: string }>;
+      };
+    };
+    addressComponents = detailsData.result?.address_components ?? [];
+    resolvedAddress   = detailsData.result?.formatted_address ?? resolvedAddress;
+    websiteUrl        = detailsData.result?.website ?? null;
+    const photoRef    = detailsData.result?.photos?.[0]?.photo_reference ?? null;
+    if (photoRef) {
+      const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${encodeURIComponent(photoRef)}&key=${gKey}`;
+      imageUrl = await resolveGooglePhotoUrl(photoApiUrl);
+    }
+  } catch {
+    // Details fetch is non-fatal; city guard falls through to distance guard
+  }
+
+  // City-match guard
+  const cityNorm = tour.destinationCity.toLowerCase().split(",")[0].trim();
+  const CITY_COMPONENT_TYPES = ["locality", "administrative_area_level_1", "postal_town", "sublocality"];
+  const cityComponents = addressComponents.filter(c => c.types?.some(t => CITY_COMPONENT_TYPES.includes(t)));
+  const cityMatch =
+    cityComponents.length > 0 &&
+    cityComponents.some(c => {
+      const long  = (c.long_name ?? "").toLowerCase();
+      const short = (c.short_name ?? "").toLowerCase();
+      return (
+        long.includes(cityNorm)  || short.includes(cityNorm) ||
+        cityNorm.includes(long)  || cityNorm.includes(short)
+      );
+    });
+
+  // Distance guard: result must be within 2km of the segment midpoint
+  const distKm = haversineKm(
+    { lat: resolvedLat, lng: resolvedLng },
+    { lat: midpointLat, lng: midpointLng }
+  );
+  const distanceMatch = distKm <= 2;
+
+  if (!cityMatch && !distanceMatch) {
+    const componentNames = cityComponents.map(c => c.long_name).join(", ") || "none";
+    console.log(`[rest-suggest] tourId=${tourId} place="${aiName}" REJECTED city=${componentNames} dist=${distKm.toFixed(1)}km`);
+    return { error: "out_of_area" };
+  }
+
+  const candidate: PrefetchedCandidate = {
+    name: aiName,
+    address: resolvedAddress,
+    lat: resolvedLat,
+    lng: resolvedLng,
+    durationMin: aiDurationMin,
+    why: aiWhy || null,
+    familyNote: aiFamilyNote || null,
+    imageUrl,
+    websiteUrl,
+    placeId: firstResult.place_id,
+    ticketRequired: "free",
+    placeTypes: firstResult.types ?? [],
+  };
+
+  const { insertAfterStopId, distanceKm: nearestDistKm } = findNearestStopInsertionPoint(
+    resolvedLat,
+    resolvedLng,
+    tour.stops.map(s => ({ id: s.id, lat: s.lat, lng: s.lng, orderIndex: s.orderIndex }))
+  );
+
+  console.log(
+    `[rest-suggest] Anchoring rest stop at stop ${insertAfterStopId} (${nearestDistKm.toFixed(2)}km from candidate)`
+  );
+
+  if (nearestDistKm > 2) {
+    console.warn(
+      `[rest-suggest] Candidate is ${nearestDistKm.toFixed(2)}km from nearest stop. Inserting anyway.`
+    );
+  }
+
+  console.log(`[rest-suggest] tourId=${tourId} place="${aiName}" ACCEPTED insertAfterStopId=${insertAfterStopId} dist=${distKm.toFixed(1)}km`);
+  return { candidate, insertAfterStopId };
+}
