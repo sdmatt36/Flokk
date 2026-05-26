@@ -589,7 +589,7 @@ export default function TourPage() {
                     We&apos;re carefully editing your tour for public viewing. This takes about 20 seconds.
                   </p>
                   <div style={{ fontSize: 14, color: "#C4664A", fontStyle: "italic" }}>
-                    Working...
+                    Flokking.
                   </div>
                 </>
               )}
