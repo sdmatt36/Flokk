@@ -8,6 +8,7 @@ import BuildATourHero from "@/components/features/build-a-tour/BuildATourHero";
 import YourToursSection from "@/components/features/build-a-tour/YourToursSection";
 import FlokkLearnsYouPanel from "@/components/features/build-a-tour/FlokkLearnsYouPanel";
 import FlokkerExamplesSection from "@/components/features/build-a-tour/FlokkerExamplesSection";
+import { MODAL_OVERLAY_CLASSES, MODAL_PANEL_CLASSES } from "@/lib/modal-classes";
 
 type DestinationSuggestion = {
   placeId: string;
@@ -60,6 +61,27 @@ type SavedTourEntry = {
   destinationDisplayName: string;
   coverImage: string | null;
 };
+
+type PublishResult = {
+  tourId: string;
+  isPublic: boolean;
+  publicTitle: string | null;
+  publicSubtitle: string | null;
+  stops: Array<{
+    id: string;
+    publicWhy: string | null;
+    publicFamilyNote: string | null;
+  }>;
+};
+
+type PublishStatus =
+  | "idle"
+  | "confirming"
+  | "publishing"
+  | "published"
+  | "unpublishing"
+  | "unpublished"
+  | "error";
 
 const WHOS_COMING_OPTIONS = [
   "With the whole family",
@@ -137,6 +159,12 @@ export default function TourPage() {
   // Library state
   const [savedTours, setSavedTours] = useState<Record<string, SavedTourEntry[]>>({});
   const [loadingTours, setLoadingTours] = useState(true);
+
+  // Publish state machine
+  const [publishStatus, setPublishStatus] = useState<PublishStatus>("idle");
+  const [publishResult, setPublishResult] = useState<PublishResult | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
+  const [isCurrentlyPublic, setIsCurrentlyPublic] = useState(false);
 
   // Autocomplete
   const [suggestions, setSuggestions] = useState<DestinationSuggestion[]>([]);
@@ -400,6 +428,57 @@ export default function TourPage() {
     setResults(prev => prev ? { ...prev, walkViolations: undefined } : prev);
   }
 
+  const handlePublishClick = () => {
+    setPublishStatus("confirming");
+    setPublishError(null);
+  };
+
+  const handleConfirmPublish = async () => {
+    if (!results?.tourId) return;
+    setPublishStatus("publishing");
+    try {
+      const res = await fetch(`/api/tours/${results.tourId}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { message?: string }).message || `Publish failed with status ${res.status}`);
+      }
+      const data: PublishResult = await res.json();
+      setPublishResult(data);
+      setPublishStatus("published");
+      setIsCurrentlyPublic(true);
+    } catch (e) {
+      setPublishError(e instanceof Error ? e.message : "Couldn't publish right now. Try again.");
+      setPublishStatus("error");
+    }
+  };
+
+  const handleUnpublish = async () => {
+    if (!results?.tourId) return;
+    setPublishStatus("unpublishing");
+    try {
+      const res = await fetch(`/api/tours/${results.tourId}/publish`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        throw new Error(`Unpublish failed with status ${res.status}`);
+      }
+      setPublishStatus("unpublished");
+      setIsCurrentlyPublic(false);
+    } catch (e) {
+      setPublishError(e instanceof Error ? e.message : "Couldn't unpublish right now. Try again.");
+      setPublishStatus("error");
+    }
+  };
+
+  const handleClosePublishModal = () => {
+    setPublishStatus("idle");
+    setPublishResult(null);
+    setPublishError(null);
+  };
+
   const inputClass =
     "w-full border border-gray-200 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#1B3A5C]";
 
@@ -425,6 +504,21 @@ export default function TourPage() {
                 label="Share tour"
               />
             )}
+            {results.tourId && (
+              <button
+                onClick={handlePublishClick}
+                className="text-sm text-[#C4664A] font-semibold cursor-pointer"
+                style={{ background: "none", border: "none", padding: 0 }}
+              >
+                Publish to Discover
+              </button>
+            )}
+            {isCurrentlyPublic && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "#1B3A5C", fontWeight: 600 }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981" }} />
+                Live on Discover
+              </span>
+            )}
           </div>
           <TourResults
             stops={stops}
@@ -449,6 +543,145 @@ export default function TourPage() {
             onReplaceStops={handleReplaceStops}
           />
         </div>
+
+        {publishStatus !== "idle" && (
+          <div
+            className={MODAL_OVERLAY_CLASSES}
+            onClick={publishStatus === "publishing" || publishStatus === "unpublishing" ? undefined : handleClosePublishModal}
+          >
+            <div
+              className={MODAL_PANEL_CLASSES}
+              style={{ maxWidth: "440px", padding: "32px 28px" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {publishStatus === "confirming" && (
+                <>
+                  <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 24, fontWeight: 700, color: "#1B3A5C", margin: "0 0 12px", lineHeight: 1.2 }}>
+                    Publish to Discover?
+                  </h2>
+                  <p style={{ fontSize: 14, color: "#555", lineHeight: 1.5, margin: "0 0 24px" }}>
+                    Your tour will be visible to anyone browsing Flokk. We&apos;ll automatically rewrite the copy
+                    to remove your children&apos;s names and replace them with age ranges.
+                  </p>
+                  <div style={{ display: "flex", gap: 12, justifyContent: "flex-end" }}>
+                    <button
+                      onClick={handleClosePublishModal}
+                      style={{ padding: "10px 16px", background: "none", border: "none", color: "#555", fontSize: 14, fontWeight: 500, cursor: "pointer" }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleConfirmPublish}
+                      style={{ padding: "10px 24px", background: "#C4664A", color: "white", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: "pointer" }}
+                    >
+                      Publish
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {publishStatus === "publishing" && (
+                <>
+                  <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 24, fontWeight: 700, color: "#1B3A5C", margin: "0 0 12px", lineHeight: 1.2 }}>
+                    Publishing your tour
+                  </h2>
+                  <p style={{ fontSize: 14, color: "#555", lineHeight: 1.5, margin: "0 0 16px" }}>
+                    We&apos;re carefully editing your tour for public viewing. This takes about 20 seconds.
+                  </p>
+                  <div style={{ fontSize: 14, color: "#C4664A", fontStyle: "italic" }}>
+                    Working...
+                  </div>
+                </>
+              )}
+
+              {publishStatus === "published" && publishResult && (
+                <>
+                  <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 24, fontWeight: 700, color: "#1B3A5C", margin: "0 0 12px", lineHeight: 1.2 }}>
+                    Your tour is live on Discover
+                  </h2>
+                  <p style={{ fontSize: 14, color: "#555", lineHeight: 1.5, margin: "0 0 16px" }}>
+                    Here&apos;s how it reads to the public. Names removed, age ranges added.
+                  </p>
+                  <div style={{ background: "#F9F7F4", padding: 16, borderRadius: 8, marginBottom: 20 }}>
+                    {publishResult.publicTitle && (
+                      <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 700, color: "#1B3A5C", marginBottom: 6 }}>
+                        {publishResult.publicTitle}
+                      </div>
+                    )}
+                    {publishResult.publicSubtitle && (
+                      <div style={{ fontSize: 13, color: "#555", lineHeight: 1.5, fontStyle: "italic" }}>
+                        {publishResult.publicSubtitle}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: 12, justifyContent: "flex-end", alignItems: "center" }}>
+                    <button
+                      onClick={handleUnpublish}
+                      style={{ padding: "10px 16px", background: "none", border: "none", color: "#555", fontSize: 14, fontWeight: 500, cursor: "pointer" }}
+                    >
+                      Unpublish
+                    </button>
+                    <button
+                      onClick={handleClosePublishModal}
+                      style={{ padding: "10px 24px", background: "#C4664A", color: "white", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: "pointer" }}
+                    >
+                      Done
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {publishStatus === "unpublishing" && (
+                <>
+                  <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 24, fontWeight: 700, color: "#1B3A5C", margin: "0 0 12px", lineHeight: 1.2 }}>
+                    Unpublishing
+                  </h2>
+                  <p style={{ fontSize: 14, color: "#555", lineHeight: 1.5 }}>
+                    Removing your tour from Discover.
+                  </p>
+                </>
+              )}
+
+              {publishStatus === "unpublished" && (
+                <>
+                  <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 24, fontWeight: 700, color: "#1B3A5C", margin: "0 0 12px", lineHeight: 1.2 }}>
+                    Tour unpublished
+                  </h2>
+                  <p style={{ fontSize: 14, color: "#555", lineHeight: 1.5, margin: "0 0 24px" }}>
+                    Your tour is no longer visible on Discover. The share link still works for anyone you&apos;ve sent it to.
+                  </p>
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <button
+                      onClick={handleClosePublishModal}
+                      style={{ padding: "10px 24px", background: "#1B3A5C", color: "white", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: "pointer" }}
+                    >
+                      Done
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {publishStatus === "error" && (
+                <>
+                  <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 24, fontWeight: 700, color: "#1B3A5C", margin: "0 0 12px", lineHeight: 1.2 }}>
+                    Something went wrong
+                  </h2>
+                  <p style={{ fontSize: 14, color: "#555", lineHeight: 1.5, margin: "0 0 24px" }}>
+                    {publishError ?? "Couldn't complete that action. Try again."}
+                  </p>
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <button
+                      onClick={handleClosePublishModal}
+                      style={{ padding: "10px 24px", background: "#C4664A", color: "white", border: "none", borderRadius: 8, fontSize: 14, fontWeight: 500, cursor: "pointer" }}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
