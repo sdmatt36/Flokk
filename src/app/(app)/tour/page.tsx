@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { RotateCcw } from "lucide-react";
 import TourResults from "@/components/TourResults";
-import { shareEntity } from "@/lib/share";
+import { ShareButton } from "@/components/shared/ShareButton";
 import BuildATourHero from "@/components/features/build-a-tour/BuildATourHero";
 import YourToursSection from "@/components/features/build-a-tour/YourToursSection";
 import FlokkLearnsYouPanel from "@/components/features/build-a-tour/FlokkLearnsYouPanel";
@@ -418,16 +418,12 @@ export default function TourPage() {
               Create a new tour
             </button>
             {results.tourId && (
-              <button
-                onClick={async () => {
-                  const r = await shareEntity({ entityType: "generated_tour", entityId: results.tourId! });
-                  if (r.ok) alert("Link copied to clipboard");
-                }}
-                className="text-sm text-[#C4664A] font-semibold cursor-pointer bg-none border-none p-0"
-                style={{ background: "none", border: "none" }}
-              >
-                Share tour
-              </button>
+              <ShareButton
+                entityType="generated_tour"
+                entityId={results.tourId}
+                title={results.title ?? "Tour on Flokk"}
+                label="Share tour"
+              />
             )}
           </div>
           <TourResults
