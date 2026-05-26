@@ -46,7 +46,7 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
       entity.generatedTour.destinationCity,
       entity.generatedTour.destinationCountry
     );
-    title = `${entity.generatedTour.title} · ${loc} — Flokk`;
+    title = `${entity.generatedTour.publicTitle ?? entity.generatedTour.title} · ${loc} — Flokk`;
   }
 
   return { title };
@@ -198,11 +198,11 @@ export default async function ShareItemPage({ params }: { params: Promise<{ toke
                 textShadow: "0 2px 12px rgba(0,0,0,0.4)",
               }}
             >
-              {tour.title}
+              {tour.publicTitle ?? tour.title}
             </h1>
-            {tour.subtitle && (
+            {(tour.publicSubtitle ?? tour.subtitle) && (
               <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.8)", margin: "0 0 4px" }}>
-                {tour.subtitle}
+                {tour.publicSubtitle ?? tour.subtitle}
               </p>
             )}
             <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", margin: 0 }}>

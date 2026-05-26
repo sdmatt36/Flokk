@@ -19,6 +19,8 @@ type Stop = {
   travelTimeMin: number | null;
   why: string | null;
   familyNote: string | null;
+  publicWhy?: string | null;
+  publicFamilyNote?: string | null;
   imageUrl: string | null;
   websiteUrl: string | null;
   ticketRequired: string | null;
@@ -198,7 +200,7 @@ export function TourShareView({ stops, transport }: Props) {
                 )}
               </div>
 
-              {stop.why && (
+              {(stop.publicWhy ?? stop.why) && (
                 <p
                   style={{
                     fontSize: "12px",
@@ -211,10 +213,10 @@ export function TourShareView({ stops, transport }: Props) {
                     overflow: "hidden",
                   }}
                 >
-                  {stop.why}
+                  {stop.publicWhy ?? stop.why}
                 </p>
               )}
-              {stop.familyNote && (
+              {(stop.publicFamilyNote ?? stop.familyNote) && (
                 <p
                   style={{
                     fontSize: "12px",
@@ -228,7 +230,7 @@ export function TourShareView({ stops, transport }: Props) {
                     overflow: "hidden",
                   }}
                 >
-                  {stop.familyNote}
+                  {stop.publicFamilyNote ?? stop.familyNote}
                 </p>
               )}
             </div>

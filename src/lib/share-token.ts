@@ -87,6 +87,9 @@ export interface ResolvedShareEntity {
     id: string;
     title: string;
     subtitle: string | null;
+    publicTitle: string | null;
+    publicSubtitle: string | null;
+    isPublic: boolean;
     inputGroup: string | null;
     inputVibe: string[];
     inputDurationHr: number | null;
@@ -108,6 +111,8 @@ export interface ResolvedShareEntity {
       travelTimeMin: number | null;
       why: string | null;
       familyNote: string | null;
+      publicWhy: string | null;
+      publicFamilyNote: string | null;
       imageUrl: string | null;
       websiteUrl: string | null;
       ticketRequired: string | null;
@@ -423,6 +428,9 @@ export async function resolveShareToken(token: string): Promise<ResolvedShareEnt
       id: true,
       title: true,
       subtitle: true,
+      publicTitle: true,
+      publicSubtitle: true,
+      isPublic: true,
       inputGroup: true,
       inputVibe: true,
       inputDurationHr: true,
@@ -448,6 +456,8 @@ export async function resolveShareToken(token: string): Promise<ResolvedShareEnt
           travelTimeMin: true,
           why: true,
           familyNote: true,
+          publicWhy: true,
+          publicFamilyNote: true,
           imageUrl: true,
           websiteUrl: true,
           ticketRequired: true,

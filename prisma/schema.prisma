@@ -1201,6 +1201,8 @@ model GeneratedTour {
   tourViewportNE        Json?
   tourViewportSW        Json?
   subtitle              String?
+  publicTitle           String?
+  publicSubtitle        String?
   inputGroup            String?
   inputVibe             String[]      @default([])
   inputDurationHr       Int?
@@ -1231,9 +1233,11 @@ model TourStop {
   lng           Float?
   durationMin   Int?
   travelTimeMin Int?
-  why           String?
-  familyNote    String?
-  imageUrl      String?
+  why               String?
+  familyNote        String?
+  publicWhy         String?
+  publicFamilyNote  String?
+  imageUrl          String?
   websiteUrl    String?
   placeId       String?  // Google Places place_id; used to construct Maps URL fallback
   ticketRequired String? // 'free' | 'ticket-required' | 'advance-booking-recommended' | 'unknown'
