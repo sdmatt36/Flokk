@@ -73,10 +73,11 @@ export async function POST(
       : undefined;
 
   const prefetchedCandidate = parsePrefetchedCandidate(body.prefetchedCandidate);
+  const insertAfterStopId = typeof body.insertAfterStopId === "string" ? body.insertAfterStopId : undefined;
 
   let result;
   try {
-    result = await addStopToTour({ tourId, userId, category, mealType, prefetchedCandidate });
+    result = await addStopToTour({ tourId, userId, category, mealType, prefetchedCandidate, insertAfterStopId });
   } catch {
     return NextResponse.json(
       { reason: "internal_error", message: "Couldn't add a stop. Try again." },

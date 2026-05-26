@@ -182,8 +182,9 @@ export async function addStopToTour(opts: {
   category: StopCategory;
   mealType?: MealType;
   prefetchedCandidate?: PrefetchedCandidate;
+  insertAfterStopId?: string;
 }): Promise<InsertResult> {
-  const { tourId, userId, category, mealType, prefetchedCandidate } = opts;
+  const { tourId, userId, category, mealType, prefetchedCandidate, insertAfterStopId } = opts;
   const config = CATEGORY_CONFIGS[category];
 
   // Non-implemented categories require a prefetchedCandidate to bypass the AI/Places path.
@@ -241,7 +242,13 @@ export async function addStopToTour(opts: {
 
   // ── Prefetched path: caller already resolved the candidate (suggest-stop flow) ──
   if (prefetchedCandidate) {
-    const insertAt = Math.max(1, Math.floor(tour.stops.length * 0.4));
+    let insertAt: number;
+    if (insertAfterStopId) {
+      const afterStop = tour.stops.find(s => s.id === insertAfterStopId);
+      insertAt = afterStop ? afterStop.orderIndex + 1 : Math.max(1, Math.floor(tour.stops.length * 0.4));
+    } else {
+      insertAt = Math.max(1, Math.floor(tour.stops.length * 0.4));
+    }
     const stopsToShift = tour.stops.filter(s => s.orderIndex >= insertAt);
     await Promise.all(
       stopsToShift.map(s =>

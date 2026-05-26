@@ -131,7 +131,7 @@ export default function AddStopSheet({ tourId, isOpen, onClose, onPickPlaceIKnow
       const res = await fetch(`/api/tours/${tourId}/add-stop`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ category: "bathroom", prefetchedCandidate: bathroomCandidate }),
+        body: JSON.stringify({ category: "bathroom", prefetchedCandidate: bathroomCandidate, insertAfterStopId: bathroomInsertAfterStopId }),
       });
       if (res.status === 200) {
         const json = await res.json() as { allStops: StopUpdate[] };
