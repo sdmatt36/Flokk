@@ -92,7 +92,6 @@ export default async function DiscoverPage() {
         <FilteredToursSection
           tours={tours}
           description="Stop-by-stop walks, drives, and rides through cities. Built by Flokkers, by Flokk's AI, or both."
-          browseAllHref="/tours"
         />
       </div>
 
