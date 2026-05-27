@@ -4091,6 +4091,14 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                 const from = sit.fromAirport || sit.fromCity || "";
                 const to = sit.toAirport || sit.toCity || "";
                 const route = from && to ? `${from} → ${to}` : (from || to || sit.title);
+                const matchFlight = sit.confirmationCode
+                  ? localFlights.find(f => f.confirmationCode === sit.confirmationCode)
+                  : localFlights.find(f => f.fromAirport === sit.fromAirport && f.toAirport === sit.toAirport && f.dayIndex === sit.dayIndex);
+                const airlineLabel = matchFlight?.airline && matchFlight?.flightNumber
+                  ? `${matchFlight.airline} · ${matchFlight.flightNumber}`
+                  : matchFlight?.flightNumber
+                    ? matchFlight.flightNumber
+                    : null;
                 const paxLabel = sit.passengers.length > 0
                   ? sit.passengers.length <= 2 ? sit.passengers.join(", ") : `${sit.passengers.length} passengers`
                   : null;
@@ -4098,6 +4106,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                   <div>
                     <p style={titleStyle}>{route}</p>
                     <div style={gridStyle}>
+                      {airlineLabel && <><span style={lblStyle}>Flight</span><span style={{ ...rowStyle, fontWeight: 600 }}>{airlineLabel}</span></>}
                       {sit.scheduledDate && <><span style={lblStyle}>Date</span><span style={rowStyle}>{fmtDateModal(sit.scheduledDate)}</span></>}
                       {sit.departureTime && <><span style={lblStyle}>Departs</span><span style={rowStyle}>{formatTime(sit.departureTime) || sit.departureTime}</span></>}
                       {sit.arrivalTime && <><span style={lblStyle}>Arrives</span><span style={rowStyle}>{formatTime(sit.arrivalTime) || sit.arrivalTime}</span></>}
