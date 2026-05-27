@@ -274,7 +274,7 @@ export function DropLinkModal({
               <p style={{ fontSize: "14px", color: "#717171", marginTop: "4px" }}>
                 {lockedTripId
                   ? `Saving to: ${selectedTrip?.title ?? "this trip"}`
-                  : "Paste anything — Instagram, TikTok, Google Maps, Airbnb, anywhere."}
+                  : "Paste anything: Instagram, TikTok, Google Maps, Airbnb, anywhere."}
               </p>
             </div>
             <button

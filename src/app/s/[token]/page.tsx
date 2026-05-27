@@ -29,24 +29,24 @@ function formatTourLocation(city: string, country: string | null): string {
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const entity = await resolveShareToken(token);
-  if (!entity) return { title: "Place — Flokk" };
+  if (!entity) return { title: "Place | Flokk" };
 
-  let title = "Place — Flokk";
+  let title = "Place | Flokk";
   if (entity.entityType === "saved_item" && entity.savedItem) {
     const city = entity.savedItem.destinationCity;
     title = city
-      ? `${entity.savedItem.rawTitle ?? "Place"} in ${city} — Flokk`
-      : `${entity.savedItem.rawTitle ?? "Place"} — Flokk`;
+      ? `${entity.savedItem.rawTitle ?? "Place"} in ${city} | Flokk`
+      : `${entity.savedItem.rawTitle ?? "Place"} | Flokk`;
   } else if (entity.entityType === "itinerary_item" && entity.itineraryItem) {
-    title = `${entity.itineraryItem.title} — Flokk`;
+    title = `${entity.itineraryItem.title} | Flokk`;
   } else if (entity.entityType === "manual_activity" && entity.manualActivity) {
-    title = `${entity.manualActivity.title} — Flokk`;
+    title = `${entity.manualActivity.title} | Flokk`;
   } else if (entity.entityType === "generated_tour" && entity.generatedTour) {
     const loc = formatTourLocation(
       entity.generatedTour.destinationCity,
       entity.generatedTour.destinationCountry
     );
-    title = `${entity.generatedTour.publicTitle ?? entity.generatedTour.title} · ${loc} — Flokk`;
+    title = `${entity.generatedTour.publicTitle ?? entity.generatedTour.title} · ${loc} | Flokk`;
   }
 
   return { title };

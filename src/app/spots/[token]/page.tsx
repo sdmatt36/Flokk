@@ -31,10 +31,10 @@ export async function generateMetadata({
     where: { shareToken: token },
     select: { name: true, city: true, country: true },
   });
-  if (!spot) return { title: "Spot not found — Flokk" };
+  if (!spot) return { title: "Spot not found | Flokk" };
   const loc = [spot.city, spot.country].filter(Boolean).join(", ");
   return {
-    title: `${spot.name}${loc ? ` · ${loc}` : ""} — Flokk`,
+    title: `${spot.name}${loc ? ` · ${loc}` : ""} | Flokk`,
   };
 }
 

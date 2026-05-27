@@ -45,7 +45,7 @@ export function SourceFilterSaves({
       <div style={{ backgroundColor: "#F5F5F5", border: "1px solid rgba(196,102,74,0.18)", borderRadius: "16px", padding: "16px" }}>
         <p style={{ fontWeight: 700, fontSize: "14px", color: "#1a1a1a", marginBottom: "4px" }}>Where do you find travel ideas?</p>
         <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.5, marginBottom: "12px" }}>
-          Share anything from these apps directly to Flokk — we&apos;ll pull out the location, details, and context automatically.
+          Share anything from these apps directly to Flokk. We&apos;ll pull out the location, details, and context automatically.
         </p>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
           {SOURCE_PILLS.map(({ label, filter: f, icon }) => {

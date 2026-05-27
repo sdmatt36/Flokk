@@ -380,7 +380,7 @@ function MemoryBoard({ stats }: { stats: TravelStats }) {
           <div style={{ width: `max(${stats.percentOfWorld > 0 ? "4px" : "0px"}, ${stats.percentOfWorld}%)`, height: "100%", backgroundColor: "#C4664A", borderRadius: "999px", transition: "width 0.8s ease" }} />
         </div>
         <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.4)", margin: "8px 0 0" }}>
-          Keep going — there&apos;s so much left to discover
+          Keep going. There&apos;s so much left to discover
         </p>
       </div>
 

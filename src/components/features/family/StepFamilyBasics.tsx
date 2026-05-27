@@ -55,7 +55,7 @@ export function StepFamilyBasics({ data, onNext }: Props) {
     <div className="space-y-8 pt-6">
       <div className="space-y-2">
         <h1 className="text-3xl font-black" style={{ color: "#1a1a1a" }}>Let&apos;s get started.</h1>
-        <p className="text-lg" style={{ color: "#717171" }}>A few quick details — takes about 60 seconds.</p>
+        <p className="text-lg" style={{ color: "#717171" }}>A few quick details. Takes about 60 seconds.</p>
       </div>
 
       <div className="space-y-5">

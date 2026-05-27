@@ -497,7 +497,7 @@ export function FamilySection() {
           </select>
         </div>
         <div className="col-span-1 md:col-span-2 lg:col-span-3">
-          <label className={labelCls}>Favorite airport(s) <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— up to 10</span></label>
+          <label className={labelCls}>Favorite airport(s) <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(up to 10)</span></label>
           <AirportPicker
             value={form.favoriteAirports}
             onChange={(v) => setForm((f) => ({ ...f, favoriteAirports: v }))}

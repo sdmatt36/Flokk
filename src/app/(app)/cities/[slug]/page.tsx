@@ -215,7 +215,7 @@ export async function generateMetadata(
   const title = `${city.name}, ${countryName} | Itineraries, Tours & Local Picks - Flokk`;
   const description =
     city.blurb ??
-    `Explore ${city.name}, ${countryName} — family-curated itineraries, self-guided tours, and local picks from the Flokk community.`;
+    `Explore ${city.name}, ${countryName}: family-curated itineraries, self-guided tours, and local picks from the Flokk community.`;
 
   return {
     title,

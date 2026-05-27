@@ -312,7 +312,7 @@ function InlineTextareaField({
             rows={3}
             value={localVal}
             onChange={(e) => setLocalVal(e.target.value)}
-            placeholder="e.g. US passport — visa on arrival for Japan."
+            placeholder="e.g. US passport, visa on arrival for Japan."
             autoFocus
           />
           <div style={{ display: "flex", gap: "8px", marginTop: "6px" }}>
@@ -345,7 +345,7 @@ function InlineTextareaField({
             <p style={{ fontSize: "14px", color: "#717171", lineHeight: 1.5, margin: 0 }}>{displayValue}</p>
           ) : (
             <p style={{ fontSize: "13px", color: "#CCCCCC", margin: 0 }}>
-              e.g. US passport — visa on arrival for Japan.
+              e.g. US passport, visa on arrival for Japan.
             </p>
           )}
           <button

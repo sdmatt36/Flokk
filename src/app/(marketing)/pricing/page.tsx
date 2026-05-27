@@ -93,7 +93,7 @@ export default function PricingPage() {
                 <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "48px", fontWeight: 700, color: "#1B3A5C" }}>$10.99</span>
                 <span style={{ fontSize: "14px", color: "#717171" }}>/ month</span>
               </div>
-              <p style={{ fontSize: "14px", color: "#717171", margin: "0 0 32px" }}>Or $98 / year — save 25%.</p>
+              <p style={{ fontSize: "14px", color: "#717171", margin: "0 0 32px" }}>Or $98 / year. Save 25%.</p>
               <button disabled style={{ display: "block", width: "100%", textAlign: "center", backgroundColor: "rgba(196,102,74,0.5)", color: "#fff", padding: "12px 24px", borderRadius: "999px", fontSize: "15px", fontWeight: 700, border: "none", cursor: "not-allowed", marginBottom: "32px", opacity: 0.6 }}>Notify me at launch</button>
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                 {PRO_FEATURES.map((f) => (

@@ -380,7 +380,7 @@ export function AddToTripModal({
               <div>
                 <label style={labelStyle}>Address (optional)</label>
                 <input type="text" value={actAddress} onChange={e => { setActAddress(e.target.value); setActAddressFromPlaces(false); }} placeholder="e.g. 123 Bukchon-ro, Seoul" style={inputStyle} />
-                {actAddressFromPlaces && <p style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}>From Google Places — edit if needed</p>}
+                {actAddressFromPlaces && <p style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}>From Google Places. Edit if needed.</p>}
               </div>
 
               <div>

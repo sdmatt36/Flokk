@@ -38,8 +38,8 @@ export function StepInterests({ data, onComplete, saving, error }: Props) {
         <p className="text-lg" style={{ color: "#717171" }}>Pick everything that sounds like you. No wrong answers.</p>
         <p className="text-sm font-medium" style={{ color: canComplete ? "#6B8F71" : "#717171" }}>
           {selected.length < MIN_SELECTIONS
-            ? `Pick at least ${MIN_SELECTIONS} — ${MIN_SELECTIONS - selected.length} more to go`
-            : `${selected.length} selected — nice taste.`}
+            ? `Pick at least ${MIN_SELECTIONS}, ${MIN_SELECTIONS - selected.length} more to go`
+            : `${selected.length} selected. Nice taste.`}
         </p>
       </div>
 

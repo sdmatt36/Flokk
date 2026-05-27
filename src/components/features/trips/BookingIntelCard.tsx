@@ -69,10 +69,10 @@ function computeDaysAway(startDate: string | null | undefined): number | null {
 
 function getUrgencyLabel(daysAway: number): string {
   if (daysAway <= 0) return "trip in progress";
-  if (daysAway === 1) return "tomorrow — book immediately";
-  if (daysAway <= 7) return `${daysAway} days away — book immediately`;
-  if (daysAway <= 14) return "1 week away — book now";
-  if (daysAway <= 21) return "2 weeks away — book soon";
+  if (daysAway === 1) return "tomorrow, book immediately";
+  if (daysAway <= 7) return `${daysAway} days away, book immediately`;
+  if (daysAway <= 14) return "1 week away, book now";
+  if (daysAway <= 21) return "2 weeks away, book soon";
   if (daysAway <= 30) return "3 weeks away";
   const months = Math.floor(daysAway / 30);
   return `${months} month${months > 1 ? "s" : ""} away`;
@@ -140,7 +140,7 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
   const cardSubheading = tripInProgress && destinationCity
     ? `You're in ${destinationCity} now`
     : (destinationCity || startDate)
-    ? `Based on your trip${destinationCity ? ` to ${destinationCity}` : ""}${startDate ? ` on ${new Date(startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}${urgencyLabel && !tripInProgress ? ` — ${urgencyLabel}` : ""}`
+    ? `Based on your trip${destinationCity ? ` to ${destinationCity}` : ""}${startDate ? ` on ${new Date(startDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}${urgencyLabel && !tripInProgress ? `, ${urgencyLabel}` : ""}`
     : null;
 
   useEffect(() => {

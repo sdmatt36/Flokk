@@ -36,7 +36,6 @@ function docUrgency(days: number): "now" | "soon" | "when ready" {
 }
 
 const HOTEL_RE = /lodg|hotel|hostel|resort|airbnb|accommodation|ryokan|villa|stay|inn/i;
-const ACTIVITY_RE = /activit|museum|tour|ticket|admission|temple|shrine|park|concert|game|show|experience|attraction/i;
 const INSURANCE_RE = /insurance|insur|travel protect|coverage|policy/i;
 const VISA_RE = /visa|entry|passport|immigration|eta|evisa|customs/i;
 
@@ -49,32 +48,32 @@ function getLogisticsItems(city: string | null, country: string | null): Logisti
 
   if (c.includes("seoul") || c.includes("busan") || c.includes("incheon") || co.includes("korea")) {
     return [
-      { title: "T-money Card", reason: "Tap-to-pay on the metro, buses, and taxis — buy at Incheon Airport arrivals.", bookingUrl: "https://www.t-money.co.kr/ncs/pct/tmnyIntro/ReadTmnyIntroEng.do", actionType: "link" },
+      { title: "T-money Card", reason: "Tap-to-pay on the metro, buses, and taxis. Buy at Incheon Airport arrivals.", bookingUrl: "https://www.t-money.co.kr/ncs/pct/tmnyIntro/ReadTmnyIntroEng.do", actionType: "link" },
     ];
   }
   if (c.includes("tokyo") || c.includes("osaka") || c.includes("kyoto") || c.includes("nara") || c.includes("hiroshima") || co.includes("japan")) {
     return [
-      { title: "IC Card (Suica / ICOCA)", reason: "Cashless travel on trains, buses, and convenience stores — load at any station on arrival.", bookingUrl: "https://www.pasmo.co.jp/en/", actionType: "link" },
+      { title: "IC Card (Suica / ICOCA)", reason: "Cashless travel on trains, buses, and convenience stores. Load at any station on arrival.", bookingUrl: "https://www.pasmo.co.jp/en/", actionType: "link" },
     ];
   }
   if (c.includes("bali") || co.includes("indonesia")) {
     return [
-      { title: "Indonesia e-VOA", reason: "Buy your visa online before arriving — saves queuing at immigration.", bookingUrl: "https://evisa.imigrasi.go.id/", actionType: "book" },
+      { title: "Indonesia e-VOA", reason: "Buy your visa online before arriving. Saves queuing at immigration.", bookingUrl: "https://evisa.imigrasi.go.id/", actionType: "book" },
     ];
   }
   if (c.includes("bangkok") || c.includes("chiang") || c.includes("phuket") || co.includes("thailand")) {
     return [
-      { title: "SIM card / eSIM", reason: "Local data SIMs at Thai airports are cheap — activate an eSIM in advance to skip the queue.", bookingUrl: null, actionType: null },
+      { title: "SIM card / eSIM", reason: "Local data SIMs at Thai airports are cheap. Activate an eSIM in advance to skip the queue.", bookingUrl: null, actionType: null },
     ];
   }
   if (c.includes("dubai") || c.includes("abu dhabi") || co.includes("emirates") || co.includes("uae")) {
     return [
-      { title: "Nol Card", reason: "Rechargeable smart card for Dubai Metro, buses, and trams — buy at any station.", bookingUrl: "https://www.nolcard.ae/", actionType: "link" },
+      { title: "Nol Card", reason: "Rechargeable smart card for Dubai Metro, buses, and trams. Buy at any station.", bookingUrl: "https://www.nolcard.ae/", actionType: "link" },
     ];
   }
   if (c.includes("london") || co.includes("united kingdom") || co.includes("uk")) {
     return [
-      { title: "Oyster Card / contactless", reason: "London's underground and buses use contactless payment — no need to pre-purchase.", bookingUrl: null, actionType: null },
+      { title: "Oyster Card / contactless", reason: "London's underground and buses use contactless payment. No need to pre-purchase.", bookingUrl: null, actionType: null },
     ];
   }
   if (co && !co.match(/^united states|canada|australia|new zealand/)) {
@@ -174,7 +173,7 @@ export async function GET(
       id: "flights",
       category: "flights",
       title: "Flights",
-      reason: `${detail}${unconfirmedFlights.length > 0 ? ` — ${unconfirmedFlights.length} still unconfirmed` : ""}`,
+      reason: `${detail}${unconfirmedFlights.length > 0 ? `. ${unconfirmedFlights.length} still unconfirmed` : ""}`,
       status: unconfirmedFlights.length > 0 ? "saved" : "booked",
       savedCount: unconfirmedFlights.length > 0 ? unconfirmedFlights.length : undefined,
       urgency: unconfirmedFlights.length > 0 ? flightUrgency(daysAway) : "when ready",
@@ -186,7 +185,7 @@ export async function GET(
       id: "flights",
       category: "flights",
       title: "Flights",
-      reason: `${unconfirmedFlights.length} flight${unconfirmedFlights.length > 1 ? "s" : ""} saved but not confirmed — mark as booked once purchased.`,
+      reason: `${unconfirmedFlights.length} flight${unconfirmedFlights.length > 1 ? "s" : ""} saved but not confirmed. Mark as booked once purchased.`,
       status: "saved",
       savedCount: unconfirmedFlights.length,
       urgency: flightUrgency(daysAway),
@@ -198,7 +197,7 @@ export async function GET(
       id: "flights",
       category: "flights",
       title: "Flights",
-      reason: "No flights saved — fares tend to rise as the date approaches.",
+      reason: "No flights saved. Fares tend to rise as the date approaches.",
       status: "missing",
       urgency: flightUrgency(daysAway),
       bookingUrl: null,
@@ -229,7 +228,7 @@ export async function GET(
       id: "hotel",
       category: "hotel",
       title: "Hotel / accommodation",
-      reason: `${unconfirmedLodging.length} option${unconfirmedLodging.length > 1 ? "s" : ""} saved — confirm before they sell out.`,
+      reason: `${unconfirmedLodging.length} option${unconfirmedLodging.length > 1 ? "s" : ""} saved. Confirm before they sell out.`,
       status: "saved",
       savedCount: unconfirmedLodging.length,
       urgency: hotelUrgency(daysAway),
@@ -241,7 +240,7 @@ export async function GET(
       id: "hotel",
       category: "hotel",
       title: "Hotel / accommodation",
-      reason: `${destinationCity ? `${destinationCity} ` : ""}accommodation fills up — lock in your base early.`,
+      reason: `${destinationCity ? `${destinationCity} ` : ""}accommodation fills up. Lock in your base early.`,
       status: "missing",
       urgency: hotelUrgency(daysAway),
       bookingUrl: null,
@@ -298,7 +297,7 @@ export async function GET(
       id: "activities",
       category: "activities",
       title: "Activities & experiences",
-      reason: `Popular tours and attractions in ${destinationCity ?? "your destination"} sell out — add and book early.`,
+      reason: `Popular tours and attractions in ${destinationCity ?? "your destination"} sell out. Add and book early.`,
       status: "missing",
       urgency: activityUrgency(daysAway),
       bookingUrl: null,
@@ -404,7 +403,7 @@ export async function GET(
         id: "passport-expired",
         category: "documents",
         title: "Passport expires before trip",
-        reason: `${names} — passport expires before your trip starts. Renewal required.`,
+        reason: `${names}: passport expires before your trip starts. Renewal required.`,
         status: "missing",
         urgency: "now",
         bookingUrl: null,
@@ -416,7 +415,7 @@ export async function GET(
         id: "passport-expiring",
         category: "documents",
         title: "Passport expiring soon",
-        reason: `${names} — passport expires within 6 months of your trip. Many countries require 6 months validity. Check requirements.`,
+        reason: `${names}: passport expires within 6 months of your trip. Many countries require 6 months validity. Check requirements.`,
         status: "missing",
         urgency: daysAway <= 45 ? "now" : "soon",
         bookingUrl: "https://travel.state.gov/content/travel/en/passports/need-passport/renew.html",

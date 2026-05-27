@@ -29,7 +29,7 @@ export async function generateMetadata(
   if (!country) return { title: "Not found | Flokk" };
   return {
     title: `${country.name} | Flokk`,
-    description: `Explore ${country.name} on Flokk — family travel spots, itineraries, and tours in ${country.continent.name}.`,
+    description: `Explore ${country.name} on Flokk. Family travel spots, itineraries, and tours in ${country.continent.name}.`,
   };
 }
 

@@ -167,7 +167,7 @@ export async function POST(req: Request) {
   // Trip title: explicit name > default day-steal name > AI-generated name
   const resolvedTitle = tripName?.trim() || (
     filterDayIndex != null
-      ? `${sourceTrip.destinationCity ?? "Trip"} — Day ${filterDayIndex}`
+      ? `${sourceTrip.destinationCity ?? "Trip"}: Day ${filterDayIndex}`
       : builtData.title
   );
 

@@ -351,22 +351,22 @@ function TravelerCard({
                 onChange={(e) => setExt((x) => ({ ...x, specialMealType: e.target.value }))}
               >
                 <option value="">None / Standard</option>
-                <option value="VGML">VGML — Vegetarian (non-dairy)</option>
-                <option value="AVML">AVML — Asian Vegetarian</option>
-                <option value="VVML">VVML — Vegan</option>
-                <option value="VLML">VLML — Vegetarian Lacto-Ovo</option>
-                <option value="HNML">HNML — Hindu (non-veg)</option>
-                <option value="MOML">MOML — Muslim / Halal</option>
-                <option value="KSML">KSML — Kosher</option>
-                <option value="GFML">GFML — Gluten-free</option>
-                <option value="DBML">DBML — Diabetic</option>
-                <option value="LSML">LSML — Low sodium</option>
-                <option value="LFML">LFML — Low fat</option>
-                <option value="NLML">NLML — Nut-free</option>
-                <option value="SFML">SFML — Seafood</option>
-                <option value="BLML">BLML — Bland</option>
-                <option value="CHML">CHML — Child meal</option>
-                <option value="BBML">BBML — Baby / Infant meal</option>
+                <option value="VGML">VGML: Vegetarian (non-dairy)</option>
+                <option value="AVML">AVML: Asian Vegetarian</option>
+                <option value="VVML">VVML: Vegan</option>
+                <option value="VLML">VLML: Vegetarian Lacto-Ovo</option>
+                <option value="HNML">HNML: Hindu (non-veg)</option>
+                <option value="MOML">MOML: Muslim / Halal</option>
+                <option value="KSML">KSML: Kosher</option>
+                <option value="GFML">GFML: Gluten-free</option>
+                <option value="DBML">DBML: Diabetic</option>
+                <option value="LSML">LSML: Low sodium</option>
+                <option value="LFML">LFML: Low fat</option>
+                <option value="NLML">NLML: Nut-free</option>
+                <option value="SFML">SFML: Seafood</option>
+                <option value="BLML">BLML: Bland</option>
+                <option value="CHML">CHML: Child meal</option>
+                <option value="BBML">BBML: Baby / Infant meal</option>
               </select>
               <p style={{ fontSize: "11px", color: "#717171", marginTop: "4px" }}>IATA meal codes used by most airlines. Check your airline&apos;s policy for availability.</p>
             </div>

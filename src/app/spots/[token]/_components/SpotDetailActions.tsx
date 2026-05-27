@@ -78,7 +78,7 @@ export function SpotDetailActions({ spotId, spotName, spotCity, spotPhotoUrl, sp
           </button>
         </div>
         <p style={{ fontSize: "12px", color: "#AAAAAA", marginTop: "16px" }}>
-          Flokk is free family travel planning — save spots, build itineraries, discover where other families go.
+          Flokk is free family travel planning. Save spots, build itineraries, discover where other families go.
         </p>
       </div>
     );

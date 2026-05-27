@@ -187,8 +187,8 @@ export function StepFamilyMembers({ data, onNext }: Props) {
     <div className="space-y-8 pt-6">
       <div className="space-y-2">
         <h1 className="text-3xl font-black" style={{ color: "#1a1a1a" }}>Your crew.</h1>
-        <p className="text-lg" style={{ color: "#717171" }}>Add everyone who travels with you — kids, adults, grandparents, whoever.</p>
-        <p className="text-sm" style={{ color: "#717171" }}>No kids? No problem — just add the adults.</p>
+        <p className="text-lg" style={{ color: "#717171" }}>Add everyone who travels with you: kids, adults, grandparents, whoever.</p>
+        <p className="text-sm" style={{ color: "#717171" }}>No kids? No problem. Just add the adults.</p>
       </div>
 
       <div className="space-y-3">

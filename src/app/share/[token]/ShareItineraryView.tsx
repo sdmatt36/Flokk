@@ -389,7 +389,7 @@ export function ShareItineraryView({
                           })}
                           {day.items.length === 0 && (
                             <p style={{ fontSize: "13px", color: "#bbb", fontStyle: "italic" }}>
-                              Travel day — no planned activities.
+                              Travel day. No planned activities.
                             </p>
                           )}
 

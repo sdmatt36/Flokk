@@ -775,7 +775,7 @@ export default function TourPage() {
             type="text"
             value={startingPoint}
             onChange={(e) => setStartingPoint(e.target.value)}
-            placeholder="Starting point (optional — hotel name, landmark, address)"
+            placeholder="Starting point (optional: hotel name, landmark, address)"
             className={`${inputClass} mt-3`}
           />
 

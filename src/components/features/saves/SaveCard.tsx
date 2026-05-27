@@ -245,8 +245,8 @@ export function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTr
           {/* Advance-booking pill — top-left */}
           {save.needsAdvanceBooking === true && (
             <div
-              title={save.advanceBookingReason ?? "Popular item — book ahead"}
-              aria-label={save.advanceBookingReason ?? "Popular item — book ahead"}
+              title={save.advanceBookingReason ?? "Popular item, book ahead"}
+              aria-label={save.advanceBookingReason ?? "Popular item, book ahead"}
               style={{
                 position: "absolute",
                 top: "8px",
@@ -305,8 +305,8 @@ export function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTr
           {/* Advance-booking pill — top-left */}
           {save.needsAdvanceBooking === true && (
             <div
-              title={save.advanceBookingReason ?? "Popular item — book ahead"}
-              aria-label={save.advanceBookingReason ?? "Popular item — book ahead"}
+              title={save.advanceBookingReason ?? "Popular item, book ahead"}
+              aria-label={save.advanceBookingReason ?? "Popular item, book ahead"}
               style={{
                 position: "absolute",
                 top: "8px",

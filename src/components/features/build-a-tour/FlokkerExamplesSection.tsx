@@ -39,7 +39,7 @@ const SAMPLE_TOURS: SampleTour[] = [
     stops: 5,
     duration: "Full day",
     pacing: "Family-paced",
-    examplePrompt: "An Aspen winter day for a family — a few hours skiing, hot chocolate, downtown stroll, casual dinner.",
+    examplePrompt: "An Aspen winter day for a family: a few hours skiing, hot chocolate, downtown stroll, casual dinner.",
   },
   {
     title: "Cambodia temples & culture",
@@ -57,7 +57,7 @@ const SAMPLE_TOURS: SampleTour[] = [
     stops: 6,
     duration: "Half day evening",
     pacing: "Active",
-    examplePrompt: "An evening Bangkok tour — street food, night markets, tuk tuk rides. Family with one teen, one tween.",
+    examplePrompt: "An evening Bangkok tour: street food, night markets, tuk tuk rides. Family with one teen, one tween.",
   },
   {
     title: "Paris with grandparents",
@@ -66,7 +66,7 @@ const SAMPLE_TOURS: SampleTour[] = [
     stops: 6,
     duration: "Full day",
     pacing: "Relaxed",
-    examplePrompt: "A relaxed Paris day for a multi-generational family — grandparents, parents, kids. Iconic spots, lots of café breaks, no walking marathons.",
+    examplePrompt: "A relaxed Paris day for a multi-generational family: grandparents, parents, kids. Iconic spots, lots of café breaks, no walking marathons.",
   },
 ];
 

@@ -27,7 +27,7 @@ const ADMIN_TOPIC_TAGS = ["Packing", "Disney", "Family", "Budget", "Food", "Adve
 
 const APPROVAL_CHECKLIST = [
   "Relevant to family travel planning",
-  "Real experience — not generic or AI-written",
+  "Real experience, not generic or AI-written",
   "Not promotional or affiliate-first",
   "Destination is clearly identified",
   "Appropriate for families with children",

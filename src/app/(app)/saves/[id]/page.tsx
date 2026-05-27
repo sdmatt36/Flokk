@@ -43,13 +43,13 @@ function formatDate(d: Date) {
 
 function buildMatchReason(tags: string[], interestKeys: string[]): string {
   if (tags.some(t => ["Kids", "Activity", "Educational"].includes(t)) || interestKeys.some(k => ["theme_parks","zoos","educational","hands_on","playgrounds"].includes(k))) {
-    return "A great pick for the whole family — built for kids but enjoyable for adults too.";
+    return "A great pick for the whole family. Built for kids but enjoyable for adults too.";
   }
   if (tags.some(t => ["Food", "Street Food"].includes(t)) || interestKeys.some(k => ["street_food","local_markets","food_tours","cafes"].includes(k))) {
-    return "Matches your family's love of local food — a must-try for food explorers.";
+    return "Matches your family's love of local food. A must-try for food explorers.";
   }
   if (tags.some(t => ["Culture", "History", "Museum"].includes(t)) || interestKeys.some(k => ["museums","history","art","architecture"].includes(k))) {
-    return "Lines up with your interest in culture and history — a rich local experience.";
+    return "Lines up with your interest in culture and history. A rich local experience.";
   }
   if (tags.some(t => ["Beach", "Outdoor", "Hiking", "Water"].includes(t)) || interestKeys.some(k => ["beaches","hiking","national_parks","water_sports","wildlife"].includes(k))) {
     return "Fits your family's taste for outdoor adventures and nature.";

@@ -492,11 +492,11 @@ function AIBanner({ onSuggest }: { onSuggest: () => void }) {
 // ── Tab content ───────────────────────────────────────────────────────────────
 
 const DAY_OPTIONS = [
-  "Day 1 — Sun May 4",
-  "Day 2 — Mon May 5",
-  "Day 3 — Tue May 6",
-  "Day 4 — Wed May 7",
-  "Day 5 — Thu May 8",
+  "Day 1: Sun May 4",
+  "Day 2: Mon May 5",
+  "Day 3: Tue May 6",
+  "Day 4: Wed May 7",
+  "Day 5: Thu May 8",
 ];
 
 function AssignDayControl({ cardTitle, dayAssignments, openDayDropdown, setOpenDayDropdown, setDayAssignments }: {
@@ -828,8 +828,8 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
           <div style={{ height: "80px", backgroundImage: `url('${item.img}')`, backgroundSize: "cover", backgroundPosition: "center", position: "relative" }}>
             {item.needsAdvanceBooking === true && (
               <div
-                title={item.advanceBookingReason ?? "Popular item — book ahead"}
-                aria-label={item.advanceBookingReason ?? "Popular item — book ahead"}
+                title={item.advanceBookingReason ?? "Popular item, book ahead"}
+                aria-label={item.advanceBookingReason ?? "Popular item, book ahead"}
                 style={{ position: "absolute", top: "6px", left: "6px", zIndex: 2, backgroundColor: "#C4664A", color: "#FFFFFF", fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em", padding: "3px 8px", borderRadius: "4px", boxShadow: "0 2px 4px rgba(0,0,0,0.15)" }}
               >
                 ★ BOOK AHEAD
@@ -842,8 +842,8 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
         <div style={{ height: "60px", background: "linear-gradient(135deg, #1B3A5C 0%, #2d5a8e 100%)", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
           {item.needsAdvanceBooking === true && (
             <div
-              title={item.advanceBookingReason ?? "Popular item — book ahead"}
-              aria-label={item.advanceBookingReason ?? "Popular item — book ahead"}
+              title={item.advanceBookingReason ?? "Popular item, book ahead"}
+              aria-label={item.advanceBookingReason ?? "Popular item, book ahead"}
               style={{ position: "absolute", top: "6px", left: "6px", zIndex: 2, backgroundColor: "#C4664A", color: "#FFFFFF", fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em", padding: "3px 8px", borderRadius: "4px", boxShadow: "0 2px 4px rgba(0,0,0,0.15)" }}
             >
               ★ BOOK AHEAD
@@ -1050,8 +1050,8 @@ function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDel
           <img src={item.img} alt="" onError={() => setImgFailed(true)} style={{ display: "none" }} />
           {item.needsAdvanceBooking === true && (
             <div
-              title={item.advanceBookingReason ?? "Popular item — book ahead"}
-              aria-label={item.advanceBookingReason ?? "Popular item — book ahead"}
+              title={item.advanceBookingReason ?? "Popular item, book ahead"}
+              aria-label={item.advanceBookingReason ?? "Popular item, book ahead"}
               style={{ position: "absolute", top: "8px", left: "8px", zIndex: 2, backgroundColor: "#C4664A", color: "#FFFFFF", fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em", padding: "3px 8px", borderRadius: "4px", boxShadow: "0 2px 4px rgba(0,0,0,0.15)" }}
             >
               ★ BOOK AHEAD
@@ -1067,8 +1067,8 @@ function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDel
         <div style={{ height: "160px", backgroundColor: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
           {item.needsAdvanceBooking === true && (
             <div
-              title={item.advanceBookingReason ?? "Popular item — book ahead"}
-              aria-label={item.advanceBookingReason ?? "Popular item — book ahead"}
+              title={item.advanceBookingReason ?? "Popular item, book ahead"}
+              aria-label={item.advanceBookingReason ?? "Popular item, book ahead"}
               style={{ position: "absolute", top: "8px", left: "8px", zIndex: 2, backgroundColor: "#C4664A", color: "#FFFFFF", fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em", padding: "3px 8px", borderRadius: "4px", boxShadow: "0 2px 4px rgba(0,0,0,0.15)" }}
             >
               ★ BOOK AHEAD
@@ -1415,7 +1415,7 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
               <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "rgba(74,124,89,0.12)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
                 <span style={{ fontSize: "22px" }}>✓</span>
               </div>
-              <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a", marginBottom: "6px" }}>All saved — everything is in your itinerary</p>
+              <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a", marginBottom: "6px" }}>All saved. Everything is in your itinerary.</p>
               <p style={{ fontSize: "14px", color: "#717171", marginBottom: "16px" }}>All your saved places have been assigned to days.</p>
               {onSwitchToItinerary && (
                 <button
@@ -1567,7 +1567,7 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
               }).catch(e => console.error("[ItineraryWrite] DB persist failed:", e));
             }
             setAssignedDays(prev => ({ ...prev, [dayPickerItem.title]: dayIndex }));
-            setInlineToast(`Added to Day ${dayIndex + 1} — tap to view itinerary →`);
+            setInlineToast(`Added to Day ${dayIndex + 1}. Tap to view itinerary →`);
             setTimeout(() => setInlineToast(null), 4000);
             setDayPickerItem(null);
           }}
@@ -1648,7 +1648,7 @@ const ACCORDION_DAYS = [
 
 function TaskModal({ onClose }: { onClose: () => void }) {
   const NEEDS_BOOKING = [
-    { title: "Ocean Expo Park Churaumi Aquarium", note: "Tickets recommended in advance — sells out in May", url: "https://churaumi.okinawa/en/", price: "¥2,180 / adult" },
+    { title: "Ocean Expo Park Churaumi Aquarium", note: "Tickets recommended in advance. Sells out in May.", url: "https://churaumi.okinawa/en/", price: "¥2,180 / adult" },
     { title: "Katsuren Castle Ruins", note: "No booking required, but check opening hours", url: "https://www.katsuren-jo.jp/", price: "¥600 / adult" },
   ];
   const EMPTY_DAYS = [
@@ -1683,7 +1683,7 @@ function TaskModal({ onClose }: { onClose: () => void }) {
         {EMPTY_DAYS.map(day => (
           <div key={day.dayNum} style={{ backgroundColor: "#FAFAFA", borderRadius: "12px", border: "1.5px dashed #E0E0E0", padding: "14px", marginBottom: "10px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>Day {day.dayNum} — {day.dateStr}</p>
+              <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a" }}>Day {day.dayNum}: {day.dateStr}</p>
               <p style={{ fontSize: "12px", color: "#aaa" }}>Nothing planned yet</p>
             </div>
             <button onClick={onClose} style={{ padding: "7px 14px", borderRadius: "999px", border: "1.5px solid #C4664A", backgroundColor: "transparent", color: "#C4664A", fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Add saves →</button>
@@ -2532,13 +2532,13 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     const destConflicts = detectDayConflicts(futureDestItems);
     if (destConflicts.length > 0) {
       const dayLabel = tripDaysAll[destDayIdx]?.label ?? `Day ${destDayIdx + 1}`;
-      showConflictToast(`Heads up: scheduling conflict on ${dayLabel} — check the day for details`);
+      showConflictToast(`Heads up: scheduling conflict on ${dayLabel}. Check the day for details.`);
       return;
     }
     const sourceConflicts = detectDayConflicts(futureSourceItems);
     if (sourceConflicts.length > 0) {
       const dayLabel = tripDaysAll[sourceDayIdx]?.label ?? `Day ${sourceDayIdx + 1}`;
-      showConflictToast(`Heads up: scheduling conflict on ${dayLabel} — check the day for details`);
+      showConflictToast(`Heads up: scheduling conflict on ${dayLabel}. Check the day for details.`);
     }
   }
 
@@ -3039,7 +3039,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                 {itemsNeedingVerification.length > 0 && (
                   <div style={{ marginBottom: "12px", padding: "14px 16px", backgroundColor: "#FFFBEB", border: "1px solid #D97706", borderRadius: "12px" }}>
                     <p style={{ fontSize: "13px", fontWeight: 600, color: "#92400E", lineHeight: 1.4 }}>
-                      We want to make sure we Flokked this correctly —{" "}
+                      We want to make sure we Flokked this correctly.{" "}
                       {itemsNeedingVerification.length} booking{itemsNeedingVerification.length > 1 ? "s need" : " needs"} a quick check.
                     </p>
                     <button
@@ -3089,7 +3089,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                             if (timedItems.length >= 1) {
                               const firstTime = formatTime(timedItems[0].startTime);
                               const lastTime = timedItems.length >= 2 ? formatTime(timedItems[timedItems.length - 1].startTime) : null;
-                              const timeRange = lastTime ? `${firstTime} — ${lastTime}` : firstTime;
+                              const timeRange = lastTime ? `${firstTime}–${lastTime}` : firstTime;
                               return (
                                 <span style={{ fontSize: "11px", color: "#888" }}>
                                   {shortDate} · {timeRange}
@@ -3432,7 +3432,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                               </div>
                                               {a.notes && <p style={{ fontSize: "12px", color: "#888", marginTop: "4px", fontStyle: "italic" }}>{a.notes}</p>}
                                               {noLocationIds.has(a.id) && (
-                                                <p style={{ fontSize: "11px", color: "#AAAAAA", marginTop: "4px" }}>No location — add an address to show on map</p>
+                                                <p style={{ fontSize: "11px", color: "#AAAAAA", marginTop: "4px" }}>No location. Add an address to show on map.</p>
                                               )}
                                               {cardActionRow({
                                                 shareEntityType: "manual_activity",
@@ -3902,7 +3902,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                   }}
                 >
                   <span style={{ width: "10px", flexShrink: 0, fontSize: "10px" }}>{isCurrent ? "✓" : ""}</span>
-                  <span>{d.label} — {d.shortDate}</span>
+                  <span>{d.label} · {d.shortDate}</span>
                 </button>
               );
             })}
@@ -4577,7 +4577,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
               This will remove all {tourCancelTarget.stopCount} {tourCancelTarget.stopCount === 1 ? "stop" : "stops"} of the{" "}
               <strong>{tourCancelTarget.title}</strong>
               {tourCancelTarget.days.length > 0 && ` from Day${tourCancelTarget.days.length > 1 ? "s" : ""} ${tourCancelTarget.days.map(d => d + 1).join(", ")}`}.
-              The tour stays in your library — you can save it to your trip again later.
+              The tour stays in your library. You can save it to your trip again later.
             </p>
             <button
               onClick={async () => {
@@ -4616,7 +4616,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         const platformName = bc.bookingSource ? (SRC_LABEL[bc.bookingSource] ?? null) : null;
         const hasMgmtUrl = !!bc.managementUrl;
         const mailtoSubject = encodeURIComponent(
-          `Cancellation Request — ${hotelName}${bc.confirmationCode ? ` (${bc.confirmationCode})` : ""}`
+          `Cancellation Request: ${hotelName}${bc.confirmationCode ? ` (${bc.confirmationCode})` : ""}`
         );
         const mailtoBody = encodeURIComponent(
           `Dear ${hotelName} team,\n\nI would like to cancel my reservation` +
@@ -4637,7 +4637,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
               {hasMgmtUrl ? (
                 <>
                   <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>
-                    Step 1 — cancel on {platformName ?? "the booking platform"}:
+                    Step 1: cancel on {platformName ?? "the booking platform"}:
                   </p>
                   <a
                     href={bc.managementUrl!}
@@ -4648,13 +4648,13 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                     Open {platformName ?? "Booking Platform"}
                   </a>
                   <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>
-                    Step 2 — once cancelled, remove from your trip:
+                    Step 2: once cancelled, remove from your trip:
                   </p>
                 </>
               ) : (
                 <>
                   <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>
-                    Step 1 — email the property to cancel:
+                    Step 1: email the property to cancel:
                   </p>
                   <a
                     href={`mailto:?subject=${mailtoSubject}&body=${mailtoBody}`}
@@ -4663,7 +4663,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                     Compose cancellation email
                   </a>
                   <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>
-                    Step 2 — once sent, remove from your trip:
+                    Step 2: once sent, remove from your trip:
                   </p>
                 </>
               )}
@@ -5326,7 +5326,7 @@ const RECOMMENDATIONS: RecItem[] = [
     saved: 1840,
     lat: 26.3998,
     lng: 127.7159,
-    description: "One of Okinawa's most iconic coastal landmarks — the naturally formed elephant-trunk rock arch sits at the tip of Manzamo Cape. An easy 10-minute walk from the parking area leads to sweeping views over the East China Sea.",
+    description: "One of Okinawa's most iconic coastal landmarks. The naturally formed elephant-trunk rock arch sits at the tip of Manzamo Cape. An easy 10-minute walk from the parking area leads to sweeping views over the East China Sea.",
     hours: "Always open (parking lot: 8:00am – 6:00pm)",
     ages: "All ages",
     website: "https://www.visitokinawa.jp/information/cape-manzamo",
@@ -5342,7 +5342,7 @@ const RECOMMENDATIONS: RecItem[] = [
     saved: 2210,
     lat: 26.2172,
     lng: 127.7197,
-    description: "The restored palace of the Ryukyu Kingdom, Shuri Castle is a striking red-lacquered fortress on a hilltop in Naha. A UNESCO World Heritage Site that blends Japanese, Chinese, and Southeast Asian influences — currently being restored after a 2019 fire.",
+    description: "The restored palace of the Ryukyu Kingdom, Shuri Castle is a striking red-lacquered fortress on a hilltop in Naha. A UNESCO World Heritage Site that blends Japanese, Chinese, and Southeast Asian influences, currently being restored after a 2019 fire.",
     hours: "8:30am – 6:00pm (Apr–Jun, Oct–Nov); 8:30am – 7:00pm (Jul–Sep); 8:30am – 5:30pm (Dec–Mar)",
     ages: "Ages 5+",
     website: "https://www.shurijo-park.go.jp",
@@ -5358,7 +5358,7 @@ const RECOMMENDATIONS: RecItem[] = [
     saved: 1650,
     lat: 26.1613,
     lng: 127.7714,
-    description: "Okinawa World combines the spectacular Gyokusendo Cave — a 5km limestone cavern — with a Ryukyuan culture village, habu snake show, and local crafts demonstrations. The cave walkthrough is a family highlight.",
+    description: "Okinawa World combines the spectacular Gyokusendo Cave (a 5km limestone cavern) with a Ryukyuan culture village, habu snake show, and local crafts demonstrations. The cave walkthrough is a family highlight.",
     hours: "9:00am – 5:00pm daily",
     ages: "Ages 4+",
     website: "https://www.gyokusendo.co.jp/okinawaworld",
@@ -5440,7 +5440,7 @@ const RECOMMENDATIONS: RecItem[] = [
     saved: 1870,
     lat: 35.0033,
     lng: 135.7764,
-    description: "Experience the meditative art of Japanese tea ceremony in one of Gion's preserved machiya townhouses. Wear a kimono, learn proper etiquette from a tea master, and savour matcha with seasonal wagashi sweets — a highlight for families with curious kids.",
+    description: "Experience the meditative art of Japanese tea ceremony in one of Gion's preserved machiya townhouses. Wear a kimono, learn proper etiquette from a tea master, and savour matcha with seasonal wagashi sweets, a highlight for families with curious kids.",
     hours: "Sessions daily 10:00am – 5:00pm; book in advance",
     ages: "Ages 5+",
     website: "https://en.kyoto.travel/activity/detail/1",
@@ -5504,7 +5504,7 @@ const RECOMMENDATIONS: RecItem[] = [
     saved: 810,
     lat: 34.9441,
     lng: 135.7730,
-    description: "Toyotomi Hideyoshi's hilltop castle commands panoramic views over southern Kyoto and is surprisingly crowd-free compared to Nijo or Himeji. Walk the stone walls, explore the replica keep, and enjoy the quiet park atmosphere — a great off-the-beaten-path pick.",
+    description: "Toyotomi Hideyoshi's hilltop castle commands panoramic views over southern Kyoto and is surprisingly crowd-free compared to Nijo or Himeji. Walk the stone walls, explore the replica keep, and enjoy the quiet park atmosphere. A great off-the-beaten-path pick.",
     hours: "9:00am – 5:00pm (closed Tuesdays)",
     ages: "Ages 4+",
     website: "https://www.kyokanko.or.jp",
@@ -5708,7 +5708,7 @@ function RecommendedContent({
     const loadingMessage = {
       initial: "Generating personalized recommendations for your trip...",
       venues: "Finding venue photos and details...",
-      almost: "Almost there — putting it all together...",
+      almost: "Almost there. Putting it all together...",
     }[loadingPhase];
     return (
       <div style={{ padding: "60px 24px", textAlign: "center" }}>
@@ -5738,7 +5738,7 @@ function RecommendedContent({
           No recommendations yet
         </p>
         <p style={{ fontSize: "14px", color: "#717171", lineHeight: 1.5 }}>
-          Check back soon — or complete your family profile to get personalised suggestions.
+          Check back soon, or complete your family profile to get personalised suggestions.
         </p>
       </div>
     );
@@ -5916,7 +5916,7 @@ function RecommendedContent({
         <div>
           <p style={{ fontSize: "15px", fontWeight: 700, color: "#fff", marginBottom: "4px" }}>Been here? Help the next family.</p>
           <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.7)", lineHeight: 1.5 }}>
-            Your first-hand tips get surfaced to families just like yours — and earn you Pioneer tier points.
+            Your first-hand tips get surfaced to families just like yours, and earn you Pioneer tier points.
           </p>
         </div>
         <Link
@@ -6007,7 +6007,7 @@ function EventsContent({
     const loadingMessage = {
       initial: "Checking what's happening during your trip...",
       checking: "Searching for events that match your family...",
-      almost: "Almost there — putting it together...",
+      almost: "Almost there. Putting it together...",
     }[loadingPhase];
     return (
       <div>
@@ -6029,7 +6029,7 @@ function EventsContent({
             No events found yet
           </p>
           <p style={{ fontSize: "13px", color: "#717171", lineHeight: 1.5 }}>
-            We&apos;re still expanding event coverage for {destinationCity ?? "this destination"}. Check back soon — or update your family&apos;s entertainment interests in your profile to see different categories.
+            We&apos;re still expanding event coverage for {destinationCity ?? "this destination"}. Check back soon, or update your family&apos;s entertainment interests in your profile to see different categories.
           </p>
         </div>
       </div>
@@ -6486,11 +6486,11 @@ type HowWasItItem = {
 };
 
 const STAR_LABELS: Record<number, string> = {
-  1: "1 — Poor",
-  2: "2 — Below average",
-  3: "3 — Good",
-  4: "4 — Very good",
-  5: "5 — Excellent",
+  1: "1: Poor",
+  2: "2: Below average",
+  3: "3: Good",
+  4: "4: Very good",
+  5: "5: Excellent",
 };
 
 const EXCLUDE_SAVE_TAGS = /flight|airfare|airline|lodging|accommodation|hotel|transportation/i;
@@ -6790,7 +6790,7 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
       {shareToken && hasShared && (
         <div style={{ marginBottom: "24px", padding: "12px 16px", backgroundColor: "#F0F7F0", border: "1px solid #6B8F71", borderRadius: "12px" }}>
           <p style={{ fontSize: "13px", color: "#6B8F71", fontWeight: 600 }}>
-            Share link copied — paste it anywhere to share your trip.
+            Share link copied. Paste it anywhere to share your trip.
           </p>
         </div>
       )}
@@ -6799,7 +6799,7 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
       <p style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>
         How did it go{destinationCity ? ` in ${destinationCity}` : ""}?
       </p>
-      <p style={{ fontSize: "13px", color: "#717171", marginBottom: "20px" }}>Rate what you experienced — it helps other Flokkers plan.</p>
+      <p style={{ fontSize: "13px", color: "#717171", marginBottom: "20px" }}>Rate what you experienced. It helps other Flokkers plan.</p>
 
       {items.length === 0 && (
         <p style={{ fontSize: "13px", color: "#bbb", marginBottom: "24px" }}>No activities or hotels found for this trip.</p>
@@ -7442,12 +7442,12 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
 
               {selectedStop.stop.ticketRequired === "ticket-required" && (
                 <div style={{ backgroundColor: "#FEF3C7", borderRadius: "8px", padding: "8px 12px", marginBottom: "12px" }}>
-                  <p style={{ fontSize: "12px", fontWeight: 600, color: "#92400E", margin: 0 }}>Ticket required — book in advance if possible.</p>
+                  <p style={{ fontSize: "12px", fontWeight: 600, color: "#92400E", margin: 0 }}>Ticket required. Book in advance if possible.</p>
                 </div>
               )}
               {selectedStop.stop.ticketRequired === "advance-booking-recommended" && (
                 <div style={{ backgroundColor: "#FEF3C7", borderRadius: "8px", padding: "8px 12px", marginBottom: "12px" }}>
-                  <p style={{ fontSize: "12px", fontWeight: 600, color: "#92400E", margin: 0 }}>Advance booking recommended — popular attraction.</p>
+                  <p style={{ fontSize: "12px", fontWeight: 600, color: "#92400E", margin: 0 }}>Advance booking recommended. Popular attraction.</p>
                 </div>
               )}
               {selectedStop.stop.ticketRequired === "free" && (
@@ -7510,7 +7510,7 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
               This will remove all {cancelTarget.stopCount} {cancelTarget.stopCount === 1 ? "stop" : "stops"} of the{" "}
               <strong>{cancelTarget.title}</strong>
               {cancelTarget.days.length > 0 && ` from ${dayLabel(cancelTarget.days)} of ${tripTitle ?? "your trip"}`}.
-              The tour stays in your library — you can save it to your trip again later.
+              The tour stays in your library. You can save it to your trip again later.
             </p>
             <button
               onClick={() => handleCancel(cancelTarget)}
@@ -8094,9 +8094,9 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "20px" }}>
             <div>
               <p style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>Trip notes</p>
-              <p style={{ fontSize: "13px", color: "#717171", marginBottom: "4px" }}>Reminders, things to check, ideas — everything in one place.</p>
+              <p style={{ fontSize: "13px", color: "#717171", marginBottom: "4px" }}>Reminders, things to check, ideas. Everything in one place.</p>
               <p style={{ fontSize: "12px", color: "#888", lineHeight: 1.5 }}>
-                Trip notes save here. Day-specific notes go in Itinerary — they show up here too with a Day badge.
+                Trip notes save here. Day-specific notes go in Itinerary. They show up here too with a Day badge.
               </p>
             </div>
             <button
@@ -9310,7 +9310,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         const bt = vc.bookingType.toLowerCase();
         const typeDisplay = bt === "hotel" ? "Hotel" : bt === "flight" ? "Flight" : bt === "activity" ? "Activity" : bt === "train" ? "Train" : bt === "car_rental" ? "Car Rental" : "Booking";
         const hasMgmtUrl = !!vc.managementUrl;
-        const mailtoSubject = encodeURIComponent(`Cancellation Request — ${vc.label}${vc.confirmationCode ? ` (${vc.confirmationCode})` : ""}`);
+        const mailtoSubject = encodeURIComponent(`Cancellation Request: ${vc.label}${vc.confirmationCode ? ` (${vc.confirmationCode})` : ""}`);
         const mailtoBody = encodeURIComponent(
           `Dear ${vc.label} team,\n\nI would like to cancel my reservation` +
           (vc.confirmationCode ? ` (Confirmation: ${vc.confirmationCode})` : "") + ".\n\n" +
@@ -9331,7 +9331,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               {hasMgmtUrl ? (
                 <>
                   <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>
-                    Step 1 — cancel on {vc.platformName ?? "the booking platform"}:
+                    Step 1: cancel on {vc.platformName ?? "the booking platform"}:
                   </p>
                   <a
                     href={vc.managementUrl!}
@@ -9341,12 +9341,12 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                   >
                     Open {vc.platformName ?? "Booking Platform"}
                   </a>
-                  <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>Step 2 — once cancelled, remove from vault:</p>
+                  <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>Step 2: once cancelled, remove from vault:</p>
                 </>
               ) : (
                 <>
                   <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>
-                    Step 1 — contact the provider to cancel:
+                    Step 1: contact the provider to cancel:
                   </p>
                   <a
                     href={`mailto:?subject=${mailtoSubject}&body=${mailtoBody}`}
@@ -9354,7 +9354,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                   >
                     Compose cancellation email
                   </a>
-                  <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>Step 2 — once sent, remove from vault:</p>
+                  <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>Step 2: once sent, remove from vault:</p>
                 </>
               )}
               <button

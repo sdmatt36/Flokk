@@ -13,9 +13,9 @@ export async function generateMetadata({
 }) {
   const { token } = await params;
   const share = await db.cityShare.findUnique({ where: { token }, select: { citySlug: true } });
-  if (!share) return { title: "Shared saves — Flokk" };
+  if (!share) return { title: "Shared saves | Flokk" };
   const city = await db.city.findUnique({ where: { slug: share.citySlug }, select: { name: true } });
-  return { title: `Saves in ${city?.name ?? share.citySlug} — Flokk` };
+  return { title: `Saves in ${city?.name ?? share.citySlug} | Flokk` };
 }
 
 const IMPORT_SOURCE_METHODS = ["maps_import"];

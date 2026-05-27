@@ -274,7 +274,7 @@ export function PaymentSection() {
               No payment methods yet
             </p>
             <p style={{ color: "#717171", fontSize: "14px", maxWidth: "360px", marginTop: "8px", lineHeight: 1.5 }}>
-              Add the cards you use for travel — we&apos;ll surface relevant perks and rewards during trip planning.
+              Add the cards you use for travel. We&apos;ll surface relevant perks and rewards during trip planning.
             </p>
             <button
               onClick={() => setShowModal(true)}

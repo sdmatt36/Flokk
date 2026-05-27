@@ -45,8 +45,8 @@ function ProfilePageContent() {
 
   const verifyStatus = searchParams.get("verify");
   const [verifyToast, setVerifyToast] = useState<string | null>(
-    verifyStatus === "ok" ? "Email verified — you can now forward bookings from this address ✓"
-    : verifyStatus === "expired" ? "Verification link expired — please request a new one."
+    verifyStatus === "ok" ? "Email verified. You can now forward bookings from this address ✓"
+    : verifyStatus === "expired" ? "Verification link expired. Please request a new one."
     : verifyStatus === "invalid" ? "Invalid or already-used verification link."
     : null
   );

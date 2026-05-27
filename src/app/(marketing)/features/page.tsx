@@ -17,11 +17,11 @@ const MORE_FEATURES = [
   {
     title: "iOS share sheet",
     teaser: "Coming soon.",
-    description: "Save from any iOS app — Instagram, Safari, Maps — with a single tap from the native share sheet.",
+    description: "Save from any iOS app (Instagram, Safari, Maps) with a single tap from the native share sheet.",
   },
   {
     title: "Booking Portal",
-    teaser: "Book flights, hotels, and rental cars — coming soon.",
+    teaser: "Book flights, hotels, and rental cars. Coming soon.",
     description: "Book directly on Flokk and your confirmation files automatically into your trip. No forwarding emails.",
   },
   {
@@ -32,7 +32,7 @@ const MORE_FEATURES = [
   {
     title: "Best Of rankings",
     teaser: "The list that actually matters.",
-    description: "Destination-specific Best Of rankings built from real family ratings — not sponsored content or review farms.",
+    description: "Destination-specific Best Of rankings built from real family ratings. Not sponsored content or review farms.",
   },
 ];
 
@@ -61,15 +61,15 @@ export default function FeaturesPage() {
             <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", marginBottom: "8px" }}>Save</p>
             <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "36px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 16px" }}>Save anywhere</h2>
             <p style={{ fontSize: "16px", color: "#717171", maxWidth: "560px", lineHeight: 1.7 }}>
-              Rescue your saved content from Instagram, TikTok, Google Maps, and anywhere else — and make it actually useful.
+              Rescue your saved content from Instagram, TikTok, Google Maps, and anywhere else. Make it actually useful.
             </p>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
             {[
-              { title: "Save from any social platform", desc: "Share directly from Instagram, TikTok, YouTube, or any website. Flokk extracts the name, location, photo, and category automatically — no manual entry." },
+              { title: "Save from any social platform", desc: "Share directly from Instagram, TikTok, YouTube, or any website. Flokk extracts the name, location, photo, and category automatically. No manual entry." },
               { title: "Forward to trips@flokktravel.com", desc: "Email any link, recommendation, or booking confirmation to trips@flokktravel.com. Flokk reads it, identifies the place or booking, and adds it to the right trip." },
               { title: "Booking confirmations auto-file", desc: "Forward your hotel, flight, or activity confirmations. Flokk parses the details and adds them to your itinerary with check-in dates, confirmation codes, and costs." },
-              { title: "Auto-enrichment", desc: "Every save is automatically matched against Google Places to pull in the official name, city, photo, and website — even when the original source had none of that." },
+              { title: "Auto-enrichment", desc: "Every save is automatically matched against Google Places to pull in the official name, city, photo, and website, even when the original source had none of that." },
               { title: "Duplicate detection", desc: "Saved the same place twice from different sources? Flokk catches it and merges rather than cluttering your library with duplicates." },
             ].map((item) => (
               <div key={item.title} style={{ backgroundColor: "#F9F9F9", borderRadius: "16px", padding: "28px" }}>
@@ -94,10 +94,10 @@ export default function FeaturesPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
             {[
               { title: "Day planner with map pins", desc: "Drag your saves into a day-by-day schedule. Each item pins to the map so you can see whether your plan actually makes geographic sense." },
-              { title: "Flight and hotel auto-import", desc: "Forward your booking confirmation emails and Flokk adds flights, check-ins, and check-outs to your itinerary automatically — with dates, times, and confirmation codes." },
+              { title: "Flight and hotel auto-import", desc: "Forward your booking confirmation emails and Flokk adds flights, check-ins, and check-outs to your itinerary automatically, with dates, times, and confirmation codes." },
               { title: "Packing lists", desc: "Generate a packing list tailored to your destination, the season, your trip duration, and your family's ages. Check items off as you pack." },
               { title: "Budget tracking", desc: "Costs from booking confirmations are captured automatically. Add manual entries for cash spending. Flokk tracks total spend against your budget in real time." },
-              { title: "Trip Readiness score", desc: "A live score that tells you how complete your trip plan is — missing confirmations, unbookable saves, and planning gaps surfaced before it's too late." },
+              { title: "Trip Readiness score", desc: "A live score that tells you how complete your trip plan is. Missing confirmations, unbookable saves, and planning gaps surfaced before it's too late." },
               { title: "Auto-sort by time", desc: "Add items without worrying about order. Flokk sorts flights, check-ins, activities, and check-outs by time and type so your itinerary always reads correctly." },
             ].map((item) => (
               <div key={item.title} style={{ backgroundColor: "#fff", borderRadius: "16px", padding: "28px", boxShadow: "0 1px 6px rgba(0,0,0,0.06)" }}>
@@ -116,16 +116,16 @@ export default function FeaturesPage() {
             <p style={{ fontSize: "12px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#C4664A", marginBottom: "8px" }}>Discover</p>
             <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "36px", fontWeight: 600, color: "#1B3A5C", margin: "0 0 16px" }}>Discover what families love</h2>
             <p style={{ fontSize: "16px", color: "#717171", maxWidth: "560px", lineHeight: 1.7 }}>
-              Real recommendations from real families — not SEO listicles.
+              Real recommendations from real families. Not SEO listicles.
             </p>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
             {[
-              { title: "Community Picks", desc: "Spots rated by families who have actually been there. Filtered by destination, category, and the ages of kids in the group — not generic star ratings." },
+              { title: "Community Picks", desc: "Spots rated by families who have actually been there. Filtered by destination, category, and the ages of kids in the group. Not generic star ratings." },
               { title: "Flokk Travel Intel guides", desc: "Curated destination guides written for families: what to skip, what to book early, what to save for a rainy day. Updated from the community, not a content team." },
               { title: "Steal This Itinerary", desc: "Browse real trips shared by other Flokk families. Copy the whole plan, or cherry-pick the saves you want. The fastest way to plan a trip you've never done before." },
               { title: "Destination search", desc: "Search any destination and surface saves from across the Flokk community. Weighted by family ratings, recency, and relevance to your travel style." },
-              { title: "Filter by category, age, and style", desc: "Every discovery tool in Flokk knows your kids' ages and your family's interests. Filters aren't bolted on — they're built into the ranking from the start." },
+              { title: "Filter by category, age, and style", desc: "Every discovery tool in Flokk knows your kids' ages and your family's interests. Filters aren't bolted on. They're built into the ranking from the start." },
             ].map((item) => (
               <div key={item.title} style={{ backgroundColor: "#F9F9F9", borderRadius: "16px", padding: "28px" }}>
                 <h3 style={{ fontSize: "16px", fontWeight: 700, color: "#1B3A5C", margin: "0 0 10px" }}>{item.title}</h3>
@@ -149,7 +149,7 @@ export default function FeaturesPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
             {[
               { title: "Family profile", desc: "Set traveler ages, dietary preferences, and travel interests once. Every recommendation, filter, and planning suggestion is shaped by this profile from day one." },
-              { title: "AI Trip Intelligence", desc: "Flokk scans your itinerary for conflicts, booking urgency, and gaps — then surfaces alerts before they become problems. Like a travel agent who's read your whole plan." },
+              { title: "AI Trip Intelligence", desc: "Flokk scans your itinerary for conflicts, booking urgency, and gaps, then surfaces alerts before they become problems. Like a travel agent who's read your whole plan." },
               { title: "Post-trip ratings", desc: "After each trip, rate the places you visited. Your ratings improve recommendations for your own future trips and feed the community engine for families like yours." },
               { title: "Shareable trip pages", desc: "Every trip gets a shareable link with privacy controls. Share a read-only view with family members, or make it public so other Flokk families can discover your itinerary." },
               { title: "Co-owner invite", desc: "Invite a partner or co-planner to your trip with full edit access. Plan together in real time without emailing spreadsheets back and forth." },

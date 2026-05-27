@@ -48,7 +48,7 @@ const SECTIONS: { title: string; body: React.ReactNode }[] = [
           <li>Email processing providers (for inbound email parsing)</li>
           <li>Mapping and location data providers (for map display and geocoding)</li>
           <li>AI processing providers (for recommendation and extraction features)</li>
-          <li>Payment processors (if and when paid features are activated — we never see your card details)</li>
+          <li>Payment processors (if and when paid features are activated; we never see your card details)</li>
         </ul>
         <p style={{ margin: "0 0 12px" }}>All providers are contractually required to process your data only for the purposes we specify. We do not sell your data. We do not share it with data brokers or marketing platforms.</p>
         <p style={{ margin: 0 }}>Cross-border transfers: Flokk is operated from Japan. Our infrastructure providers are based in the United States. Data transfers to the US are conducted under standard contractual clauses or equivalent safeguards as required by applicable law.</p>

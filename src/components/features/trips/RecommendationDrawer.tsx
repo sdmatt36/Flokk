@@ -70,7 +70,7 @@ export function RecommendationDrawer({
     setAdding(true);
     try {
       if (!tripId) {
-        setSaveError("No trip selected — open a trip first.");
+        setSaveError("No trip selected. Open a trip first.");
         return;
       }
       const res = await fetch(`/api/trips/${tripId}/itinerary`, {
@@ -89,7 +89,7 @@ export function RecommendationDrawer({
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         console.error("Itinerary save failed:", err);
-        setSaveError("Could not save — please try again.");
+        setSaveError("Could not save. Please try again.");
         return;
       }
       setAdded(true);

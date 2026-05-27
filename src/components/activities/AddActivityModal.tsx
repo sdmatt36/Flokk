@@ -397,7 +397,7 @@ export function AddActivityModal({ tripId, onClose, onSaved, existingActivity, d
               style={inputStyle}
             />
             {addressFromPlaces && (
-              <p style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}>From Google Places — edit if needed</p>
+              <p style={{ fontSize: "11px", color: "#888", marginTop: "4px" }}>From Google Places. Edit if needed.</p>
             )}
           </div>
 

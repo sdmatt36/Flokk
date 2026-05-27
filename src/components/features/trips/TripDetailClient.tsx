@@ -432,7 +432,7 @@ export function TripDetailClient({ playfairClass, initialTab = "saved" }: { play
                     <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", flex: 1 }}>
                       <Sparkles size={15} style={{ color: "#C4664A", flexShrink: 0, marginTop: "1px" }} />
                       <p style={{ fontSize: "13px", color: "#1a1a1a", lineHeight: 1.45 }}>
-                        You have 3 free afternoons — want suggestions near your hotel?
+                        You have 3 free afternoons. Want suggestions near your hotel?
                       </p>
                     </div>
                     <span style={{ fontSize: "12px", color: "#C4664A", fontWeight: 700, flexShrink: 0, cursor: "pointer" }}>

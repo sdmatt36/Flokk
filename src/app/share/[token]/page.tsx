@@ -22,10 +22,10 @@ export async function generateMetadata({
     where: { shareToken: token },
     select: { title: true, destinationCity: true, destinationCountry: true },
   });
-  if (!trip) return { title: "Trip — Flokk" };
+  if (!trip) return { title: "Trip | Flokk" };
   const dest = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ");
   return {
-    title: `${trip.title}${dest ? ` · ${dest}` : ""} — shared on Flokk`,
+    title: `${trip.title}${dest ? ` · ${dest}` : ""}, shared on Flokk`,
   };
 }
 
@@ -728,7 +728,7 @@ export default async function SharePage({
             Ask {curatorName} anything about this trip.
           </p>
           <p style={{ fontSize: "14px", color: "#9ca3af", fontStyle: "italic" }}>
-            Messaging coming soon — join Flokk to be notified when it launches.
+            Messaging coming soon. Join Flokk to be notified when it launches.
           </p>
         </div>
 
@@ -753,7 +753,7 @@ export default async function SharePage({
         {/* Empty state */}
         {allDayIndices.length === 0 && nearbySaves.length === 0 && (
           <div style={{ textAlign: "center", padding: "48px 16px", color: "#AAAAAA" }}>
-            <p style={{ fontSize: "15px" }}>This trip is being planned — check back soon.</p>
+            <p style={{ fontSize: "15px" }}>This trip is being planned. Check back soon.</p>
           </div>
         )}
 

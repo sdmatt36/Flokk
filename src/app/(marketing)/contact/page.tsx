@@ -72,7 +72,7 @@ export default function ContactPage() {
               </div>
               <div>
                 <p style={{ fontSize: "13px", fontWeight: 700, color: "#1B3A5C", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Location</p>
-                <p style={{ fontSize: "15px", color: "#717171", margin: 0 }}>Global — We are everywhere.</p>
+                <p style={{ fontSize: "15px", color: "#717171", margin: 0 }}>Global. We are everywhere.</p>
               </div>
               <div>
                 <p style={{ fontSize: "13px", fontWeight: 700, color: "#1B3A5C", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 4px" }}>Response time</p>

@@ -69,7 +69,7 @@ function buildSubtitle(items: StealDayItem[]): string {
 }
 
 export function StealDayModal({ open, shareToken, sourceTripId, day, onClose, onItemsSaved }: Props) {
-  const defaultTripName = `${day.city ?? "Trip"} — ${day.label}`;
+  const defaultTripName = `${day.city ?? "Trip"}: ${day.label}`;
 
   const [step, setStep] = useState<Step>("options");
   const [submitting, setSubmitting] = useState(false);

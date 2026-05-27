@@ -257,9 +257,9 @@ export async function generateMetadata({
       description: true,
     },
   });
-  if (!spot) return { title: "Not found — Flokk" };
+  if (!spot) return { title: "Not found | Flokk" };
   return {
-    title: `${spot.name} — ${spot.city} | Flokk`,
+    title: `${spot.name} · ${spot.city} | Flokk`,
     description:
       spot.description ?? `Family-tested spot in ${spot.city}, discovered on Flokk.`,
     openGraph: {
