@@ -109,7 +109,6 @@ import { toTitleCase } from "@/lib/utils";
 import { getTripCoverImage, getItemImage, CATEGORY_IMAGES } from "@/lib/destination-images";
 import { ItemImageTile } from "@/components/shared/ItemImageTile";
 import { BookingIntelCard } from "@/components/features/trips/BookingIntelCard";
-import { BudgetPanel } from "@/components/features/trips/BudgetPanel";
 import { ShareTripButton } from "@/components/features/trips/ShareTripButton";
 import { getEntityStatus, type EntityStatusResult } from "@/lib/entity-status";
 import { EntityStatusPill } from "@/components/ui/EntityStatusPill";
@@ -1833,7 +1832,7 @@ function ActivityDetailModal({ activity, onClose, onEdit, onDelete, onMarkBooked
   );
 }
 
-function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onEditSavedActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onDeleteActivity, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight, budgetTotal, trackedTotal, budgetCurrency, budgetLoaded, onBudgetChange, shareToken, onManageTours, cancelledCount = 0 }: {
+function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onEditSavedActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onDeleteActivity, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight, shareToken, onManageTours, cancelledCount = 0 }: {
   flyTarget: { lat: number; lng: number } | null;
   onFlyTargetConsumed: () => void;
   tripId?: string;
@@ -1852,11 +1851,6 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   onMarkActivityBooked?: (id: string) => void;
   onRemoveFlightFromDay?: (id: string) => void;
   onAddFlight?: () => void;
-  budgetTotal: number | null;
-  trackedTotal: number;
-  budgetCurrency: string;
-  budgetLoaded: boolean;
-  onBudgetChange: (total: number | null, currency: string) => void;
   shareToken?: string;
   onManageTours?: () => void;
   cancelledCount?: number;
@@ -2917,18 +2911,6 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           onManageTours={onManageTours}
         />
       )}
-
-      {/* Unified budget panel */}
-      <BudgetPanel
-        tripId={tripId}
-        destinationCity={destinationCity}
-        destinationCountry={destinationCountry}
-        budgetTotal={budgetTotal}
-        budgetCurrency={budgetCurrency}
-        trackedTotal={trackedTotal}
-        loaded={budgetLoaded}
-        onBudgetChange={onBudgetChange}
-      />
 
       {/* Split content area */}
       <div style={{ display: "flex", flexDirection: isDesktop ? "row" : "column", gap: "24px", alignItems: "flex-start" }}>
@@ -7529,30 +7511,6 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [editEndDate, setEditEndDate] = useState('');
   const [dateSaving, setDateSaving] = useState(false);
 
-  // Budget state — lives at top level so it survives tab switches
-  const [budgetTotal, setBudgetTotal] = useState<number | null>(null);
-  const [trackedTotal, setTrackedTotal] = useState<number>(0);
-  const [budgetCurrency, setBudgetCurrency] = useState<string>("USD");
-  const [budgetLoaded, setBudgetLoaded] = useState(false);
-
-  useEffect(() => {
-    if (!tripId || budgetLoaded) return;
-    fetch(`/api/trips/${tripId}/budget`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.budgetTotal !== null && data.budgetTotal !== undefined) setBudgetTotal(data.budgetTotal);
-        if (data.budgetCurrency) setBudgetCurrency(data.budgetCurrency);
-        setTrackedTotal(data.trackedTotal ?? 0);
-        setBudgetLoaded(true);
-      })
-      .catch(err => { console.error('Budget fetch failed:', err); setBudgetLoaded(true); });
-  }, [tripId, budgetLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function handleBudgetChange(total: number | null, currency: string) {
-    setBudgetTotal(total);
-    setBudgetCurrency(currency);
-  }
-
   const fetchFlights = useCallback(() => {
     if (!tripId) return;
     fetch(`/api/trips/${tripId}/flights`)
@@ -8035,7 +7993,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       {tab === "saved" && (
         <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} shareToken={shareToken} />
       )}
-      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} onEditSavedActivity={(a) => { setEditingActivity(a); setEditingActivityIsSavedItem(true); }} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onDeleteActivity={handleDeleteActivity} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} budgetTotal={budgetTotal} trackedTotal={trackedTotal} budgetCurrency={budgetCurrency} budgetLoaded={budgetLoaded} onBudgetChange={handleBudgetChange} shareToken={shareToken} onManageTours={() => setTab("tours")} cancelledCount={cancelledCount} />}
+      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} onEditSavedActivity={(a) => { setEditingActivity(a); setEditingActivityIsSavedItem(true); }} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onDeleteActivity={handleDeleteActivity} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} shareToken={shareToken} onManageTours={() => setTab("tours")} cancelledCount={cancelledCount} />}
       {tab === "tours" && <ToursContent tripId={tripId} tripTitle={tripTitle} />}
       {tab === "packing" && <PackingContent tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} tripStartDate={tripStartDate} tripEndDate={tripEndDate} />}
       {tab === "notes" && (
