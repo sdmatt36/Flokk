@@ -422,6 +422,9 @@ model SavedItem {
   manualActivity           ManualActivity? @relation("ManualActivitySavedItem")
   cityId                   String?
   city                     City?     @relation(fields: [cityId], references: [id], onDelete: SetNull)
+  needsAdvanceBooking      Boolean   @default(false)
+  advanceBookingReason     String?
+  advanceBookingScrubbedAt DateTime?
 
   @@index([communitySpotId])
   @@index([tourId])
