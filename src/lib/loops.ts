@@ -38,6 +38,33 @@ export async function createLoopsContact(
   }
 }
 
+export async function sendTripCreatedEvent(
+  email: string,
+  properties: {
+    tripDestination?: string;
+  }
+): Promise<void> {
+  const key = process.env.LOOPS_API_KEY;
+  try {
+    const res = await fetch("https://app.loops.so/api/v1/events/send", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        email,
+        eventName: "trip_created",
+        tripDestination: properties.tripDestination,
+      }),
+    });
+    const data = await res.json();
+    console.log(`[loops] trip_created sent to ${email} — status: ${res.status} body:`, JSON.stringify(data));
+  } catch (err) {
+    console.error("[loops] trip_created failed:", err);
+  }
+}
+
 export async function sendTripCompletedEvent(
   email: string,
   properties: {

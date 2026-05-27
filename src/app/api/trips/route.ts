@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
-import { sendTransactional } from "@/lib/loops";
+import { sendTransactional, sendTripCreatedEvent, updateLoopsContact } from "@/lib/loops";
 
 export const dynamic = "force-dynamic";
 
@@ -137,6 +137,31 @@ export async function POST(req: Request) {
     }
   } catch (e) {
     console.error("[loops] first-trip trigger failed:", e);
+  }
+
+  // Loops: trip_created event + updateContact on every trip creation
+  const destination = trip.destinationCity || trip.destinationCountry || undefined;
+  let loopsEmail = "";
+  try {
+    const clerkUser = await currentUser();
+    loopsEmail = clerkUser?.emailAddresses?.[0]?.emailAddress ?? "";
+  } catch (e) {
+    console.error("[loops] currentUser for trip_created failed:", e);
+  }
+
+  try {
+    await sendTripCreatedEvent(loopsEmail, { tripDestination: destination });
+  } catch (err) {
+    console.error("[loops] sendTripCreatedEvent failed:", err);
+  }
+
+  try {
+    await updateLoopsContact(loopsEmail, {
+      hasCreatedTrip: true,
+      ...(destination !== undefined ? { tripDestination: destination } : {}),
+    });
+  } catch (err) {
+    console.error("[loops] updateLoopsContact failed:", err);
   }
 
   return NextResponse.json({ tripId: trip.id });
