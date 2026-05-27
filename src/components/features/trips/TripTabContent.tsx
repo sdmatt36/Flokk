@@ -1496,7 +1496,10 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {[...displayedLeft, ...displayedRight].flatMap(s => s.items).map(item => (
+          {[...displayedLeft, ...displayedRight]
+            .flatMap(s => s.items)
+            .sort((a, b) => (b.needsAdvanceBooking === true ? 1 : 0) - (a.needsAdvanceBooking === true ? 1 : 0))
+            .map(item => (
             <SavedGridCard
               key={item.title + item.detail}
               item={item}
