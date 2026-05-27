@@ -40,6 +40,8 @@ export type Save = {
   tripStatus: string | null;
   tripEndDate: string | null;
   sourceMethod: string | null;
+  needsAdvanceBooking?: boolean;
+  advanceBookingReason?: string | null;
 };
 
 export type ApiItem = {
@@ -68,6 +70,8 @@ export type ApiItem = {
   hasItineraryLink?: boolean;
   tripStatus?: string | null;
   tripEndDate?: string | null;
+  needsAdvanceBooking?: boolean;
+  advanceBookingReason?: string | null;
 };
 
 export const SOURCE_LABEL_MAP: Record<string, string> = {
@@ -114,6 +118,8 @@ export function mapApiItem(item: ApiItem): Save {
     tripStatus: item.tripStatus ?? null,
     tripEndDate: item.tripEndDate ?? null,
     sourceMethod: item.sourceMethod ?? null,
+    needsAdvanceBooking: item.needsAdvanceBooking ?? false,
+    advanceBookingReason: item.advanceBookingReason ?? null,
   };
 }
 
@@ -236,6 +242,29 @@ export function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTr
             overflow: "hidden",
           }}
         >
+          {/* Advance-booking pill — top-left */}
+          {save.needsAdvanceBooking === true && (
+            <div
+              title={save.advanceBookingReason ?? "Popular item — book ahead"}
+              aria-label={save.advanceBookingReason ?? "Popular item — book ahead"}
+              style={{
+                position: "absolute",
+                top: "8px",
+                left: "8px",
+                zIndex: 2,
+                backgroundColor: "#C4664A",
+                color: "#FFFFFF",
+                fontSize: "10px",
+                fontWeight: 700,
+                letterSpacing: "0.04em",
+                padding: "3px 8px",
+                borderRadius: "4px",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.15)",
+              }}
+            >
+              ★ BOOK AHEAD
+            </div>
+          )}
           {/* Status pill — top-right (Tier 2/3 only) */}
           {save.suggestionTier === "secondary" && save.destinationCountry && (
             <div style={{ position: "absolute", top: "8px", right: "8px", zIndex: 2 }}>
@@ -273,6 +302,29 @@ export function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTr
             position: "relative",
           }}
         >
+          {/* Advance-booking pill — top-left */}
+          {save.needsAdvanceBooking === true && (
+            <div
+              title={save.advanceBookingReason ?? "Popular item — book ahead"}
+              aria-label={save.advanceBookingReason ?? "Popular item — book ahead"}
+              style={{
+                position: "absolute",
+                top: "8px",
+                left: "8px",
+                zIndex: 2,
+                backgroundColor: "#C4664A",
+                color: "#FFFFFF",
+                fontSize: "10px",
+                fontWeight: 700,
+                letterSpacing: "0.04em",
+                padding: "3px 8px",
+                borderRadius: "4px",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.15)",
+              }}
+            >
+              ★ BOOK AHEAD
+            </div>
+          )}
           {/* Status pill on no-image fallback */}
           {save.suggestionTier === "secondary" && save.destinationCountry && (
             <div style={{ position: "absolute", top: "8px", right: "8px", zIndex: 2 }}>

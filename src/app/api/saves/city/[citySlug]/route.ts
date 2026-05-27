@@ -96,6 +96,8 @@ async function fetchSaves(citySlug: string, profileId: string, scope: string) {
       needsPlaceConfirmation: true,
       communitySpotId: true,
       isBooked: true,
+      needsAdvanceBooking: true,
+      advanceBookingReason: true,
       trip: { select: { id: true, title: true } },
     },
   });
