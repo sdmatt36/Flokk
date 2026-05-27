@@ -13,6 +13,8 @@ export type RecentSaveItem = {
   destinationCity: string | null;
   destinationCountry: string | null;
   categoryTags: string[];
+  needsAdvanceBooking?: boolean;
+  advanceBookingReason?: string | null;
 };
 
 const TAG_GRADIENT: Record<string, string> = {
@@ -77,6 +79,28 @@ export function RecentSavesCards({ items, onDelete }: { items: RecentSaveItem[];
                     backgroundSize: "cover",
                     backgroundPosition: "center",
                   }} />
+                {item.needsAdvanceBooking === true && (
+                  <div
+                    title={item.advanceBookingReason ?? "Popular item, book ahead"}
+                    aria-label={item.advanceBookingReason ?? "Popular item, book ahead"}
+                    style={{
+                      position: "absolute",
+                      top: "8px",
+                      left: "8px",
+                      zIndex: 2,
+                      backgroundColor: "#C4664A",
+                      color: "#FFFFFF",
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      letterSpacing: "0.04em",
+                      padding: "3px 8px",
+                      borderRadius: "4px",
+                      boxShadow: "0 2px 4px rgba(0,0,0,0.15)",
+                    }}
+                  >
+                    ★ BOOK AHEAD
+                  </div>
+                )}
                 {onDelete && (
                   <button
                     type="button"

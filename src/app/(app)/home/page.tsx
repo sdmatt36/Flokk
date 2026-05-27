@@ -332,6 +332,8 @@ export default async function HomePage() {
                 categoryTags: item.categoryTags,
                 sourceMethod: item.sourceMethod,
                 sourcePlatform: item.sourcePlatform,
+                needsAdvanceBooking: item.needsAdvanceBooking ?? false,
+                advanceBookingReason: item.advanceBookingReason ?? null,
               }))}
               trips={allTrips.map(t => ({ id: t.id, title: t.title, startDate: t.startDate ? t.startDate.toISOString() : null, endDate: t.endDate ? t.endDate.toISOString() : null, status: t.status }))}
               itineraryItemCount={itineraryItemCount}
