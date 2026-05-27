@@ -90,7 +90,7 @@ function SkeletonRow() {
   );
 }
 
-export function BookingIntelCard({ tripId, destinationCity, destinationCountry, startDate, endDate, onAddFlight, onManageTours }: {
+export function BookingIntelCard({ tripId, destinationCity, destinationCountry, startDate, endDate, onAddFlight, onManageTours, onAdvanceBookingClick }: {
   tripId: string;
   destinationCity?: string | null;
   destinationCountry?: string | null;
@@ -98,6 +98,7 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
   endDate?: string | null;
   onAddFlight?: () => void;
   onManageTours?: () => void;
+  onAdvanceBookingClick?: () => void;
 }) {
   const [state, setState] = useState<"loading" | "hidden" | "ready">("loading");
   const [items, setItems] = useState<IntelItem[]>([]);
@@ -245,6 +246,16 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
     }
 
     if (actionType === "view") {
+      if (item.filterTarget === "advance-booking" && onAdvanceBookingClick) {
+        return (
+          <button
+            onClick={onAdvanceBookingClick}
+            style={{ fontSize: "12px", fontWeight: 700, color: "#F59E0B", background: "none", border: "none", cursor: "pointer", padding: 0, fontFamily: "inherit" }}
+          >
+            View flagged{savedCount != null ? ` (${savedCount})` : ""} →
+          </button>
+        );
+      }
       return (
         <a
           href={`/trips/${tripId}`}

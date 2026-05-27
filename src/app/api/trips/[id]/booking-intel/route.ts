@@ -95,6 +95,7 @@ export type IntelItem = {
   bookingUrl: string | null;
   urgency: "now" | "soon" | "when ready";
   actionType: ActionType;
+  filterTarget?: "advance-booking";
   dismissed?: boolean;
 };
 
@@ -115,7 +116,7 @@ export async function GET(
       startDate: true,
       endDate: true,
       flights: { select: { id: true, type: true, status: true } },
-      savedItems: { select: { categoryTags: true, isBooked: true } },
+      savedItems: { select: { categoryTags: true, isBooked: true, needsAdvanceBooking: true } },
       manualActivities: { select: { status: true } },
       itineraryItems: { where: { cancelledAt: null }, select: { type: true } },
       keyInfo: { select: { label: true, value: true } },
@@ -249,32 +250,46 @@ export async function GET(
   }
 
   // ── Activities ─────────────────────────────────────────────────────────────
-  const allSavedAct = savedItems.filter((s) => s.categoryTags.some((t) => ACTIVITY_RE.test(t)));
-  const bookedSavedAct = allSavedAct.filter((s) => s.isBooked);
+  // Non-lodging saves only — lodging is tracked separately above
+  const LODGING_RE = /lodg|hotel|hostel|resort|airbnb|accommodation|ryokan|villa|stay|inn/i;
+  const nonLodgingSaves = savedItems.filter((s) => !s.categoryTags.some((t) => LODGING_RE.test(t)));
+  const flaggedCount = nonLodgingSaves.filter((s) => s.needsAdvanceBooking === true && !s.isBooked).length;
   const bookedManualAct = manualActivities.filter((a) => a.status === "booked");
-  const totalBooked = bookedSavedAct.length + bookedManualAct.length;
-  const totalSaved = allSavedAct.length + manualActivities.filter((a) => a.status !== "booked").length;
+  const totalSaved = nonLodgingSaves.length + manualActivities.filter((a) => a.status !== "booked").length;
 
-  if (totalBooked > 0) {
+  if (flaggedCount > 0) {
     items.push({
       id: "activities",
       category: "activities",
-      title: "Activities",
-      reason: `${totalBooked} activit${totalBooked > 1 ? "ies" : "y"} confirmed.`,
-      status: "booked",
-      urgency: "when ready",
+      title: "Book ahead",
+      reason: `${flaggedCount} saved item${flaggedCount === 1 ? "" : "s"} typically need${flaggedCount === 1 ? "s" : ""} advance booking. Tap to review.`,
+      status: "saved",
+      savedCount: flaggedCount,
+      urgency: activityUrgency(daysAway),
       bookingUrl: null,
       actionType: "view",
+      filterTarget: "advance-booking",
     });
   } else if (totalSaved > 0) {
     items.push({
       id: "activities",
       category: "activities",
       title: "Activities",
-      reason: `${totalSaved} saved — popular attractions book out weeks in advance.`,
+      reason: `${totalSaved} saved. None flagged for advance booking.`,
       status: "saved",
       savedCount: totalSaved,
       urgency: activityUrgency(daysAway),
+      bookingUrl: null,
+      actionType: "view",
+    });
+  } else if (bookedManualAct.length > 0) {
+    items.push({
+      id: "activities",
+      category: "activities",
+      title: "Activities",
+      reason: `${bookedManualAct.length} activit${bookedManualAct.length > 1 ? "ies" : "y"} confirmed.`,
+      status: "booked",
+      urgency: "when ready",
       bookingUrl: null,
       actionType: "view",
     });

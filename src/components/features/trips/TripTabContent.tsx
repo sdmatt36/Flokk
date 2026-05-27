@@ -582,6 +582,7 @@ type SavedDisplayItem = {
   eventVenue?: string | null;
   eventCategory?: string | null;
   eventTicketUrl?: string | null;
+  needsAdvanceBooking?: boolean;
 };
 
 
@@ -1113,6 +1114,7 @@ type ApiSavedItem = {
   eventVenue?: string | null;
   eventCategory?: string | null;
   eventTicketUrl?: string | null;
+  needsAdvanceBooking?: boolean;
 };
 
 const SAVED_SOURCE_LABEL: Record<string, string> = {
@@ -1180,10 +1182,11 @@ function apiToDisplayItem(item: ApiSavedItem): SavedDisplayItem {
     eventVenue: item.eventVenue ?? null,
     eventCategory: item.eventCategory ?? null,
     eventTicketUrl: item.eventTicketUrl ?? null,
+    needsAdvanceBooking: item.needsAdvanceBooking ?? false,
   };
 }
 
-function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitle, onSwitchToItinerary, shareToken }: { tripId?: string; tripStartDate?: string | null; tripEndDate?: string | null; tripTitle?: string; onSwitchToItinerary?: () => void; shareToken?: string }) {
+function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitle, onSwitchToItinerary, shareToken, advanceBookingFilterActive = false, onClearAdvanceBookingFilter }: { tripId?: string; tripStartDate?: string | null; tripEndDate?: string | null; tripTitle?: string; onSwitchToItinerary?: () => void; shareToken?: string; advanceBookingFilterActive?: boolean; onClearAdvanceBookingFilter?: () => void }) {
   const isDesktop = useIsDesktop();
   const [shareToast, setShareToast] = useState(false);
   const shareToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1198,6 +1201,10 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
   const [dropLinkOpen, setDropLinkOpen] = useState(false);
   const [allScheduled, setAllScheduled] = useState(false);
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (advanceBookingFilterActive) setActiveFilter(null);
+  }, [advanceBookingFilterActive]);
 
   const fetchSaves = useCallback(() => {
     if (!tripIdProp) { setLoading(false); return; }
@@ -1394,6 +1401,7 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
   }
 
   const filterSaveItem = (itm: SavedDisplayItem): boolean => {
+    if (advanceBookingFilterActive) return itm.needsAdvanceBooking === true;
     if (activeFilter === null) return true;
     if (activeFilter === "Unorganized") return !itm.categoryTags || itm.categoryTags.length === 0;
     return matchesCategory(itm.categoryTags ?? [], activeFilter);
@@ -1405,11 +1413,25 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
     <div>
       {/* FILTER STRIP */}
       <div style={{ marginBottom: "16px" }}>
-        <CategoryFilterChips
-          selected={activeFilter}
-          available={categoryFilterChips}
-          onSelect={setActiveFilter}
-        />
+        {advanceBookingFilterActive && (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px", padding: "6px 10px", backgroundColor: "#FEF3EE", borderRadius: "6px", width: "fit-content" }}>
+            <span style={{ fontSize: "12px", fontWeight: 600, color: "#C4664A" }}>Showing items that need advance booking</span>
+            <button
+              onClick={onClearAdvanceBookingFilter}
+              style={{ background: "none", border: "none", cursor: "pointer", fontSize: "16px", color: "#C4664A", padding: "0 2px", lineHeight: 1, fontFamily: "inherit", minWidth: "24px", minHeight: "24px" }}
+              aria-label="Clear advance booking filter"
+            >
+              ×
+            </button>
+          </div>
+        )}
+        {!advanceBookingFilterActive && (
+          <CategoryFilterChips
+            selected={activeFilter}
+            available={categoryFilterChips}
+            onSelect={setActiveFilter}
+          />
+        )}
       </div>
 
       {/* SAVES GRID — filtered */}
@@ -1832,7 +1854,7 @@ function ActivityDetailModal({ activity, onClose, onEdit, onDelete, onMarkBooked
   );
 }
 
-function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onEditSavedActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onDeleteActivity, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight, shareToken, onManageTours, cancelledCount = 0 }: {
+function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDate, tripEndDate, onSwitchToRecommended, onEditActivity, onEditSavedActivity, onActivityAdded, destinationCity, destinationCountry, flights = [], activities = [], onRemoveActivityFromDay, onDeleteActivity, onMarkActivityBooked, onRemoveFlightFromDay, onAddFlight, shareToken, onManageTours, onAdvanceBookingClick, cancelledCount = 0 }: {
   flyTarget: { lat: number; lng: number } | null;
   onFlyTargetConsumed: () => void;
   tripId?: string;
@@ -1853,6 +1875,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   onAddFlight?: () => void;
   shareToken?: string;
   onManageTours?: () => void;
+  onAdvanceBookingClick?: () => void;
   cancelledCount?: number;
 }) {
   const isDesktop = useIsDesktop();
@@ -2909,6 +2932,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           endDate={tripEndDate}
           onAddFlight={onAddFlight}
           onManageTours={onManageTours}
+          onAdvanceBookingClick={onAdvanceBookingClick}
         />
       )}
 
@@ -7459,6 +7483,7 @@ type SavedRec = {
 
 export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true, initialIsPublic = false, shareToken, tripStatus, initialPostTripCaptureStarted = false, initialPostTripCaptureComplete = false, initialPostTripModalVisitCount = 0, viewerMembers, cancelledCount = 0 }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean; initialIsPublic?: boolean; shareToken?: string; tripStatus?: string; initialPostTripCaptureStarted?: boolean; initialPostTripCaptureComplete?: boolean; initialPostTripModalVisitCount?: number; viewerMembers?: { role: "ADULT" | "CHILD"; name: string; birthDate: string | null }[]; cancelledCount?: number }) {
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [advanceBookingFilterActive, setAdvanceBookingFilterActive] = useState(false);
   const [postTripCaptureStarted, setPostTripCaptureStarted] = useState(initialPostTripCaptureStarted);
   const [postTripCaptureComplete, setPostTripCaptureComplete] = useState(initialPostTripCaptureComplete);
   const [showPostTripModal, setShowPostTripModal] = useState(false);
@@ -7991,9 +8016,9 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
       )}
 
       {tab === "saved" && (
-        <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} shareToken={shareToken} />
+        <SavedContent tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} tripTitle={tripTitle} onSwitchToItinerary={() => setTab("itinerary")} shareToken={shareToken} advanceBookingFilterActive={advanceBookingFilterActive} onClearAdvanceBookingFilter={() => setAdvanceBookingFilterActive(false)} />
       )}
-      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} onEditSavedActivity={(a) => { setEditingActivity(a); setEditingActivityIsSavedItem(true); }} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onDeleteActivity={handleDeleteActivity} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} shareToken={shareToken} onManageTours={() => setTab("tours")} cancelledCount={cancelledCount} />}
+      {tab === "itinerary" && <ItineraryContent key={itineraryVersion} flyTarget={flyTarget} onFlyTargetConsumed={() => setFlyTarget(null)} tripId={tripId} tripStartDate={tripStartDate} tripEndDate={tripEndDate} onSwitchToRecommended={() => setTab("recommended")} onActivityAdded={fetchActivities} onEditActivity={(a) => setEditingActivity(a)} onEditSavedActivity={(a) => { setEditingActivity(a); setEditingActivityIsSavedItem(true); }} destinationCity={destinationCity} destinationCountry={destinationCountry} flights={flights} activities={activities} onRemoveActivityFromDay={handleRemoveActivityFromDay} onDeleteActivity={handleDeleteActivity} onMarkActivityBooked={handleMarkActivityBooked} onRemoveFlightFromDay={handleRemoveFlightFromDay} onAddFlight={() => setShowFlightModal(true)} shareToken={shareToken} onManageTours={() => setTab("tours")} onAdvanceBookingClick={() => { setTab("saved"); setAdvanceBookingFilterActive(true); }} cancelledCount={cancelledCount} />}
       {tab === "tours" && <ToursContent tripId={tripId} tripTitle={tripTitle} />}
       {tab === "packing" && <PackingContent tripId={tripId} destinationCity={destinationCity} destinationCountry={destinationCountry} tripStartDate={tripStartDate} tripEndDate={tripEndDate} />}
       {tab === "notes" && (
