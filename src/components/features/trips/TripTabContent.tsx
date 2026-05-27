@@ -583,6 +583,7 @@ type SavedDisplayItem = {
   eventCategory?: string | null;
   eventTicketUrl?: string | null;
   needsAdvanceBooking?: boolean;
+  advanceBookingReason?: string | null;
 };
 
 
@@ -824,11 +825,30 @@ function SavedHorizCard({ item, isDesktop: _isDesktop, onAddToItinerary, onBook,
       {/* Header: thumbnail or navy gradient with initial */}
       {hasImg ? (
         <>
-          <div style={{ height: "80px", backgroundImage: `url('${item.img}')`, backgroundSize: "cover", backgroundPosition: "center" }} />
+          <div style={{ height: "80px", backgroundImage: `url('${item.img}')`, backgroundSize: "cover", backgroundPosition: "center", position: "relative" }}>
+            {item.needsAdvanceBooking === true && (
+              <div
+                title={item.advanceBookingReason ?? "Popular item — book ahead"}
+                aria-label={item.advanceBookingReason ?? "Popular item — book ahead"}
+                style={{ position: "absolute", top: "6px", left: "6px", zIndex: 2, backgroundColor: "#C4664A", color: "#FFFFFF", fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em", padding: "3px 8px", borderRadius: "4px", boxShadow: "0 2px 4px rgba(0,0,0,0.15)" }}
+              >
+                ★ BOOK AHEAD
+              </div>
+            )}
+          </div>
           <img src={item.img} alt="" onError={() => setImgFailed(true)} style={{ display: "none" }} />
         </>
       ) : (
-        <div style={{ height: "60px", background: "linear-gradient(135deg, #1B3A5C 0%, #2d5a8e 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ height: "60px", background: "linear-gradient(135deg, #1B3A5C 0%, #2d5a8e 100%)", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+          {item.needsAdvanceBooking === true && (
+            <div
+              title={item.advanceBookingReason ?? "Popular item — book ahead"}
+              aria-label={item.advanceBookingReason ?? "Popular item — book ahead"}
+              style={{ position: "absolute", top: "6px", left: "6px", zIndex: 2, backgroundColor: "#C4664A", color: "#FFFFFF", fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em", padding: "3px 8px", borderRadius: "4px", boxShadow: "0 2px 4px rgba(0,0,0,0.15)" }}
+            >
+              ★ BOOK AHEAD
+            </div>
+          )}
           <span style={{ fontSize: "22px", fontWeight: 900, color: "rgba(255,255,255,0.55)", letterSpacing: "-0.5px" }}>{initial}</span>
         </div>
       )}
@@ -1028,6 +1048,15 @@ function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDel
       {hasImg ? (
         <div style={{ height: "160px", backgroundImage: `url(${item.img})`, backgroundSize: "cover", backgroundPosition: "center", position: "relative" }}>
           <img src={item.img} alt="" onError={() => setImgFailed(true)} style={{ display: "none" }} />
+          {item.needsAdvanceBooking === true && (
+            <div
+              title={item.advanceBookingReason ?? "Popular item — book ahead"}
+              aria-label={item.advanceBookingReason ?? "Popular item — book ahead"}
+              style={{ position: "absolute", top: "8px", left: "8px", zIndex: 2, backgroundColor: "#C4664A", color: "#FFFFFF", fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em", padding: "3px 8px", borderRadius: "4px", boxShadow: "0 2px 4px rgba(0,0,0,0.15)" }}
+            >
+              ★ BOOK AHEAD
+            </div>
+          )}
           {item.source && (
             <div style={{ position: "absolute", bottom: "6px", left: "8px", backgroundColor: "rgba(0,0,0,0.6)", color: "#fff", fontSize: "10px", padding: "2px 8px", borderRadius: "20px" }}>
               {item.source}
@@ -1035,7 +1064,16 @@ function SavedGridCard({ item, onAddToItinerary, onLearnMore, assignedDay, onDel
           )}
         </div>
       ) : (
-        <div style={{ height: "160px", backgroundColor: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ height: "160px", backgroundColor: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", position: "relative" }}>
+          {item.needsAdvanceBooking === true && (
+            <div
+              title={item.advanceBookingReason ?? "Popular item — book ahead"}
+              aria-label={item.advanceBookingReason ?? "Popular item — book ahead"}
+              style={{ position: "absolute", top: "8px", left: "8px", zIndex: 2, backgroundColor: "#C4664A", color: "#FFFFFF", fontSize: "10px", fontWeight: 700, letterSpacing: "0.04em", padding: "3px 8px", borderRadius: "4px", boxShadow: "0 2px 4px rgba(0,0,0,0.15)" }}
+            >
+              ★ BOOK AHEAD
+            </div>
+          )}
           <span style={{ fontSize: "13px", color: "#94a3b8" }}>{categoryTag ?? "Saved place"}</span>
         </div>
       )}
@@ -1115,6 +1153,7 @@ type ApiSavedItem = {
   eventCategory?: string | null;
   eventTicketUrl?: string | null;
   needsAdvanceBooking?: boolean;
+  advanceBookingReason?: string | null;
 };
 
 const SAVED_SOURCE_LABEL: Record<string, string> = {
@@ -1183,6 +1222,7 @@ function apiToDisplayItem(item: ApiSavedItem): SavedDisplayItem {
     eventCategory: item.eventCategory ?? null,
     eventTicketUrl: item.eventTicketUrl ?? null,
     needsAdvanceBooking: item.needsAdvanceBooking ?? false,
+    advanceBookingReason: item.advanceBookingReason ?? null,
   };
 }
 
