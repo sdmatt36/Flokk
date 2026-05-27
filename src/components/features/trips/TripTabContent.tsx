@@ -1226,6 +1226,16 @@ function apiToDisplayItem(item: ApiSavedItem): SavedDisplayItem {
   };
 }
 
+function sortSectionsByFlagged(
+  sections: { category: string; items: SavedDisplayItem[] }[]
+): { category: string; items: SavedDisplayItem[] }[] {
+  return [...sections].sort((a, b) => {
+    const aHasFlagged = a.items.some(it => it.needsAdvanceBooking === true) ? 1 : 0;
+    const bHasFlagged = b.items.some(it => it.needsAdvanceBooking === true) ? 1 : 0;
+    return bHasFlagged - aHasFlagged;
+  });
+}
+
 function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitle, onSwitchToItinerary, shareToken, advanceBookingFilterActive = false, onClearAdvanceBookingFilter }: { tripId?: string; tripStartDate?: string | null; tripEndDate?: string | null; tripTitle?: string; onSwitchToItinerary?: () => void; shareToken?: string; advanceBookingFilterActive?: boolean; onClearAdvanceBookingFilter?: () => void }) {
   const isDesktop = useIsDesktop();
   const [shareToast, setShareToast] = useState(false);
@@ -1271,6 +1281,11 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
         }
         setAllScheduled(false);
         setAssignedDays(preAssigned);
+        for (const items of Object.values(groups)) {
+          items.sort((a, b) =>
+            (b.needsAdvanceBooking === true ? 1 : 0) - (a.needsAdvanceBooking === true ? 1 : 0)
+          );
+        }
         const left: { category: string; items: SavedDisplayItem[] }[] = [];
         const right: { category: string; items: SavedDisplayItem[] }[] = [];
         const LEFT_CATS = ["LODGING", "AIRFARE"];
@@ -1278,8 +1293,8 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
           if (LEFT_CATS.includes(cat)) left.push({ category: cat, items });
           else right.push({ category: cat, items });
         }
-        setLeftSections(left);
-        setRightSections(right);
+        setLeftSections(sortSectionsByFlagged(left));
+        setRightSections(sortSectionsByFlagged(right));
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -1446,8 +1461,8 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
     if (activeFilter === "Unorganized") return !itm.categoryTags || itm.categoryTags.length === 0;
     return matchesCategory(itm.categoryTags ?? [], activeFilter);
   };
-  const displayedLeft = leftSections.map(s => ({ ...s, items: s.items.filter(filterSaveItem) })).filter(s => s.items.length > 0);
-  const displayedRight = rightSections.map(s => ({ ...s, items: s.items.filter(filterSaveItem) })).filter(s => s.items.length > 0);
+  const displayedLeft = sortSectionsByFlagged(leftSections.map(s => ({ ...s, items: s.items.filter(filterSaveItem) })).filter(s => s.items.length > 0));
+  const displayedRight = sortSectionsByFlagged(rightSections.map(s => ({ ...s, items: s.items.filter(filterSaveItem) })).filter(s => s.items.length > 0));
 
   return (
     <div>
