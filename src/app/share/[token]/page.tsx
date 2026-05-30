@@ -63,16 +63,6 @@ function tripDays(start: Date | null, end: Date | null): number | null {
   return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 }
 
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371;
-  const toRad = (v: number) => (v * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
 
 const EXCLUDE_SAVE_TAGS = /flight|airfare|airline|lodging|accommodation|hotel|transportation/i;
 
@@ -493,24 +483,6 @@ export default async function SharePage({
       venueUrl: item.venueUrl ?? null,
     }));
 
-  // ── SECTION 3: Nearby saved places (proximity-filtered photo grid) ────────
-  const validItinCoords = trip.itineraryItems.filter(
-    (it) =>
-      it.latitude != null && it.longitude != null &&
-      it.latitude !== 0 && it.longitude !== 0
-  );
-
-  const nearbySaves = trip.savedItems.filter((save) => {
-    if (!save.lat || !save.lng || !save.rawTitle) return false;
-    if ((save.dayIndex ?? 0) <= 0) return false;
-    if (!(save.placePhotoUrl || save.mediaThumbnailUrl)) return false;
-    const tags = save.categoryTags.join(" ");
-    if (EXCLUDE_SAVE_TAGS.test(tags)) return false;
-    // Must be within 3km of at least one itinerary item on the same day
-    const sameDay = validItinCoords.filter((it) => it.dayIndex === save.dayIndex);
-    return sameDay.some((it) => haversineKm(save.lat!, save.lng!, it.latitude!, it.longitude!) <= 3);
-  });
-
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#FFFFFF", paddingBottom: "120px" }}>
 
@@ -704,37 +676,6 @@ export default async function SharePage({
           />
         )}
 
-        {/* ── Nearby saved places (photo grid, 3+ only) ── */}
-        {nearbySaves.length >= 3 && (
-          <section style={{ marginTop: "32px" }}>
-            <h2 style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", marginBottom: "4px" }}>
-              Nearby spots
-            </h2>
-            <p style={{ fontSize: "13px", color: "#888", marginBottom: "14px" }}>
-              Spots this family saved near their itinerary stops.
-            </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px" }}>
-              {nearbySaves.slice(0, 12).map((place) => {
-                const img = place.placePhotoUrl ?? place.mediaThumbnailUrl;
-                return (
-                  <div
-                    key={place.id}
-                    style={{ borderRadius: "12px", overflow: "hidden", position: "relative", aspectRatio: "4/3", backgroundColor: "#1B3A5C", backgroundImage: img ? `url(${img})` : undefined, backgroundSize: "cover", backgroundPosition: "center" }}
-                  >
-                    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.65) 100%)" }} />
-                    <div style={{ position: "absolute", bottom: "8px", left: "8px", right: "8px" }}>
-                      <p style={{ fontSize: "12px", fontWeight: 700, color: "#fff", lineHeight: 1.2, marginBottom: "2px" }}>{place.rawTitle}</p>
-                      {place.categoryTags.length > 0 && (
-                        <p style={{ fontSize: "10px", color: "rgba(255,255,255,0.75)" }}>{place.categoryTags[0]}</p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
         {/* ── Questions for the Flokker ── */}
         <div style={{ marginTop: "48px", paddingTop: "32px", borderTop: "1px solid #e5e7eb" }}>
           <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#1B3A5C", marginBottom: "8px" }}>
@@ -767,7 +708,7 @@ export default async function SharePage({
         )}
 
         {/* Empty state */}
-        {allDayIndices.length === 0 && nearbySaves.length === 0 && (
+        {allDayIndices.length === 0 && (
           <div style={{ textAlign: "center", padding: "48px 16px", color: "#AAAAAA" }}>
             <p style={{ fontSize: "15px" }}>This trip is being planned. Check back soon.</p>
           </div>
