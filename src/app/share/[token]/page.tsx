@@ -20,12 +20,32 @@ export async function generateMetadata({
   const { token } = await params;
   const trip = await db.trip.findUnique({
     where: { shareToken: token },
-    select: { title: true, destinationCity: true, destinationCountry: true },
+    select: { title: true, destinationCity: true, destinationCountry: true, heroImageUrl: true, startDate: true, endDate: true },
   });
   if (!trip) return { title: "Trip | Flokk" };
   const dest = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ");
+  const days = trip.startDate && trip.endDate
+    ? Math.round((trip.endDate.getTime() - trip.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    : null;
+  const heroImg = getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl);
+  const absoluteImg = heroImg.startsWith("http") ? heroImg : `https://flokktravel.com${heroImg}`;
+  const title = `${trip.title}${dest ? ` · ${dest}` : ""}, shared on Flokk`;
+  const description = days
+    ? `${days}-day family trip to ${dest || trip.title}. See the full itinerary on Flokk.`
+    : `Family trip to ${dest || trip.title}. See the full itinerary on Flokk.`;
   return {
-    title: `${trip.title}${dest ? ` · ${dest}` : ""}, shared on Flokk`,
+    title,
+    openGraph: {
+      title,
+      description,
+      images: [{ url: absoluteImg, width: 1200, height: 630, alt: dest || trip.title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [absoluteImg],
+    },
   };
 }
 

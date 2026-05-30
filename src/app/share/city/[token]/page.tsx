@@ -14,8 +14,28 @@ export async function generateMetadata({
   const { token } = await params;
   const share = await db.cityShare.findUnique({ where: { token }, select: { citySlug: true } });
   if (!share) return { title: "Shared saves | Flokk" };
-  const city = await db.city.findUnique({ where: { slug: share.citySlug }, select: { name: true } });
-  return { title: `Saves in ${city?.name ?? share.citySlug} | Flokk` };
+  const city = await db.city.findUnique({ where: { slug: share.citySlug }, select: { name: true, heroPhotoUrl: true, photoUrl: true } });
+  const cityName = city?.name ?? share.citySlug;
+  const heroUrl = city?.heroPhotoUrl ?? city?.photoUrl ?? null;
+  const absoluteImg = heroUrl
+    ? (heroUrl.startsWith("http") ? heroUrl : `https://flokktravel.com${heroUrl}`)
+    : null;
+  const title = `Saves in ${cityName} | Flokk`;
+  const description = `See what families are saving in ${cityName} on Flokk.`;
+  return {
+    title,
+    openGraph: {
+      title,
+      description,
+      ...(absoluteImg ? { images: [{ url: absoluteImg, width: 1200, height: 630, alt: cityName }] } : {}),
+    },
+    twitter: {
+      card: "summary_large_image" as const,
+      title,
+      description,
+      ...(absoluteImg ? { images: [absoluteImg] } : {}),
+    },
+  };
 }
 
 const IMPORT_SOURCE_METHODS = ["maps_import"];

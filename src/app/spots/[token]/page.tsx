@@ -29,12 +29,28 @@ export async function generateMetadata({
   const { token } = await params;
   const spot = await db.communitySpot.findUnique({
     where: { shareToken: token },
-    select: { name: true, city: true, country: true },
+    select: { name: true, city: true, country: true, photoUrl: true, description: true },
   });
   if (!spot) return { title: "Spot not found | Flokk" };
   const loc = [spot.city, spot.country].filter(Boolean).join(", ");
+  const title = `${spot.name}${loc ? ` · ${loc}` : ""} | Flokk`;
+  const description = spot.description ?? (loc ? `A community spot in ${loc}, discovered on Flokk.` : "Discover this spot on Flokk.");
+  const absoluteImg = spot.photoUrl
+    ? (spot.photoUrl.startsWith("http") ? spot.photoUrl : `https://flokktravel.com${spot.photoUrl}`)
+    : null;
   return {
-    title: `${spot.name}${loc ? ` · ${loc}` : ""} | Flokk`,
+    title,
+    openGraph: {
+      title,
+      description,
+      ...(absoluteImg ? { images: [{ url: absoluteImg, width: 1200, height: 630, alt: spot.name }] } : {}),
+    },
+    twitter: {
+      card: "summary_large_image" as const,
+      title,
+      description,
+      ...(absoluteImg ? { images: [absoluteImg] } : {}),
+    },
   };
 }
 
