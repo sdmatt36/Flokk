@@ -719,12 +719,8 @@ export default async function SharePage({
                 return (
                   <div
                     key={place.id}
-                    style={{ borderRadius: "12px", overflow: "hidden", position: "relative", aspectRatio: "4/3", backgroundColor: "#F0F0F0" }}
+                    style={{ borderRadius: "12px", overflow: "hidden", position: "relative", aspectRatio: "4/3", backgroundColor: "#1B3A5C", backgroundImage: img ? `url(${img})` : undefined, backgroundSize: "cover", backgroundPosition: "center" }}
                   >
-                    {img && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={img} alt={place.rawTitle ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    )}
                     <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.65) 100%)" }} />
                     <div style={{ position: "absolute", bottom: "8px", left: "8px", right: "8px" }}>
                       <p style={{ fontSize: "12px", fontWeight: 700, color: "#fff", lineHeight: 1.2, marginBottom: "2px" }}>{place.rawTitle}</p>
