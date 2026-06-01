@@ -9,7 +9,7 @@ import { canViewTrip, canEditTripContent } from "@/lib/trip-permissions";
 export const dynamic = "force-dynamic";
 
 // GET /api/trips/[id]/itinerary
-// Returns all IN_APP SavedItems with a non-null dayIndex (items added from recommendations).
+// Returns all SavedItems with a non-null dayIndex for this trip (all source methods).
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -29,7 +29,7 @@ export async function GET(
   }
 
   const items = await db.savedItem.findMany({
-    where: { tripId, dayIndex: { not: null }, deletedAt: null, sourceMethod: { not: "manual_activity" } },
+    where: { tripId, dayIndex: { not: null }, deletedAt: null },
     orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }, { savedAt: "asc" }],
     select: {
       id: true,
