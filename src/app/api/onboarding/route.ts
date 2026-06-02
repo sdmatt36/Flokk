@@ -45,39 +45,68 @@ export async function POST(request: Request) {
       });
     }
 
-    // Delete any existing family profile (re-onboarding support)
-    await db.familyProfile.deleteMany({ where: { userId: user.id } });
+    const memberRows = data.members.map((m) => ({
+      name: m.name ?? null,
+      role: m.role,
+      birthDate: m.birthDate ? new Date(m.birthDate) : null,
+      dietaryRequirements: m.dietaryRequirements,
+      foodAllergies: m.foodAllergies ?? [],
+      allergyNotes: m.allergyNotes ?? null,
+    }));
 
-    // Create family profile with members and interests
-    const familyProfile = await db.familyProfile.create({
-      data: {
-        userId: user.id,
-        familyName: data.familyName ?? null,
-        homeCity: data.homeCity,
-        homeCountry: data.homeCountry,
-        travelFrequency: data.travelFrequency,
-        members: {
-          create: data.members.map((m) => ({
-            name: m.name ?? null,
-            role: m.role,
-            birthDate: m.birthDate ? new Date(m.birthDate) : null,
-            dietaryRequirements: m.dietaryRequirements,
-            foodAllergies: m.foodAllergies ?? [],
-            allergyNotes: m.allergyNotes ?? null,
-          })),
-        },
-        interests: {
-          create: data.interestKeys.map((key) => ({
-            interestKey: key,
-            category: getCategoryForKey(key),
-            tier: "SIGNUP" as const,
-            weight: 1.0,
-          })),
-        },
-      },
-    });
+    const interestRows = data.interestKeys.map((key) => ({
+      interestKey: key,
+      category: getCategoryForKey(key),
+      tier: "SIGNUP" as const,
+      weight: 1.0,
+    }));
 
-    return NextResponse.json({ success: true, familyProfileId: familyProfile.id });
+    const existing = await db.familyProfile.findUnique({ where: { userId: user.id } });
+
+    let profileId: string;
+
+    if (existing) {
+      // Profile already exists — update scalars in place so the ID (and all Trip
+      // foreign keys referencing it) are never disturbed. Replace members and
+      // interests as a clean re-onboarding replacement.
+      await db.familyProfile.update({
+        where: { id: existing.id },
+        data: {
+          familyName: data.familyName ?? null,
+          homeCity: data.homeCity,
+          homeCountry: data.homeCountry,
+          travelFrequency: data.travelFrequency,
+        },
+      });
+
+      await db.familyMember.deleteMany({ where: { familyProfileId: existing.id } });
+      await db.familyMember.createMany({
+        data: memberRows.map((r) => ({ ...r, familyProfileId: existing.id })),
+      });
+
+      await db.declaredInterest.deleteMany({ where: { familyProfileId: existing.id } });
+      await db.declaredInterest.createMany({
+        data: interestRows.map((r) => ({ ...r, familyProfileId: existing.id })),
+      });
+
+      profileId = existing.id;
+    } else {
+      // No existing profile — create fresh.
+      const created = await db.familyProfile.create({
+        data: {
+          userId: user.id,
+          familyName: data.familyName ?? null,
+          homeCity: data.homeCity,
+          homeCountry: data.homeCountry,
+          travelFrequency: data.travelFrequency,
+          members: { create: memberRows },
+          interests: { create: interestRows },
+        },
+      });
+      profileId = created.id;
+    }
+
+    return NextResponse.json({ success: true, familyProfileId: profileId });
   } catch (error) {
     if (error instanceof ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });
