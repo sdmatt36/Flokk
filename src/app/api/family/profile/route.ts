@@ -5,25 +5,27 @@ import { resolveProfileId } from "@/lib/profile-access";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+const NO_STORE = { headers: { "Cache-Control": "no-store" } };
+
+export async function GET(_request: Request) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return NextResponse.json({ error: "Unauthorized", reason: "no-user" }, { status: 401, ...NO_STORE });
 
   const profileId = await resolveProfileId(userId);
-  if (!profileId) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!profileId) return NextResponse.json({ error: "Not found", reason: "no-profile" }, { status: 404, ...NO_STORE });
 
   const familyProfile = await db.familyProfile.findUnique({ where: { id: profileId } });
-  if (!familyProfile) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!familyProfile) return NextResponse.json({ error: "Not found", reason: "no-profile-row" }, { status: 404, ...NO_STORE });
 
-  return NextResponse.json({ familyProfile });
+  return NextResponse.json({ familyProfile }, NO_STORE);
 }
 
 export async function PATCH(request: Request) {
   const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return NextResponse.json({ error: "Unauthorized", reason: "no-user" }, { status: 401, ...NO_STORE });
 
   const profileId = await resolveProfileId(userId);
-  if (!profileId) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!profileId) return NextResponse.json({ error: "Not found", reason: "no-profile" }, { status: 404, ...NO_STORE });
 
   const body = await request.json();
 
@@ -41,5 +43,5 @@ export async function PATCH(request: Request) {
     },
   });
 
-  return NextResponse.json({ familyProfile: updated });
+  return NextResponse.json({ familyProfile: updated }, NO_STORE);
 }
