@@ -949,13 +949,40 @@ Field notes:
             .some((phrase) => haystack.includes(phrase.toLowerCase()));
         });
         const promotedMatches = exactPhraseMatches.length > 0 ? exactPhraseMatches : destMatches;
-        const withDate = bookingDate ? promotedMatches.filter((t) => dateInTripRange(bookingDate, t)) : [];
+
+        // For flights: narrow to toCity-matching trips first so the arrival trip always
+        // wins primary over the departure trip. The departure trip is handled by the
+        // multi-trip mechanism. Without this, the departure trip can win P1 (because
+        // bookingDate = departure date falls in its range), get cleared by the bug-fix
+        // (toCity ≠ departure trip destination), and cause an auto-create duplicate.
+        let biasedMatches = promotedMatches;
+        let isToCityBiased = false;
+        if (extracted.type === "flight" && typeof extracted.toCity === "string") {
+          const toCityNorm = (extracted.toCity as string).toLowerCase().trim();
+          const toCityTrips = promotedMatches.filter((t) =>
+            [t.title, t.destinationCity, t.destinationCountry]
+              .some((s) => (s ?? "").toLowerCase().includes(toCityNorm))
+          );
+          if (toCityTrips.length > 0) {
+            biasedMatches = toCityTrips;
+            isToCityBiased = true;
+          }
+        }
+
+        const withDate = bookingDate ? biasedMatches.filter((t) => dateInTripRange(bookingDate, t)) : [];
         // Only commit to a P1 match if the date also overlaps.
         // If no promoted match has a date in range, fall through to P2
         // so date-based matching can find the correct trip.
+        // Exception: for flights with an explicit toCity match, commit even without
+        // date overlap — the destination is unambiguous and date overlap with the
+        // departure date (bookingDate) is not a reliable signal for the arrival trip.
         if (withDate.length > 0) {
           withDate.sort(sortByRelevance);
           matchedTrip = withDate[0];
+        } else if (isToCityBiased && biasedMatches.length > 0) {
+          biasedMatches.sort(sortByRelevance);
+          matchedTrip = biasedMatches[0];
+          console.log(`[email-match] P1-flight: committed to toCity match "${matchedTrip.title}" (no dep-date overlap — arrival trip)`);
         }
       }
     }
@@ -1022,6 +1049,20 @@ Field notes:
         const rawCity = (extracted.city as string | null)?.trim() ?? null;
         const autoDestCity = (rawToCity || rawCity || null)?.replace(/,\s*[A-Z]{2}$/, "").trim() ?? null;
         if (autoDestCity) {
+          // Dedup guard: never create a second trip if one already exists for this destination.
+          // Re-forwarding the same email should reuse the existing trip, not create a new one.
+          const autoDestCityLower = autoDestCity.toLowerCase().trim();
+          const dedupExisting = (trips as Array<{ id: string; title?: string | null; destinationCity?: string | null; status?: string | null }>)
+            .find((t) =>
+              (t.destinationCity ?? "").toLowerCase().trim() === autoDestCityLower &&
+              t.status !== "COMPLETED",
+            );
+          if (dedupExisting) {
+            matchedTrip = dedupExisting as typeof trips[0];
+            resolvedTripId = dedupExisting.id;
+            logCtx.matchedTripId = dedupExisting.id;
+            console.log(`[email-inbound] auto-create dedup: reusing existing trip "${dedupExisting.title}" (${dedupExisting.id}) for "${autoDestCity}"`);
+          } else {
           const autoDestCountry = (extracted.country as string | null) ?? null;
           const autoStart = (extracted.departureDate as string | null) ?? (extracted.checkIn as string | null) ?? null;
           const autoEnd = (extracted.returnDepartureDate as string | null) ?? (extracted.checkOut as string | null) ?? null;
@@ -1052,6 +1093,7 @@ Field notes:
           logCtx.autoCreatedTripId = autoTrip.id;
           logCtx.matchedTripId = autoTrip.id;
           console.log(`[email-inbound] auto-created trip: "${autoData.title}" id: ${autoTrip.id}`);
+          } // end else (dedup guard)
         }
       }
 
