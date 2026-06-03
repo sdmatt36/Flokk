@@ -116,7 +116,40 @@ export function findAllRelatedTrips(
     ? (extracted.legs as Array<Record<string, unknown>>)
     : [];
 
-  for (const leg of rawLegs) {
+  // When legs[] is absent, synthesize from scalar fields so fromCity matching
+  // fires even for extractions that don't populate the legs array.
+  const legsToCheck: Array<Record<string, unknown>> = rawLegs.length > 0 ? rawLegs : (() => {
+    const synth: Array<Record<string, unknown>> = [];
+    if (extracted.fromAirport || extracted.fromCity) {
+      synth.push({
+        from: extracted.fromAirport ?? null,
+        to: extracted.toAirport ?? null,
+        fromCity: extracted.fromCity ?? null,
+        toCity: extracted.toCity ?? null,
+        departure: typeof extracted.departureDate === "string"
+          ? `${extracted.departureDate}T${typeof extracted.departureTime === "string" ? extracted.departureTime : "00:00"}`
+          : null,
+        arrival: typeof extracted.arrivalDate === "string"
+          ? `${extracted.arrivalDate}T${typeof extracted.arrivalTime === "string" ? extracted.arrivalTime : "00:00"}`
+          : null,
+      });
+    }
+    if (typeof extracted.returnDepartureDate === "string" && (extracted.returnFromAirport || extracted.toAirport)) {
+      synth.push({
+        from: extracted.returnFromAirport ?? extracted.toAirport ?? null,
+        to: extracted.returnToAirport ?? extracted.fromAirport ?? null,
+        fromCity: extracted.toCity ?? null,
+        toCity: extracted.fromCity ?? null,
+        departure: `${extracted.returnDepartureDate}T${typeof extracted.returnDepartureTime === "string" ? extracted.returnDepartureTime : "00:00"}`,
+        arrival: typeof extracted.returnArrivalDate === "string"
+          ? `${extracted.returnArrivalDate}T${typeof extracted.returnArrivalTime === "string" ? extracted.returnArrivalTime : "00:00"}`
+          : null,
+      });
+    }
+    return synth;
+  })();
+
+  for (const leg of legsToCheck) {
     const depStr = typeof leg.departure === "string" ? leg.departure : null;
     const arrStr = typeof leg.arrival   === "string" ? leg.arrival   : null;
 

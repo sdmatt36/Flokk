@@ -1771,9 +1771,75 @@ Field notes:
           resolvedTripId,
         );
 
-        const additionalRelatedTrips = allRelatedTrips.filter(
+        let additionalRelatedTrips = allRelatedTrips.filter(
           (r) => r.trip.id !== resolvedTripId && r.confidence >= 0.85,
         );
+
+        // ── Mandatory departure-trip coverage ────────────────────────────────
+        // Every flight must appear in BOTH the departure city trip and the arrival
+        // city trip. If fromCity is not already covered by any related trip, find
+        // the existing departure-city trip or auto-create one.
+        // Guard: skip well-known home hubs (NRT, HND, etc.) to avoid creating
+        // spurious home-city trips from transit airports.
+        {
+          const depFromCity = (extracted.fromCity as string | null)?.trim() ?? null;
+          const depFromAirport = (extracted.fromAirport as string | null)?.trim() ?? null;
+
+          if (depFromCity && extracted.type === "flight" && confidenceScore >= 0.85) {
+            const depCityLower = depFromCity.toLowerCase();
+            const alreadyCovered = allRelatedTrips.some(
+              (r) => r.confidence >= 0.85 &&
+                (r.trip.destinationCity ?? "").toLowerCase().trim() === depCityLower,
+            );
+            const isHomeHub = depFromAirport ? HOME.has(depFromAirport) : false;
+
+            if (!alreadyCovered && !isHomeHub) {
+              const existingDepTrip = (trips as Array<{ id: string; title?: string | null; destinationCity?: string | null; startDate?: Date | null; endDate?: Date | null; status?: string | null }>)
+                .find((t) =>
+                  (t.destinationCity ?? "").toLowerCase().trim() === depCityLower &&
+                  t.status !== "COMPLETED",
+                );
+
+              if (existingDepTrip) {
+                additionalRelatedTrips = [
+                  ...additionalRelatedTrips,
+                  { trip: existingDepTrip as TripRecord, confidence: 0.90, matchType: "from-city-mandatory" },
+                ];
+                console.log(`[email-inbound] mandatory departure-trip: added existing trip "${existingDepTrip.title}" for fromCity "${depFromCity}"`);
+              } else {
+                // No existing trip for the departure city — auto-create one
+                const depDate = (extracted.departureDate as string | null) ?? null;
+                const depTripData = await buildTripFromExtraction({
+                  cities: [depFromCity],
+                  country: null,
+                  startDate: depDate,
+                  endDate: depDate,
+                });
+                const depAutoTrip = await db.$transaction(async (tx) => {
+                  const created = await tx.trip.create({
+                    data: { ...depTripData, familyProfileId: familyProfile.id },
+                  });
+                  await tx.tripCollaborator.create({
+                    data: {
+                      tripId: created.id,
+                      familyProfileId: familyProfile.id,
+                      role: "OWNER",
+                      invitedById: familyProfile.id,
+                      invitedAt: new Date(),
+                      acceptedAt: new Date(),
+                    },
+                  });
+                  return created;
+                });
+                additionalRelatedTrips = [
+                  ...additionalRelatedTrips,
+                  { trip: depAutoTrip as unknown as TripRecord, confidence: 0.90, matchType: "from-city-auto-created" },
+                ];
+                console.log(`[email-inbound] mandatory departure-trip: auto-created "${depTripData.title}" for fromCity "${depFromCity}": ${depAutoTrip.id}`);
+              }
+            }
+          }
+        }
 
         if (additionalRelatedTrips.length > 0) {
           console.log(
