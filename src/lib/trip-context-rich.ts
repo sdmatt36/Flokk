@@ -21,6 +21,8 @@ export type RichTripContext = {
   durationDays: number;
   segments: TripSegment[];
   totalNights: number;
+  // true when destinationCity is set but geocoding failed — caller must return [] without model call
+  destinationUnresolvable: boolean;
 
   plannedActivities: Array<{
     title: string;
@@ -78,6 +80,32 @@ export type ItineraryItemInput = {
 };
 
 const TRANSIT_TYPES = new Set(["FLIGHT", "TRAIN", "CAR_RENTAL"]);
+
+async function geocodeCityCenter(
+  city: string,
+  country: string | null
+): Promise<{ lat: number; lng: number; country: string | null } | null> {
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) return null;
+  const query = country ? `${city}, ${country}` : city;
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${apiKey}`;
+  try {
+    const res = await fetch(url);
+    const data = await res.json() as {
+      status?: string;
+      results?: Array<{
+        geometry: { location: { lat: number; lng: number } };
+        address_components: Array<{ long_name: string; types: string[] }>;
+      }>;
+    };
+    if (!data.results?.[0]) return null;
+    const { lat, lng } = data.results[0].geometry.location;
+    const countryComp = data.results[0].address_components.find(c => c.types.includes("country"));
+    return { lat, lng, country: countryComp?.long_name ?? null };
+  } catch {
+    return null;
+  }
+}
 
 function deriveCityFromCheckIn(
   checkIn: ItineraryItemInput,
@@ -296,7 +324,40 @@ export async function extractRichTripContext(
 
   // Derive segments with rec allocation
   const rawSegments = deriveSegments(trip.itineraryItems, trip.destinationCity ?? undefined);
-  const segments = allocateRecCounts(rawSegments, 12);
+
+  let segments: TripSegment[];
+  let resolvedCountry = trip.destinationCountry ?? null;
+  let destinationUnresolvable = false;
+
+  if (rawSegments.length === 0 && trip.destinationCity?.trim()) {
+    // No lodging check-ins — geocode the city center as a fallback anchor so the prompt and
+    // Layer C have a geographic reference point. Without this, the destination is never stated
+    // to the model, and Layer C bypasses, allowing wrong-country venues to pass through.
+    const geo = await geocodeCityCenter(trip.destinationCity, trip.destinationCountry ?? null);
+    if (geo) {
+      if (!resolvedCountry && geo.country) resolvedCountry = geo.country;
+      const fallbackSegment: TripSegment = {
+        index: 0,
+        city: trip.destinationCity,
+        lodgingName: trip.destinationCity,
+        lodgingLat: geo.lat,
+        lodgingLng: geo.lng,
+        dayStart: 0,
+        dayEnd: durationDays,
+        nights: durationDays,
+        recAllocation: 0,
+      };
+      segments = allocateRecCounts([fallbackSegment], 12);
+    } else {
+      // Geocoding failed — cannot safely ground recommendations; caller returns []
+      console.log(`[trip-context-rich] geocoding failed for "${trip.destinationCity}" — marking unresolvable`);
+      destinationUnresolvable = true;
+      segments = [];
+    }
+  } else {
+    segments = allocateRecCounts(rawSegments, 12);
+  }
+
   const totalNights = segments.reduce((sum, s) => sum + s.nights, 0);
 
   // Planned activities (ACTIVITY type only)
@@ -371,7 +432,8 @@ export async function extractRichTripContext(
   return {
     tripId,
     destinationCity: trip.destinationCity ?? "",
-    destinationCountry: trip.destinationCountry ?? null,
+    destinationCountry: resolvedCountry,
+    destinationUnresolvable,
     startDate,
     endDate,
     durationDays,

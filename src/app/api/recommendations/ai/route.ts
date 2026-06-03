@@ -105,6 +105,23 @@ export async function GET(req: NextRequest) {
     aggregateTripContext(tripId),
   ]);
 
+  if (richContext.destinationUnresolvable) {
+    console.log(`[recommendations] destination geocoding failed for "${trip.destinationCity}" — caching [] to prevent retry storm`);
+    await db.trip.update({
+      where: { id: tripId },
+      data: {
+        cachedRecommendations: [],
+        cachedRecommendationsGeneratedAt: new Date(),
+        cachedRecommendationsContextHash: contextHash,
+      },
+    });
+    return NextResponse.json({ recommendations: [], cached: false, error: "unresolvable_destination" });
+  }
+
+  const destinationCity = richContext.destinationCity;
+  const destinationCountry = richContext.destinationCountry;
+  const destinationLabel = destinationCountry ? `${destinationCity}, ${destinationCountry}` : destinationCity;
+
   const aggChildAges = flatChildAges(aggCtx);
   const familyCtx: FamilyContext = {
     childAges: aggChildAges,
@@ -216,12 +233,14 @@ CRITICAL REQUIREMENTS:
 1. Each recommendation must include segmentIndex (1-based integer) matching the segment number in the user prompt
 2. Do NOT duplicate already-planned or already-saved items: ${alreadyNamed.join(", ")}
 3. Each recommendation must be a unique physical place — never multiple recommendations for the same venue with different framings
-4. Past loved places and broader saves are TASTE SIGNALS, not items to match. Reason about the family's preferences from these patterns and apply those preferences to THIS trip. Do NOT recommend literal equivalents. Recommend things near each segment's anchor that fit the INFERRED preference patterns.
-5. Each recommendation must be physically located within 75km drive of its segment's anchor coordinates. If you cannot find enough venues within this radius, generate fewer rather than include venues outside the radius.
+4. Past loved places and broader saves are TASTE SIGNALS from OTHER trips in OTHER locations. Reason about what the family enjoys from those patterns, then apply those inferred preferences to ${destinationLabel}. Do NOT recommend literal equivalents. Do NOT recommend any place from those past trips. The family's history from other countries is irrelevant as a venue source — only use it to understand their tastes.
+5. Every recommendation MUST be a real, currently-operating place physically located in ${destinationLabel}. NEVER output a place located outside ${destinationLabel}, even if the family loved a similar place elsewhere. Each recommendation must also be physically located within 75km drive of its segment's anchor coordinates. If you cannot find enough qualifying venues in ${destinationLabel}, generate fewer rather than include wrong-location or out-of-radius venues.
 
 Generate exactly ${aiNeeded} recommendations distributed across segments per the allocation in the user message.`;
 
   const haikuPrompt = [
+    `Destination: ${destinationLabel}`,
+    "",
     `This family is on a ${durationDays}-day trip with ${segsForPrompt.length} segment${segsForPrompt.length !== 1 ? "s" : ""} based on their actual bookings:`,
     "",
     ...segsForPrompt.map((s, i) =>
@@ -318,7 +337,7 @@ Generate exactly ${aiNeeded} recommendations distributed across segments per the
       // Derive city from segmentIndex (1-based) — falls back to segmentCity string then destinationCity
       const segIdx = typeof r.segmentIndex === "number" ? Math.round(r.segmentIndex) - 1 : -1;
       const recSegment = segIdx >= 0 && segIdx < segsForPrompt.length ? segsForPrompt[segIdx] : null;
-      const recCity = recSegment?.city ?? (typeof r.segmentCity === "string" ? r.segmentCity : (trip.destinationCity ?? ""));
+      const recCity = recSegment?.city ?? (typeof r.segmentCity === "string" ? r.segmentCity : destinationCity);
       return {
         raw: r,
         segIdx,
@@ -327,7 +346,7 @@ Generate exactly ${aiNeeded} recommendations distributed across segments per the
         websiteUrl: (r.websiteUrl as string | null) ?? resolveCanonicalUrl({
           name: r.name as string,
           city: recCity,
-          country: trip.destinationCountry ?? undefined,
+          country: destinationCountry ?? undefined,
         }),
       };
     });
@@ -399,10 +418,14 @@ Generate exactly ${aiNeeded} recommendations distributed across segments per the
       : rec.segmentCity
         ? richContext.segments.find(s => s.city.toLowerCase() === rec.segmentCity!.toLowerCase())
         : null;
-    if (!seg || seg.lodgingLat == null || seg.lodgingLng == null) return true;
-    const km = haversineKm({ lat: rec.lat, lng: rec.lng }, { lat: seg.lodgingLat, lng: seg.lodgingLng });
+    // Default unmatched recs to segment[0] so Layer C enforces rather than bypasses.
+    // With the fallback segment guaranteed by extractRichTripContext, this fires for
+    // recs whose segmentIndex the model omitted or returned out-of-range.
+    const effectiveSeg = seg ?? (richContext.segments.length > 0 ? richContext.segments[0] : null);
+    if (!effectiveSeg || effectiveSeg.lodgingLat == null || effectiveSeg.lodgingLng == null) return true;
+    const km = haversineKm({ lat: rec.lat, lng: rec.lng }, { lat: effectiveSeg.lodgingLat, lng: effectiveSeg.lodgingLng });
     if (km > MAX_REC_KM) {
-      console.log(`[recommendations/ai] Layer C dropped "${rec.name}" (${km.toFixed(1)}km from ${seg.lodgingName})`);
+      console.log(`[recommendations/ai] Layer C dropped "${rec.name}" (${km.toFixed(1)}km from ${effectiveSeg.lodgingName})`);
       return false;
     }
     return true;
