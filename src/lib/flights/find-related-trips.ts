@@ -11,15 +11,18 @@
  * before calling.
  *
  * Matching rule (two signals required for high confidence):
- *   DESTINATION MATCH: leg.toCity or leg.fromCity matches trip.destinationCity
- *     (case-insensitive). fromCity covers return-from-destination legs
- *     (e.g. CMB→LHR departs Colombo, which is Sri Lanka's destination).
+ *   DESTINATION MATCH: leg.toCity matches trip.destinationCity (case-insensitive).
+ *   FROM-CITY MATCH: leg.fromCity matches trip.destinationCity — covers departing legs
+ *     (e.g. TPE→PDX departing from Taipei while a Taipei trip is active).
+ *     ONLY accepted when combined with date-in-range to prevent false positives on
+ *     completed trips whose city appears as origin for an unrelated booking.
  *   DATE-IN-RANGE: leg.departure or leg.arrival falls within
  *     [trip.startDate, trip.endDate] (inclusive, lexical YYYY-MM-DD comparison).
  *
  * Confidence levels:
- *   0.95 — destination match AND date in range  → accepted (>= 0.85 threshold)
- *   0.85 — destination match alone (date outside range)  → accepted
+ *   0.95 — toCity dest match AND date in range  → accepted (>= 0.85 threshold)
+ *   0.90 — fromCity dest match AND date in range → accepted (departing leg)
+ *   0.85 — toCity dest match alone (date outside range)  → accepted
  *   0.70 — date in range only, no destination match  → below threshold, NOT written
  *
  * This prevents long-range "home base" trips (e.g. Kamakura Jan–Jun) from
@@ -61,12 +64,9 @@ const normalizeCity = (s: string | null | undefined): string =>
   (s ?? "").trim().toLowerCase();
 
 /**
- * Returns true if the leg's arrival city matches the trip's destination city
- * (case-insensitive). Only toCity is checked — fromCity matching causes false
- * positives when a leg departs from a city that happens to be another trip's
- * destination (e.g. HND→SIN fromCity="Tokyo" would incorrectly match a past
- * "Tokyo" trip). Primary trips are seeded via primaryTripId so they don't
- * need fromCity matching to appear in the results.
+ * Returns true if the leg's arrival city (toCity) matches the trip's destination city.
+ * fromCity is intentionally not checked here — it is evaluated separately in the
+ * scoring loop with a date-in-range guard to avoid false positives on past trips.
  */
 function destinationMatch(leg: Record<string, unknown>, trip: TripRecord): boolean {
   const tripCity = normalizeCity(trip.destinationCity);
@@ -74,6 +74,20 @@ function destinationMatch(leg: Record<string, unknown>, trip: TripRecord): boole
 
   const legToCity = normalizeCity(leg.toCity as string | null | undefined);
   return !!legToCity && legToCity === tripCity;
+}
+
+/**
+ * Returns true if the leg's departure city (fromCity) matches the trip's destination city.
+ * Only used when the departure date is also within the trip's date range, so that
+ * completed trips whose destination city happens to appear as a departure city for an
+ * unrelated booking do not get a false match.
+ */
+function fromCityDestinationMatch(leg: Record<string, unknown>, trip: TripRecord): boolean {
+  const tripCity = normalizeCity(trip.destinationCity);
+  if (!tripCity) return false;
+
+  const legFromCity = normalizeCity(leg.fromCity as string | null | undefined);
+  return !!legFromCity && legFromCity === tripCity;
 }
 
 /**
@@ -113,6 +127,8 @@ export function findAllRelatedTrips(
       const hasDestMatch = destinationMatch(leg, trip);
       const hasDateMatch = !!(tripStart && tripEnd) &&
         (inRange(depStr, tripStart, tripEnd) || inRange(arrStr, tripStart, tripEnd));
+      // fromCity match requires date-in-range to prevent false positives on past trips
+      const hasFromCityDestMatch = hasDateMatch && fromCityDestinationMatch(leg, trip);
 
       let confidence: number;
       let matchType: string;
@@ -120,6 +136,12 @@ export function findAllRelatedTrips(
       if (hasDestMatch && hasDateMatch) {
         confidence = 0.95;
         matchType  = "leg-dest-date-match";
+      } else if (hasFromCityDestMatch) {
+        // Departure from trip's destination city while trip is active (e.g. TPE→PDX
+        // departing Taipei while the Taipei trip is ongoing). Date guard is already
+        // enforced in hasFromCityDestMatch so no separate branch needed.
+        confidence = 0.90;
+        matchType  = "leg-from-city-date-match";
       } else if (hasDestMatch) {
         confidence = 0.85;
         matchType  = "leg-dest-match";
