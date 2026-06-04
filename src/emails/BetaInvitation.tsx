@@ -85,7 +85,7 @@ export default function BetaInvitation({ firstName }: BetaInvitationProps) {
               </Text>
               <Text style={BULLET_TEXT}>
                 <span style={{ color: TERRACOTTA, fontWeight: 700 }}>·</span>{" "}
-                <strong style={{ color: NAVY }}>Your trip, fully organized.</strong> Itinerary, vault of confirmations, saved places, and a running budget all in one place, built around how families actually travel.
+                <strong style={{ color: NAVY }}>Your trip, fully organized.</strong> Itinerary, all your booking confirmations in one place, saved places, and a running budget, built around how families actually travel.
               </Text>
               <Text style={{ ...BULLET_TEXT, margin: 0 }}>
                 <span style={{ color: TERRACOTTA, fontWeight: 700 }}>·</span>{" "}

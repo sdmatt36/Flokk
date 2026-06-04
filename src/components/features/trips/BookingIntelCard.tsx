@@ -499,7 +499,7 @@ export function BookingIntelCard({ tripId, destinationCity, destinationCountry, 
           {/* Footer */}
           {state === "ready" && (
             <p style={{ fontSize: "11px", color: "#AAA", margin: "12px 0 0", borderTop: "1px solid rgba(0,0,0,0.05)", paddingTop: "10px" }}>
-              Updated based on what&apos;s in your trip vault
+              Updated based on what&apos;s in your trip bookings
             </p>
           )}
 

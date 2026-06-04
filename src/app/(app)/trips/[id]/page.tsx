@@ -48,7 +48,7 @@ export default async function TripDetailPage({
 }) {
   const { id } = await params;
   const sp = await searchParams;
-  const validTabs = ["saved", "itinerary", "recommended", "packing", "notes", "vault"] as const;
+  const validTabs = ["saved", "itinerary", "recommended", "packing", "notes", "bookings"] as const;
   type Tab = (typeof validTabs)[number];
   const initialTab: Tab = validTabs.includes(sp.tab as Tab) ? (sp.tab as Tab) : "saved";
 

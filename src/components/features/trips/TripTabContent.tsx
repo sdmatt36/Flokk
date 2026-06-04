@@ -118,7 +118,7 @@ import { ShareButton } from "@/components/shared/ShareButton";
 import { ShareEntityType } from "@/lib/share-token";
 import { NoteEditor, type TiptapDoc, emptyDoc } from "@/components/features/notes/NoteEditor";
 
-type Tab = "saved" | "itinerary" | "tours" | "recommended" | "events" | "packing" | "notes" | "vault" | "howwasit";
+type Tab = "saved" | "itinerary" | "tours" | "recommended" | "events" | "packing" | "notes" | "bookings" | "howwasit";
 
 type Flight = {
   id: string;
@@ -7796,7 +7796,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [newKeyInfo, setNewKeyInfo] = useState({ label: "", value: "" });
 
   useEffect(() => {
-    if (tab !== "vault" || !tripId) return;
+    if (tab !== "bookings" || !tripId) return;
     Promise.all([
       fetch(`/api/trips/${tripId}/vault/contacts`).then(r => r.json()),
       fetch(`/api/trips/${tripId}/vault/documents`).then(r => r.json()),
@@ -7895,7 +7895,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           marginBottom: "20px",
         }}
       >
-        {(["Saved", "Itinerary", "Tours", "Recommended", ...(SHOW_EVENTS_TAB ? ["Events"] : []), "Packing", "Notes", "Vault"] as const).map((label) => {
+        {(["Saved", "Itinerary", "Tours", "Recommended", ...(SHOW_EVENTS_TAB ? ["Events"] : []), "Packing", "Notes", "Bookings"] as const).map((label) => {
           const key = label.toLowerCase() as Tab;
           const active = tab === key;
           return (
@@ -8256,7 +8256,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
         </div>
       )}
 
-      {tab === "vault" && (
+      {tab === "bookings" && (
         <div style={{ maxWidth: "640px", display: "flex", flexDirection: "column", gap: "32px" }}>
 
           {/* ── BOOKINGS & CONTACTS ── */}
