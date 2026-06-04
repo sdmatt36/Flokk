@@ -41,7 +41,9 @@ type FeedSection = {
   tripId?: string;
   tripName?: string;
   tripStatus?: string;
+  tripStartDate?: string | null;
   tripEndDate?: string | null;
+  dateRange?: string | null;
   city?: string;
   saves: FeedSaveItem[];
   suggestedSaves: FeedSaveItem[]; // reserved — Tier 1/2/3 deferred
@@ -61,6 +63,20 @@ function resolveDisplayTitle(rawTitle: string | null, city: string | null): stri
   return rawTitle;
 }
 
+function formatTripDateRange(startIso: string, endIso: string | null): string {
+  const start = new Date(startIso);
+  const monthFmt: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+  if (!endIso) return start.toLocaleDateString("en-US", monthFmt);
+  const end = new Date(endIso);
+  const sameMonth =
+    start.getMonth() === end.getMonth() &&
+    start.getFullYear() === end.getFullYear();
+  if (sameMonth) {
+    return `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })}–${end.getDate()}`;
+  }
+  return `${start.toLocaleDateString("en-US", monthFmt)} – ${end.toLocaleDateString("en-US", monthFmt)}`;
+}
+
 type DbSave = {
   id: string;
   rawTitle: string | null;
@@ -72,6 +88,9 @@ type DbSave = {
   sourceMethod: string | null;
   websiteUrl: string | null;
   sourceUrl: string | null;
+  affiliateUrl: string | null;
+  googlePlaceId: string | null;
+  mapsUrl: string | null;
   lat: number | null;
   lng: number | null;
   savedAt: Date;
@@ -81,7 +100,7 @@ type DbSave = {
   userRating: number | null;
   needsAdvanceBooking: boolean;
   advanceBookingReason: string | null;
-  communitySpot: { photoUrl: string | null; websiteUrl: string | null } | null;
+  communitySpot: { photoUrl: string | null } | null;
   tripDocuments: { type: string }[];
 };
 
@@ -106,7 +125,9 @@ function buildFeedItem(s: DbSave): FeedSaveItem {
     resolveSaveLink({
       websiteUrl: s.websiteUrl,
       sourceUrl: s.sourceUrl,
-      communitySpotWebsiteUrl: s.communitySpot?.websiteUrl ?? null,
+      affiliateUrl: s.affiliateUrl,
+      googlePlaceId: s.googlePlaceId,
+      mapsUrl: s.mapsUrl,
       lat: s.lat,
       lng: s.lng,
       rawTitle: s.rawTitle,
@@ -237,6 +258,9 @@ export async function GET(req: NextRequest) {
       sourceMethod: true,
       websiteUrl: true,
       sourceUrl: true,
+      affiliateUrl: true,
+      googlePlaceId: true,
+      mapsUrl: true,
       lat: true,
       lng: true,
       savedAt: true,
@@ -246,7 +270,7 @@ export async function GET(req: NextRequest) {
       userRating: true,
       needsAdvanceBooking: true,
       advanceBookingReason: true,
-      communitySpot: { select: { photoUrl: true, websiteUrl: true } },
+      communitySpot: { select: { photoUrl: true } },
       tripDocuments: { select: { type: true } },
     },
   });
@@ -255,7 +279,7 @@ export async function GET(req: NextRequest) {
   const upcomingBuckets = new Map<string, FeedSaveItem[]>(
     upcomingTrips.map((t) => [t.id, []]),
   );
-  const pastCityMap = new Map<string, FeedSaveItem[]>();
+  const pastTripMap = new Map<string, FeedSaveItem[]>();
   const unassigned: FeedSaveItem[] = [];
   const imported: FeedSaveItem[] = [];
 
@@ -269,10 +293,9 @@ export async function GET(req: NextRequest) {
       continue;
     }
     if (s.tripId && pastTripIds.has(s.tripId)) {
-      const city = s.destinationCity ?? "Unknown";
-      const list = pastCityMap.get(city) ?? [];
+      const list = pastTripMap.get(s.tripId) ?? [];
       list.push(buildFeedItem(s));
-      pastCityMap.set(city, list);
+      pastTripMap.set(s.tripId, list);
       continue;
     }
     unassigned.push(buildFeedItem(s));
@@ -282,25 +305,43 @@ export async function GET(req: NextRequest) {
   const sections: FeedSection[] = [];
 
   for (const t of upcomingTrips) {
+    const tripStartDate = t.startDate ? t.startDate.toISOString() : null;
+    const tripEndDate = t.endDate ? t.endDate.toISOString() : null;
     sections.push({
       type: "upcoming",
       tripId: t.id,
       tripName: t.title,
       tripStatus: t.status,
-      tripEndDate: t.endDate ? t.endDate.toISOString() : null,
+      tripStartDate,
+      tripEndDate,
+      dateRange: tripStartDate ? formatTripDateRange(tripStartDate, tripEndDate) : null,
       saves: sortSaves(upcomingBuckets.get(t.id) ?? []),
       suggestedSaves: [],
     });
   }
 
-  const sortedPastCities = [...pastCityMap.entries()].sort(([a], [b]) =>
-    a.localeCompare(b),
-  );
-  for (const [city, citySaves] of sortedPastCities) {
+  const pastTripsById = new Map(pastTrips.map((t) => [t.id, t]));
+  const sortedPastTripIds = [...pastTripMap.keys()].sort((a, b) => {
+    const ta = pastTripsById.get(a);
+    const tb = pastTripsById.get(b);
+    const aEnd = ta?.endDate ? ta.endDate.getTime() : 0;
+    const bEnd = tb?.endDate ? tb.endDate.getTime() : 0;
+    return bEnd - aEnd; // most recent past trip first
+  });
+  for (const tripId of sortedPastTripIds) {
+    const t = pastTripsById.get(tripId)!;
+    const tripStartDate = t.startDate ? t.startDate.toISOString() : null;
+    const tripEndDate = t.endDate ? t.endDate.toISOString() : null;
     sections.push({
       type: "past",
-      city,
-      saves: sortSaves(citySaves),
+      tripId: t.id,
+      tripName: t.title,
+      tripStatus: t.status,
+      tripStartDate,
+      tripEndDate,
+      dateRange: tripStartDate ? formatTripDateRange(tripStartDate, tripEndDate) : null,
+      city: t.destinationCity ?? undefined,
+      saves: sortSaves(pastTripMap.get(tripId) ?? []),
       suggestedSaves: [],
     });
   }

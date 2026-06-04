@@ -2,14 +2,17 @@
  * Resolves a navigable URL for a saved item using a priority chain.
  *
  * Priority (highest intent first):
- *   1. websiteUrl              (user-edited canonical site — highest intent)
- *   2. sourceUrl               (inbound URL from the original save)
- *   3. communitySpotWebsiteUrl (shared enriched URL from Google Places)
- *   4. Google Maps coord search (lat+lng)
- *   5. Google Maps name+city search (text)
+ *   1. websiteUrl / sourceUrl / affiliateUrl  (user/source-supplied URLs)
+ *   2. googlePlaceId → Google Maps place URL
+ *   3. mapsUrl                (Google Maps deep link stored at enrichment time)
+ *   4. Google Maps name+city search (text fallback)
+ *   5. Google Maps coord search (lat+lng fallback)
  *   6. null                    (truly unlinkable)
  *
- * Tiers 1–3 are user/community-supplied URLs and are passed through
+ * communitySpotWebsiteUrl is intentionally excluded — enrichment artifacts
+ * can store bare https://www.google.com/ which produces a dead link.
+ *
+ * Tiers 1–3 are user/source-supplied URLs and are passed through
  * stripTrackingParams before being returned. Tiers 4–5 are constructed by
  * us and need no stripping.
  *
@@ -56,7 +59,10 @@ export function stripTrackingParams(url: string): string {
 export interface SaveLinkInput {
   websiteUrl?: string | null;
   sourceUrl?: string | null;
-  communitySpotWebsiteUrl?: string | null;
+  affiliateUrl?: string | null;
+  communitySpotWebsiteUrl?: string | null; // kept for backward compat; excluded from chain
+  googlePlaceId?: string | null;
+  mapsUrl?: string | null;
   lat?: number | null;
   lng?: number | null;
   rawTitle?: string | null;
@@ -76,16 +82,23 @@ export function resolveSaveLink(save: SaveLinkInput): SaveLinkResult | null {
   if (save.sourceUrl && save.sourceUrl.trim()) {
     return { url: stripTrackingParams(save.sourceUrl.trim()), label: "Link", isFallback: false };
   }
-  if (save.communitySpotWebsiteUrl && save.communitySpotWebsiteUrl.trim()) {
-    return { url: stripTrackingParams(save.communitySpotWebsiteUrl.trim()), label: "Link", isFallback: false };
+  if (save.affiliateUrl && save.affiliateUrl.trim()) {
+    return { url: stripTrackingParams(save.affiliateUrl.trim()), label: "Link", isFallback: false };
+  }
+  if (save.googlePlaceId && save.googlePlaceId.trim()) {
+    const url = `https://www.google.com/maps/place/?q=place_id:${save.googlePlaceId.trim()}`;
+    return { url, label: "Link", isFallback: false };
+  }
+  if (save.mapsUrl && save.mapsUrl.trim()) {
+    return { url: stripTrackingParams(save.mapsUrl.trim()), label: "Link", isFallback: false };
+  }
+  if (save.rawTitle && save.destinationCity) {
+    const query = encodeURIComponent(`${save.rawTitle}, ${save.destinationCity}`);
+    const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
+    return { url, label: "Link", isFallback: true };
   }
   if (typeof save.lat === "number" && typeof save.lng === "number") {
     const url = `https://www.google.com/maps/search/?api=1&query=${save.lat},${save.lng}`;
-    return { url, label: "Link", isFallback: true };
-  }
-  if (save.rawTitle && save.destinationCity) {
-    const query = encodeURIComponent(`${save.rawTitle} ${save.destinationCity}`);
-    const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
     return { url, label: "Link", isFallback: true };
   }
   return null;
