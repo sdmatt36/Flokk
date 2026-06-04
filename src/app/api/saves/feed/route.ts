@@ -280,7 +280,7 @@ export async function GET(req: NextRequest) {
   const upcomingBuckets = new Map<string, FeedSaveItem[]>(
     upcomingTrips.map((t) => [t.id, []]),
   );
-  const pastTripMap = new Map<string, FeedSaveItem[]>();
+  const pastCityMap = new Map<string, FeedSaveItem[]>();
   const unassigned: FeedSaveItem[] = [];
   const imported: FeedSaveItem[] = [];
 
@@ -294,9 +294,10 @@ export async function GET(req: NextRequest) {
       continue;
     }
     if (s.tripId && pastTripIds.has(s.tripId)) {
-      const list = pastTripMap.get(s.tripId) ?? [];
+      const city = s.destinationCity ?? "Unknown";
+      const list = pastCityMap.get(city) ?? [];
       list.push(buildFeedItem(s));
-      pastTripMap.set(s.tripId, list);
+      pastCityMap.set(city, list);
       continue;
     }
     unassigned.push(buildFeedItem(s));
@@ -321,28 +322,14 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const pastTripsById = new Map(pastTrips.map((t) => [t.id, t]));
-  const sortedPastTripIds = [...pastTripMap.keys()].sort((a, b) => {
-    const ta = pastTripsById.get(a);
-    const tb = pastTripsById.get(b);
-    const aEnd = ta?.endDate ? ta.endDate.getTime() : 0;
-    const bEnd = tb?.endDate ? tb.endDate.getTime() : 0;
-    return bEnd - aEnd; // most recent past trip first
-  });
-  for (const tripId of sortedPastTripIds) {
-    const t = pastTripsById.get(tripId)!;
-    const tripStartDate = t.startDate ? t.startDate.toISOString() : null;
-    const tripEndDate = t.endDate ? t.endDate.toISOString() : null;
+  const sortedPastCities = [...pastCityMap.entries()].sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+  for (const [city, citySaves] of sortedPastCities) {
     sections.push({
       type: "past",
-      tripId: t.id,
-      tripName: t.title,
-      tripStatus: t.status,
-      tripStartDate,
-      tripEndDate,
-      dateRange: tripStartDate ? formatTripDateRange(tripStartDate, tripEndDate) : null,
-      city: t.destinationCity ?? undefined,
-      saves: sortSaves(pastTripMap.get(tripId) ?? []),
+      city,
+      saves: sortSaves(citySaves),
       suggestedSaves: [],
     });
   }
