@@ -100,7 +100,7 @@ type DbSave = {
   userRating: number | null;
   needsAdvanceBooking: boolean;
   advanceBookingReason: string | null;
-  communitySpot: { photoUrl: string | null } | null;
+  communitySpot: { photoUrl: string | null; websiteUrl: string | null } | null;
   tripDocuments: { type: string }[];
 };
 
@@ -126,6 +126,7 @@ function buildFeedItem(s: DbSave): FeedSaveItem {
       websiteUrl: s.websiteUrl,
       sourceUrl: s.sourceUrl,
       affiliateUrl: s.affiliateUrl,
+      communitySpotWebsiteUrl: s.communitySpot?.websiteUrl ?? null,
       googlePlaceId: s.googlePlaceId,
       mapsUrl: s.mapsUrl,
       lat: s.lat,
@@ -270,7 +271,7 @@ export async function GET(req: NextRequest) {
       userRating: true,
       needsAdvanceBooking: true,
       advanceBookingReason: true,
-      communitySpot: { select: { photoUrl: true } },
+      communitySpot: { select: { photoUrl: true, websiteUrl: true } },
       tripDocuments: { select: { type: true } },
     },
   });

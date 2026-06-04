@@ -3,17 +3,17 @@
  *
  * Priority (highest intent first):
  *   1. websiteUrl / sourceUrl / affiliateUrl  (user/source-supplied URLs)
- *   2. googlePlaceId → Google Maps place URL
- *   3. mapsUrl                (Google Maps deep link stored at enrichment time)
- *   4. Google Maps name+city search (text fallback)
- *   5. Google Maps coord search (lat+lng fallback)
- *   6. null                    (truly unlinkable)
+ *   2. communitySpotWebsiteUrl (shared enriched URL — skipped when hostname is
+ *      google.com, www.google.com, or maps.google.com; sites.google.com and
+ *      other google-hosted real venue pages are passed through)
+ *   3. googlePlaceId → Google Maps place URL
+ *   4. mapsUrl                (Google Maps deep link stored at enrichment time)
+ *   5. Google Maps name+city search (text fallback)
+ *   6. Google Maps coord search (lat+lng fallback)
+ *   7. null                    (truly unlinkable)
  *
- * communitySpotWebsiteUrl is intentionally excluded — enrichment artifacts
- * can store bare https://www.google.com/ which produces a dead link.
- *
- * Tiers 1–3 are user/source-supplied URLs and are passed through
- * stripTrackingParams before being returned. Tiers 4–5 are constructed by
+ * Tiers 1–2 are user/community-supplied URLs and are passed through
+ * stripTrackingParams before being returned. Tiers 5–6 are constructed by
  * us and need no stripping.
  *
  * Returns { url, label, isFallback } so the render layer can optionally
@@ -60,7 +60,7 @@ export interface SaveLinkInput {
   websiteUrl?: string | null;
   sourceUrl?: string | null;
   affiliateUrl?: string | null;
-  communitySpotWebsiteUrl?: string | null; // kept for backward compat; excluded from chain
+  communitySpotWebsiteUrl?: string | null;
   googlePlaceId?: string | null;
   mapsUrl?: string | null;
   lat?: number | null;
@@ -84,6 +84,19 @@ export function resolveSaveLink(save: SaveLinkInput): SaveLinkResult | null {
   }
   if (save.affiliateUrl && save.affiliateUrl.trim()) {
     return { url: stripTrackingParams(save.affiliateUrl.trim()), label: "Link", isFallback: false };
+  }
+  if (save.communitySpotWebsiteUrl && save.communitySpotWebsiteUrl.trim()) {
+    try {
+      const host = new URL(save.communitySpotWebsiteUrl.trim()).hostname.toLowerCase();
+      // Block bare google.com and Maps CID links — enrichment artifacts, not venue websites.
+      // Allow sites.google.com and other google-hosted real venue pages.
+      const isGoogleJunk = host === "google.com" || host === "www.google.com" || host === "maps.google.com";
+      if (!isGoogleJunk) {
+        return { url: stripTrackingParams(save.communitySpotWebsiteUrl.trim()), label: "Link", isFallback: false };
+      }
+    } catch {
+      // malformed URL — fall through
+    }
   }
   if (save.googlePlaceId && save.googlePlaceId.trim()) {
     const url = `https://www.google.com/maps/place/?q=place_id:${save.googlePlaceId.trim()}`;
