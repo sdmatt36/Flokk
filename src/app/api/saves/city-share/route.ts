@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
     // Upsert: idempotent by (ownerProfileId, citySlug, scope)
     let share = await db.cityShare.findFirst({
       where: { ownerProfileId: profileId, citySlug, scope },
-      select: { token: true },
+      select: { id: true, token: true },
     });
 
     if (!share) {
@@ -43,14 +43,14 @@ export async function POST(request: NextRequest) {
       try {
         share = await db.cityShare.create({
           data: { token, ownerProfileId: profileId, citySlug, scope },
-          select: { token: true },
+          select: { id: true, token: true },
         });
       } catch (e: unknown) {
         // P2002 = unique constraint race condition
         if ((e as { code?: string }).code === "P2002") {
           share = await db.cityShare.findFirst({
             where: { ownerProfileId: profileId, citySlug, scope },
-            select: { token: true },
+            select: { id: true, token: true },
           });
         } else {
           throw e;
@@ -61,6 +61,18 @@ export async function POST(request: NextRequest) {
     const host = request.headers.get("host") ?? "flokktravel.com";
     const protocol = host.includes("localhost") ? "http" : "https";
     const url = `${protocol}://${host}/share/city/${share!.token}`;
+
+    try {
+      await db.shareEvent.create({
+        data: {
+          entityType: "city",
+          entityId: share!.id,
+          token: share!.token,
+          sharedByUserId: userId,
+          sharedByFamilyProfileId: profileId,
+        },
+      });
+    } catch { /* logging failure never breaks the response */ }
 
     return NextResponse.json({ token: share!.token, url });
   } catch (error) {

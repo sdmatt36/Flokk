@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
 import { Resend } from "resend";
 
 export const dynamic = "force-dynamic";
@@ -110,6 +111,7 @@ export async function POST(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
+  const profileId = await resolveProfileId(userId);
   const body = await req.json() as { recipientFamilyId?: string; recipientEmail?: string };
   const { recipientFamilyId, recipientEmail } = body;
 
@@ -190,6 +192,19 @@ export async function POST(
       }),
     });
   }
+
+  try {
+    await db.shareEvent.create({
+      data: {
+        entityType: "trip",
+        entityId: id,
+        token: trip.shareToken,
+        channel: "email",
+        sharedByUserId: userId,
+        sharedByFamilyProfileId: profileId ?? null,
+      },
+    });
+  } catch { /* logging failure never breaks the response */ }
 
   return NextResponse.json({ success: true });
 }

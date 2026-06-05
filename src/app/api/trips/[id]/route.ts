@@ -85,6 +85,21 @@ export async function PATCH(
     } catch (e) { console.error("[loops] trip_made_public event error", e); }
   }
 
+  // ShareEvent: log when trip is made public (isPublic flip false → true)
+  if (isPublic === true && !trip.isPublic) {
+    try {
+      await db.shareEvent.create({
+        data: {
+          entityType: "trip",
+          entityId: id,
+          token: trip.shareToken ?? null,
+          sharedByUserId: userId,
+          sharedByFamilyProfileId: profileId,
+        },
+      });
+    } catch { /* logging failure never breaks the response */ }
+  }
+
   return NextResponse.json({ trip: updated });
 }
 
