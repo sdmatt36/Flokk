@@ -1265,3 +1265,19 @@ model CityShare {
   @@unique([ownerProfileId, citySlug, scope])
   @@index([ownerProfileId])
 }
+
+model ShareEvent {
+  id                      String   @id @default(cuid())
+  entityType              String
+  entityId                String
+  token                   String?
+  channel                 String?
+  sharedByUserId          String?
+  sharedByFamilyProfileId String?
+  createdAt               DateTime @default(now())
+
+  @@index([sharedByFamilyProfileId])
+  @@index([sharedByUserId])
+  @@index([entityType])
+  @@index([createdAt])
+}

@@ -25,6 +25,22 @@ export async function POST(req: Request) {
   }
 
   const token = await getOrCreateShareToken(entityType, entityId);
+
+  try {
+    await db.shareEvent.create({
+      data: {
+        entityType,
+        entityId,
+        token,
+        channel: (body as { entityType: ShareEntityType; entityId: string; channel?: string }).channel ?? null,
+        sharedByUserId: userId,
+        sharedByFamilyProfileId: profileId,
+      },
+    });
+  } catch {
+    // logging failure must never break the share response
+  }
+
   return NextResponse.json({ token });
 }
 
