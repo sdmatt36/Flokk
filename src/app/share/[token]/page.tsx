@@ -253,7 +253,7 @@ export default async function SharePage({
     .join(", ");
   const tripDestination =
     trip.destinationCity ?? destination ?? "this destination";
-  const totalActivityCount = trip.savedItems.length;
+  // totalActivityCount computed after dayBlocks below
 
   // Family-fit derivation from all saved item tags
   const allTripTags = trip.savedItems.flatMap((s) => s.categoryTags);
@@ -401,7 +401,13 @@ export default async function SharePage({
       const { label, date } = dayLabelParts(trip.startDate, di);
       return { index: di, label, date, stops };
     })
-    .filter((d) => d.stops.length > 0);
+    .filter((d) => d.stops.length > 0)
+    // Re-number sequentially so rendered days are always 1..N with no gaps
+    .map((d, i) => ({ ...d, label: `Day ${i + 1}` }));
+
+  // Count rendered stops across all days (not raw savedItems.length, which includes
+  // unassigned/filtered rows and excludes itineraryItems + manualActivities)
+  const totalActivityCount = dayBlocks.reduce((sum, d) => sum + d.stops.length, 0);
 
   // Generated description (Trip has no description field)
   const tripDescription = destination
@@ -640,7 +646,7 @@ export default async function SharePage({
                 }}
               >
                 <Bookmark size={16} color={T.muted} strokeWidth={2} />
-                {totalActivityCount} spot{totalActivityCount !== 1 ? "s" : ""}
+                {totalActivityCount} stop{totalActivityCount !== 1 ? "s" : ""}
               </span>
             </>
           )}
