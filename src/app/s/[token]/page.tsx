@@ -79,6 +79,13 @@ const ITIN_CATEGORY: Record<string, string> = {
   FLIGHT: "Flight", TRAIN: "Train", LODGING: "Stay", ACTIVITY: "Activity",
 };
 
+// ── Ticket label humanizer ────────────────────────────────────────────────────
+function humanizeTicket(raw: string | null): string | null {
+  if (!raw || raw === "unknown") return null;
+  if (raw === "ticket-required") return "Ticket required";
+  return raw;
+}
+
 // ── Tour stop type ────────────────────────────────────────────────────────────
 type TourStopItem = {
   id: string; orderIndex: number; name: string; address: string | null;
@@ -132,7 +139,7 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
     const cityName = extractCityName(tour.destinationCity, tour.destinationCountry);
     const loc = formatTourLocation(tour.destinationCity, tour.destinationCountry);
     title = `${tour.publicTitle ?? tour.title} - ${loc} | Flokk`;
-    description = tour.publicSubtitle ?? tour.subtitle ?? `A family-ready tour of ${loc}.`;
+    description = tour.publicSubtitle ?? `A family-ready tour of ${loc}.`;
     imageUrl = getTripCoverImage(cityName, tour.destinationCountry);
   }
 
@@ -252,7 +259,7 @@ export default async function ShareItemPage({ params }: { params: Promise<{ toke
       .filter(Boolean).join(" · ");
     fitLine    = deriveFamilyFitLine(tour.categoryTags);
     fitWhy     = deriveFamilyFitWhy(tour.categoryTags);
-    description = tour.publicSubtitle ?? tour.subtitle ?? null;
+    description = tour.publicSubtitle ?? null;
     tourStops  = tour.stops;
     walkingWarning = /walk/i.test(tour.transport) && tour.stops.some(s => (s.travelTimeMin ?? 0) > 20);
   }
@@ -411,9 +418,10 @@ export default async function ShareItemPage({ params }: { params: Promise<{ toke
             <div style={{ position: "relative" }}>
               <div style={{ position: "absolute", left: 15, top: 8, bottom: 8, width: 2, borderLeft: `2px dotted ${T.hair}`, zIndex: 0 }} />
               {tourStops.map((stop, idx) => {
-                const stopWhy  = stop.publicWhy  ?? stop.why  ?? null;
-                // familyNote only renders when the family actually entered it in the tour builder — never auto-asserted
-                const stopNote = stop.publicFamilyNote ?? stop.familyNote ?? null;
+                // publicWhy and publicFamilyNote only — private why/familyNote never rendered
+                const stopWhy  = stop.publicWhy       ?? null;
+                const stopNote = stop.publicFamilyNote ?? null;
+                const ticketLabel = humanizeTicket(stop.ticketRequired);
                 const isLast   = idx === tourStops!.length - 1;
                 return (
                   <div key={stop.id} style={{ position: "relative", display: "flex", gap: 15, paddingBottom: 20, zIndex: 1 }}>
@@ -428,7 +436,7 @@ export default async function ShareItemPage({ params }: { params: Promise<{ toke
                       {idx + 1}
                     </span>
                     <div style={{ flex: 1, minWidth: 0, paddingTop: 1 }}>
-                      {(stop.durationMin || stop.ticketRequired) && (
+                      {(stop.durationMin || ticketLabel) && (
                         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                           {stop.durationMin && (
                             <span style={{ fontFamily: sans, fontWeight: 500, fontSize: 12.5, color: T.muted }}>
@@ -437,12 +445,12 @@ export default async function ShareItemPage({ params }: { params: Promise<{ toke
                                 : `${stop.durationMin}m`}
                             </span>
                           )}
-                          {stop.durationMin && stop.ticketRequired && (
+                          {stop.durationMin && ticketLabel && (
                             <span style={{ width: 3, height: 3, borderRadius: "50%", background: "#AAB6C2", flexShrink: 0 }} />
                           )}
-                          {stop.ticketRequired && (
+                          {ticketLabel && (
                             <span style={{ fontFamily: sans, fontWeight: 500, fontSize: 12.5, color: T.muted }}>
-                              {stop.ticketRequired}
+                              {ticketLabel}
                             </span>
                           )}
                         </div>
