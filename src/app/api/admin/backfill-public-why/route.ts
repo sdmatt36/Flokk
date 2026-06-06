@@ -16,21 +16,35 @@ export async function POST(req: NextRequest) {
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // force=true: overwrite all stops on all shared tours (used to remediate verbatim-copy leaks).
+  // Default: only process stops where publicWhy is null.
+  const force = new URL(req.url).searchParams.get("force") === "true";
+
   const tours = await db.generatedTour.findMany({
     where: {
       shareToken: { not: null },
       deletedAt: null,
-      stops: { some: { publicWhy: null, deletedAt: null } },
+      ...(force ? {} : { stops: { some: { publicWhy: null, deletedAt: null } } }),
     },
     select: {
       id: true,
       destinationCity: true,
       stops: {
-        where: { publicWhy: null, deletedAt: null },
+        where: force ? { deletedAt: null } : { publicWhy: null, deletedAt: null },
         select: { id: true, name: true, address: true, placeTypes: true, durationMin: true },
       },
     },
   });
+
+  // In force mode, also null publicFamilyNote — private data, no neutral replacement.
+  if (force) {
+    for (const tour of tours) {
+      await db.tourStop.updateMany({
+        where: { tourId: tour.id, deletedAt: null },
+        data: { publicFamilyNote: null },
+      });
+    }
+  }
 
   let totalGenerated = 0;
   let totalFailed = 0;
@@ -46,5 +60,6 @@ export async function POST(req: NextRequest) {
     toursProcessed: tours.length,
     generated: totalGenerated,
     failed: totalFailed,
+    force,
   });
 }

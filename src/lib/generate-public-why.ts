@@ -53,3 +53,34 @@ Respond with only the description sentences.`,
   }
   return { generated: stops.length - failed, failed };
 }
+
+export async function generateNeutralSubtitle(
+  title: string,
+  durationLabel: string,
+  transport: string,
+  city: string,
+  stopCount: number,
+): Promise<string> {
+  try {
+    const msg = await anthropic.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 80,
+      messages: [{
+        role: "user",
+        content: `Write one sentence (under 20 words) for this family tour. General language only; no ages, names, or personal details.
+
+Tour: ${title}
+City: ${city}
+Duration: ${durationLabel}
+Getting around: ${transport}
+Stops: ${stopCount}
+
+Respond with only the sentence.`,
+      }],
+    });
+    const text = msg.content[0]?.type === "text" ? msg.content[0].text.trim() : null;
+    return text ?? `A family-ready ${durationLabel.toLowerCase()} tour of ${city}.`;
+  } catch {
+    return `A family-ready ${durationLabel.toLowerCase()} tour of ${city}.`;
+  }
+}
