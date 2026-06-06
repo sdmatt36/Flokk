@@ -10,6 +10,7 @@ import { resolveGooglePhotoUrl, PLACES_INFRA_STATUSES, PlacesInfraError } from "
 import { aggregateTripContext, flatChildAges, describePace, topInterests } from "@/lib/trip-context-multi";
 import { DestinationType, Prisma } from "@prisma/client";
 import { gradeTour, graderFlagsToInstruction, type GraderFamilyContext, type GraderGenerationInputs, type GraderStop } from "@/lib/tour-grader";
+import { generatePublicWhyForStops } from "@/lib/generate-public-why";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -1545,6 +1546,19 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
         );
         anchorViolation = { distance: Math.round(maxEndpointDist), threshold: anchorThreshold };
         console.log(`[tour-anchor-violation] first=${Math.round(firstDist)}m, last=${Math.round(lastDist)}m from lodging (threshold=${anchorThreshold}m)`);
+      }
+    }
+
+    // ── publicWhy generation (neutral, public-safe stop copy) ────────────────
+    // Runs only when time budget allows; backfill endpoint covers any skipped stops.
+    if (tourId && finalStopsFromDb.length > 0 && Date.now() - t0 < 108_000) {
+      const stopsNeedingPublicWhy = finalStopsFromDb.filter(s => !s.publicWhy);
+      if (stopsNeedingPublicWhy.length > 0) {
+        try {
+          await generatePublicWhyForStops(stopsNeedingPublicWhy, destinationCity);
+        } catch (publicWhyErr) {
+          console.error("[publicWhy] generation pipeline failed:", publicWhyErr);
+        }
       }
     }
 
