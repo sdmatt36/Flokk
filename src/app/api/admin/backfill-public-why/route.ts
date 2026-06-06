@@ -1,14 +1,20 @@
 import { auth } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { generatePublicWhyForStops } from "@/lib/generate-public-why";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-export async function POST() {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function POST(req: NextRequest) {
+  // Accept either Clerk session auth or CRON_SECRET Bearer token
+  const authHeader = req.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+  const bearerValid = cronSecret && authHeader === `Bearer ${cronSecret}`;
+  if (!bearerValid) {
+    const { userId } = await auth();
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
   const tours = await db.generatedTour.findMany({
     where: {
