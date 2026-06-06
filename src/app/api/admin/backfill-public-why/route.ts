@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { generatePublicWhyForStops } from "@/lib/generate-public-why";
+import { generatePublicWhyForStops, generateNeutralSubtitle } from "@/lib/generate-public-why";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -16,8 +16,8 @@ export async function POST(req: NextRequest) {
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // force=true: overwrite all stops on all shared tours (used to remediate verbatim-copy leaks).
-  // Default: only process stops where publicWhy is null.
+  // force=true: overwrite all stops and publicSubtitle on all shared tours
+  // (used to remediate verbatim-copy leaks). Default: only process null publicWhy stops.
   const force = new URL(req.url).searchParams.get("force") === "true";
 
   const tours = await db.generatedTour.findMany({
@@ -28,6 +28,9 @@ export async function POST(req: NextRequest) {
     },
     select: {
       id: true,
+      title: true,
+      durationLabel: true,
+      transport: true,
       destinationCity: true,
       stops: {
         where: force ? { deletedAt: null } : { publicWhy: null, deletedAt: null },
@@ -48,18 +51,39 @@ export async function POST(req: NextRequest) {
 
   let totalGenerated = 0;
   let totalFailed = 0;
+  let subtitlesGenerated = 0;
 
   for (const tour of tours) {
-    if (tour.stops.length === 0) continue;
-    const { generated, failed } = await generatePublicWhyForStops(tour.stops, tour.destinationCity);
-    totalGenerated += generated;
-    totalFailed += failed;
+    // Regenerate publicWhy for stops
+    if (tour.stops.length > 0) {
+      const { generated, failed } = await generatePublicWhyForStops(tour.stops, tour.destinationCity);
+      totalGenerated += generated;
+      totalFailed += failed;
+    }
+
+    // In force mode, regenerate publicSubtitle from neutral tour attributes
+    if (force) {
+      const totalStops = await db.tourStop.count({ where: { tourId: tour.id, deletedAt: null } });
+      const publicSubtitle = await generateNeutralSubtitle(
+        tour.title,
+        tour.durationLabel,
+        tour.transport,
+        tour.destinationCity,
+        totalStops,
+      );
+      await db.generatedTour.update({
+        where: { id: tour.id },
+        data: { publicSubtitle },
+      });
+      subtitlesGenerated++;
+    }
   }
 
   return NextResponse.json({
     toursProcessed: tours.length,
     generated: totalGenerated,
     failed: totalFailed,
+    subtitlesGenerated,
     force,
   });
 }
