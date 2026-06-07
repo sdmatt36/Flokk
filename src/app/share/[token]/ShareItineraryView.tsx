@@ -314,7 +314,7 @@ export function ShareItineraryView({
                                 className="hover:bg-black/[0.02]"
                               >
                                 {/* Thumbnail or numbered placeholder */}
-                                {item.imageUrl ? (
+                                {item.imageUrl && !item.imageUrl.includes("lh3.googleusercontent.com") ? (
                                   <div
                                     style={{ width: "56px", height: "56px", borderRadius: "8px", flexShrink: 0, backgroundImage: `url('${item.imageUrl}')`, backgroundSize: "cover", backgroundPosition: "center" }}
                                   />

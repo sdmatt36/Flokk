@@ -21,7 +21,8 @@ type Props = {
 };
 
 export function CountryCard({ country, continentColor, continentLabel }: Props) {
-  const cityPhoto = country.topCities[0]?.photoUrl ?? country.photoUrl ?? null;
+  const rawCityPhoto = country.topCities[0]?.photoUrl ?? country.photoUrl ?? null;
+  const cityPhoto = rawCityPhoto?.includes("lh3.googleusercontent.com") ? null : rawCityPhoto;
   const coverImage = cityPhoto ?? getTripCoverImage(null, country.name, null);
   const isColorFallback = coverImage === DEFAULT_COVER;
 

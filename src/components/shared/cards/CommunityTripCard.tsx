@@ -25,7 +25,8 @@ const GRAY_200 = "#E5E7EB";
 
 export function CommunityTripCard({ trip }: { trip: CommunityTripCardTrip }) {
   const [copied, setCopied] = useState(false);
-  const coverImage = getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl ?? null);
+  const safeHeroUrl = trip.heroImageUrl?.includes("lh3.googleusercontent.com") ? null : (trip.heroImageUrl ?? null);
+  const coverImage = getTripCoverImage(trip.destinationCity, trip.destinationCountry, safeHeroUrl);
   const nights = trip.startDate && trip.endDate
     ? Math.round((new Date(trip.endDate).getTime() - new Date(trip.startDate).getTime()) / (1000 * 60 * 60 * 24))
     : null;
