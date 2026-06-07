@@ -11,6 +11,7 @@ import { aggregateTripContext, flatChildAges, describePace, topInterests } from 
 import { DestinationType, Prisma } from "@prisma/client";
 import { gradeTour, graderFlagsToInstruction, type GraderFamilyContext, type GraderGenerationInputs, type GraderStop } from "@/lib/tour-grader";
 import { generatePublicWhyForStops } from "@/lib/generate-public-why";
+import { checkLimit } from "@/lib/ratelimit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -353,6 +354,17 @@ export async function POST(req: NextRequest) {
   const t0 = Date.now();
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const rl = await checkLimit("toursGenerate", userId);
+  if (rl.limited) {
+    return NextResponse.json(
+      {
+        error: `Tour generation limit reached (3 per hour). Try again in ${rl.retryAfterSeconds} seconds.`,
+        retryAfterSeconds: rl.retryAfterSeconds,
+      },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } },
+    );
+  }
 
   const body = await req.json() as {
     prompt: string;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { checkLimit } from "@/lib/ratelimit";
 
 export type AiActivityLookupResult = {
   address: string;
@@ -13,6 +14,14 @@ export type AiActivityLookupResult = {
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
   if (!userId) return NextResponse.json(null, { status: 401 });
+
+  const rl = await checkLimit("aiLookup", userId);
+  if (rl.limited) {
+    return NextResponse.json(
+      { error: "Too many requests. Please wait before searching again.", retryAfterSeconds: rl.retryAfterSeconds },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } },
+    );
+  }
 
   const { activityName, city, country } = await req.json() as { activityName: string; city?: string; country?: string };
   if (!activityName?.trim() || activityName.length < 3) return NextResponse.json(null);
