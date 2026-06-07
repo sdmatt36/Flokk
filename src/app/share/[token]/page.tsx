@@ -776,15 +776,17 @@ export default async function SharePage({
 
       </div>{/* end 760px metadata section */}
 
-      {/* ── Rich itinerary (full-width: two-column accordion + map) ── */}
-      <ShareItineraryView
-        days={dayData}
-        isLoggedIn={!!userId}
-        isOwner={isOwner}
-        shareToken={token}
-        heroImageUrl={heroImg}
-        sourceTripId={trip.id}
-      />
+      {/* ── Rich itinerary (centered, aligned under header) ── */}
+      <div style={{ maxWidth: 900, margin: "0 auto" }}>
+        <ShareItineraryView
+          days={dayData}
+          isLoggedIn={!!userId}
+          isOwner={isOwner}
+          shareToken={token}
+          heroImageUrl={heroImg}
+          sourceTripId={trip.id}
+        />
+      </div>
 
       {/* ── Footer ── */}
       <div style={{ maxWidth: 760, margin: "0 auto", padding: "0 20px 48px" }}>
