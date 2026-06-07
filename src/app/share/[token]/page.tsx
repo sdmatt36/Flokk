@@ -5,14 +5,16 @@ import { db } from "@/lib/db";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { mergeDuplicateLodging } from "@/lib/itinerary/merge-duplicate-lodging";
 import { SharePageBottomBar } from "./SharePageBottomBar";
+import { ShareItineraryView, type DayData } from "./ShareItineraryView";
+import type { SerializableItem } from "./ShareActivityCard";
+import type { SaveableItem } from "./SaveDayButton";
 import {
-  MapPin, CalendarDays, Bookmark, Route, Sparkle, Sparkles,
-  CopyPlus, UsersRound, ArrowRight, Bird,
+  MapPin, CalendarDays, Bookmark, Route, Sparkle, Bird,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-// ── Design tokens (matching the mock) ────────────────────────────────────────
+// ── Design tokens ─────────────────────────────────────────────────────────────
 const T = {
   navy:      "#1B3A5C",
   body:      "#53657A",
@@ -28,7 +30,7 @@ const T = {
 const display = '"Playfair Display", Georgia, serif';
 const sans    = '"DM Sans", -apple-system, system-ui, sans-serif';
 
-// ── generateMetadata (unchanged from prior version) ───────────────────────────
+// ── generateMetadata ───────────────────────────────────────────────────────────
 export async function generateMetadata({
   params,
 }: {
@@ -86,7 +88,7 @@ const TAG_FIT_MAP: Array<{ pattern: RegExp; line: string; why: string; stopHint:
   },
   {
     pattern: /food|restaurant|cuisine|market|dining|street food/i,
-    line: "A foodie family’s dream",
+    line: "A foodie family's dream",
     why: "This trip is built around local flavours - ideal for families who explore a new place through what they eat.",
     stopHint: "Try local flavours",
   },
@@ -122,14 +124,6 @@ function deriveTripFamilyFitCard(tags: string[]): string | null {
   const tagStr = tags.join(" ");
   for (const { pattern, why } of TAG_FIT_MAP) {
     if (pattern.test(tagStr)) return why;
-  }
-  return null;
-}
-
-function deriveStopFamilyFit(tags: string[]): string | null {
-  const tagStr = tags.join(" ");
-  for (const { pattern, stopHint } of TAG_FIT_MAP) {
-    if (pattern.test(tagStr)) return stopHint;
   }
   return null;
 }
@@ -176,25 +170,6 @@ const ITIN_CATEGORY: Record<string, string> = {
   ACTIVITY: "Activity",
 };
 
-// ── Value props for conversion panel ─────────────────────────────────────────
-const CTA_PROPS = [
-  {
-    title: "Save from anywhere",
-    body: "Instagram, TikTok, Maps, a screenshot. It all lands in one place.",
-    icon: <Bookmark size={19} color="#C4664A" strokeWidth={2} />,
-  },
-  {
-    title: "Built around your kids",
-    body: "Ages, allergies and pace woven into every plan.",
-    icon: <UsersRound size={19} color="#C4664A" strokeWidth={2} />,
-  },
-  {
-    title: "A family-ready trip",
-    body: "Turn a pile of saves into a day-by-day itinerary.",
-    icon: <Sparkles size={19} color="#C4664A" strokeWidth={2} />,
-  },
-];
-
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default async function SharePage({
   params,
@@ -215,7 +190,6 @@ export default async function SharePage({
         orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }],
       },
       manualActivities: { orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }] },
-      familyProfile: { select: { familyName: true } },
     },
   });
 
@@ -253,14 +227,13 @@ export default async function SharePage({
     .join(", ");
   const tripDestination =
     trip.destinationCity ?? destination ?? "this destination";
-  // totalActivityCount computed after dayBlocks below
 
   // Family-fit derivation from all saved item tags
   const allTripTags = trip.savedItems.flatMap((s) => s.categoryTags);
   const familyFitLine = deriveFamilyFitLine(allTripTags);
   const familyFitWhy = deriveTripFamilyFitCard(allTripTags);
 
-  // ── Build stops per day ───────────────────────────────────────────────────
+  // ── Build DayData[] for ShareItineraryView ────────────────────────────────
   type StopRaw =
     | { kind: "itinerary"; data: typeof trip.itineraryItems[0]; sortKey: number }
     | { kind: "save"; data: typeof trip.savedItems[0]; sortKey: number }
@@ -314,25 +287,12 @@ export default async function SharePage({
       ? Array.from({ length: days }, (_, i) => i + 1)
       : Object.keys(rawByDay).map(Number).sort((a, b) => a - b);
 
-  // Render-only stop type — confirmationCode intentionally not included
-  type StopItem = {
-    id: string;
-    title: string;
-    category: string;
-    time: string | null;
-    familyFit: string | null;
-  };
-  type DayBlock = {
-    index: number;
-    label: string;
-    date: string;
-    stops: StopItem[];
-  };
-
-  const dayBlocks: DayBlock[] = allDayIndices
-    .map((di): DayBlock => {
+  const dayData: DayData[] = allDayIndices
+    .map((di): DayData | null => {
       const rawItems = rawByDay[di] ?? [];
+      if (rawItems.length === 0) return null;
 
+      // Deduplicate: remove save entries whose title matches a manual activity on the same day
       const manualTitlesForDay = new Set(
         rawItems
           .filter((e) => e.kind === "manual")
@@ -342,25 +302,36 @@ export default async function SharePage({
         if (e.kind !== "save") return true;
         const saveTitle = (
           (e.data as { rawTitle: string | null }).rawTitle ?? ""
-        )
-          .toLowerCase()
-          .trim();
+        ).toLowerCase().trim();
         return !manualTitlesForDay.has(saveTitle);
       });
 
-      const stops: StopItem[] = dedupedItems.map((entry) => {
+      const items: SerializableItem[] = dedupedItems.map((entry) => {
         if (entry.kind === "save") {
-          const s = entry.data;
+          const s = entry.data as typeof trip.savedItems[0];
           return {
             id: `save_${s.id}`,
+            kind: "save" as const,
             title: s.rawTitle ?? "(untitled)",
-            category: s.categoryTags[0] ?? "Activity",
-            time: s.startTime ?? null,
-            familyFit: deriveStopFamilyFit(s.categoryTags),
+            subtitle: null,
+            tag: s.categoryTags[0] ?? null,
+            tagBg: "rgba(0,0,0,0.05)",
+            tagColor: "#666",
+            notes: isOwner ? (s.userNote ?? null) : null,
+            imageUrl: s.placePhotoUrl ?? null,
+            rating: isOwner && s.userRating != null
+              ? { rating: s.userRating, notes: null, wouldReturn: null }
+              : null,
+            lat: s.lat ?? null,
+            lng: s.lng ?? null,
+            destinationCity: s.destinationCity ?? null,
+            saveable: !EXCLUDE_SAVE_TAGS.test(s.categoryTags.join(" ")),
+            websiteUrl: s.websiteUrl ?? null,
+            dayIndex: s.dayIndex ?? null,
           };
         }
         if (entry.kind === "itinerary") {
-          const it = entry.data;
+          const it = entry.data as typeof trip.itineraryItems[0];
           const displayTitle =
             it.type === "LODGING"
               ? it.title.replace(/^check-in:\s*/i, "")
@@ -369,47 +340,84 @@ export default async function SharePage({
             (it.type === "FLIGHT" || it.type === "TRAIN") &&
             it.fromAirport &&
             it.toAirport
-              ? `${it.fromAirport} - ${it.toAirport}`
+              ? `${it.fromAirport} → ${it.toAirport}`
               : (it.type === "FLIGHT" || it.type === "TRAIN") &&
                 it.fromCity &&
                 it.toCity
-              ? `${it.fromCity} - ${it.toCity}`
+              ? `${it.fromCity} → ${it.toCity}`
               : null;
-          const time =
-            it.departureTime && it.arrivalTime
-              ? `${it.departureTime} - ${it.arrivalTime}`
-              : it.departureTime ?? it.arrivalTime ?? null;
           return {
             id: `itin_${it.id}`,
+            kind: "itinerary" as const,
             title: route ?? displayTitle,
-            category: ITIN_CATEGORY[it.type] ?? "Activity",
-            time,
-            familyFit: null,
+            subtitle: null,
+            tag: ITIN_CATEGORY[it.type] ?? it.type,
+            tagBg: "rgba(0,0,0,0.05)",
+            tagColor: "#666",
+            notes: null, // always strip: itinerary items may contain booking references
+            imageUrl: null,
+            rating: null,
+            lat: it.latitude ?? null,
+            lng: it.longitude ?? null,
+            destinationCity: it.toCity ?? trip.destinationCity ?? null,
+            saveable: false,
+            websiteUrl: null,
+            dayIndex: it.dayIndex ?? null,
           };
         }
-        // manual
-        const ma = entry.data;
+        // manual activity
+        const ma = entry.data as typeof trip.manualActivities[0];
         return {
           id: `manual_${ma.id}`,
+          kind: "save" as const,
           title: ma.title,
-          category: "Activity",
-          time: ma.time ?? null,
-          familyFit: null,
+          subtitle: ma.venueName ?? null,
+          tag: "Activity",
+          tagBg: "rgba(0,0,0,0.05)",
+          tagColor: "#666",
+          notes: isOwner ? (ma.notes ?? null) : null,
+          imageUrl: ma.imageUrl ?? null,
+          rating: null,
+          lat: ma.lat ?? null,
+          lng: ma.lng ?? null,
+          destinationCity: trip.destinationCity ?? null,
+          saveable: true,
+          websiteUrl: ma.website ?? null,
+          dayIndex: ma.dayIndex ?? null,
         };
       });
 
+      const saveItems: SaveableItem[] = items
+        .filter((i) => i.saveable)
+        .map((i) => ({
+          id: i.id,
+          title: i.title,
+          lat: i.lat,
+          lng: i.lng,
+          imageUrl: i.imageUrl,
+          destinationCity: i.destinationCity,
+        }));
+
       const { label, date } = dayLabelParts(trip.startDate, di);
-      return { index: di, label, date, stops };
+      const richLabel = date ? `${label} · ${date}` : label;
+
+      return {
+        index: di,
+        label: richLabel,
+        city: trip.destinationCity ?? null,
+        items,
+        saveItems,
+      };
     })
-    .filter((d) => d.stops.length > 0)
+    .filter((d): d is DayData => d !== null)
     // Re-number sequentially so rendered days are always 1..N with no gaps
-    .map((d, i) => ({ ...d, label: `Day ${i + 1}` }));
+    .map((d, i) => ({
+      ...d,
+      label: d.label.replace(/^Day \d+/, `Day ${i + 1}`),
+    }));
 
-  // Count rendered stops across all days (not raw savedItems.length, which includes
-  // unassigned/filtered rows and excludes itineraryItems + manualActivities)
-  const totalActivityCount = dayBlocks.reduce((sum, d) => sum + d.stops.length, 0);
+  const totalActivityCount = dayData.reduce((sum, d) => sum + d.items.length, 0);
 
-  // Generated description (Trip has no description field)
   const tripDescription = destination
     ? days
       ? `${days} day${days !== 1 ? "s" : ""} in ${trip.destinationCity ?? destination}, saved, sorted and shared by a family on Flokk.`
@@ -489,8 +497,8 @@ export default async function SharePage({
         </div>
       </header>
 
-      {/* ── Main content (760px max centered) ── */}
-      <div style={{ maxWidth: 760, margin: "0 auto", padding: "24px 20px 48px" }}>
+      {/* ── Hero + metadata (760px centered) ── */}
+      <div style={{ maxWidth: 760, margin: "0 auto", padding: "24px 20px 0" }}>
 
         {/* ── Hero image ── */}
         <div
@@ -570,7 +578,7 @@ export default async function SharePage({
           {trip.title}
         </h1>
 
-        {/* Location + dates + spots */}
+        {/* Location + dates + stops */}
         <div
           style={{
             display: "flex",
@@ -652,7 +660,7 @@ export default async function SharePage({
           )}
         </div>
 
-        {/* ── Family-fit line ── */}
+        {/* ── Family-fit badge ── */}
         {familyFitLine && (
           <div style={{ marginTop: 16 }}>
             <div
@@ -717,6 +725,7 @@ export default async function SharePage({
               display: "flex",
               gap: 13,
               marginTop: 18,
+              marginBottom: 4,
               background: T.navyTint,
               borderRadius: 18,
               padding: "17px 18px",
@@ -765,409 +774,20 @@ export default async function SharePage({
           </div>
         )}
 
-        {/* ── The itinerary ── */}
-        {dayBlocks.length > 0 && (
-          <div style={{ marginTop: 28 }}>
-            <h2
-              style={{
-                fontFamily: display,
-                fontWeight: 600,
-                fontSize: 22,
-                color: T.navy,
-                margin: "0 0 4px",
-              }}
-            >
-              The itinerary
-            </h2>
-            <p
-              style={{
-                fontFamily: sans,
-                fontWeight: 400,
-                fontSize: 14.5,
-                color: T.muted,
-                margin: "0 0 20px",
-              }}
-            >
-              {dayBlocks.length} day{dayBlocks.length !== 1 ? "s" : ""}, day by day.
-            </p>
+      </div>{/* end 760px metadata section */}
 
-            {dayBlocks.map((day) => (
-              <div key={day.index} style={{ marginBottom: 26 }}>
-                {/* Day header — label + date only, no theme */}
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "baseline",
-                    gap: 9,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <h3
-                    style={{
-                      fontFamily: display,
-                      fontWeight: 600,
-                      fontSize: 19,
-                      color: T.navy,
-                      margin: 0,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {day.label}
-                  </h3>
-                  {day.date && (
-                    <span
-                      style={{
-                        fontFamily: sans,
-                        fontWeight: 500,
-                        fontSize: 13,
-                        color: T.muted,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {day.date}
-                    </span>
-                  )}
-                </div>
+      {/* ── Rich itinerary (full-width: two-column accordion + map) ── */}
+      <ShareItineraryView
+        days={dayData}
+        isLoggedIn={!!userId}
+        isOwner={isOwner}
+        shareToken={token}
+        heroImageUrl={heroImg}
+        sourceTripId={trip.id}
+      />
 
-                {/* Stops with dotted connector line */}
-                <div style={{ position: "relative", marginTop: 14 }}>
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: 15,
-                      top: 8,
-                      bottom: 8,
-                      width: 2,
-                      borderLeft: `2px dotted ${T.hair}`,
-                      zIndex: 0,
-                    }}
-                  />
-                  {day.stops.map((stop, stopIdx) => (
-                    <div
-                      key={stop.id}
-                      style={{
-                        position: "relative",
-                        display: "flex",
-                        gap: 15,
-                        paddingBottom: 16,
-                        zIndex: 1,
-                      }}
-                    >
-                      {/* Numbered terracotta pin */}
-                      <span
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: "50%",
-                          backgroundColor: T.terra,
-                          color: "#fff",
-                          flexShrink: 0,
-                          border: `3px solid ${T.paper}`,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontFamily: sans,
-                          fontWeight: 700,
-                          fontSize: 14,
-                          boxShadow: "0 2px 6px rgba(196,102,74,0.35)",
-                        }}
-                      >
-                        {stopIdx + 1}
-                      </span>
-
-                      {/* Stop details */}
-                      <div style={{ flex: 1, minWidth: 0, paddingTop: 1 }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 7,
-                          }}
-                        >
-                          {stop.time && (
-                            <span
-                              style={{
-                                fontFamily: sans,
-                                fontWeight: 500,
-                                fontSize: 12.5,
-                                color: T.muted,
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {stop.time}
-                            </span>
-                          )}
-                          {stop.time && (
-                            <span
-                              style={{
-                                width: 3,
-                                height: 3,
-                                borderRadius: "50%",
-                                background: "#AAB6C2",
-                                flexShrink: 0,
-                              }}
-                            />
-                          )}
-                          <span
-                            style={{
-                              fontFamily: sans,
-                              fontWeight: 500,
-                              fontSize: 12.5,
-                              color: T.muted,
-                            }}
-                          >
-                            {stop.category}
-                          </span>
-                        </div>
-                        <div
-                          style={{
-                            fontFamily: sans,
-                            fontWeight: 600,
-                            fontSize: 16,
-                            lineHeight: "20px",
-                            letterSpacing: "-0.2px",
-                            color: T.navy,
-                            marginTop: 2,
-                          }}
-                        >
-                          {stop.title}
-                        </div>
-                        {stop.familyFit && (
-                          <span
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 5,
-                              marginTop: 5,
-                            }}
-                          >
-                            <Sparkle
-                              size={12}
-                              color={T.navy}
-                              strokeWidth={2.2}
-                              fill={T.navy}
-                            />
-                            <span
-                              style={{
-                                fontFamily: sans,
-                                fontWeight: 600,
-                                fontSize: 13,
-                                color: T.navy,
-                              }}
-                            >
-                              {stop.familyFit}
-                            </span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Empty state */}
-        {dayBlocks.length === 0 && (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "48px 16px",
-              color: T.muted,
-            }}
-          >
-            <p style={{ fontFamily: sans, fontSize: 15 }}>
-              This trip is being planned. Check back soon.
-            </p>
-          </div>
-        )}
-
-        {/* ── Save this trip CTA ── */}
-        <Link
-          href="/sign-up"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 9,
-            marginTop: 8,
-            border: `1.5px solid ${T.navy}`,
-            backgroundColor: T.sheet,
-            color: T.navy,
-            borderRadius: 999,
-            padding: "13px 22px",
-            textDecoration: "none",
-            fontFamily: sans,
-            fontWeight: 600,
-            fontSize: 15,
-          }}
-        >
-          <CopyPlus size={17} color={T.navy} strokeWidth={2} />
-          Save this trip to my Flokk
-        </Link>
-
-        {/* ── Conversion CTA panel ── */}
-        <div
-          style={{
-            background: "linear-gradient(155deg,#234B73 0%,#1B3A5C 72%)",
-            borderRadius: 26,
-            padding: "clamp(26px,5vw,40px)",
-            position: "relative",
-            overflow: "hidden",
-            marginTop: 34,
-          }}
-        >
-          {/* Decorative circle */}
-          <div
-            style={{
-              position: "absolute",
-              right: -40,
-              top: -40,
-              width: 180,
-              height: 180,
-              borderRadius: "50%",
-              background: "rgba(196,102,74,0.18)",
-            }}
-          />
-          <div style={{ position: "relative" }}>
-            <div
-              style={{
-                fontFamily: sans,
-                fontWeight: 700,
-                fontSize: 10.5,
-                letterSpacing: "0.7px",
-                textTransform: "uppercase",
-                color: "rgba(255,255,255,0.6)",
-                marginBottom: 12,
-              }}
-            >
-              Made for families
-            </div>
-            <h2
-              style={{
-                fontFamily: display,
-                fontWeight: 600,
-                fontSize: "clamp(26px,4.4vw,34px)",
-                lineHeight: 1.1,
-                color: "#fff",
-                margin: 0,
-                letterSpacing: "-0.4px",
-              }}
-            >
-              Plan your whole trip around your family.
-            </h2>
-            <p
-              style={{
-                fontFamily: sans,
-                fontWeight: 400,
-                fontSize: 15.5,
-                color: "rgba(255,255,255,0.82)",
-                margin: "14px 0 0",
-                maxWidth: 480,
-              }}
-            >
-              Flokk keeps every place you save in one spot and turns it into a
-              trip that actually fits your kids.
-            </p>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: 16,
-                margin: "26px 0 28px",
-              }}
-            >
-              {CTA_PROPS.map((p) => (
-                <div key={p.title}>
-                  <span
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 11,
-                      background: "rgba(255,255,255,0.12)",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      marginBottom: 10,
-                    }}
-                  >
-                    {p.icon}
-                  </span>
-                  <div
-                    style={{
-                      fontFamily: sans,
-                      fontWeight: 600,
-                      fontSize: 15,
-                      lineHeight: "20px",
-                      color: "#fff",
-                    }}
-                  >
-                    {p.title}
-                  </div>
-                  <div
-                    style={{
-                      fontFamily: sans,
-                      fontWeight: 400,
-                      fontSize: 13.5,
-                      color: "rgba(255,255,255,0.72)",
-                      marginTop: 4,
-                    }}
-                  >
-                    {p.body}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                alignItems: "center",
-                gap: 14,
-              }}
-            >
-              <Link
-                href="/sign-up"
-                style={{
-                  backgroundColor: T.terra,
-                  color: "#fff",
-                  borderRadius: 999,
-                  padding: "14px 24px",
-                  fontFamily: sans,
-                  fontWeight: 600,
-                  fontSize: 15.5,
-                  whiteSpace: "nowrap",
-                  boxShadow: "0 8px 20px rgba(196,102,74,0.4)",
-                  textDecoration: "none",
-                  display: "inline-block",
-                }}
-              >
-                Start planning, it is free
-              </Link>
-              <Link
-                href="/about"
-                style={{
-                  backgroundColor: "transparent",
-                  color: "#fff",
-                  fontFamily: sans,
-                  fontWeight: 600,
-                  fontSize: 14.5,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  opacity: 0.9,
-                  textDecoration: "none",
-                }}
-              >
-                See how Flokk works{" "}
-                <ArrowRight size={16} color="#fff" strokeWidth={2.2} />
-              </Link>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Footer ── */}
+      {/* ── Footer ── */}
+      <div style={{ maxWidth: 760, margin: "0 auto", padding: "0 20px 48px" }}>
         <div
           style={{
             borderTop: `1px solid ${T.hair2}`,
@@ -1225,10 +845,9 @@ export default async function SharePage({
             ))}
           </div>
         </div>
+      </div>
 
-      </div>{/* end 760px content */}
-
-      {/* ── Bottom bar (owner / steal, unchanged) ── */}
+      {/* ── Bottom bar (owner / steal) ── */}
       <SharePageBottomBar
         tripId={trip.id}
         isOwner={isOwner}
