@@ -14,6 +14,14 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
 
+const ADMIN_USER_IDS = [(process.env.ADMIN_CLERK_USER_ID ?? "").trim()];
+
+async function isAdmin(userId: string): Promise<boolean> {
+  if (ADMIN_USER_IDS.filter(Boolean).includes(userId.trim())) return true;
+  const user = await db.user.findFirst({ where: { clerkId: userId } });
+  return user?.email?.endsWith("@flokktravel.com") ?? false;
+}
+
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // 5 minute Vercel function timeout
 
@@ -78,6 +86,7 @@ function sleep(ms: number) {
 export async function POST() {
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!(await isAdmin(userId))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   // Env diagnostics — logged server-side and included in response
   const keyEnvName = process.env.GOOGLE_MAPS_API_KEY !== undefined
