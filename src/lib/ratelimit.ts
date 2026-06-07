@@ -67,6 +67,7 @@ export async function checkLimit(
   }
   try {
     const result = await limiter.limit(userId);
+    console.log(`[ratelimit] key=${key} userId=${userId.slice(0, 8)} success=${result.success} remaining=${result.remaining} reset=${result.reset}`);
     if (!result.success) {
       const retryAfterSeconds = Math.max(
         Math.ceil((result.reset - Date.now()) / 1000),
