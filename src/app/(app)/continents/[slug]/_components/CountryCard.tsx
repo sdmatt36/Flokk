@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { DM_Sans, Playfair_Display } from "next/font/google";
 import { getTripCoverImage, DEFAULT_COVER } from "@/lib/destination-images";
@@ -21,9 +22,10 @@ type Props = {
 };
 
 export function CountryCard({ country, continentColor, continentLabel }: Props) {
+  const [imgFailed, setImgFailed] = useState(false);
   const cityPhoto = country.topCities[0]?.photoUrl ?? country.photoUrl ?? null;
   const coverImage = cityPhoto ?? getTripCoverImage(null, country.name, null);
-  const isColorFallback = coverImage === DEFAULT_COVER;
+  const isColorFallback = coverImage === DEFAULT_COVER || imgFailed;
 
   const statsparts: string[] = [];
   if (country._count.cities > 0)
@@ -50,7 +52,14 @@ export function CountryCard({ country, continentColor, continentLabel }: Props) 
             </div>
           </div>
         ) : (
-          <div style={{ height: "160px", backgroundImage: `url(${coverImage})`, backgroundSize: "cover", backgroundPosition: "center", position: "relative" }}>
+          <div style={{ height: "160px", position: "relative", overflow: "hidden" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={coverImage}
+              alt={country.name}
+              onError={() => setImgFailed(true)}
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
             <div style={{ position: "absolute", top: "10px", left: "10px" }}>
               <span style={{ fontSize: "11px", fontWeight: 700, backgroundColor: continentColor, color: "#fff", borderRadius: "20px", padding: "3px 10px" }}>
                 {continentLabel}

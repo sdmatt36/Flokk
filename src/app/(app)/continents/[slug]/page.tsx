@@ -54,6 +54,7 @@ export default async function ContinentPage(
             select: {
               name: true,
               photoUrl: true,
+              heroPhotoUrl: true,
               _count: { select: { communitySpots: true } },
             },
           },
@@ -75,15 +76,15 @@ export default async function ContinentPage(
     topCities: (() => {
       const sorted = [...c.cities]
         .sort((a, b) => {
-          const aPhoto = a.photoUrl != null ? 1 : 0;
-          const bPhoto = b.photoUrl != null ? 1 : 0;
+          const aPhoto = (a.heroPhotoUrl ?? a.photoUrl) != null ? 1 : 0;
+          const bPhoto = (b.heroPhotoUrl ?? b.photoUrl) != null ? 1 : 0;
           if (bPhoto !== aPhoto) return bPhoto - aPhoto;
           if (b._count.communitySpots !== a._count.communitySpots)
             return b._count.communitySpots - a._count.communitySpots;
           return a.name.localeCompare(b.name);
         })
         .slice(0, 3)
-        .map((city) => ({ name: city.name, photoUrl: city.photoUrl ?? null }));
+        .map((city) => ({ name: city.name, photoUrl: city.heroPhotoUrl ?? city.photoUrl ?? null }));
       // country.photoUrl takes priority over topCity photo as hero image
       if (c.photoUrl != null && sorted.length > 0) {
         return [{ ...sorted[0], photoUrl: c.photoUrl }, ...sorted.slice(1)];

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { Playfair_Display } from "next/font/google";
+import { CityCardImage } from "@/components/shared/CityCardImage";
 
 const playfair = Playfair_Display({ subsets: ["latin"], display: "swap" });
 
@@ -25,7 +26,7 @@ async function ContinentAlsoLove({ entityId }: { entityId: string }) {
     },
     orderBy: { priorityRank: "asc" },
     take: 6,
-    select: { slug: true, name: true, photoUrl: true, country: { select: { name: true } } },
+    select: { slug: true, name: true, photoUrl: true, heroPhotoUrl: true, country: { select: { name: true } } },
   });
 
   if (cities.length === 0) return null;
@@ -38,7 +39,7 @@ async function ContinentAlsoLove({ entityId }: { entityId: string }) {
           href={`/cities/${city.slug}`}
           name={city.name}
           subtitle={city.country.name}
-          photoUrl={city.photoUrl}
+          photoUrl={city.heroPhotoUrl ?? city.photoUrl}
         />
       ))}
     </AlsoLoveShell>
@@ -99,6 +100,7 @@ async function CityAlsoLove({ entityId }: { entityId: string }) {
     slug: true,
     name: true,
     photoUrl: true,
+    heroPhotoUrl: true,
     country: { select: { name: true } },
   };
 
@@ -136,7 +138,7 @@ async function CityAlsoLove({ entityId }: { entityId: string }) {
           href={`/cities/${city.slug}`}
           name={city.name}
           subtitle={city.country.name}
-          photoUrl={city.photoUrl}
+          photoUrl={city.heroPhotoUrl ?? city.photoUrl}
         />
       ))}
     </AlsoLoveShell>
@@ -204,16 +206,7 @@ function MiniCard({ href, name, subtitle, photoUrl }: {
         className="also-love-card"
       >
         <div style={{ height: "130px", position: "relative", overflow: "hidden" }}>
-          {photoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={photoUrl}
-              alt={name}
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-            />
-          ) : (
-            <div style={{ width: "100%", height: "100%", background: "linear-gradient(135deg, #1B3A5C 0%, #C4664A 100%)" }} />
-          )}
+          <CityCardImage src={photoUrl} alt={name} />
         </div>
         <div style={{ padding: "10px 14px 12px" }}>
           <p style={{ margin: 0, fontSize: "14px", fontWeight: 600, color: "#1B3A5C", lineHeight: 1.3 }}>{name}</p>
