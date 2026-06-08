@@ -226,7 +226,7 @@ function SavedItemLayout({ item }: { item: NonNullable<ResolvedShareEntity["save
     typeLabel === "FOOD"    ? (cityCountry ? `Restaurant in ${cityCountry}` : "A place worth visiting") :
     typeLabel === "ACTIVITY"? (cityCountry ? `Experience in ${cityCountry}` : "A place worth visiting") :
     (cityCountry ? `Saved place in ${cityCountry}` : "A place worth visiting");
-  const displayDescription = item.rawDescription ?? item.userNote ?? synthesizedDescription;
+  const displayDescription = item.rawDescription ?? synthesizedDescription;
 
   const heroPhoto = item.placePhotoUrl ?? item.mediaThumbnailUrl ?? null;
   const visitUrl = item.websiteUrl ?? item.sourceUrl ?? null;
@@ -249,16 +249,6 @@ function SavedItemLayout({ item }: { item: NonNullable<ResolvedShareEntity["save
         <p style={{ fontSize: "13px", color: GRAY, marginBottom: 6 }}>{dateLine}</p>
         {displayDescription && (
           <p style={{ fontSize: "14px", color: "#374151", lineHeight: 1.6, marginBottom: 12 }}>{displayDescription}</p>
-        )}
-        {item.userRating != null && item.userRating > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 12 }}>
-            <span style={{ fontSize: "12px", color: GRAY }}>Rated:</span>
-            <div style={{ display: "flex", gap: 2 }}>
-              {[1,2,3,4,5].map(i => (
-                <span key={i} style={{ color: i <= item.userRating! ? "#C4664A" : "#d1d5db", fontSize: 14 }}>★</span>
-              ))}
-            </div>
-          </div>
         )}
         {visitUrl && (
           <a href={visitUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: TERRA, textDecoration: "none", display: "block", marginBottom: 8 }}>
@@ -340,19 +330,6 @@ function ItineraryItemLayout({ item }: { item: NonNullable<ResolvedShareEntity["
         {displayDescription && (
           <p style={{ fontSize: "14px", color: "#374151", lineHeight: 1.6, marginBottom: 12 }}>{displayDescription}</p>
         )}
-        {item.notes && (
-          <p style={{ fontSize: "13px", color: GRAY, lineHeight: 1.5, marginBottom: 12 }}>{item.notes}</p>
-        )}
-        {ps?.userRating != null && ps.userRating > 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 12 }}>
-            <span style={{ fontSize: "12px", color: GRAY }}>Rated:</span>
-            <div style={{ display: "flex", gap: 2 }}>
-              {[1,2,3,4,5].map(i => (
-                <span key={i} style={{ color: i <= (ps?.userRating ?? 0) ? "#C4664A" : "#d1d5db", fontSize: 14 }}>★</span>
-              ))}
-            </div>
-          </div>
-        )}
         {visitUrl && (
           <a href={visitUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: TERRA, textDecoration: "none", display: "block", marginBottom: 8 }}>
             Visit website
@@ -415,9 +392,6 @@ function ManualActivityLayout({ item }: { item: NonNullable<ResolvedShareEntity[
         {displayDescription && (
           <p style={{ fontSize: "14px", color: "#374151", lineHeight: 1.6, marginBottom: 12 }}>{displayDescription}</p>
         )}
-        {item.price != null && (
-          <p style={{ fontSize: "13px", color: GRAY, marginBottom: 6 }}>{item.currency ? `${item.currency} ` : ""}{item.price.toLocaleString()}</p>
-        )}
         {visitUrl && (
           <a href={visitUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: TERRA, textDecoration: "none", display: "block", marginBottom: 8 }}>
             Visit website
@@ -462,12 +436,6 @@ function FlightLayout({ item }: { item: NonNullable<ResolvedShareEntity["itinera
         {timeLine && (
           <p style={{ fontSize: "13px", color: GRAY, marginBottom: 6 }}>{timeLine}</p>
         )}
-        {item.confirmationCode && (
-          <p style={{ fontSize: "13px", color: GRAY, marginBottom: 12 }}>Confirmation: {item.confirmationCode}</p>
-        )}
-        {item.notes && (
-          <p style={{ fontSize: "14px", color: "#374151", lineHeight: 1.6, marginBottom: 12 }}>{item.notes}</p>
-        )}
       </div>
     </div>
   );
@@ -506,12 +474,6 @@ function TrainLayout({ item }: { item: NonNullable<ResolvedShareEntity["itinerar
         )}
         {timeLine && (
           <p style={{ fontSize: "13px", color: GRAY, marginBottom: 6 }}>{timeLine}</p>
-        )}
-        {item.confirmationCode && (
-          <p style={{ fontSize: "13px", color: GRAY, marginBottom: 12 }}>Confirmation: {item.confirmationCode}</p>
-        )}
-        {item.notes && (
-          <p style={{ fontSize: "14px", color: "#374151", lineHeight: 1.6, marginBottom: 12 }}>{item.notes}</p>
         )}
       </div>
     </div>

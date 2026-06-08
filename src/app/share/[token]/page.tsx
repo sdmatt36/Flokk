@@ -6,31 +6,12 @@ import { getTripCoverImage } from "@/lib/destination-images";
 import { mergeDuplicateLodging } from "@/lib/itinerary/merge-duplicate-lodging";
 import { SharePageBottomBar } from "./SharePageBottomBar";
 import { ShareItineraryView, type DayData } from "./ShareItineraryView";
-import type { SerializableItem } from "./ShareActivityCard";
-import type { SaveableItem } from "./SaveDayButton";
-import {
-  MapPin, CalendarDays, Bookmark, Route, Sparkle, Bird,
-} from "lucide-react";
+import { AppHeader } from "@/components/ui/AppHeader";
+import { MapPin, Calendar } from "lucide-react";
+import { tiptapToPlaintext } from "@/lib/tiptap-to-plaintext";
 
 export const dynamic = "force-dynamic";
 
-// ── Design tokens ─────────────────────────────────────────────────────────────
-const T = {
-  navy:      "#1B3A5C",
-  body:      "#53657A",
-  muted:     "#8B99A8",
-  terra:     "#C4664A",
-  terraDeep: "#A8543B",
-  paper:     "#FAF7F2",
-  sheet:     "#FFFFFF",
-  navyTint:  "rgba(27,58,92,0.055)",
-  hair:      "rgba(27,58,92,0.09)",
-  hair2:     "rgba(27,58,92,0.06)",
-};
-const display = '"Playfair Display", Georgia, serif';
-const sans    = '"DM Sans", -apple-system, system-ui, sans-serif';
-
-// ── generateMetadata ───────────────────────────────────────────────────────────
 export async function generateMetadata({
   params,
 }: {
@@ -39,17 +20,13 @@ export async function generateMetadata({
   const { token } = await params;
   const trip = await db.trip.findUnique({
     where: { shareToken: token },
-    select: {
-      title: true, destinationCity: true, destinationCountry: true,
-      heroImageUrl: true, startDate: true, endDate: true,
-    },
+    select: { title: true, destinationCity: true, destinationCountry: true, heroImageUrl: true, startDate: true, endDate: true },
   });
   if (!trip) return { title: "Trip | Flokk" };
   const dest = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ");
-  const days =
-    trip.startDate && trip.endDate
-      ? Math.round((trip.endDate.getTime() - trip.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
-      : null;
+  const days = trip.startDate && trip.endDate
+    ? Math.round((trip.endDate.getTime() - trip.startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    : null;
   const heroImg = getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl);
   const absoluteImg = heroImg.startsWith("http") ? heroImg : `https://flokktravel.com${heroImg}`;
   const title = `${trip.title}${dest ? ` · ${dest}` : ""}, shared on Flokk`;
@@ -59,82 +36,26 @@ export async function generateMetadata({
   return {
     title,
     openGraph: {
-      title, description,
+      title,
+      description,
       images: [{ url: absoluteImg, width: 1200, height: 630, alt: dest || trip.title }],
     },
-    twitter: { card: "summary_large_image", title, description, images: [absoluteImg] },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [absoluteImg],
+    },
   };
 }
 
-// ── Tag-based family-fit derivation ──────────────────────────────────────────
-const TAG_FIT_MAP: Array<{ pattern: RegExp; line: string; why: string; stopHint: string }> = [
-  {
-    pattern: /beach|ocean|snorkel|swim|surf|water park/i,
-    line: "Perfect for water-loving families",
-    why: "This itinerary is packed with water activities - beaches, snorkeling, and swim spots that kids of all ages tend to love.",
-    stopHint: "Great for kids",
-  },
-  {
-    pattern: /museum|history|heritage|ruins|culture|monument|palace/i,
-    line: "Educational and hands-on",
-    why: "History and culture woven throughout - the kind of trip families talk about long after they are home.",
-    stopHint: "Educational stop",
-  },
-  {
-    pattern: /theme park|amusement|roller|entertainment|show|performance/i,
-    line: "Built for family fun",
-    why: "Kid-focused entertainment and shows that work across age groups, so everyone stays in the game.",
-    stopHint: "Family favourite",
-  },
-  {
-    pattern: /food|restaurant|cuisine|market|dining|street food/i,
-    line: "A foodie family's dream",
-    why: "This trip is built around local flavours - ideal for families who explore a new place through what they eat.",
-    stopHint: "Try local flavours",
-  },
-  {
-    pattern: /hike|trek|outdoor|nature|national park|wildlife|safari/i,
-    line: "Great for active families",
-    why: "Outdoor adventure and nature experiences that keep everyone moving and engaged.",
-    stopHint: "Active adventure",
-  },
-  {
-    pattern: /zoo|aquarium|animal/i,
-    line: "Animals around every corner",
-    why: "Animal encounters throughout - from zoos to wildlife sanctuaries - make for memorable family moments.",
-    stopHint: "Animal encounter",
-  },
-  {
-    pattern: /kids|family|playground|toddler|child/i,
-    line: "Designed with kids in mind",
-    why: "Every stop chosen by a family with kids - the pace and the picks are already dialed in.",
-    stopHint: "Family favourite",
-  },
-];
-
-function deriveFamilyFitLine(tags: string[]): string | null {
-  const tagStr = tags.join(" ");
-  for (const { pattern, line } of TAG_FIT_MAP) {
-    if (pattern.test(tagStr)) return line;
-  }
-  return null;
-}
-
-function deriveTripFamilyFitCard(tags: string[]): string | null {
-  const tagStr = tags.join(" ");
-  for (const { pattern, why } of TAG_FIT_MAP) {
-    if (pattern.test(tagStr)) return why;
-  }
-  return null;
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function formatDateRange(start: Date | null, end: Date | null): string | null {
+function formatDateRange(start: Date | null, end: Date | null) {
   if (!start) return null;
-  const startStr = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const opts: Intl.DateTimeFormatOptions = { month: "long", day: "numeric" };
+  const startStr = start.toLocaleDateString("en-US", opts);
   if (!end) return startStr;
-  const endStr = end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  return `${startStr} - ${endStr}`;
+  const endStr = end.toLocaleDateString("en-US", { ...opts, year: "numeric" });
+  return `${startStr} – ${endStr}`;
 }
 
 function tripDays(start: Date | null, end: Date | null): number | null {
@@ -142,35 +63,24 @@ function tripDays(start: Date | null, end: Date | null): number | null {
   return Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 }
 
-function dayLabelParts(tripStart: Date | null, idx: number): { label: string; date: string } {
-  if (tripStart) {
-    const d = new Date(tripStart);
-    d.setDate(d.getDate() + (idx - 1));
-    return {
-      label: `Day ${idx}`,
-      date: d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
-    };
-  }
-  return { label: `Day ${idx}`, date: "" };
-}
-
-function timeToMin(t: string | null | undefined): number {
-  if (!t) return 9999;
-  const [h, m] = t.split(":").map(Number);
-  if (isNaN(h) || isNaN(m)) return 9999;
-  return h * 60 + m;
-}
 
 const EXCLUDE_SAVE_TAGS = /flight|airfare|airline|lodging|accommodation|hotel|transportation/i;
 
-const ITIN_CATEGORY: Record<string, string> = {
-  FLIGHT: "Flight",
-  TRAIN: "Train",
-  LODGING: "Stay",
-  ACTIVITY: "Activity",
+const TYPE_LABEL: Record<string, string> = {
+  FLIGHT: "FLT",
+  TRAIN: "RAIL",
+  LODGING: "STAY",
+  ACTIVITY: "ACT",
 };
 
-// ── Page ─────────────────────────────────────────────────────────────────────
+const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
+  FLIGHT: { bg: "#EEF4FF", color: "#3B82F6" },
+  TRAIN: { bg: "#F0FFF4", color: "#6B8F71" },
+  LODGING: { bg: "#FFF4EE", color: "#C4664A" },
+  ACTIVITY: { bg: "#F5F5F5", color: "#888" },
+};
+
+
 export default async function SharePage({
   params,
   searchParams,
@@ -179,28 +89,68 @@ export default async function SharePage({
   searchParams?: Promise<{ preview?: string }>;
 }) {
   const { token } = await params;
-  const sp = searchParams ? await searchParams : ({} as { preview?: string });
+  const sp = searchParams ? await searchParams : {} as { preview?: string };
 
   const trip = await db.trip.findUnique({
     where: { shareToken: token },
     include: {
       savedItems: { orderBy: [{ dayIndex: "asc" }, { savedAt: "asc" }] },
-      itineraryItems: {
-        where: { cancelledAt: null },
-        orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }],
-      },
+      itineraryItems: { where: { cancelledAt: null }, orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }] },
       manualActivities: { orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }] },
+      familyProfile: { select: { familyName: true } },
+      placeRatings: {
+        select: {
+          itineraryItemId: true,
+          manualActivityId: true,
+          placeName: true,
+          rating: true,
+          notes: true,
+          wouldReturn: true,
+          placeType: true,
+        },
+      },
+      contacts: {
+        select: {
+          id: true,
+          name: true,
+          role: true,
+          phone: true,
+          whatsapp: true,
+          notes: true,
+          // email intentionally excluded — booking.com aliases are private channels
+        },
+        orderBy: { createdAt: "asc" },
+      },
+      tripNotes: {
+        orderBy: [{ dayIndex: "asc" }, { createdAt: "asc" }],
+      },
     },
   });
 
   if (!trip) notFound();
 
   // Increment viewCount (fire-and-forget)
-  db.trip
-    .update({ where: { id: trip.id }, data: { viewCount: { increment: 1 } } })
-    .catch(() => {});
+  db.trip.update({ where: { id: trip.id }, data: { viewCount: { increment: 1 } } }).catch(() => {});
 
-  // Ownership check
+  // Breadcrumb geo lookup — best-effort, null = graceful fallback
+  const geoCity = trip.destinationCity
+    ? await db.city.findFirst({
+        where: { name: { equals: trip.destinationCity, mode: "insensitive" } },
+        select: {
+          slug: true,
+          name: true,
+          country: {
+            select: {
+              slug: true,
+              name: true,
+              continent: { select: { slug: true, name: true } },
+            },
+          },
+        },
+      })
+    : null;
+
+  // Ownership check — server-side, so the bottom bar knows whether to suppress
   const previewMode = sp.preview === "true";
   const { userId } = await auth();
   let isOwner = false;
@@ -209,45 +159,59 @@ export default async function SharePage({
       where: { clerkId: userId },
       select: { familyProfile: { select: { id: true } } },
     });
-    isOwner =
-      !previewMode &&
-      !trip.isFlokkerExample &&
-      viewer?.familyProfile?.id === trip.familyProfileId;
+    isOwner = !previewMode && !trip.isFlokkerExample && viewer?.familyProfile?.id === trip.familyProfileId;
   }
+  const isLoggedIn = !!userId;
 
-  const heroImg = getTripCoverImage(
-    trip.destinationCity,
-    trip.destinationCountry,
-    trip.heroImageUrl
-  );
+  const heroImg = getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl);
   const dateRange = formatDateRange(trip.startDate, trip.endDate);
   const days = tripDays(trip.startDate, trip.endDate);
-  const destination = [trip.destinationCity, trip.destinationCountry]
-    .filter(Boolean)
-    .join(", ");
-  const tripDestination =
-    trip.destinationCity ?? destination ?? "this destination";
+  const curatorName = trip.isAnonymous || !trip.familyProfile?.familyName
+    ? "A Flokk family"
+    : `${trip.familyProfile.familyName} Family`;
 
-  // Family-fit derivation from all saved item tags
-  const allTripTags = trip.savedItems.flatMap((s) => s.categoryTags);
-  const familyFitLine = deriveFamilyFitLine(allTripTags);
-  const familyFitWhy = deriveTripFamilyFitCard(allTripTags);
+  const destination = [trip.destinationCity, trip.destinationCountry].filter(Boolean).join(", ");
+  const tripDestination = trip.destinationCity ?? destination ?? "this destination";
+  // savedItems is the authoritative count — itineraryItems are email-imported bookings (often 0 on showcase trips)
+  const totalActivityCount = trip.savedItems.length;
 
-  // ── Build DayData[] for ShareItineraryView ────────────────────────────────
-  type StopRaw =
+  // Build day label
+  const tripStart = trip.startDate;
+  function dayLabel(idx: number): string {
+    if (tripStart) {
+      const d = new Date(tripStart);
+      d.setDate(d.getDate() + (idx - 1));
+      return `Day ${idx} · ${d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}`;
+    }
+    return `Day ${idx}`;
+  }
+
+  // ── SECTION 2: Merge itinerary items and saved activities per day ─────────
+  // Itinerary items = email-imported bookings (FLIGHT, LODGING, TRAIN, ACTIVITY)
+  // Saved items = manually saved places with a dayIndex assigned
+  // Both are merged and sorted by clock time (untimed items last)
+  type DayItem =
     | { kind: "itinerary"; data: typeof trip.itineraryItems[0]; sortKey: number }
     | { kind: "save"; data: typeof trip.savedItems[0]; sortKey: number }
     | { kind: "manual"; data: typeof trip.manualActivities[0]; sortKey: number };
 
-  const rawByDay: Record<number, StopRaw[]> = {};
-  const mergedItinItems = mergeDuplicateLodging(trip.itineraryItems);
+  function timeToMin(t: string | null | undefined): number {
+    if (!t) return 9999;
+    const [h, m] = t.split(":").map(Number);
+    if (isNaN(h) || isNaN(m)) return 9999;
+    return h * 60 + m;
+  }
 
-  for (const item of mergedItinItems) {
+  const dayItemsByDay: Record<number, DayItem[]> = {};
+  const mergedItineraryItems = mergeDuplicateLodging(trip.itineraryItems);
+
+  for (const item of mergedItineraryItems) {
     const di = item.dayIndex ?? 0;
     if (di <= 0) continue;
+    // Skip LODGING check-out entries — hotel shows once on arrival day
     if (item.type === "LODGING" && /check-out/i.test(item.title)) continue;
-    if (!rawByDay[di]) rawByDay[di] = [];
-    rawByDay[di].push({
+    if (!dayItemsByDay[di]) dayItemsByDay[di] = [];
+    dayItemsByDay[di].push({
       kind: "itinerary",
       data: item,
       sortKey: timeToMin(item.departureTime ?? item.arrivalTime),
@@ -258,9 +222,10 @@ export default async function SharePage({
     const di = save.dayIndex ?? 0;
     if (di <= 0) continue;
     if (!save.rawTitle) continue;
-    if (EXCLUDE_SAVE_TAGS.test(save.categoryTags.join(" "))) continue;
-    if (!rawByDay[di]) rawByDay[di] = [];
-    rawByDay[di].push({
+    const saveTags = save.categoryTags.join(" ");
+    if (EXCLUDE_SAVE_TAGS.test(saveTags)) continue;
+    if (!dayItemsByDay[di]) dayItemsByDay[di] = [];
+    dayItemsByDay[di].push({
       kind: "save",
       data: save,
       sortKey: timeToMin(save.startTime),
@@ -270,586 +235,488 @@ export default async function SharePage({
   for (const ma of trip.manualActivities) {
     const di = ma.dayIndex ?? 0;
     if (di <= 0) continue;
-    if (!rawByDay[di]) rawByDay[di] = [];
-    rawByDay[di].push({
+    if (!dayItemsByDay[di]) dayItemsByDay[di] = [];
+    dayItemsByDay[di].push({
       kind: "manual",
       data: ma,
       sortKey: timeToMin(ma.time),
     });
   }
 
-  for (const di of Object.keys(rawByDay).map(Number)) {
-    rawByDay[di].sort((a, b) => a.sortKey - b.sortKey);
+  // Sort each day by clock time — timed items first, untimed last
+  for (const di of Object.keys(dayItemsByDay).map(Number)) {
+    dayItemsByDay[di].sort((a, b) => a.sortKey - b.sortKey);
   }
 
-  const allDayIndices =
-    days != null
-      ? Array.from({ length: days }, (_, i) => i + 1)
-      : Object.keys(rawByDay).map(Number).sort((a, b) => a - b);
+  // Discipline 4.11: every trip day renders on the share view, even days with no surviving
+  // items after the check-out filter. Previously, days with only LODGING check-out entries
+  // were silently dropped — recipients saw Day 1, 3, 5 but no Day 2, 4, 6+.
+  const allDayIndices = days != null
+    ? Array.from({ length: days }, (_, i) => i + 1)
+    : Object.keys(dayItemsByDay).map(Number).sort((a, b) => a - b);
 
-  const dayData: DayData[] = allDayIndices
-    .map((di): DayData | null => {
-      const rawItems = rawByDay[di] ?? [];
-      if (rawItems.length === 0) return null;
+  // Ratings keyed by itineraryItemId for inline display on ACTIVITY cards
+  const ratingsByItemId = new Map(
+    trip.placeRatings
+      .filter((r) => r.itineraryItemId)
+      .map((r) => [r.itineraryItemId!, r])
+  );
+  // Ratings keyed by manualActivityId
+  const ratingsByManualId = new Map(
+    trip.placeRatings
+      .filter((r) => r.manualActivityId)
+      .map((r) => [r.manualActivityId!, r])
+  );
 
-      // Deduplicate: remove save entries whose title matches a manual activity on the same day
-      const manualTitlesForDay = new Set(
-        rawItems
-          .filter((e) => e.kind === "manual")
-          .map((e) => (e.data as { title: string }).title.toLowerCase().trim())
-      );
-      const dedupedItems = rawItems.filter((e) => {
-        if (e.kind !== "save") return true;
-        const saveTitle = (
-          (e.data as { rawTitle: string | null }).rawTitle ?? ""
-        ).toLowerCase().trim();
-        return !manualTitlesForDay.has(saveTitle);
-      });
+  // Build perDayNotesByDay BEFORE daysData.map() to avoid TDZ
+  const perDayNotesMap = new Map<number, { id: string; content: string }[]>();
+  for (const note of trip.tripNotes) {
+    if (note.dayIndex !== null) {
+      const existing = perDayNotesMap.get(note.dayIndex) ?? [];
+      existing.push({ id: note.id, content: note.content as string });
+      perDayNotesMap.set(note.dayIndex, existing);
+    }
+  }
 
-      const items: SerializableItem[] = dedupedItems.map((entry) => {
+  // ── Build DayData[] for ShareItineraryView (client component) ───────────
+  const daysData: DayData[] = allDayIndices.map((di) => {
+    const dayItems = dayItemsByDay[di] ?? [];
+
+    // Dedup: filter SavedItem entries whose title matches a ManualActivity on the same day
+    const manualTitlesForDay = new Set(
+      dayItems
+        .filter((e) => e.kind === "manual")
+        .map((e) => (e.data as { title: string }).title.toLowerCase().trim())
+    );
+    const dedupedDayItems = dayItems.filter((e) => {
+      if (e.kind !== "save") return true;
+      const saveTitle = ((e.data as { rawTitle: string | null }).rawTitle ?? "").toLowerCase().trim();
+      return !manualTitlesForDay.has(saveTitle);
+    });
+
+    const serializableItems = dedupedDayItems.map((entry) => {
+      if (entry.kind === "save") {
+        const s = entry.data;
+        return {
+          id: `save_${s.id}`,
+          kind: "save" as const,
+          title: s.rawTitle ?? "(no title)",
+          subtitle: s.startTime ?? null,
+          tag: s.categoryTags[0] ?? null,
+          tagBg: "#F5F5F5",
+          tagColor: "#888",
+          notes: isOwner ? (s.rawDescription ? s.rawDescription.slice(0, 200) : null) : null,
+          imageUrl: s.placePhotoUrl ?? s.mediaThumbnailUrl ?? null,
+          rating: null,
+          lat: s.lat ?? null,
+          lng: s.lng ?? null,
+          destinationCity: trip.destinationCity,
+          saveable: true,
+          websiteUrl: s.websiteUrl ?? null,
+          dayIndex: di,
+        };
+      }
+      if (entry.kind === "itinerary") {
+        const it = entry.data;
+        const displayTitle = it.type === "LODGING" ? it.title.replace(/^check-in:\s*/i, "") : it.title;
+        const route =
+          it.type === "FLIGHT" || it.type === "TRAIN"
+            ? it.fromAirport && it.toAirport
+              ? `${it.fromAirport} → ${it.toAirport}`
+              : it.fromCity && it.toCity
+              ? `${it.fromCity} → ${it.toCity}`
+              : null
+            : null;
+        const times =
+          it.departureTime && it.arrivalTime
+            ? `${it.departureTime} – ${it.arrivalTime}`
+            : it.departureTime || it.arrivalTime || null;
+        const tc = TYPE_COLORS[it.type] ?? TYPE_COLORS.ACTIVITY;
+        const ratingData = ratingsByItemId.get(it.id);
+        const subtitle =
+          it.type === "FLIGHT" || it.type === "TRAIN"
+            ? times
+            : it.type === "LODGING"
+            ? it.address ?? null
+            : [times, it.address].filter(Boolean).join(" · ") || null;
+        return {
+          id: `itin_${it.id}`,
+          kind: "itinerary" as const,
+          title: (it.type === "FLIGHT" || it.type === "TRAIN") && route ? route : displayTitle,
+          subtitle,
+          tag: TYPE_LABEL[it.type] ?? "ACT",
+          tagBg: tc.bg,
+          tagColor: tc.color,
+          notes: (it.type === "FLIGHT" || it.type === "TRAIN") && route ? displayTitle : null,
+          imageUrl: it.imageUrl ?? null, // imageUrl populated via Discipline 4.18 — see Decisions Log Chat 43
+          rating: isOwner && ratingData
+            ? { rating: ratingData.rating, notes: ratingData.notes ?? null, wouldReturn: ratingData.wouldReturn ?? null }
+            : null,
+          lat: it.latitude ?? null,
+          lng: it.longitude ?? null,
+          destinationCity: trip.destinationCity,
+          saveable: it.type === "ACTIVITY",
+          websiteUrl: null,
+          dayIndex: di,
+        };
+      }
+      // manual
+      const ma = entry.data;
+      const ratingData = ratingsByManualId.get(ma.id);
+      return {
+        id: `manual_${ma.id}`,
+        kind: "itinerary" as const,
+        title: ma.title,
+        subtitle: [ma.time, ma.address].filter(Boolean).join(" · ") || null,
+        tag: "ACT",
+        tagBg: "#F5F5F5",
+        tagColor: "#888",
+        notes: isOwner ? (ma.notes ?? null) : null,
+        imageUrl: ma.imageUrl ?? null, // ManualActivity.imageUrl from schema
+        rating: isOwner && ratingData
+          ? { rating: ratingData.rating, notes: ratingData.notes ?? null, wouldReturn: ratingData.wouldReturn ?? null }
+          : null,
+        lat: ma.lat ?? null,
+        lng: ma.lng ?? null,
+        destinationCity: trip.destinationCity,
+        saveable: true,
+        websiteUrl: null,
+        dayIndex: di,
+      };
+    });
+
+    const saveItems = dedupedDayItems
+      .map((entry) => {
         if (entry.kind === "save") {
-          const s = entry.data as typeof trip.savedItems[0];
+          const s = entry.data;
           return {
             id: `save_${s.id}`,
-            kind: "save" as const,
-            title: s.rawTitle ?? "(untitled)",
-            subtitle: null,
-            tag: s.categoryTags[0] ?? null,
-            tagBg: "rgba(0,0,0,0.05)",
-            tagColor: "#666",
-            notes: isOwner ? (s.userNote ?? null) : null,
-            imageUrl: s.placePhotoUrl ?? null,
-            rating: isOwner && s.userRating != null
-              ? { rating: s.userRating, notes: null, wouldReturn: null }
-              : null,
+            title: s.rawTitle ?? "",
             lat: s.lat ?? null,
             lng: s.lng ?? null,
-            destinationCity: s.destinationCity ?? null,
-            saveable: !EXCLUDE_SAVE_TAGS.test(s.categoryTags.join(" ")),
-            websiteUrl: s.websiteUrl ?? null,
-            dayIndex: s.dayIndex ?? null,
+            imageUrl: s.placePhotoUrl ?? s.mediaThumbnailUrl ?? null,
+            destinationCity: trip.destinationCity,
           };
         }
         if (entry.kind === "itinerary") {
-          const it = entry.data as typeof trip.itineraryItems[0];
-          const displayTitle =
-            it.type === "LODGING"
-              ? it.title.replace(/^check-in:\s*/i, "")
-              : it.title;
-          const route =
-            (it.type === "FLIGHT" || it.type === "TRAIN") &&
-            it.fromAirport &&
-            it.toAirport
-              ? `${it.fromAirport} → ${it.toAirport}`
-              : (it.type === "FLIGHT" || it.type === "TRAIN") &&
-                it.fromCity &&
-                it.toCity
-              ? `${it.fromCity} → ${it.toCity}`
-              : null;
+          const it = entry.data;
+          if (it.type !== "ACTIVITY") return null;
           return {
-            id: `itin_${it.id}`,
-            kind: "itinerary" as const,
-            title: route ?? displayTitle,
-            subtitle: null,
-            tag: ITIN_CATEGORY[it.type] ?? it.type,
-            tagBg: "rgba(0,0,0,0.05)",
-            tagColor: "#666",
-            notes: null, // always strip: itinerary items may contain booking references
-            imageUrl: null,
-            rating: null,
+            id: it.id,
+            title: it.title,
             lat: it.latitude ?? null,
             lng: it.longitude ?? null,
-            destinationCity: it.toCity ?? trip.destinationCity ?? null,
-            saveable: false,
-            websiteUrl: null,
-            dayIndex: it.dayIndex ?? null,
+            imageUrl: it.imageUrl ?? null,
+            destinationCity: trip.destinationCity,
           };
         }
-        // manual activity
-        const ma = entry.data as typeof trip.manualActivities[0];
+        const ma = entry.data;
         return {
-          id: `manual_${ma.id}`,
-          kind: "save" as const,
+          id: ma.id,
           title: ma.title,
-          subtitle: ma.venueName ?? null,
-          tag: "Activity",
-          tagBg: "rgba(0,0,0,0.05)",
-          tagColor: "#666",
-          notes: isOwner ? (ma.notes ?? null) : null,
-          imageUrl: ma.imageUrl ?? null,
-          rating: null,
           lat: ma.lat ?? null,
           lng: ma.lng ?? null,
-          destinationCity: trip.destinationCity ?? null,
-          saveable: true,
-          websiteUrl: ma.website ?? null,
-          dayIndex: ma.dayIndex ?? null,
+          imageUrl: ma.imageUrl ?? null,
+          destinationCity: trip.destinationCity,
         };
-      });
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null);
 
-      const saveItems: SaveableItem[] = items
-        .filter((i) => i.saveable)
-        .map((i) => ({
-          id: i.id,
-          title: i.title,
-          lat: i.lat,
-          lng: i.lng,
-          imageUrl: i.imageUrl,
-          destinationCity: i.destinationCity,
-        }));
+    const dayNotes = (perDayNotesMap.get(di) ?? [])
+      .map((n) => tiptapToPlaintext(n.content))
+      .filter((t) => t.trim().length > 0);
 
-      const { label, date } = dayLabelParts(trip.startDate, di);
-      const richLabel = date ? `${label} · ${date}` : label;
+    return {
+      index: di,
+      label: dayLabel(di),
+      city: trip.destinationCity,
+      items: serializableItems,
+      saveItems,
+      notes: dayNotes,
+    };
+  });
 
-      return {
-        index: di,
-        label: richLabel,
-        city: trip.destinationCity ?? null,
-        items,
-        saveItems,
-      };
-    })
-    .filter((d): d is DayData => d !== null)
-    // Re-number sequentially so rendered days are always 1..N with no gaps
-    .map((d, i) => ({
-      ...d,
-      label: d.label.replace(/^Day \d+/, `Day ${i + 1}`),
+  // ── Contacts + notes derivation ─────────────────────────────────────────────
+  const tripLevelNotes = trip.tripNotes.filter((n) => n.dayIndex === null);
+
+  // ── Synthetic hotel contacts from LODGING ItineraryItems ──────────────────
+  function normalizeLodgingContactName(s: string): string {
+    return s
+      .replace(/^check-(?:in|out):\s*/i, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]/g, "")
+      .slice(0, 20)
+      .trim();
+  }
+
+  function mapLodgingTypeToBadge(t: string | null | undefined): string {
+    switch (t) {
+      case "hotel": return "Hotel";
+      case "bnb": return "B&B";
+      case "vacation_rental": return "Vacation Rental";
+      case "resort": return "Resort";
+      case "campsite": return "Campsite";
+      case "hostel": return "Hostel";
+      default: return "Stay";
+    }
+  }
+
+  const existingContactKeys = new Set(
+    trip.contacts.map((c) => normalizeLodgingContactName(c.name))
+  );
+
+  const lodgingByKey = new Map<string, typeof trip.itineraryItems[0]>();
+  for (const item of trip.itineraryItems) {
+    if (item.type !== "LODGING") continue;
+    const key = normalizeLodgingContactName(item.title ?? "");
+    if (!key) continue;
+    if (!lodgingByKey.has(key)) lodgingByKey.set(key, item);
+  }
+
+  const syntheticHotelContacts = Array.from(lodgingByKey.entries())
+    .filter(([key]) => !existingContactKeys.has(key))
+    .map(([, item]) => ({
+      id: `lodging-contact:${item.id}`,
+      name: (item.title ?? "").replace(/^check-(?:in|out):\s*/i, "").trim(),
+      role: mapLodgingTypeToBadge(item.lodgingType),
+      address: item.address ?? null,
+      venueUrl: item.venueUrl ?? null,
     }));
 
-  const totalActivityCount = dayData.reduce((sum, d) => sum + d.items.length, 0);
-
-  const tripDescription = destination
-    ? days
-      ? `${days} day${days !== 1 ? "s" : ""} in ${trip.destinationCity ?? destination}, saved, sorted and shared by a family on Flokk.`
-      : `A trip to ${destination}, saved, sorted and shared by a family on Flokk.`
-    : null;
-
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: T.paper, paddingBottom: "120px" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "#FFFFFF", paddingBottom: "120px" }}>
 
-      {/* ── Sticky brand top bar ── */}
-      <header
+      {/* ── Sticky header ── */}
+      <AppHeader />
+
+      {/* ── Back nav bar ── */}
+      <div
         style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 30,
-          background: "rgba(250,247,242,0.86)",
-          backdropFilter: "blur(14px) saturate(150%)",
-          WebkitBackdropFilter: "blur(14px) saturate(150%)",
-          borderBottom: `1px solid ${T.hair2}`,
+          backgroundColor: "#fff",
+          borderBottom: "1px solid #EEEEEE",
+          padding: "0 24px",
+          minHeight: "44px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "8px",
         }}
       >
-        <div
-          style={{
-            maxWidth: 760,
-            margin: "0 auto",
-            padding: "13px 20px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
+        <Link
+          href={geoCity ? `/cities/${geoCity.slug}` : "/discover"}
+          style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: 700, color: "#C4664A", textDecoration: "none" }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <span
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 9,
-                background: T.navy,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <Bird size={18} color="#fff" strokeWidth={2} />
-            </span>
-            <span
-              style={{
-                fontFamily: display,
-                fontWeight: 700,
-                fontSize: 22,
-                color: T.navy,
-                letterSpacing: "-0.3px",
-              }}
-            >
-              Flokk
-            </span>
-          </div>
-          <Link
-            href="/sign-up"
-            style={{
-              backgroundColor: T.terra,
-              color: "#fff",
-              borderRadius: 999,
-              padding: "9px 16px",
-              fontFamily: sans,
-              fontWeight: 600,
-              fontSize: 13.5,
-              textDecoration: "none",
-              whiteSpace: "nowrap",
-              boxShadow: "0 4px 12px rgba(196,102,74,0.28)",
-              display: "inline-block",
-            }}
-          >
-            Plan your trip
-          </Link>
-        </div>
-      </header>
+          ← Back to {geoCity ? geoCity.name : "Destinations"}
+        </Link>
+        {geoCity && (
+          <nav aria-label="Breadcrumb" style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "2px", fontSize: "12px", color: "#717171" }}>
+            <Link href="/discover" style={{ color: "inherit", textDecoration: "none" }}>Destinations</Link>
+            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
+            <Link href={`/continents/${geoCity.country.continent.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.country.continent.name}</Link>
+            <span style={{ opacity: 0.6, padding: "0 3px" }}>›</span>
+            <Link href={`/countries/${geoCity.country.slug}`} style={{ color: "inherit", textDecoration: "none" }}>{geoCity.country.name}</Link>
+          </nav>
+        )}
+      </div>
 
-      {/* ── Hero + metadata (760px centered) ── */}
-      <div style={{ maxWidth: 760, margin: "0 auto", padding: "24px 20px 0" }}>
+      {/* ── Hero ── */}
+      <div
+        style={{
+          height: "280px",
+          position: "relative",
+          overflow: "hidden",
+          backgroundColor: "#1a1a1a",
+          backgroundImage: `url('${heroImg}')`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+        }}
+      >
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.80) 100%)" }} />
 
-        {/* ── Hero image ── */}
-        <div
-          style={{
-            position: "relative",
-            borderRadius: 22,
-            overflow: "hidden",
-            height: "clamp(230px, 42vw, 360px)",
-            background: "linear-gradient(140deg,#D9CFBE,#BFB199)",
-            backgroundImage: `url('${heroImg}')`,
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            boxShadow: "0 2px 10px rgba(27,58,92,0.07), 0 1px 2px rgba(27,58,92,0.04)",
-          }}
-        >
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background:
-                "linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.45) 100%)",
-            }}
-          />
-          <span
-            style={{
-              position: "absolute",
-              top: 14,
-              left: 14,
-              zIndex: 2,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              backgroundColor: T.terra,
-              color: "#fff",
-              borderRadius: 999,
-              padding: "6px 12px",
-              fontFamily: sans,
-              fontWeight: 700,
-              fontSize: 10,
-              letterSpacing: "0.04em",
-              textTransform: "uppercase",
-              whiteSpace: "nowrap",
-              boxShadow: "0 3px 10px rgba(196,102,74,0.4)",
-            }}
-          >
-            <Route size={12} color="#fff" strokeWidth={2.2} />
-            Family itinerary
-          </span>
-        </div>
-
-        {/* ── Head ── */}
-        <div
-          style={{
-            fontFamily: sans,
-            fontWeight: 700,
-            fontSize: 10.5,
-            lineHeight: "12px",
-            letterSpacing: "0.7px",
-            textTransform: "uppercase",
-            color: T.terraDeep,
-            marginTop: 22,
-          }}
-        >
-          A family itinerary on Flokk
-        </div>
-        <h1
-          style={{
-            fontFamily: display,
-            fontWeight: 600,
-            fontSize: "clamp(28px,5.6vw,40px)",
-            lineHeight: 1.08,
-            color: T.navy,
-            margin: "10px 0 0",
-            letterSpacing: "-0.5px",
-          }}
-        >
-          {trip.title}
-        </h1>
-
-        {/* Location + dates + stops */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginTop: 12,
-            flexWrap: "wrap",
-          }}
-        >
-          {destination && (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 7,
-                fontFamily: sans,
-                fontWeight: 500,
-                fontSize: 14.5,
-                color: T.body,
-              }}
-            >
-              <MapPin size={16} color={T.muted} strokeWidth={2} />
-              {destination}
-            </span>
-          )}
-          {dateRange && (
-            <>
-              <span
-                style={{
-                  width: 3,
-                  height: 3,
-                  borderRadius: "50%",
-                  background: "#AAB6C2",
-                  flexShrink: 0,
-                }}
-              />
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 7,
-                  fontFamily: sans,
-                  fontWeight: 500,
-                  fontSize: 14.5,
-                  color: T.body,
-                }}
-              >
-                <CalendarDays size={16} color={T.muted} strokeWidth={2} />
+        <div style={{ position: "absolute", bottom: "24px", left: "24px", right: "24px", zIndex: 2 }}>
+          <h1 style={{ fontSize: "30px", fontWeight: 900, color: "#fff", lineHeight: 1.1, marginBottom: "8px", textShadow: "0 2px 12px rgba(0,0,0,0.4)" }}>
+            {trip.title}
+          </h1>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "6px" }}>
+            {destination && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", backgroundColor: "rgba(255,255,255,0.18)", backdropFilter: "blur(4px)", borderRadius: "999px", padding: "4px 10px", fontSize: "12px", fontWeight: 600, color: "#fff" }}>
+                <MapPin size={11} />
+                {destination}
+              </span>
+            )}
+            {dateRange && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", backgroundColor: "rgba(255,255,255,0.18)", backdropFilter: "blur(4px)", borderRadius: "999px", padding: "4px 10px", fontSize: "12px", fontWeight: 600, color: "#fff" }}>
+                <Calendar size={11} />
                 {dateRange}
               </span>
-            </>
-          )}
-          {totalActivityCount > 0 && (
-            <>
-              <span
-                style={{
-                  width: 3,
-                  height: 3,
-                  borderRadius: "50%",
-                  background: "#AAB6C2",
-                  flexShrink: 0,
-                }}
-              />
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 7,
-                  fontFamily: sans,
-                  fontWeight: 500,
-                  fontSize: 14.5,
-                  color: T.body,
-                }}
-              >
-                <Bookmark size={16} color={T.muted} strokeWidth={2} />
-                {totalActivityCount} stop{totalActivityCount !== 1 ? "s" : ""}
-              </span>
-            </>
-          )}
-        </div>
-
-        {/* ── Family-fit badge ── */}
-        {familyFitLine && (
-          <div style={{ marginTop: 16 }}>
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                background: T.navyTint,
-                borderRadius: 999,
-                padding: "7px 14px 7px 9px",
-              }}
-            >
-              <span
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: "50%",
-                  background: T.navy,
-                  flexShrink: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Sparkle size={12} color="#fff" strokeWidth={2.2} fill="#fff" />
-              </span>
-              <span
-                style={{
-                  fontFamily: sans,
-                  fontWeight: 600,
-                  fontSize: 14,
-                  color: T.navy,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {familyFitLine}
-              </span>
-            </div>
+            )}
           </div>
-        )}
-
-        {/* ── Description (generated) ── */}
-        {tripDescription && (
-          <p
-            style={{
-              fontFamily: sans,
-              fontWeight: 400,
-              fontSize: 16,
-              lineHeight: "25px",
-              color: T.body,
-              marginTop: 20,
-            }}
-          >
-            {tripDescription}
+          <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.65)" }}>
+            Shared by {curatorName} · {days ?? "—"} days · {totalActivityCount} activities
           </p>
-        )}
-
-        {/* ── Why this fits a family ── */}
-        {familyFitWhy && (
-          <div
-            style={{
-              display: "flex",
-              gap: 13,
-              marginTop: 18,
-              marginBottom: 4,
-              background: T.navyTint,
-              borderRadius: 18,
-              padding: "17px 18px",
-            }}
-          >
-            <span
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: "50%",
-                background: T.navy,
-                flexShrink: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Sparkle size={16} color="#fff" strokeWidth={2.2} fill="#fff" />
-            </span>
-            <div style={{ flex: 1 }}>
-              <div
-                style={{
-                  fontFamily: sans,
-                  fontWeight: 700,
-                  fontSize: 10.5,
-                  letterSpacing: "0.7px",
-                  textTransform: "uppercase",
-                  color: T.navy,
-                  marginBottom: 5,
-                }}
-              >
-                Why this fits a family
-              </div>
-              <div
-                style={{
-                  fontFamily: sans,
-                  fontWeight: 400,
-                  fontSize: 14.5,
-                  color: T.body,
-                  lineHeight: "21px",
-                }}
-              >
-                {familyFitWhy}
-              </div>
-            </div>
-          </div>
-        )}
-
-      </div>{/* end 760px metadata section */}
-
-      {/* ── Rich itinerary (centered, aligned under header) ── */}
-      <div style={{ maxWidth: 900, margin: "0 auto" }}>
-        <ShareItineraryView
-          days={dayData}
-          isLoggedIn={!!userId}
-          isOwner={isOwner}
-          shareToken={token}
-          heroImageUrl={heroImg}
-          sourceTripId={trip.id}
-        />
-      </div>
-
-      {/* ── Footer ── */}
-      <div style={{ maxWidth: 760, margin: "0 auto", padding: "0 20px 48px" }}>
-        <div
-          style={{
-            borderTop: `1px solid ${T.hair2}`,
-            marginTop: 40,
-            paddingTop: 22,
-            paddingBottom: 8,
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span
-              style={{
-                fontFamily: display,
-                fontWeight: 700,
-                fontSize: 17,
-                color: T.navy,
-              }}
-            >
-              Flokk
-            </span>
-            <span
-              style={{
-                fontFamily: sans,
-                fontWeight: 500,
-                fontSize: 12.5,
-                color: T.muted,
-              }}
-            >
-              Family travel, in one place.
-            </span>
-          </div>
-          <div style={{ display: "flex", gap: 18 }}>
-            {[
-              { label: "How it works", href: "/about" },
-              { label: "Privacy", href: "/privacy" },
-              { label: "About", href: "/about" },
-            ].map(({ label, href }) => (
-              <Link
-                key={label}
-                href={href}
-                style={{
-                  fontFamily: sans,
-                  fontWeight: 500,
-                  fontSize: 13,
-                  color: T.muted,
-                  textDecoration: "none",
-                }}
-              >
-                {label}
-              </Link>
-            ))}
-          </div>
         </div>
       </div>
 
-      {/* ── Bottom bar (owner / steal) ── */}
+      {/* ── Trip-level notes (dayIndex null) ── */}
+      {tripLevelNotes.length > 0 && (
+        <div style={{ maxWidth: "1100px", margin: "16px auto 0", padding: "0 24px" }}>
+          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: "#1B3A5C", marginBottom: "12px" }}>
+            Notes
+          </h2>
+          {tripLevelNotes.map((note) => {
+            const text = tiptapToPlaintext(note.content);
+            if (!text.trim()) return null;
+            return (
+              <div
+                key={note.id}
+                style={{ borderLeft: "3px solid #C4664A", paddingLeft: "14px", marginBottom: "8px" }}
+              >
+                <p style={{ fontSize: "14px", color: "#1B3A5C", lineHeight: 1.6, margin: 0 }}>{text}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "0 24px" }}>
+
+        {/* ── Contacts ── */}
+        {(trip.contacts.length > 0 || syntheticHotelContacts.length > 0) && (
+          <section style={{ marginTop: "28px" }}>
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: "#1B3A5C", marginBottom: "12px" }}>
+              Contacts
+            </h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              {trip.contacts.map((contact) => (
+                <div
+                  key={contact.id}
+                  style={{ backgroundColor: "#FAFAF8", border: "1px solid #EEEEEE", borderRadius: "10px", padding: "14px 16px" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                    <span style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C" }}>{contact.name}</span>
+                    {contact.role && (
+                      <span style={{ fontSize: "11px", fontWeight: 600, color: "#C4664A", border: "1px solid #C4664A", borderRadius: "999px", padding: "2px 8px" }}>
+                        {contact.role}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    {contact.phone && (
+                      <a href={`tel:${contact.phone}`} style={{ fontSize: "13px", color: "#1B3A5C", textDecoration: "none" }}>
+                        {contact.phone}
+                      </a>
+                    )}
+                    {contact.whatsapp && (
+                      <a
+                        href={`https://wa.me/${contact.whatsapp.replace(/\D/g, "")}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: "13px", color: "#25D366", textDecoration: "none" }}
+                      >
+                        WhatsApp · {contact.whatsapp}
+                      </a>
+                    )}
+                    {contact.notes && (
+                      <p style={{ fontSize: "12px", color: "#717171", margin: "4px 0 0" }}>{contact.notes}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {syntheticHotelContacts.map((hotel) => (
+                <div
+                  key={hotel.id}
+                  style={{ backgroundColor: "#FAFAF8", border: "1px solid #EEEEEE", borderRadius: "10px", padding: "14px 16px" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: hotel.address || hotel.venueUrl ? "6px" : 0 }}>
+                    <span style={{ fontSize: "15px", fontWeight: 700, color: "#1B3A5C" }}>{hotel.name}</span>
+                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#C4664A", border: "1px solid #C4664A", borderRadius: "999px", padding: "2px 8px" }}>
+                      {hotel.role}
+                    </span>
+                  </div>
+                  {(hotel.address || hotel.venueUrl) && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      {hotel.address && (
+                        <a
+                          href={`https://maps.google.com/?q=${encodeURIComponent(hotel.address)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: "13px", color: "#1B3A5C", textDecoration: "none" }}
+                        >
+                          {hotel.address}
+                        </a>
+                      )}
+                      {hotel.venueUrl && (
+                        <a
+                          href={hotel.venueUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: "13px", color: "#C4664A", textDecoration: "none" }}
+                        >
+                          View property →
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── Day-by-day itinerary (client component handles day/category toggle) ── */}
+        {daysData.length > 0 && (
+          <ShareItineraryView
+            days={daysData}
+            isLoggedIn={isLoggedIn}
+            isOwner={isOwner}
+            shareToken={token}
+            heroImageUrl={heroImg}
+            sourceTripId={trip.id}
+          />
+        )}
+
+        {/* ── Questions for the Flokker ── */}
+        <div style={{ marginTop: "48px", paddingTop: "32px", borderTop: "1px solid #e5e7eb" }}>
+          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#1B3A5C", marginBottom: "8px" }}>
+            Questions for the Flokker
+          </h2>
+          <p style={{ fontSize: "14px", color: "#6b7280", marginBottom: "24px" }}>
+            Ask {curatorName} anything about this trip.
+          </p>
+          <p style={{ fontSize: "14px", color: "#9ca3af", fontStyle: "italic" }}>
+            Messaging coming soon. Join Flokk to be notified when it launches.
+          </p>
+        </div>
+
+        {/* ── What is Flokk? (non-logged-in only) ── */}
+        {!isLoggedIn && (
+          <div style={{ marginTop: "32px", paddingTop: "32px", borderTop: "1px solid #F0F0F0", textAlign: "center" }}>
+            <p style={{ fontSize: "14px", color: "#6b7280", marginBottom: "6px" }}>
+              Flokk is free family travel planning.
+            </p>
+            <p style={{ fontSize: "13px", color: "#9ca3af", marginBottom: "16px" }}>
+              Save places, plan days, forward booking emails. Built for families.
+            </p>
+            <a
+              href="/sign-up"
+              style={{ display: "inline-block", padding: "10px 24px", backgroundColor: "#1B3A5C", color: "#fff", fontSize: "13px", fontWeight: 700, borderRadius: "999px", textDecoration: "none" }}
+            >
+              Join free
+            </a>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {allDayIndices.length === 0 && (
+          <div style={{ textAlign: "center", padding: "48px 16px", color: "#AAAAAA" }}>
+            <p style={{ fontSize: "15px" }}>This trip is being planned. Check back soon.</p>
+          </div>
+        )}
+
+      </div>
+
+      {/* ── Bottom bar ── */}
       <SharePageBottomBar
         tripId={trip.id}
         isOwner={isOwner}

@@ -200,7 +200,7 @@ export function TourShareView({ stops, transport }: Props) {
                 )}
               </div>
 
-              {(stop.publicWhy ?? stop.why) && (
+              {stop.publicWhy && (
                 <p
                   style={{
                     fontSize: "12px",
@@ -213,10 +213,10 @@ export function TourShareView({ stops, transport }: Props) {
                     overflow: "hidden",
                   }}
                 >
-                  {stop.publicWhy ?? stop.why}
+                  {stop.publicWhy}
                 </p>
               )}
-              {(stop.publicFamilyNote ?? stop.familyNote) && (
+              {stop.publicFamilyNote && (
                 <p
                   style={{
                     fontSize: "12px",
@@ -230,7 +230,7 @@ export function TourShareView({ stops, transport }: Props) {
                     overflow: "hidden",
                   }}
                 >
-                  {stop.publicFamilyNote ?? stop.familyNote}
+                  {stop.publicFamilyNote}
                 </p>
               )}
             </div>

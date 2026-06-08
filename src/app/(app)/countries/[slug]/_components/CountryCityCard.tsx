@@ -1,8 +1,4 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
-import { BrandedImagePlaceholder } from "@/components/shared/BrandedImagePlaceholder";
 
 interface CountryCityCardProps {
   slug: string;
@@ -14,10 +10,8 @@ interface CountryCityCardProps {
 }
 
 export function CountryCityCard({ slug, name, photoUrl, spotCount, href, countLabel }: CountryCityCardProps) {
-  const [imgError, setImgError] = useState(false);
   const destination = href ?? `/cities/${slug}`;
   const label = countLabel ?? `${spotCount} ${spotCount === 1 ? "spot" : "spots"}`;
-  const showPlaceholder = !photoUrl || imgError;
   return (
     <Link href={destination} style={{ textDecoration: "none", display: "flex", flexDirection: "column" }}>
       <div
@@ -36,14 +30,19 @@ export function CountryCityCard({ slug, name, photoUrl, spotCount, href, countLa
             overflow: "hidden",
           }}
         >
-          {showPlaceholder ? (
-            <BrandedImagePlaceholder />
-          ) : (
+          {photoUrl ? (
             <img
-              src={photoUrl!}
+              src={photoUrl}
               alt={name}
-              onError={() => setImgError(true)}
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+          ) : (
+            <div
+              style={{
+                width: "100%",
+                height: "100%",
+                background: "linear-gradient(135deg, #1B3A5C 0%, #C4664A 100%)",
+              }}
             />
           )}
         </div>
