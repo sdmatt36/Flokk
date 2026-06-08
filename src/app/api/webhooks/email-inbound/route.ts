@@ -1040,18 +1040,20 @@ Field notes:
       }
     }
 
-    // Auto-create trip when no match found, confidence >= 0.9, type is flight or hotel, and destination is known
-    // Lowered from 0.9 to 0.85 (Chat 32 P5) — Unassigned Bookings fallback catches misses.
+    // Auto-create trip when no match found, confidence >= 0.85, type is flight or hotel.
+    // Hotels without a city fall back to property name so no booking is ever left orphaned.
     if (!matchedTrip && confidenceScore >= 0.85) {
       const autoType = (extracted.type as string | null) ?? null;
       if (autoType === "flight" || autoType === "hotel") {
         const rawToCity = (extracted.toCity as string | null)?.trim() ?? null;
         const rawCity = (extracted.city as string | null)?.trim() ?? null;
         const autoDestCity = (rawToCity || rawCity || null)?.replace(/,\s*[A-Z]{2}$/, "").trim() ?? null;
-        if (autoDestCity) {
+        // Hotels: when no city extracted, fall back to property name as trip title seed
+        const autoCityOrFallback = autoDestCity ?? (autoType === "hotel" ? ((extracted.vendorName as string | null)?.trim() ?? null) : null);
+        if (autoCityOrFallback) {
           // Dedup guard: never create a second trip if one already exists for this destination.
           // Re-forwarding the same email should reuse the existing trip, not create a new one.
-          const autoDestCityLower = autoDestCity.toLowerCase().trim();
+          const autoDestCityLower = autoCityOrFallback.toLowerCase().trim();
           const dedupExisting = (trips as Array<{ id: string; title?: string | null; destinationCity?: string | null; status?: string | null }>)
             .find((t) =>
               (t.destinationCity ?? "").toLowerCase().trim() === autoDestCityLower &&
@@ -1061,13 +1063,13 @@ Field notes:
             matchedTrip = dedupExisting as typeof trips[0];
             resolvedTripId = dedupExisting.id;
             logCtx.matchedTripId = dedupExisting.id;
-            console.log(`[email-inbound] auto-create dedup: reusing existing trip "${dedupExisting.title}" (${dedupExisting.id}) for "${autoDestCity}"`);
+            console.log(`[email-inbound] auto-create dedup: reusing existing trip "${dedupExisting.title}" (${dedupExisting.id}) for "${autoCityOrFallback}"`);
           } else {
           const autoDestCountry = (extracted.country as string | null) ?? null;
           const autoStart = (extracted.departureDate as string | null) ?? (extracted.checkIn as string | null) ?? null;
           const autoEnd = (extracted.returnDepartureDate as string | null) ?? (extracted.checkOut as string | null) ?? null;
           const autoData = await buildTripFromExtraction({
-            cities: [autoDestCity],
+            cities: [autoCityOrFallback],
             country: autoDestCountry,
             startDate: autoStart,
             endDate: autoEnd,
@@ -2084,6 +2086,30 @@ Field notes:
       const hotelName = toTitleCase(extracted.vendorName as string | null) || (extracted.vendorName as string);
       const checkInDate = (extracted.checkIn as string | null) ?? null;
       const checkOutDate = (extracted.checkOut as string | null) ?? null;
+
+      // Safety guard: tripId must never be null when writing hotel items
+      if (!resolvedTripId) {
+        console.warn(`[email-inbound] hotel branch: resolvedTripId null for "${hotelName}" (confidence=${confidenceScore.toFixed(2)}) — creating emergency trip`);
+        const emergencyCityOrName = (extracted.city as string | null)?.trim() || (extracted.toCity as string | null)?.trim() || hotelName;
+        const emergencyData = await buildTripFromExtraction({
+          cities: [emergencyCityOrName],
+          country: (extracted.country as string | null) ?? null,
+          startDate: checkInDate,
+          endDate: checkOutDate,
+        });
+        const emergencyTrip = await db.$transaction(async (tx) => {
+          const created = await tx.trip.create({ data: { ...emergencyData, familyProfileId: familyProfile.id } });
+          await tx.tripCollaborator.create({
+            data: { tripId: created.id, familyProfileId: familyProfile.id, role: "OWNER", invitedById: familyProfile.id, invitedAt: new Date(), acceptedAt: new Date() },
+          });
+          return created;
+        });
+        resolvedTripId = emergencyTrip.id;
+        matchedTrip = emergencyTrip as typeof trips[0];
+        logCtx.autoCreatedTripId = emergencyTrip.id;
+        logCtx.matchedTripId = emergencyTrip.id;
+        console.log(`[email-inbound] emergency hotel trip created: "${emergencyData.title}" id: ${emergencyTrip.id}`);
+      }
 
       const checkInDayIndex = checkInDate ? await getDayIndex(resolvedTripId, checkInDate) : null;
 
