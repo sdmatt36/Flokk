@@ -3,9 +3,57 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { sendTripMadePublicEvent } from "@/lib/loops";
-import { canEditTripContent, canManageCollaborators } from "@/lib/trip-permissions";
+import { canEditTripContent, canManageCollaborators, canViewTrip } from "@/lib/trip-permissions";
+import { getTripCoverImage } from "@/lib/destination-images";
 
 export const dynamic = "force-dynamic";
+
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "No family profile" }, { status: 400 });
+
+  if (!(await canViewTrip(profileId, id))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const trip = await db.trip.findUnique({
+    where: { id },
+    select: {
+      id: true, title: true, destinationCity: true, destinationCountry: true,
+      cities: true, country: true, countries: true, startDate: true, endDate: true,
+      status: true, heroImageUrl: true, isPlacesLibrary: true,
+      _count: { select: { savedItems: { where: { deletedAt: null } } } },
+    },
+  });
+
+  if (!trip) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  return NextResponse.json({
+    trip: {
+      id: trip.id,
+      title: trip.title,
+      destinationCity: trip.destinationCity,
+      destinationCountry: trip.destinationCountry,
+      cities: trip.cities,
+      country: trip.country,
+      countries: trip.countries,
+      startDate: trip.startDate?.toISOString().slice(0, 10) ?? null,
+      endDate: trip.endDate?.toISOString().slice(0, 10) ?? null,
+      status: trip.status,
+      isPlacesLibrary: trip.isPlacesLibrary,
+      coverImageUrl: getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl),
+      savesCount: trip._count.savedItems,
+    },
+  });
+}
 
 export async function PATCH(
   req: Request,
