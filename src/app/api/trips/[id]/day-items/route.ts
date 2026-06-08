@@ -58,6 +58,7 @@ export type DayItemRow = {
   time: string | null;   // pre-formatted "3:00 PM" or null
   badge: string;
   dayIndex: number;
+  sourceType: "savedItem" | "manualActivity" | "itineraryItem" | "flight";
 };
 
 // ── GET /api/trips/[id]/day-items ─────────────────────────────────────────────
@@ -198,6 +199,7 @@ export async function GET(
           time: formatTime(s.startTime),
           badge: s.categoryTags.length > 0 ? formatCategoryTag(s.categoryTags[0]) : "Activity",
           dayIndex: dayIdx,
+          sourceType: "savedItem" as const,
         },
       });
     }
@@ -219,6 +221,7 @@ export async function GET(
           time: formatTime(a.time),
           badge: a.type ? formatCategoryTag(a.type) : "Activity",
           dayIndex: dayIdx,
+          sourceType: "manualActivity" as const,
         },
       });
     }
@@ -248,6 +251,7 @@ export async function GET(
           time: isArrival ? formatTime(f.arrivalTime) : formatTime(f.departureTime),
           badge: "Flight",
           dayIndex: dayIdx,
+          sourceType: "flight" as const,
         },
       });
     }
@@ -311,6 +315,7 @@ export async function GET(
           time: displayTime,
           badge: TYPE_LABELS[it.type] ?? it.type,
           dayIndex: dayIdx,
+          sourceType: "itineraryItem" as const,
         },
       });
     }
