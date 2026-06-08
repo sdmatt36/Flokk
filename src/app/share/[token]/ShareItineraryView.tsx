@@ -8,6 +8,7 @@ import { getDestinationCoords } from "@/lib/destination-coords";
 import type { SerializableItem } from "./ShareActivityCard";
 import type { SaveableItem } from "./SaveDayButton";
 import { StealDayModal } from "@/components/features/share/StealDayModal";
+import type { RelatedDestination } from "@/lib/related-destinations";
 
 export interface DayData {
   index: number;
@@ -17,35 +18,6 @@ export interface DayData {
   saveItems: SaveableItem[];
   notes?: string[];
 }
-
-type RelatedTrip = { id: string | null; city: string; country: string; img: string; tags: string[] };
-
-const RELATED_TRIPS_BY_DEST: Record<string, RelatedTrip[]> = {
-  Kyoto: [
-    { id: null, city: "Tokyo", country: "Japan", img: "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?w=400&auto=format&fit=crop&q=80", tags: ["Culture", "Kids"] },
-    { id: null, city: "Osaka", country: "Japan", img: "https://images.unsplash.com/photo-1589452271712-64b8a66c3570?w=400&auto=format&fit=crop&q=80", tags: ["Food", "Kids"] },
-    { id: null, city: "Madrid", country: "Spain", img: "https://images.unsplash.com/photo-1539037116277-4db20889f2d4?w=400&auto=format&fit=crop&q=80", tags: ["Food", "Culture"] },
-    { id: null, city: "Lisbon", country: "Portugal", img: "https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=400&auto=format&fit=crop&q=80", tags: ["Adventure", "History"] },
-  ],
-  Madrid: [
-    { id: null, city: "Kyoto", country: "Japan", img: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=400&auto=format&fit=crop&q=80", tags: ["Culture", "Kid-friendly"] },
-    { id: null, city: "Lisbon", country: "Portugal", img: "https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=400&auto=format&fit=crop&q=80", tags: ["Adventure", "History"] },
-    { id: null, city: "Seville", country: "Spain", img: "https://images.unsplash.com/photo-1558642891-54be180ea339?w=400&auto=format&fit=crop&q=80", tags: ["History", "Culture"] },
-    { id: null, city: "Barcelona", country: "Spain", img: "https://images.unsplash.com/photo-1583422409516-2895a77efded?w=400&auto=format&fit=crop&q=80", tags: ["Beach", "Culture"] },
-  ],
-  Lisbon: [
-    { id: null, city: "Kyoto", country: "Japan", img: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=400&auto=format&fit=crop&q=80", tags: ["Culture", "Kid-friendly"] },
-    { id: null, city: "Madrid", country: "Spain", img: "https://images.unsplash.com/photo-1539037116277-4db20889f2d4?w=400&auto=format&fit=crop&q=80", tags: ["Food", "Culture"] },
-    { id: null, city: "Porto", country: "Portugal", img: "https://images.unsplash.com/photo-1538332576228-eb5b4c4de6f5?w=400&auto=format&fit=crop&q=80", tags: ["Food", "History"] },
-    { id: null, city: "Seville", country: "Spain", img: "https://images.unsplash.com/photo-1558642891-54be180ea339?w=400&auto=format&fit=crop&q=80", tags: ["History", "Culture"] },
-  ],
-  Seoul: [
-    { id: null, city: "Tokyo", country: "Japan", img: "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?w=400&auto=format&fit=crop&q=80", tags: ["Culture", "Food"] },
-    { id: null, city: "Kyoto", country: "Japan", img: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=400&auto=format&fit=crop&q=80", tags: ["Culture", "Kids"] },
-    { id: null, city: "Bangkok", country: "Thailand", img: "https://images.unsplash.com/photo-1508009603885-50cf7c8dd0d5?w=400&auto=format&fit=crop&q=80", tags: ["Food", "Culture"] },
-    { id: null, city: "Taipei", country: "Taiwan", img: "https://images.unsplash.com/photo-1470004914212-05527e49370b?w=400&auto=format&fit=crop&q=80", tags: ["Food", "Kids"] },
-  ],
-};
 
 function buildAllMarkers(days: DayData[]): MarkerDef[] {
   const markers: MarkerDef[] = [];
@@ -89,6 +61,7 @@ export function ShareItineraryView({
   shareToken,
   heroImageUrl: _heroImageUrl,
   sourceTripId,
+  relatedDestinations = [],
 }: {
   days: DayData[];
   isLoggedIn: boolean;
@@ -96,6 +69,7 @@ export function ShareItineraryView({
   shareToken: string;
   heroImageUrl?: string | null;
   sourceTripId?: string;
+  relatedDestinations?: RelatedDestination[];
 }) {
   const [openDay, setOpenDay] = useState(-1);
   const [savedSet, setSavedSet] = useState<Set<string>>(new Set());
@@ -134,8 +108,6 @@ export function ShareItineraryView({
     }
     return getDestinationCoords(destinationCity, null);
   })();
-
-  const relatedTrips = RELATED_TRIPS_BY_DEST[destinationCity ?? ""] ?? [];
 
   // Derived values for the steal modal
   const tripDestination = destinationCity ?? "this destination";
@@ -425,7 +397,7 @@ export function ShareItineraryView({
         </div>
 
       {/* More trips families like yours loved */}
-      {relatedTrips.length > 0 && (
+      {relatedDestinations.length > 0 && (
         <div style={{ paddingTop: "28px", paddingBottom: "8px", borderTop: "1px solid #F0F0F0", marginTop: "32px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
             <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a" }}>More trips families like yours loved</p>
@@ -434,25 +406,27 @@ export function ShareItineraryView({
             </Link>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4" style={{ gap: "12px" }}>
-            {relatedTrips.map((trip) => (
+            {relatedDestinations.map((dest) => (
               <Link
-                key={`${trip.city}-${trip.country}`}
-                href="/discover"
+                key={`${dest.kind}-${dest.slug}`}
+                href={dest.kind === "city" ? `/cities/${dest.slug}` : `/countries/${dest.slug}`}
                 style={{ textDecoration: "none", display: "block" }}
               >
-                <div style={{ height: "160px", borderRadius: "14px", overflow: "hidden", position: "relative", backgroundImage: `url('${trip.img}')`, backgroundSize: "cover", backgroundPosition: "center" }}>
+                <div style={{ height: "160px", borderRadius: "14px", overflow: "hidden", position: "relative", backgroundColor: "#1B3A5C", backgroundImage: dest.heroUrl ? `url('${dest.heroUrl}')` : undefined, backgroundSize: "cover", backgroundPosition: "center" }}>
                   <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.72) 100%)" }} />
                   <div style={{ position: "absolute", bottom: "10px", left: "10px", right: "10px", zIndex: 2, pointerEvents: "none" }}>
-                    <p style={{ fontSize: "13px", fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>{trip.city}</p>
-                    <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.75)", marginTop: "2px" }}>{trip.country}</p>
+                    <p style={{ fontSize: "13px", fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>{dest.name}</p>
+                    <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.75)", marginTop: "2px" }}>{dest.country}</p>
                   </div>
-                  <div style={{ position: "absolute", top: "8px", left: "8px", zIndex: 2, display: "flex", gap: "4px", flexWrap: "wrap", pointerEvents: "none" }}>
-                    {trip.tags.map((tag) => (
-                      <span key={tag} style={{ fontSize: "10px", fontWeight: 700, backgroundColor: "rgba(0,0,0,0.45)", color: "#fff", borderRadius: "999px", padding: "2px 7px", backdropFilter: "blur(4px)" }}>
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
+                  {dest.tags.length > 0 && (
+                    <div style={{ position: "absolute", top: "8px", left: "8px", zIndex: 2, display: "flex", gap: "4px", flexWrap: "wrap", pointerEvents: "none" }}>
+                      {dest.tags.map((tag) => (
+                        <span key={tag} style={{ fontSize: "10px", fontWeight: 700, backgroundColor: "rgba(0,0,0,0.45)", color: "#fff", borderRadius: "999px", padding: "2px 7px", backdropFilter: "blur(4px)" }}>
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </Link>
             ))}

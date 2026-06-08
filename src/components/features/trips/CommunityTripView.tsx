@@ -70,28 +70,7 @@ const DESTINATION_RECS: Record<string, Array<{
   ],
 };
 
-type RelatedTrip = { id: string | null; city: string; country: string; img: string; tags: string[] };
-
-const RELATED_TRIPS_BY_DEST: Record<string, RelatedTrip[]> = {
-  Kyoto: [
-    { id: "cmtrip-madrid-jun25", city: "Madrid", country: "Spain", img: "https://images.unsplash.com/photo-1539037116277-4db20889f2d4?w=400&auto=format&fit=crop&q=80", tags: ["Food", "Culture"] },
-    { id: "cmtrip-lisbon-jul25", city: "Lisbon", country: "Portugal", img: "https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=400&auto=format&fit=crop&q=80", tags: ["Adventure", "History"] },
-    { id: null, city: "Tokyo", country: "Japan", img: "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?w=400&auto=format&fit=crop&q=80", tags: ["Culture", "Kids"] },
-    { id: null, city: "Osaka", country: "Japan", img: "https://images.unsplash.com/photo-1589452271712-64b8a66c3570?w=400&auto=format&fit=crop&q=80", tags: ["Food", "Kids"] },
-  ],
-  Madrid: [
-    { id: "cmtrip-kyoto-may25", city: "Kyoto", country: "Japan", img: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=400&auto=format&fit=crop&q=80", tags: ["Culture", "Kid-friendly"] },
-    { id: "cmtrip-lisbon-jul25", city: "Lisbon", country: "Portugal", img: "https://images.unsplash.com/photo-1555881400-74d7acaacd8b?w=400&auto=format&fit=crop&q=80", tags: ["Adventure", "History"] },
-    { id: null, city: "Seville", country: "Spain", img: "https://images.unsplash.com/photo-1558642891-54be180ea339?w=400&auto=format&fit=crop&q=80", tags: ["History", "Culture"] },
-    { id: null, city: "Barcelona", country: "Spain", img: "https://images.unsplash.com/photo-1583422409516-2895a77efded?w=400&auto=format&fit=crop&q=80", tags: ["Beach", "Culture"] },
-  ],
-  Lisbon: [
-    { id: "cmtrip-kyoto-may25", city: "Kyoto", country: "Japan", img: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=400&auto=format&fit=crop&q=80", tags: ["Culture", "Kid-friendly"] },
-    { id: "cmtrip-madrid-jun25", city: "Madrid", country: "Spain", img: "https://images.unsplash.com/photo-1539037116277-4db20889f2d4?w=400&auto=format&fit=crop&q=80", tags: ["Food", "Culture"] },
-    { id: null, city: "Porto", country: "Portugal", img: "https://images.unsplash.com/photo-1538332576228-eb5b4c4de6f5?w=400&auto=format&fit=crop&q=80", tags: ["Food", "History"] },
-    { id: null, city: "Seville", country: "Spain", img: "https://images.unsplash.com/photo-1558642891-54be180ea339?w=400&auto=format&fit=crop&q=80", tags: ["History", "Culture"] },
-  ],
-};
+import type { RelatedDestination } from "@/lib/related-destinations";
 
 const DAY_NAMES_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -497,6 +476,7 @@ export function CommunityTripView({
   destinationCountry,
   viewerMembers,
   isOwner = false,
+  relatedDestinations = [],
 }: {
   items: ActivityItem[];
   startDate: string | null;
@@ -507,6 +487,7 @@ export function CommunityTripView({
   destinationCountry?: string | null;
   viewerMembers: ViewerMember[];
   isOwner?: boolean;
+  relatedDestinations?: RelatedDestination[];
 }) {
   const [tab, setTab] = useState<"itinerary" | "recommended">("itinerary");
   const [openDay, setOpenDay] = useState(-1); // -1 = all collapsed; show all markers on load
@@ -614,7 +595,6 @@ export function CommunityTripView({
   })();
 
   const recs = DESTINATION_RECS[destinationCity ?? ""] ?? [];
-  const relatedTrips = RELATED_TRIPS_BY_DEST[destinationCity ?? ""] ?? [];
   const matchingTrips = userTrips.filter(
     (t) => t.destinationCity?.toLowerCase() === destinationCity?.toLowerCase()
   );
@@ -995,37 +975,41 @@ export function CommunityTripView({
         </div>
       )}
 
-      {/* More trips like this — always visible */}
-      <div style={{ padding: "28px 20px 32px", borderTop: "1px solid #F0F0F0", marginTop: "8px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-          <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a" }}>More trips families like yours loved</p>
-          <Link href="/discover" style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none", display: "flex", alignItems: "center", gap: "2px" }}>
-            See all <ChevronRight size={13} />
-          </Link>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4" style={{ gap: "12px" }}>
-          {relatedTrips.map((trip) => (
-            <Link
-              key={`${trip.city}-${trip.country}`}
-              href={trip.id ? `/trips/${trip.id}` : "/discover"}
-              style={{ textDecoration: "none", display: "block", cursor: "pointer" }}
-            >
-              <div style={{ height: "160px", borderRadius: "14px", overflow: "hidden", position: "relative", backgroundImage: `url('${trip.img}')`, backgroundSize: "cover", backgroundPosition: "center", cursor: "pointer" }}>
-                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.72) 100%)" }} />
-                <div style={{ position: "absolute", bottom: "10px", left: "10px", right: "10px", zIndex: 2, pointerEvents: "none" }}>
-                  <p style={{ fontSize: "13px", fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>{trip.city}</p>
-                  <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.75)", marginTop: "2px" }}>{trip.country}</p>
-                </div>
-                <div style={{ position: "absolute", top: "8px", left: "8px", zIndex: 2, display: "flex", gap: "4px", flexWrap: "wrap", pointerEvents: "none" }}>
-                  {trip.tags.map((tag) => (
-                    <span key={tag} style={{ fontSize: "10px", fontWeight: 700, backgroundColor: "rgba(0,0,0,0.45)", color: "#fff", borderRadius: "999px", padding: "2px 7px", backdropFilter: "blur(4px)" }}>{tag}</span>
-                  ))}
-                </div>
-              </div>
+      {/* More trips like this */}
+      {relatedDestinations.length > 0 && (
+        <div style={{ padding: "28px 20px 32px", borderTop: "1px solid #F0F0F0", marginTop: "8px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+            <p style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a" }}>More trips families like yours loved</p>
+            <Link href="/discover" style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none", display: "flex", alignItems: "center", gap: "2px" }}>
+              See all <ChevronRight size={13} />
             </Link>
-          ))}
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4" style={{ gap: "12px" }}>
+            {relatedDestinations.map((dest) => (
+              <Link
+                key={`${dest.kind}-${dest.slug}`}
+                href={dest.kind === "city" ? `/cities/${dest.slug}` : `/countries/${dest.slug}`}
+                style={{ textDecoration: "none", display: "block", cursor: "pointer" }}
+              >
+                <div style={{ height: "160px", borderRadius: "14px", overflow: "hidden", position: "relative", backgroundColor: "#1B3A5C", backgroundImage: dest.heroUrl ? `url('${dest.heroUrl}')` : undefined, backgroundSize: "cover", backgroundPosition: "center", cursor: "pointer" }}>
+                  <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.72) 100%)" }} />
+                  <div style={{ position: "absolute", bottom: "10px", left: "10px", right: "10px", zIndex: 2, pointerEvents: "none" }}>
+                    <p style={{ fontSize: "13px", fontWeight: 700, color: "#fff", lineHeight: 1.2 }}>{dest.name}</p>
+                    <p style={{ fontSize: "11px", color: "rgba(255,255,255,0.75)", marginTop: "2px" }}>{dest.country}</p>
+                  </div>
+                  {dest.tags.length > 0 && (
+                    <div style={{ position: "absolute", top: "8px", left: "8px", zIndex: 2, display: "flex", gap: "4px", flexWrap: "wrap", pointerEvents: "none" }}>
+                      {dest.tags.map((tag) => (
+                        <span key={tag} style={{ fontSize: "10px", fontWeight: 700, backgroundColor: "rgba(0,0,0,0.45)", color: "#fff", borderRadius: "999px", padding: "2px 7px", backdropFilter: "blur(4px)" }}>{tag}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Recommendation drawer */}
       <RecommendationDrawer

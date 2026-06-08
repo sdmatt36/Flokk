@@ -9,6 +9,7 @@ import { ShareItineraryView, type DayData } from "./ShareItineraryView";
 import { AppHeader } from "@/components/ui/AppHeader";
 import { MapPin, Calendar } from "lucide-react";
 import { tiptapToPlaintext } from "@/lib/tiptap-to-plaintext";
+import { getRelatedDestinations } from "@/lib/related-destinations";
 
 export const dynamic = "force-dynamic";
 
@@ -436,6 +437,13 @@ export default async function SharePage({
     };
   });
 
+  // ── Related destinations carousel ──────────────────────────────────────────
+  const relatedDestinations = await getRelatedDestinations({
+    currentCountry: trip.destinationCountry ?? null,
+    currentCity: trip.destinationCity ?? null,
+    excludeTripId: trip.id,
+  });
+
   // ── Contacts + notes derivation ─────────────────────────────────────────────
   const tripLevelNotes = trip.tripNotes.filter((n) => n.dayIndex === null);
 
@@ -673,6 +681,7 @@ export default async function SharePage({
             shareToken={token}
             heroImageUrl={heroImg}
             sourceTripId={trip.id}
+            relatedDestinations={relatedDestinations}
           />
         )}
 

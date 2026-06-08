@@ -9,6 +9,7 @@ import { TripTabContent } from "@/components/features/trips/TripTabContent";
 import { CommunityTripView } from "@/components/features/trips/CommunityTripView";
 import { DeleteTripButton } from "@/components/features/trips/DeleteTripButton";
 import { getTripCoverImage } from "@/lib/destination-images";
+import { getRelatedDestinations } from "@/lib/related-destinations";
 
 function formatDateRange(start: Date | null, end: Date | null) {
   if (!start) return null;
@@ -132,6 +133,15 @@ export default async function TripDetailPage({
   const days = tripDays(trip.startDate, trip.endDate);
   const statusColor = STATUS_COLOR[trip.status] ?? "#717171";
   const heroImg = getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl);
+
+  // Related destinations carousel (only needed for community view)
+  const relatedDestinations = isCommunity
+    ? await getRelatedDestinations({
+        currentCountry: trip.destinationCountry ?? null,
+        currentCity: trip.destinationCity ?? null,
+        excludeTripId: id,
+      })
+    : [];
 
   // Serialize saved items for the community view
   const serializedItems = trip.savedItems.map((item) => ({
@@ -366,6 +376,7 @@ export default async function TripDetailPage({
           destinationCountry={trip.destinationCountry ?? null}
           viewerMembers={viewerMembers}
           isOwner={isOwner}
+          relatedDestinations={relatedDestinations}
         />
       ) : (
         <>
