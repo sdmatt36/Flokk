@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import { DM_Sans, Playfair_Display } from "next/font/google";
 
@@ -63,6 +66,8 @@ export function CityHero({
   tourCount,
   ratingCount,
 }: CityHeroProps) {
+  const [imgFailed, setImgFailed] = useState(false);
+
   // heroPhotoUrl takes priority over legacy photoUrl
   const renderPhotoUrl = heroPhotoUrl ?? photoUrl;
 
@@ -100,11 +105,12 @@ export function CityHero({
       `}</style>
 
       {/* Background: photo or solid navy fallback */}
-      {renderPhotoUrl ? (
+      {renderPhotoUrl && !imgFailed ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={renderPhotoUrl}
           alt=""
+          onError={() => setImgFailed(true)}
           style={{
             position: "absolute",
             inset: 0,
@@ -211,7 +217,7 @@ export function CityHero({
       </div>
 
       {/* Photo credit — bottom-right */}
-      {attribution ? (
+      {!imgFailed && attribution ? (
         <p
           className={dmSans.className}
           style={{
@@ -244,7 +250,7 @@ export function CityHero({
             Unsplash
           </a>
         </p>
-      ) : isLegacyUnsplash ? (
+      ) : !imgFailed && isLegacyUnsplash ? (
         <p
           className={dmSans.className}
           style={{
