@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
-import { resolveShareToken } from "@/lib/share-token";
+import { resolveShareToken, type ResolvedShareEntity } from "@/lib/share-token";
 import { ShareItemView } from "@/components/share/ShareItemView";
 import { TourShareView } from "@/components/share/TourShareView";
 import { AppHeader } from "@/components/ui/AppHeader";
@@ -222,5 +222,108 @@ export default async function ShareItemPage({ params }: { params: Promise<{ toke
     );
   }
 
-  return <ShareItemView token={token} entity={entity} isSignedIn={isSignedIn} />;
+  // Build a sanitized entity before passing to the client component.
+  // Every field not rendered publicly is set to null here so it never
+  // enters the RSC payload. Do not rely on the client component hiding fields.
+  let sanitizedEntity: ResolvedShareEntity;
+
+  if (entity.entityType === "saved_item" && entity.savedItem) {
+    const s = entity.savedItem;
+    sanitizedEntity = {
+      entityType: "saved_item",
+      savedItem: {
+        id: s.id,
+        rawTitle: s.rawTitle,
+        rawDescription: s.rawDescription,
+        placePhotoUrl: s.placePhotoUrl,
+        mediaThumbnailUrl: s.mediaThumbnailUrl,
+        websiteUrl: s.websiteUrl,
+        destinationCity: s.destinationCity,
+        destinationCountry: s.destinationCountry,
+        lat: null,
+        lng: null,
+        categoryTags: s.categoryTags,
+        userRating: null,
+        userNote: null,
+        sourcePlatform: s.sourcePlatform,
+        sourceMethod: null,
+        sourceUrl: s.sourceUrl,
+        savedAt: s.savedAt,
+        shareToken: s.shareToken,
+        trip: s.trip,
+      },
+    };
+  } else if (entity.entityType === "itinerary_item" && entity.itineraryItem) {
+    const it = entity.itineraryItem;
+    sanitizedEntity = {
+      entityType: "itinerary_item",
+      itineraryItem: {
+        id: it.id,
+        type: it.type,
+        title: it.title,
+        scheduledDate: it.scheduledDate,
+        departureTime: it.departureTime,
+        arrivalTime: it.arrivalTime,
+        fromAirport: it.fromAirport,
+        toAirport: it.toAirport,
+        fromCity: it.fromCity,
+        toCity: it.toCity,
+        confirmationCode: null,
+        notes: null,
+        address: it.address,
+        totalCost: null,
+        currency: null,
+        latitude: it.latitude,
+        longitude: it.longitude,
+        venueUrl: it.venueUrl,
+        shareToken: it.shareToken,
+        trip: it.trip,
+        parallelSavedItem: it.parallelSavedItem
+          ? {
+              id: it.parallelSavedItem.id,
+              rawTitle: it.parallelSavedItem.rawTitle,
+              rawDescription: it.parallelSavedItem.rawDescription,
+              placePhotoUrl: it.parallelSavedItem.placePhotoUrl,
+              websiteUrl: it.parallelSavedItem.websiteUrl,
+              destinationCity: it.parallelSavedItem.destinationCity,
+              destinationCountry: it.parallelSavedItem.destinationCountry,
+              categoryTags: it.parallelSavedItem.categoryTags,
+              userRating: null,
+            }
+          : null,
+      },
+    };
+  } else if (entity.entityType === "manual_activity" && entity.manualActivity) {
+    const ma = entity.manualActivity;
+    sanitizedEntity = {
+      entityType: "manual_activity",
+      manualActivity: {
+        id: ma.id,
+        title: ma.title,
+        date: ma.date,
+        time: ma.time,
+        endTime: ma.endTime,
+        venueName: ma.venueName,
+        address: ma.address,
+        lat: null,
+        lng: null,
+        website: ma.website,
+        price: null,
+        currency: null,
+        notes: null,
+        status: ma.status,
+        city: ma.city,
+        type: ma.type,
+        imageUrl: ma.imageUrl,
+        dayIndex: null,
+        confirmationCode: null,
+        shareToken: ma.shareToken,
+        trip: ma.trip,
+      },
+    };
+  } else {
+    sanitizedEntity = entity;
+  }
+
+  return <ShareItemView token={token} entity={sanitizedEntity} isSignedIn={isSignedIn} />;
 }
