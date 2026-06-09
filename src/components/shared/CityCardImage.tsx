@@ -8,11 +8,12 @@ const playfair = Playfair_Display({ subsets: ["latin"], display: "swap" });
 interface Props {
   src: string | null;
   alt: string;
+  objectPosition?: string;
 }
 
 // Renders a city/country card image with a navy brand fallback when the source
 // is null or fails to load. Never shows a broken-image glyph.
-export function CityCardImage({ src, alt }: Props) {
+export function CityCardImage({ src, alt, objectPosition = "center" }: Props) {
   const [failed, setFailed] = useState(false);
 
   if (!src || failed) {
@@ -50,7 +51,7 @@ export function CityCardImage({ src, alt }: Props) {
       src={src}
       alt={alt}
       onError={() => setFailed(true)}
-      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+      style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition, display: "block" }}
     />
   );
 }

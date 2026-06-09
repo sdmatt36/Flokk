@@ -125,7 +125,7 @@ export default function ImportedCityPage() {
       {/* Hero */}
       {heroUrl && (
         <div style={{ aspectRatio: "5 / 2", borderRadius: 16, overflow: "hidden", marginBottom: 24, marginTop: 16 }}>
-          <CityCardImage src={heroUrl} alt={city?.name ?? ""} />
+          <CityCardImage src={heroUrl} alt={city?.name ?? ""} objectPosition="50% 30%" />
         </div>
       )}
 
