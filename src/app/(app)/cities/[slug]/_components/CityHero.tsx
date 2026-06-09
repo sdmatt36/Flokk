@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { DM_Sans, Playfair_Display } from "next/font/google";
+import { getCityImageUrl } from "@/lib/city-image";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -68,8 +69,8 @@ export function CityHero({
 }: CityHeroProps) {
   const [imgFailed, setImgFailed] = useState(false);
 
-  // heroPhotoUrl takes priority over legacy photoUrl
-  const renderPhotoUrl = heroPhotoUrl ?? photoUrl;
+  // heroPhotoUrl takes priority over legacy photoUrl; empty strings normalised to null
+  const renderPhotoUrl = getCityImageUrl(heroPhotoUrl, photoUrl);
 
   // Attribution: structured if heroPhotoUrl is set, generic fallback for legacy Unsplash URLs
   const attribution = heroPhotoUrl

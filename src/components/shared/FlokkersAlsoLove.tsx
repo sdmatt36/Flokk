@@ -2,6 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { Playfair_Display } from "next/font/google";
 import { CityCardImage } from "@/components/shared/CityCardImage";
+import { getCityImageUrl } from "@/lib/city-image";
 
 const playfair = Playfair_Display({ subsets: ["latin"], display: "swap" });
 
@@ -39,7 +40,7 @@ async function ContinentAlsoLove({ entityId }: { entityId: string }) {
           href={`/cities/${city.slug}`}
           name={city.name}
           subtitle={city.country.name}
-          photoUrl={city.heroPhotoUrl ?? city.photoUrl}
+          photoUrl={getCityImageUrl(city.heroPhotoUrl, city.photoUrl)}
         />
       ))}
     </AlsoLoveShell>
@@ -138,7 +139,7 @@ async function CityAlsoLove({ entityId }: { entityId: string }) {
           href={`/cities/${city.slug}`}
           name={city.name}
           subtitle={city.country.name}
-          photoUrl={city.heroPhotoUrl ?? city.photoUrl}
+          photoUrl={getCityImageUrl(city.heroPhotoUrl, city.photoUrl)}
         />
       ))}
     </AlsoLoveShell>

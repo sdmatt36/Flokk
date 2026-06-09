@@ -3,6 +3,8 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { ShareCardList } from "./ShareCardList";
 import type { ApiItem } from "@/components/features/saves/SaveCard";
+import { CityCardImage } from "@/components/shared/CityCardImage";
+import { getCityImageUrl } from "@/lib/city-image";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +18,7 @@ export async function generateMetadata({
   if (!share) return { title: "Shared saves | Flokk" };
   const city = await db.city.findUnique({ where: { slug: share.citySlug }, select: { name: true, heroPhotoUrl: true, photoUrl: true } });
   const cityName = city?.name ?? share.citySlug;
-  const heroUrl = city?.heroPhotoUrl ?? city?.photoUrl ?? null;
+  const heroUrl = getCityImageUrl(city?.heroPhotoUrl, city?.photoUrl);
   const absoluteImg = heroUrl
     ? (heroUrl.startsWith("http") ? heroUrl : `https://flokktravel.com${heroUrl}`)
     : null;
@@ -116,7 +118,7 @@ export default async function CitySharePage({
   }));
 
   const cityName = city?.name ?? share.citySlug;
-  const heroUrl = city?.heroPhotoUrl ?? city?.photoUrl ?? null;
+  const heroUrl = getCityImageUrl(city?.heroPhotoUrl, city?.photoUrl);
   const scopeLabel = share.scope === "imports" ? "Google Maps imports" : "all saves";
 
   return (
@@ -124,7 +126,7 @@ export default async function CitySharePage({
       {/* Hero */}
       {heroUrl && (
         <div style={{ width: "100%", height: 220, overflow: "hidden", position: "relative" }}>
-          <img src={heroUrl} alt={cityName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <CityCardImage src={heroUrl} alt={cityName} />
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.55))" }} />
           <div style={{ position: "absolute", bottom: 20, left: 20, right: 20 }}>
             <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 30, fontWeight: 700, color: "#fff", margin: 0, textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>

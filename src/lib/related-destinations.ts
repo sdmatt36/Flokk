@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { getCityImageUrl } from "@/lib/city-image";
 
 export type RelatedDestination =
   | { kind: "city"; slug: string; name: string; country: string; heroUrl: string | null; tags: string[] }
@@ -58,6 +59,7 @@ export async function getRelatedDestinations({
       slug: true,
       name: true,
       heroPhotoUrl: true,
+      photoUrl: true,
       tags: true,
       country: {
         select: {
@@ -114,7 +116,7 @@ export async function getRelatedDestinations({
         countrySlug: cityRow.country.slug,
         countryPhotoUrl: cityRow.country.photoUrl ?? null,
         continentId: cityRow.country.continentId,
-        heroUrl: cityRow.heroPhotoUrl ?? trip.heroImageUrl ?? null,
+        heroUrl: getCityImageUrl(cityRow.heroPhotoUrl, cityRow.photoUrl) || trip.heroImageUrl?.trim() || null,
         tags: (cityRow.tags as string[]).slice(0, 2),
         viewCount: trip.viewCount ?? 0,
       });
@@ -122,7 +124,7 @@ export async function getRelatedDestinations({
       // Higher viewCount wins for heroUrl
       const existing = cityMap.get(slug)!;
       if ((trip.viewCount ?? 0) > existing.viewCount) {
-        existing.heroUrl = cityRow.heroPhotoUrl ?? trip.heroImageUrl ?? null;
+        existing.heroUrl = getCityImageUrl(cityRow.heroPhotoUrl, cityRow.photoUrl) || trip.heroImageUrl?.trim() || null;
         existing.viewCount = trip.viewCount ?? 0;
       }
     }
