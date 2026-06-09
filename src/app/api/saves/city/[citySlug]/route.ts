@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { getCityImageUrl } from "@/lib/city-image";
 
 const IMPORT_SOURCE_METHODS = ["maps_import", "SHARED_TRIP_IMPORT"];
 
@@ -104,7 +105,7 @@ async function fetchSaves(citySlug: string, profileId: string, scope: string) {
 
   return NextResponse.json({
     city: city
-      ? { name: city.name, slug: citySlug, photoUrl: city.heroPhotoUrl ?? city.photoUrl ?? null }
+      ? { name: city.name, slug: citySlug, photoUrl: getCityImageUrl(city.heroPhotoUrl, city.photoUrl) }
       : { name: citySlug, slug: citySlug, photoUrl: null },
     saves,
     scope,

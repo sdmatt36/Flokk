@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { SaveCard, mapApiItem } from "@/components/features/saves/SaveCard";
+import { CityCardImage } from "@/components/shared/CityCardImage";
 import type { ApiItem, Save } from "@/components/features/saves/SaveCard";
 import { SavesCardGrid } from "@/components/features/saves/SavesCardGrid";
 import { RatingModal } from "@/components/features/saves/RatingModal";
@@ -124,7 +125,7 @@ export default function ImportedCityPage() {
       {/* Hero */}
       {heroUrl && (
         <div style={{ height: 200, borderRadius: 16, overflow: "hidden", marginBottom: 24, marginTop: 16 }}>
-          <img src={heroUrl} alt={city?.name ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <CityCardImage src={heroUrl} alt={city?.name ?? ""} />
         </div>
       )}
 
