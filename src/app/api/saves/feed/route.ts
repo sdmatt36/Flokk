@@ -4,13 +4,12 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { getItemImage } from "@/lib/destination-images";
 import { resolveSaveLink } from "@/lib/save-link";
+import { bucketSaves } from "@/lib/saves-bucketing";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 const NO_STORE = { headers: { "Cache-Control": "no-store" } };
-
-const IMPORT_SOURCE_METHODS = new Set(["maps_import"]);
 const FLIGHT_TAGS = [
   "flight", "airfare", "airline", "airflight", "flights",
   "Flight", "Airline", "Airfare",
@@ -185,8 +184,6 @@ export async function GET(req: NextRequest) {
   const category = searchParams.get("category");
   const search = searchParams.get("search");
 
-  const now = new Date();
-
   // ── Trips ──────────────────────────────────────────────────────────────────
   const allTrips = await db.trip.findMany({
     where: { familyProfileId: profileId, isPlacesLibrary: false },
@@ -195,23 +192,13 @@ export async function GET(req: NextRequest) {
       title: true,
       status: true,
       destinationCity: true,
+      cities: true,
+      country: true,
+      countries: true,
       startDate: true,
       endDate: true,
     },
   });
-
-  const upcomingTrips = allTrips
-    .filter((t) => !t.endDate || t.endDate >= now)
-    .sort((a, b) => {
-      const aStart = a.startDate ? a.startDate.getTime() : Infinity;
-      const bStart = b.startDate ? b.startDate.getTime() : Infinity;
-      if (aStart !== bStart) return aStart - bStart;
-      return (a.title ?? "").localeCompare(b.title ?? "");
-    });
-
-  const pastTrips = allTrips.filter((t) => t.endDate && t.endDate < now);
-  const upcomingTripIds = new Set(upcomingTrips.map((t) => t.id));
-  const pastTripIds = new Set(pastTrips.map((t) => t.id));
 
   // ── Saves ──────────────────────────────────────────────────────────────────
   const saves = await db.savedItem.findMany({
@@ -277,47 +264,24 @@ export async function GET(req: NextRequest) {
   });
 
   // ── Bucketing ──────────────────────────────────────────────────────────────
-  const upcomingBuckets = new Map<string, FeedSaveItem[]>(
-    upcomingTrips.map((t) => [t.id, []]),
-  );
-  const pastCityMap = new Map<string, FeedSaveItem[]>();
-  const unassigned: FeedSaveItem[] = [];
-  const imported: FeedSaveItem[] = [];
+  const { upcomingSections, pastCityMap, unassigned, imported } =
+    bucketSaves<DbSave>(saves, allTrips, {});
 
-  for (const s of saves) {
-    if (!s.tripId && IMPORT_SOURCE_METHODS.has(s.sourceMethod ?? "")) {
-      imported.push(buildFeedItem(s));
-      continue;
-    }
-    if (s.tripId && upcomingTripIds.has(s.tripId) && s.userRating == null) {
-      upcomingBuckets.get(s.tripId)!.push(buildFeedItem(s));
-      continue;
-    }
-    if ((s.tripId && pastTripIds.has(s.tripId)) || s.userRating != null) {
-      const city = s.destinationCity ?? "Unknown";
-      const list = pastCityMap.get(city) ?? [];
-      list.push(buildFeedItem(s));
-      pastCityMap.set(city, list);
-      continue;
-    }
-    unassigned.push(buildFeedItem(s));
-  }
+  const tripStatusById = new Map(allTrips.map((t) => [t.id, t.status]));
 
   // ── Assemble sections ──────────────────────────────────────────────────────
   const sections: FeedSection[] = [];
 
-  for (const t of upcomingTrips) {
-    const tripStartDate = t.startDate ? t.startDate.toISOString() : null;
-    const tripEndDate = t.endDate ? t.endDate.toISOString() : null;
+  for (const s of upcomingSections) {
     sections.push({
       type: "upcoming",
-      tripId: t.id,
-      tripName: t.title,
-      tripStatus: t.status,
-      tripStartDate,
-      tripEndDate,
-      dateRange: tripStartDate ? formatTripDateRange(tripStartDate, tripEndDate) : null,
-      saves: sortSaves(upcomingBuckets.get(t.id) ?? []),
+      tripId: s.tripId,
+      tripName: s.tripName,
+      tripStatus: tripStatusById.get(s.tripId),
+      tripStartDate: s.startDate,
+      tripEndDate: s.endDate,
+      dateRange: s.startDate ? formatTripDateRange(s.startDate, s.endDate) : null,
+      saves: sortSaves(s.explicitSaves.map(buildFeedItem)),
       suggestedSaves: [],
     });
   }
@@ -329,7 +293,7 @@ export async function GET(req: NextRequest) {
     sections.push({
       type: "past",
       city,
-      saves: sortSaves(citySaves),
+      saves: sortSaves(citySaves.map(buildFeedItem)),
       suggestedSaves: [],
     });
   }
@@ -337,7 +301,7 @@ export async function GET(req: NextRequest) {
   if (unassigned.length > 0) {
     sections.push({
       type: "unassigned",
-      saves: sortSaves(unassigned),
+      saves: sortSaves(unassigned.map(buildFeedItem)),
       suggestedSaves: [],
     });
   }
@@ -345,7 +309,7 @@ export async function GET(req: NextRequest) {
   if (imported.length > 0) {
     sections.push({
       type: "imported",
-      saves: sortSaves(imported),
+      saves: sortSaves(imported.map(buildFeedItem)),
       suggestedSaves: [],
     });
   }
