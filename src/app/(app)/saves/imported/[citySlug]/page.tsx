@@ -124,7 +124,7 @@ export default function ImportedCityPage() {
     <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px 100px" }}>
       {/* Hero */}
       {heroUrl && (
-        <div style={{ height: 200, borderRadius: 16, overflow: "hidden", marginBottom: 24, marginTop: 16 }}>
+        <div style={{ aspectRatio: "5 / 2", borderRadius: 16, overflow: "hidden", marginBottom: 24, marginTop: 16 }}>
           <CityCardImage src={heroUrl} alt={city?.name ?? ""} />
         </div>
       )}

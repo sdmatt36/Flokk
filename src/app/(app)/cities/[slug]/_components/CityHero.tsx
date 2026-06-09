@@ -23,6 +23,16 @@ interface UnsplashAttribution {
   source: "unsplash";
 }
 
+interface WikimediaAttribution {
+  photographerName: string;
+  photographerUrl: string;
+  photoUrl: string;
+  license: string;
+  source: "wikimedia";
+}
+
+type Attribution = UnsplashAttribution | WikimediaAttribution;
+
 interface CityHeroProps {
   cityName: string;
   latitude: number | null;
@@ -41,12 +51,15 @@ function pluralize(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
-function parseAttribution(raw: string | null | undefined): UnsplashAttribution | null {
+function parseAttribution(raw: string | null | undefined): Attribution | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
     if (parsed?.source === "unsplash" && parsed.photographerName && parsed.photographerUrl) {
       return parsed as UnsplashAttribution;
+    }
+    if (parsed?.source === "wikimedia" && parsed.photographerName && parsed.photoUrl && parsed.license) {
+      return parsed as WikimediaAttribution;
     }
     return null;
   } catch {
@@ -232,24 +245,41 @@ export function CityHero({
             lineHeight: 1.4,
           }}
         >
-          Photo by{" "}
-          <a
-            href={attribution.photographerUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: "inherit", textDecoration: "underline" }}
-          >
-            {attribution.photographerName}
-          </a>
-          {" "}on{" "}
-          <a
-            href="https://unsplash.com?utm_source=flokk&utm_medium=referral"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: "inherit", textDecoration: "underline" }}
-          >
-            Unsplash
-          </a>
+          {attribution.source === "wikimedia" ? (
+            <>
+              Photo:{" "}
+              <a
+                href={attribution.photoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "inherit", textDecoration: "underline" }}
+              >
+                {attribution.photographerName}
+              </a>
+              {", "}{attribution.license}
+            </>
+          ) : (
+            <>
+              Photo by{" "}
+              <a
+                href={attribution.photographerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "inherit", textDecoration: "underline" }}
+              >
+                {attribution.photographerName}
+              </a>
+              {" "}on{" "}
+              <a
+                href="https://unsplash.com?utm_source=flokk&utm_medium=referral"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "inherit", textDecoration: "underline" }}
+              >
+                Unsplash
+              </a>
+            </>
+          )}
         </p>
       ) : !imgFailed && isLegacyUnsplash ? (
         <p
