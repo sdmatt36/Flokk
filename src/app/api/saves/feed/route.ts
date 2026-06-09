@@ -10,7 +10,7 @@ export const maxDuration = 30;
 
 const NO_STORE = { headers: { "Cache-Control": "no-store" } };
 
-const IMPORT_SOURCE_METHODS = new Set(["maps_import", "SHARED_TRIP_IMPORT"]);
+const IMPORT_SOURCE_METHODS = new Set(["maps_import"]);
 const FLIGHT_TAGS = [
   "flight", "airfare", "airline", "airflight", "flights",
   "Flight", "Airline", "Airfare",
@@ -289,11 +289,11 @@ export async function GET(req: NextRequest) {
       imported.push(buildFeedItem(s));
       continue;
     }
-    if (s.tripId && upcomingTripIds.has(s.tripId)) {
+    if (s.tripId && upcomingTripIds.has(s.tripId) && s.userRating == null) {
       upcomingBuckets.get(s.tripId)!.push(buildFeedItem(s));
       continue;
     }
-    if (s.tripId && pastTripIds.has(s.tripId)) {
+    if ((s.tripId && pastTripIds.has(s.tripId)) || s.userRating != null) {
       const city = s.destinationCity ?? "Unknown";
       const list = pastCityMap.get(city) ?? [];
       list.push(buildFeedItem(s));
