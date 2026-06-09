@@ -173,6 +173,7 @@ export default async function CountryPage(
 
   return (
     <main className={dmsans.className} style={{ minHeight: "100vh", backgroundColor: "#FAF7F2" }}>
+      <style>{`.country-hero { height: 320px; } @media (max-width: 640px) { .country-hero { height: 200px; } }`}</style>
 
       <BackBar
         backLabel={`Back to ${country.continent.name}`}
@@ -182,14 +183,14 @@ export default async function CountryPage(
 
       {/* Hero */}
       <div
+        className="country-hero"
         style={{
-          height: "320px",
           position: "relative",
           overflow: "hidden",
           backgroundColor: "#1B3A5C",
           backgroundImage: country.photoUrl ? `url('${country.photoUrl}')` : undefined,
           backgroundSize: "cover",
-          backgroundPosition: "center",
+          backgroundPosition: "50% 24%",
         }}
       >
         {/* Top scrim — breadcrumb legibility */}

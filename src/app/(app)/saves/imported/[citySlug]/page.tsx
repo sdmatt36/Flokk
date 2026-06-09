@@ -122,10 +122,11 @@ export default function ImportedCityPage() {
 
   return (
     <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 24px 100px" }}>
+      <style>{`.imp-hero { height: 320px; } @media (max-width: 640px) { .imp-hero { height: 200px; } }`}</style>
       {/* Hero */}
       {heroUrl && (
-        <div style={{ aspectRatio: "5 / 2", borderRadius: 16, overflow: "hidden", marginBottom: 24, marginTop: 16 }}>
-          <CityCardImage src={heroUrl} alt={city?.name ?? ""} objectPosition="50% 30%" />
+        <div className="imp-hero" style={{ borderRadius: 16, overflow: "hidden", marginBottom: 24, marginTop: 16 }}>
+          <CityCardImage src={heroUrl} alt={city?.name ?? ""} objectPosition="50% 24%" />
         </div>
       )}
 

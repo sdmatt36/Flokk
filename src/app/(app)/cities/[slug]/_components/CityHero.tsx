@@ -106,7 +106,7 @@ export function CityHero({
       style={{ position: "relative", overflow: "hidden" }}
     >
       <style>{`
-        .city-hero { height: 480px; }
+        .city-hero { height: 440px; }
         .city-hero-name { font-size: 64px; }
         .city-hero-blurb { font-size: 18px; }
         .city-hero-stats { font-size: 14px; }
@@ -131,7 +131,7 @@ export function CityHero({
             width: "100%",
             height: "100%",
             objectFit: "cover",
-            objectPosition: "50% 30%",
+            objectPosition: "50% 24%",
           }}
         />
       ) : (

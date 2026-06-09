@@ -126,7 +126,7 @@ export default async function CitySharePage({
       {/* Hero */}
       {heroUrl && (
         <div style={{ width: "100%", height: 220, overflow: "hidden", position: "relative" }}>
-          <CityCardImage src={heroUrl} alt={cityName} />
+          <CityCardImage src={heroUrl} alt={cityName} objectPosition="50% 24%" />
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.55))" }} />
           <div style={{ position: "absolute", bottom: 20, left: 20, right: 20 }}>
             <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 30, fontWeight: 700, color: "#fff", margin: 0, textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>

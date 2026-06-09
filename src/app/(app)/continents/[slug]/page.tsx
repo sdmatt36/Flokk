@@ -114,7 +114,7 @@ export default async function ContinentPage(
             backgroundColor: "#1B3A5C",
             backgroundImage: `url('${continent.photoUrl}')`,
             backgroundSize: "cover",
-            backgroundPosition: "center",
+            backgroundPosition: "50% 24%",
           }}
         >
           {/* Top scrim — breadcrumb legibility */}
