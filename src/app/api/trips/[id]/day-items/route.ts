@@ -59,6 +59,7 @@ export type DayItemRow = {
   badge: string;
   dayIndex: number;
   sourceType: "savedItem" | "manualActivity" | "itineraryItem" | "flight";
+  photoUrl: string | null;
 };
 
 // ── GET /api/trips/[id]/day-items ─────────────────────────────────────────────
@@ -94,7 +95,7 @@ export async function GET(
   }
 
   const [trip, rawItineraryItems, activities, flights, savedItems] = await Promise.all([
-    db.trip.findUnique({ where: { id: tripId }, select: { destinationCity: true } }),
+    db.trip.findUnique({ where: { id: tripId }, select: { destinationCity: true, startDate: true, endDate: true } }),
     db.itineraryItem.findMany({
       where: { tripId, cancelledAt: null },
       orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
@@ -130,6 +131,7 @@ export async function GET(
       select: {
         id: true, rawTitle: true, rawDescription: true, startTime: true,
         categoryTags: true, tourId: true, dayIndex: true, sortOrder: true,
+        placePhotoUrl: true,
       },
     }),
   ]);
@@ -137,8 +139,15 @@ export async function GET(
   const dest = (trip?.destinationCity ?? "").toLowerCase().trim();
   const itineraryItems = mergeDuplicateLodging(rawItineraryItems);
 
-  // Collect all day indexes across all sources
+  // Seed every day in the trip's date range so empty days still render
   const allDayIndexes = new Set<number>();
+  const startMs = trip?.startDate?.getTime() ?? null;
+  const endMs = trip?.endDate?.getTime() ?? null;
+  if (startMs !== null && endMs !== null && endMs >= startMs) {
+    const dayCount = Math.round((endMs - startMs) / 86400000) + 1;
+    for (let d = 0; d < dayCount; d++) allDayIndexes.add(d);
+  }
+  // Also collect any out-of-range items (e.g. unscheduled day -1)
   for (const it of itineraryItems) { if (it.dayIndex !== null) allDayIndexes.add(it.dayIndex); }
   for (const a of activities) { if (a.dayIndex !== null) allDayIndexes.add(a.dayIndex); }
   for (const f of flights) { if (f.dayIndex !== null) allDayIndexes.add(f.dayIndex); }
@@ -200,6 +209,7 @@ export async function GET(
           badge: s.categoryTags.length > 0 ? formatCategoryTag(s.categoryTags[0]) : "Activity",
           dayIndex: dayIdx,
           sourceType: "savedItem" as const,
+          photoUrl: s.placePhotoUrl ?? null,
         },
       });
     }
@@ -222,6 +232,7 @@ export async function GET(
           badge: a.type ? formatCategoryTag(a.type) : "Activity",
           dayIndex: dayIdx,
           sourceType: "manualActivity" as const,
+          photoUrl: null,
         },
       });
     }
@@ -252,6 +263,7 @@ export async function GET(
           badge: "Flight",
           dayIndex: dayIdx,
           sourceType: "flight" as const,
+          photoUrl: null,
         },
       });
     }
@@ -316,6 +328,7 @@ export async function GET(
           badge: TYPE_LABELS[it.type] ?? it.type,
           dayIndex: dayIdx,
           sourceType: "itineraryItem" as const,
+          photoUrl: null,
         },
       });
     }
