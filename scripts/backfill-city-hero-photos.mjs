@@ -16,6 +16,10 @@
 //
 // Guard: only writes rows where heroPhotoUrl IS NULL.
 //        Never overwrites a non-null heroPhotoUrl.
+//        Never writes to a city whose heroPhotoAttribution already has source != "unsplash"
+//        (protects hand-curated Wikimedia and other non-Unsplash heroes).
+//        DB-level: uses updateMany({ where: { id, heroPhotoUrl: null } }) so the guard
+//        is atomic even if the script races with a concurrent write.
 //        Never creates City rows.
 //
 // Rate limit: Unsplash free tier = 50 req/hour.
@@ -62,6 +66,16 @@ const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const db = new PrismaClient({ adapter });
 
+function hasNonUnsplashAttribution(attr) {
+  if (!attr) return false;
+  try {
+    const parsed = typeof attr === "string" ? JSON.parse(attr) : attr;
+    return parsed.source && parsed.source !== "unsplash";
+  } catch {
+    return false;
+  }
+}
+
 // ── Resolve target city rows ──────────────────────────────────────────────────
 
 let targets; // Array of { id, name, countryName }
@@ -77,7 +91,7 @@ if (pairsArgRaw) {
   for (const { cityName, countryName } of pairs) {
     const city = await db.city.findFirst({
       where: { name: cityName, country: { name: countryName } },
-      select: { id: true, name: true, heroPhotoUrl: true, country: { select: { name: true } } },
+      select: { id: true, name: true, heroPhotoUrl: true, heroPhotoAttribution: true, country: { select: { name: true } } },
     });
     if (!city) {
       console.warn(`  SKIP (not in DB): "${cityName}" / "${countryName}"`);
@@ -87,17 +101,23 @@ if (pairsArgRaw) {
       console.log(`  SKIP (heroPhotoUrl set): ${city.name} (${city.country.name})`);
       continue;
     }
+    if (hasNonUnsplashAttribution(city.heroPhotoAttribution)) {
+      console.log(`  SKIP (non-Unsplash attribution): ${city.name} (${city.country.name})`);
+      continue;
+    }
     targets.push({ id: city.id, name: city.name, countryName: city.country.name });
   }
 } else {
   // Full / LIMIT mode: all cities with null heroPhotoUrl, featured-first
   const rows = await db.city.findMany({
     where: { heroPhotoUrl: null },
-    select: { id: true, name: true, country: { select: { name: true } } },
+    select: { id: true, name: true, heroPhotoAttribution: true, country: { select: { name: true } } },
     orderBy: [{ featured: "desc" }, { priorityRank: "asc" }, { name: "asc" }],
     ...(limit ? { take: limit } : {}),
   });
-  targets = rows.map((r) => ({ id: r.id, name: r.name, countryName: r.country.name }));
+  targets = rows
+    .filter((r) => !hasNonUnsplashAttribution(r.heroPhotoAttribution))
+    .map((r) => ({ id: r.id, name: r.name, countryName: r.country.name }));
 }
 
 const total = targets.length;
@@ -157,8 +177,8 @@ for (let i = 0; i < targets.length; i++) {
   try {
     const photo = await fetchUnsplashPhoto(query);
     if (photo) {
-      await db.city.update({
-        where: { id },
+      await db.city.updateMany({
+        where: { id, heroPhotoUrl: null },
         data: {
           heroPhotoUrl: photo.heroPhotoUrl,
           heroPhotoAttribution: photo.heroPhotoAttribution,
