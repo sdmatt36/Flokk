@@ -163,7 +163,7 @@ export async function POST(
   let activityEnrichedWebsite: string | null = null;
   const activityCity = [trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", ");
   if (!activity.imageUrl || !activity.website) {
-    const enriched = await enrichWithPlaces(activity.title, activityCity);
+    const enriched = await enrichWithPlaces(activity.venueName ?? activity.title, activityCity);
     const placesUpdate: { imageUrl?: string; website?: string; lat?: number; lng?: number } = {};
     if (enriched.imageUrl && !activity.imageUrl) { placesUpdate.imageUrl = enriched.imageUrl; activityEnrichedImageUrl = enriched.imageUrl; }
     if (!activity.website) {
