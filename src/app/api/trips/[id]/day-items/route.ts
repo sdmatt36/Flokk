@@ -112,7 +112,7 @@ export async function GET(
       orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }],
       select: {
         id: true, title: true, time: true, venueName: true,
-        address: true, dayIndex: true, sortOrder: true, type: true,
+        address: true, dayIndex: true, sortOrder: true, type: true, imageUrl: true,
       },
     }),
     db.flight.findMany({
@@ -232,7 +232,7 @@ export async function GET(
           badge: a.type ? formatCategoryTag(a.type) : "Activity",
           dayIndex: dayIdx,
           sourceType: "manualActivity" as const,
-          photoUrl: null,
+          photoUrl: a.imageUrl ?? null,
         },
       });
     }
@@ -328,7 +328,7 @@ export async function GET(
           badge: TYPE_LABELS[it.type] ?? it.type,
           dayIndex: dayIdx,
           sourceType: "itineraryItem" as const,
-          photoUrl: null,
+          photoUrl: it.imageUrl ?? null,
         },
       });
     }
