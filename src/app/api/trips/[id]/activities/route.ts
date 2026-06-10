@@ -219,7 +219,9 @@ export async function POST(
   let pairedSavedItemId: string | null = null;
   if (trip?.familyProfileId) {
     const cityForSaved = resolvedCity ?? trip.destinationCity ?? null;
-    const initTags = resolvedType ? [resolvedType] : [];
+    const initTags = Array.isArray(body.categoryTags) && body.categoryTags.length > 0
+    ? (body.categoryTags as string[]).map((t: string) => normalizeCategorySlug(t) ?? t).filter(Boolean)
+    : (resolvedType ? [resolvedType] : []);
     try {
       const savedItem = await db.savedItem.create({
         data: {
