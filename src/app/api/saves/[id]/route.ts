@@ -83,6 +83,7 @@ export async function PATCH(
   if (typeof body.scheduledDate === "string" || body.scheduledDate === null) updateData.scheduledDate = body.scheduledDate ?? null;
   if (typeof body.sortOrder === "number") updateData.sortOrder = body.sortOrder;
   if (typeof body.startTime === "string" || body.startTime === null) updateData.startTime = body.startTime ?? null;
+  if (typeof body.endTime === "string" || body.endTime === null) updateData.endTime = body.endTime ?? null;
   if (typeof body.lodgingType === "string" || body.lodgingType === null) updateData.lodgingType = body.lodgingType ?? null;
   if (typeof body.extractedCheckin === "string" || body.extractedCheckin === null) updateData.extractedCheckin = body.extractedCheckin ?? null;
   if (typeof body.extractedCheckout === "string" || body.extractedCheckout === null) updateData.extractedCheckout = body.extractedCheckout ?? null;

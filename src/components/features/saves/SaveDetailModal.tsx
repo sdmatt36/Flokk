@@ -31,6 +31,7 @@ type SaveItem = {
   sourceUrl: string | null;
   isBooked: boolean;
   startTime: string | null;
+  endTime: string | null;
   trip: { id: string; title: string } | null;
   userRating: number | null;
   lodgingType: string | null;
@@ -119,6 +120,7 @@ export function SaveDetailModal({
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
   const [startTime, setStartTime] = useState<string>("");
+  const [endTime, setEndTime] = useState<string>("");
   const [mounted, setMounted] = useState(false);
   const [assignedTrip, setAssignedTrip] = useState<{ id: string; title: string } | null>(null);
   const [isBooked, setIsBooked] = useState(false);
@@ -160,6 +162,7 @@ export function SaveDetailModal({
         setAssignedTrip(data.item?.trip ?? null);
         setIsBooked(data.item?.isBooked ?? false);
         setStartTime(data.item?.startTime ?? "");
+        setEndTime(data.item?.endTime ?? "");
         setLocalWebsiteUrl(data.item?.websiteUrl ?? null);
         setUserRating(data.item?.userRating ?? null);
         setLodgingType(data.item?.lodgingType ?? null);
@@ -803,6 +806,46 @@ export function SaveDetailModal({
                         body: JSON.stringify({ startTime: null }),
                       });
                       onTimeSet?.(itemId, null);
+                    } catch { /* silent */ }
+                  }}
+                  style={{ marginTop: "4px", background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: "#AAAAAA", padding: 0, fontFamily: "inherit" }}
+                >
+                  Clear time
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* End time — only shown when item is assigned to a day */}
+          {item.trip && (
+            <div style={{ marginBottom: "12px" }}>
+              <p style={{ fontSize: "13px", fontWeight: 700, color: "#1a1a1a", marginBottom: "8px" }}>End time</p>
+              <input
+                type="time"
+                value={endTime}
+                onChange={async (e) => {
+                  const val = e.target.value;
+                  setEndTime(val);
+                  try {
+                    await fetch(`/api/saves/${itemId}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ endTime: val || null }),
+                    });
+                  } catch { /* silent */ }
+                }}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1px solid rgba(0,0,0,0.12)", fontSize: "14px", color: "#333", outline: "none", fontFamily: "-apple-system,BlinkMacSystemFont,sans-serif", boxSizing: "border-box" }}
+              />
+              {endTime && (
+                <button
+                  onClick={async () => {
+                    setEndTime("");
+                    try {
+                      await fetch(`/api/saves/${itemId}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ endTime: null }),
+                      });
                     } catch { /* silent */ }
                   }}
                   style={{ marginTop: "4px", background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: "#AAAAAA", padding: 0, fontFamily: "inherit" }}

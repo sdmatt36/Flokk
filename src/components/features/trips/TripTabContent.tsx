@@ -1741,7 +1741,7 @@ const AIRPORT_COUNTRY: Record<string, string> = {
   CPT: "ZA", JNB: "ZA", CAI: "EG", RAK: "MA",
 };
 
-type RecAddition = { dayIndex: number; title: string; location: string; img?: string; savedItemId?: string; lat?: number | null; lng?: number | null; isBooked?: boolean; sortOrder: number; startTime?: string | null; categoryTags?: string[]; tourId?: string | null };
+type RecAddition = { dayIndex: number; title: string; location: string; img?: string; savedItemId?: string; lat?: number | null; lng?: number | null; isBooked?: boolean; sortOrder: number; startTime?: string | null; endTime?: string | null; categoryTags?: string[]; tourId?: string | null };
 
 // Unified sortable item — combines SavedItems, ManualActivities, and Flights into one sortable list per day
 type ItineraryItemLocal = {
@@ -2684,7 +2684,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     if (!tripId) return;
     fetch(`/api/trips/${tripId}/itinerary`)
       .then(r => r.json())
-      .then(({ items }: { items: Array<{ id: string; rawTitle: string | null; rawDescription: string | null; placePhotoUrl?: string | null; mediaThumbnailUrl: string | null; destinationCity?: string | null; destinationCountry?: string | null; dayIndex: number | null; sortOrder?: number; lat?: number | null; lng?: number | null; isBooked?: boolean; startTime?: string | null; categoryTags?: string[]; tourId?: string | null }> }) => {
+      .then(({ items }: { items: Array<{ id: string; rawTitle: string | null; rawDescription: string | null; placePhotoUrl?: string | null; mediaThumbnailUrl: string | null; destinationCity?: string | null; destinationCountry?: string | null; dayIndex: number | null; sortOrder?: number; lat?: number | null; lng?: number | null; isBooked?: boolean; startTime?: string | null; endTime?: string | null; categoryTags?: string[]; tourId?: string | null }> }) => {
         if (!items?.length) return;
         const mapped = items.map(item => ({
           dayIndex: item.dayIndex ?? 0,
@@ -2697,6 +2697,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           isBooked: item.isBooked ?? false,
           sortOrder: item.sortOrder ?? 0,
           startTime: item.startTime ?? null,
+          endTime: item.endTime ?? null,
           categoryTags: item.categoryTags ?? [],
           tourId: item.tourId ?? null,
         }));
@@ -3303,7 +3304,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                                   <>
                                                     {depFormatted && (
                                                       <p style={{ fontSize: "12px", color: isDefaultTime ? "#AAAAAA" : "#C4664A", fontWeight: 600, lineHeight: 1.4 }}>
-                                                        {depFormatted}{arrTime ? ` → ${arrTime}` : ""}{isDefaultTime ? " (approx)" : ""}
+                                                        {depFormatted}{a.endTime ? ` – ${formatTime(a.endTime)}` : arrTime ? ` → ${arrTime}` : ""}{isDefaultTime ? " (approx)" : ""}
                                                       </p>
                                                     )}
                                                     {cleanLoc && <p style={{ fontSize: "12px", color: "#717171", lineHeight: 1.4 }} suppressHydrationWarning={true}>{cleanDisplayDescription(cleanLoc)}</p>}

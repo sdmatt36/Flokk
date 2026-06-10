@@ -45,6 +45,7 @@ export async function GET(
       lng: true,
       isBooked: true,
       startTime: true,
+      endTime: true,
       categoryTags: true,
       tourId: true,
     },

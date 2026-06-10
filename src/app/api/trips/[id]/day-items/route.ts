@@ -55,11 +55,14 @@ export type DayItemRow = {
   kind: "booking" | "activity";
   title: string;
   subtitle: string | null;
-  time: string | null;   // pre-formatted "3:00 PM" or null
+  time: string | null;       // pre-formatted "3:00 PM" or null
   badge: string;
   dayIndex: number;
   sourceType: "savedItem" | "manualActivity" | "itineraryItem" | "flight";
   photoUrl: string | null;
+  categoryTags: string[];    // full array for edit sheet chip init
+  rawTime: string | null;    // "HH:MM" for edit sheet time picker init
+  endTime: string | null;    // "HH:MM" end time for display and edit
 };
 
 // ── GET /api/trips/[id]/day-items ─────────────────────────────────────────────
@@ -111,8 +114,9 @@ export async function GET(
       where: { tripId, dayIndex: { not: null }, deletedAt: null },
       orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }],
       select: {
-        id: true, title: true, time: true, venueName: true,
+        id: true, title: true, time: true, endTime: true, venueName: true,
         address: true, dayIndex: true, sortOrder: true, type: true, imageUrl: true,
+        savedItem: { select: { categoryTags: true } },
       },
     }),
     db.flight.findMany({
@@ -129,7 +133,7 @@ export async function GET(
       where: { tripId, dayIndex: { not: null }, deletedAt: null, sourceMethod: { not: "manual_activity" } },
       orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }, { savedAt: "asc" }],
       select: {
-        id: true, rawTitle: true, rawDescription: true, startTime: true,
+        id: true, rawTitle: true, rawDescription: true, startTime: true, endTime: true,
         categoryTags: true, tourId: true, dayIndex: true, sortOrder: true,
         placePhotoUrl: true,
       },
@@ -188,16 +192,10 @@ export async function GET(
         const tl = rawTitle.trim().toLowerCase();
         if (/train|transit|rail/i.test(cats) || /rail\.ninja|train/i.test(tl)) continue;
       }
-      const startTimeMin: number = (() => {
-        if (!s.startTime) return 9999;
-        const d = new Date(s.startTime);
-        if (isNaN(d.getTime())) return 9999;
-        return d.getHours() * 60 + d.getMinutes();
-      })();
       items.push({
         sortId: `saved_${s.id}`,
         sortOrder: s.sortOrder ?? 0,
-        sortTimeMin: startTimeMin,
+        sortTimeMin: parseHHMM(s.startTime) ?? 9999,
         anchorW: 50,
         lodgingW: 50,
         tourId: s.tourId ?? null,
@@ -210,6 +208,9 @@ export async function GET(
           dayIndex: dayIdx,
           sourceType: "savedItem" as const,
           photoUrl: s.placePhotoUrl ?? null,
+          categoryTags: s.categoryTags,
+          rawTime: s.startTime ?? null,
+          endTime: s.endTime ?? null,
         },
       });
     }
@@ -217,10 +218,11 @@ export async function GET(
     // 2. ManualActivities
     for (const a of activities) {
       if (a.dayIndex !== dayIdx) continue;
+      const activityCategoryTags = a.savedItem?.categoryTags ?? (a.type ? [a.type] : []);
       items.push({
         sortId: `activity_${a.id}`,
         sortOrder: a.sortOrder ?? 0,
-        sortTimeMin: parseHHMM(a.time) ?? 720,
+        sortTimeMin: parseHHMM(a.time) ?? 9999,
         anchorW: 50,
         lodgingW: 50,
         tourId: null,
@@ -229,10 +231,13 @@ export async function GET(
           title: a.title,
           subtitle: a.venueName ?? a.address ?? null,
           time: formatTime(a.time),
-          badge: a.type ? formatCategoryTag(a.type) : "Activity",
+          badge: activityCategoryTags.length > 0 ? formatCategoryTag(activityCategoryTags[0]) : "Activity",
           dayIndex: dayIdx,
           sourceType: "manualActivity" as const,
           photoUrl: a.imageUrl ?? null,
+          categoryTags: activityCategoryTags,
+          rawTime: a.time ?? null,
+          endTime: a.endTime ?? null,
         },
       });
     }
@@ -264,6 +269,9 @@ export async function GET(
           dayIndex: dayIdx,
           sourceType: "flight" as const,
           photoUrl: null,
+          categoryTags: [],
+          rawTime: null,
+          endTime: null,
         },
       });
     }
@@ -329,6 +337,9 @@ export async function GET(
           dayIndex: dayIdx,
           sourceType: "itineraryItem" as const,
           photoUrl: it.imageUrl ?? null,
+          categoryTags: [],
+          rawTime: null,
+          endTime: null,
         },
       });
     }

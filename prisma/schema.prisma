@@ -401,6 +401,7 @@ model SavedItem {
   userNote            String?
   sortOrder                Int       @default(0)
   startTime                String?
+  endTime                  String?
   needsPlaceConfirmation   Boolean   @default(false)
   ratings                  PlaceRating[]
   communitySpotId          String?
