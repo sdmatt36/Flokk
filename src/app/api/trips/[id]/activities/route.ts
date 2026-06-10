@@ -164,13 +164,16 @@ export async function POST(
   const activityCity = [trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", ");
   if (!activity.imageUrl || !activity.website) {
     const enriched = await enrichWithPlaces(activity.title, activityCity);
-    const placesUpdate: { imageUrl?: string; website?: string } = {};
+    const placesUpdate: { imageUrl?: string; website?: string; lat?: number; lng?: number } = {};
     if (enriched.imageUrl && !activity.imageUrl) { placesUpdate.imageUrl = enriched.imageUrl; activityEnrichedImageUrl = enriched.imageUrl; }
     if (!activity.website) {
       const resolvedWebsite = enriched.website ?? resolveCanonicalUrl({ name: activity.title, city: activityCity });
       placesUpdate.website = resolvedWebsite ?? undefined;
       activityEnrichedWebsite = resolvedWebsite;
     }
+    // Persist coordinates from Places when not already set by client or geocoding
+    if (enriched.lat !== null && lat === null) { placesUpdate.lat = enriched.lat; lat = enriched.lat; }
+    if (enriched.lng !== null && lng === null) { placesUpdate.lng = enriched.lng; lng = enriched.lng; }
     if (Object.keys(placesUpdate).length > 0) {
       await db.manualActivity.update({ where: { id: activity.id }, data: placesUpdate });
     }
@@ -250,7 +253,9 @@ export async function POST(
   // Classify activity type (fire-and-forget) — skip if user explicitly selected a category
   if (!resolvedType) {
     classifyActivityType(activity.title, activity.venueName, activity.address)
-      .then((type) => {
+      .then((rawType) => {
+        // Normalize to canonical slug so DB never stores uppercase AI values
+        const type = normalizeCategorySlug(rawType) ?? rawType.toLowerCase();
         db.manualActivity.update({ where: { id: activity.id }, data: { type } }).catch(() => {});
         if (pairedSavedItemId) {
           db.savedItem.update({
