@@ -106,9 +106,14 @@ export async function POST(req: Request) {
     isAnonymous: isAnonymous ?? true,
   });
 
+  const titleOverride = typeof body.title === "string" && body.title.trim().length > 0
+    ? body.title.trim()
+    : null;
+  const tripData = titleOverride ? { ...builtData, title: titleOverride } : builtData;
+
   const trip = await db.$transaction(async (tx) => {
     const created = await tx.trip.create({
-      data: { ...builtData, familyProfileId: familyProfile.id },
+      data: { ...tripData, familyProfileId: familyProfile.id },
     });
     await tx.tripCollaborator.create({
       data: {
