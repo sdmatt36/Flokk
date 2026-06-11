@@ -1321,6 +1321,11 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ dayIndex: 0 }),
+        }).then(async (res) => {
+          if (!res.ok) {
+            const body = await res.text().catch(() => "");
+            console.error(`[ItineraryWrite] PATCH /api/saves/${item.id} failed: ${res.status}`, body);
+          }
         }).catch(e => console.error("[ItineraryWrite] DB persist failed:", e));
       }
       setAssignedDays(prev => ({ ...prev, [item.title]: 0 }));
@@ -1552,24 +1557,38 @@ function SavedContent({ tripId: tripIdProp, tripStartDate, tripEndDate, tripTitl
           itemTitle={dayPickerItem.title}
           tripStartDate={tripStartDate}
           tripEndDate={tripEndDate}
-          onConfirm={(dayIndex) => {
+          onConfirm={async (dayIndex) => {
+            const item = dayPickerItem;
+            setDayPickerItem(null);
+            if (!item?.id) return;
             try {
-              const key = ITINERARY_KEY(tripIdProp);
-              const existing: RecAddition[] = JSON.parse(localStorage.getItem(key) ?? "[]");
-              existing.push({ dayIndex, title: dayPickerItem.title, location: dayPickerItem.detail, img: dayPickerItem.img, savedItemId: dayPickerItem.id, sortOrder: existing.length });
-              localStorage.setItem(key, JSON.stringify(existing));
-            } catch (e) { console.error("[ItineraryWrite] localStorage write failed:", e); }
-            if (dayPickerItem.id) {
-              fetch(`/api/saves/${dayPickerItem.id}`, {
+              const res = await fetch(`/api/saves/${item.id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ dayIndex }),
-              }).catch(e => console.error("[ItineraryWrite] DB persist failed:", e));
+              });
+              if (!res.ok) {
+                const body = await res.text().catch(() => "");
+                console.error(`[ItineraryWrite] PATCH /api/saves/${item.id} failed: ${res.status}`, body);
+                setInlineToast(`Could not save to Day ${dayIndex + 1} (${res.status}${body ? `: ${body}` : ""})`);
+                setTimeout(() => setInlineToast(null), 6000);
+                return;
+              }
+            } catch (e) {
+              console.error("[ItineraryWrite] network error:", e);
+              setInlineToast(`Could not save to Day ${dayIndex + 1}: network error`);
+              setTimeout(() => setInlineToast(null), 5000);
+              return;
             }
-            setAssignedDays(prev => ({ ...prev, [dayPickerItem.title]: dayIndex }));
+            try {
+              const key = ITINERARY_KEY(tripIdProp);
+              const existing: RecAddition[] = JSON.parse(localStorage.getItem(key) ?? "[]");
+              existing.push({ dayIndex, title: item.title, location: item.detail, img: item.img, savedItemId: item.id, sortOrder: existing.length });
+              localStorage.setItem(key, JSON.stringify(existing));
+            } catch (e) { console.error("[ItineraryWrite] localStorage write failed:", e); }
+            setAssignedDays(prev => ({ ...prev, [item.title]: dayIndex }));
             setInlineToast(`Added to Day ${dayIndex + 1}. Tap to view itinerary →`);
             setTimeout(() => setInlineToast(null), 4000);
-            setDayPickerItem(null);
           }}
           onClose={() => setDayPickerItem(null)}
         />
