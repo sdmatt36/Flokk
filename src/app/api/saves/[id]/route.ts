@@ -21,7 +21,10 @@ export async function GET(
 
   const item = await db.savedItem.findUnique({
     where: { id },
-    include: { trip: { select: { id: true, title: true } } },
+    include: {
+      trip: { select: { id: true, title: true } },
+      communitySpot: { select: { websiteUrl: true } },
+    },
   });
   if (!item || item.familyProfileId !== profileId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -39,7 +42,16 @@ export async function GET(
   if (pr?.rating != null) effectiveRating = pr.rating;
   if (pr?.wouldReturn != null) effectiveWouldReturn = pr.wouldReturn;
 
-  return NextResponse.json({ item: { ...item, userRating: effectiveRating, wouldReturn: effectiveWouldReturn }, interestKeys: item.interestKeys ?? [] });
+  const { communitySpot, ...itemData } = item;
+  return NextResponse.json({
+    item: {
+      ...itemData,
+      communitySpotWebsiteUrl: communitySpot?.websiteUrl ?? null,
+      userRating: effectiveRating,
+      wouldReturn: effectiveWouldReturn,
+    },
+    interestKeys: item.interestKeys ?? [],
+  });
 }
 
 export async function PATCH(
