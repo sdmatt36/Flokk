@@ -21,6 +21,14 @@
       "schedule": "0 4 * * *"
     },
     {
+      "path": "/api/cron/process-pending-saves",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/check-pending-saves",
+      "schedule": "0 8 * * *"
+    },
+    {
       "path": "/api/cron/backfill-import-cities",
       "schedule": "0 5 * * *"
     }

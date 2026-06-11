@@ -25,7 +25,7 @@ function normalizeUrl(url: string): string {
 // and 4 (community data) are not yet implemented.
 
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import he from "he";
@@ -297,10 +297,11 @@ export async function POST(request: Request) {
       }
     }
 
-    // Fire enrichment directly — no Inngest
+    // Fire enrichment after response is sent; after() keeps the function alive until the promise resolves.
     if (!lat && !lng) {
-      enrichSavedItem(savedItem.id)
-        .catch((e) => console.error("[enrich] failed:", e));
+      after(() =>
+        enrichSavedItem(savedItem.id).catch((e) => console.error("[enrich] failed:", e))
+      );
     }
 
     // Auto-assign to matching trip: exact city match first, then country fallback (only when not already assigned)

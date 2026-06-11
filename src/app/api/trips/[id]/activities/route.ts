@@ -239,6 +239,7 @@ export async function POST(
           categoryTags: initTags,
           status: "TRIP_ASSIGNED",
           sourceMethod: "manual_activity",
+          extractionStatus: "ENRICHED",
         },
         select: { id: true },
       });
