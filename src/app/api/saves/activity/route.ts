@@ -34,6 +34,45 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Item not found" }, { status: 403 });
     }
 
+    // Idempotency guard: block saving the same place to the same scope (tripId null = unassigned) twice.
+    // Match hierarchy: googlePlaceId > communitySpotId > lat/lng + title.
+    // Saving to unassigned when the place already exists on a trip is a different scope — allowed.
+    const placeFilters: object[] = [];
+    if (source.googlePlaceId) {
+      placeFilters.push({ googlePlaceId: source.googlePlaceId });
+    }
+    if (source.communitySpotId) {
+      placeFilters.push({ communitySpotId: source.communitySpotId });
+    }
+    if (source.lat !== null && source.lng !== null && source.rawTitle) {
+      placeFilters.push({
+        AND: [
+          { lat: { gte: source.lat - 0.0001, lte: source.lat + 0.0001 } },
+          { lng: { gte: source.lng - 0.0001, lte: source.lng + 0.0001 } },
+          { rawTitle: { equals: source.rawTitle, mode: "insensitive" } },
+        ],
+      });
+    }
+    if (placeFilters.length > 0) {
+      const existing = await db.savedItem.findFirst({
+        where: {
+          familyProfileId: profileId,
+          tripId: null,
+          deletedAt: null,
+          OR: placeFilters,
+        },
+        select: { id: true, rawTitle: true, destinationCity: true },
+      });
+      if (existing) {
+        return NextResponse.json({
+          duplicate: true,
+          existingId: existing.id,
+          existingTitle: existing.rawTitle,
+          existingCity: existing.destinationCity,
+        });
+      }
+    }
+
     const savedItem = await db.savedItem.create({
       data: {
         familyProfileId: profileId,
