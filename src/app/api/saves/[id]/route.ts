@@ -30,16 +30,16 @@ export async function GET(
   // If SavedItem.userRating is null, hydrate from the most recent PlaceRating.
   // Backfill-created SavedItems start with userRating=null even when PlaceRating exists.
   let effectiveRating = item.userRating;
-  if (effectiveRating == null) {
-    const pr = await db.placeRating.findFirst({
-      where: { savedItemId: id },
-      orderBy: { createdAt: "desc" },
-      select: { rating: true },
-    });
-    if (pr?.rating != null) effectiveRating = pr.rating;
-  }
+  let effectiveWouldReturn: boolean | null = null;
+  const pr = await db.placeRating.findFirst({
+    where: { savedItemId: id },
+    orderBy: { createdAt: "desc" },
+    select: { rating: true, wouldReturn: true },
+  });
+  if (pr?.rating != null) effectiveRating = pr.rating;
+  if (pr?.wouldReturn != null) effectiveWouldReturn = pr.wouldReturn;
 
-  return NextResponse.json({ item: { ...item, userRating: effectiveRating }, interestKeys: item.interestKeys ?? [] });
+  return NextResponse.json({ item: { ...item, userRating: effectiveRating, wouldReturn: effectiveWouldReturn }, interestKeys: item.interestKeys ?? [] });
 }
 
 export async function PATCH(
@@ -59,6 +59,8 @@ export async function PATCH(
   }
 
   const body = await request.json();
+  // wouldReturn is not stored on SavedItem; carried through to PlaceRating write-through below.
+  const clientWouldReturn: boolean | null = typeof body.wouldReturn === "boolean" ? body.wouldReturn : null;
   const updateData: Record<string, unknown> = {};
   if (typeof body.rawTitle === "string") updateData.rawTitle = body.rawTitle;
   if (typeof body.notes === "string") updateData.notes = body.notes;
@@ -111,7 +113,7 @@ export async function PATCH(
           const ratingData = {
             rating: updated.userRating,
             notes: updated.notes ?? null,
-            wouldReturn: updated.userRating >= 4,
+            wouldReturn: clientWouldReturn,
           };
           if (existing) {
             await db.placeRating.update({ where: { id: existing.id }, data: ratingData });
