@@ -33,6 +33,7 @@ type FeedSaveItem = {
   userRating: number | null;
   link: string | null;
   savedAt: string;
+  isPending: boolean;
 };
 
 type FeedSection = {
@@ -56,10 +57,24 @@ function sanitizeThumbnailUrl(url: string | null | undefined): string | null {
   return url;
 }
 
-function resolveDisplayTitle(rawTitle: string | null, city: string | null): string {
-  if (!rawTitle) return "Saved place";
-  if (rawTitle.startsWith("http")) return city ? `Place in ${city}` : "Saved place";
-  return rawTitle;
+function extractDomain(url: string): string | null {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+    return host || null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveDisplayTitle(rawTitle: string | null, sourceUrl: string | null, city: string | null): string {
+  if (rawTitle && !rawTitle.startsWith("http")) return rawTitle;
+  const urlForDomain = rawTitle?.startsWith("http") ? rawTitle : sourceUrl;
+  if (urlForDomain) {
+    const domain = extractDomain(urlForDomain);
+    if (domain) return domain;
+  }
+  if (city) return `Place in ${city}`;
+  return "Saved link";
 }
 
 function formatTripDateRange(startIso: string, endIso: string | null): string {
@@ -85,6 +100,7 @@ type DbSave = {
   destinationCountry: string | null;
   categoryTags: string[];
   sourceMethod: string | null;
+  extractionStatus: string | null;
   websiteUrl: string | null;
   sourceUrl: string | null;
   affiliateUrl: string | null;
@@ -109,7 +125,7 @@ function buildFeedItem(s: DbSave): FeedSaveItem {
     sanitizeThumbnailUrl(s.communitySpot?.photoUrl ?? null) ??
     null;
   const thumbUrl = sanitizeThumbnailUrl(s.mediaThumbnailUrl);
-  const displayTitle = resolveDisplayTitle(s.rawTitle, s.destinationCity);
+  const displayTitle = resolveDisplayTitle(s.rawTitle, s.sourceUrl, s.destinationCity);
   const coverImageUrl = getItemImage(
     s.rawTitle,
     photoUrl,
@@ -150,6 +166,7 @@ function buildFeedItem(s: DbSave): FeedSaveItem {
     userRating: s.userRating,
     link,
     savedAt: s.savedAt.toISOString(),
+    isPending: s.extractionStatus === "PENDING",
   };
 }
 
@@ -244,6 +261,7 @@ export async function GET(req: NextRequest) {
       destinationCountry: true,
       categoryTags: true,
       sourceMethod: true,
+      extractionStatus: true,
       websiteUrl: true,
       sourceUrl: true,
       affiliateUrl: true,
