@@ -60,22 +60,51 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     kidsRating?: number;
   };
 
-  const rating = await db.placeRating.create({
-    data: {
-      familyProfileId: profileId,
-      tripId,
-      itineraryItemId: body.itineraryItemId ?? null,
-      manualActivityId: body.manualActivityId ?? null,
-      savedItemId: body.savedItemId ?? null,
-      placeName: body.placeName,
-      placeType: body.placeType,
-      destinationCity: trip.destinationCity ?? null,
-      rating: body.rating,
-      notes: body.notes ?? null,
-      wouldReturn: body.wouldReturn ?? null,
-      kidsRating: body.kidsRating ?? null,
-    },
-  });
+  // If the MA already has a canonical savedItemId, upsert via that key rather than
+  // inserting a new manualActivityId-keyed row. Prevents re-accumulation of the
+  // duplicate-PR pattern that required the June 2026 dedup.
+  let canonicalSavedItemId: string | null = body.savedItemId ?? null;
+  if (body.manualActivityId && !canonicalSavedItemId) {
+    const ma = await db.manualActivity.findUnique({
+      where: { id: body.manualActivityId },
+      select: { savedItemId: true },
+    });
+    if (ma?.savedItemId) canonicalSavedItemId = ma.savedItemId;
+  }
+
+  const ratingPayload = {
+    familyProfileId: profileId,
+    tripId,
+    itineraryItemId: body.itineraryItemId ?? null,
+    manualActivityId: body.manualActivityId ?? null,
+    savedItemId: canonicalSavedItemId,
+    placeName: body.placeName,
+    placeType: body.placeType,
+    destinationCity: trip.destinationCity ?? null,
+    rating: body.rating,
+    notes: body.notes ?? null,
+    wouldReturn: body.wouldReturn ?? null,
+    kidsRating: body.kidsRating ?? null,
+  };
+
+  // Upsert: if a PR already exists for this savedItemId (same family), update it.
+  const existingBySavedItem = canonicalSavedItemId
+    ? await db.placeRating.findFirst({
+        where: { savedItemId: canonicalSavedItemId, familyProfileId: profileId },
+      })
+    : null;
+
+  const rating = existingBySavedItem
+    ? await db.placeRating.update({
+        where: { id: existingBySavedItem.id },
+        data: {
+          rating: ratingPayload.rating,
+          notes: ratingPayload.notes,
+          wouldReturn: ratingPayload.wouldReturn,
+          kidsRating: ratingPayload.kidsRating,
+        },
+      })
+    : await db.placeRating.create({ data: ratingPayload });
 
   // Community layer write-through — fires for itinerary/manual kind ratings.
   // Errors are logged but do not fail the POST response.
