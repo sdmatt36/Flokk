@@ -109,34 +109,19 @@ export async function POST(request: Request) {
 
       // Always run Places resolution to populate googlePlaceId, lat, lng — not just photo.
       const enriched = await enrichWithPlaces(parsed.title, parsed.city?.trim() ?? "");
-      const placesUpdate: {
-        googlePlaceId?: string;
-        lat?: number;
-        lng?: number;
-        placePhotoUrl?: string;
-        websiteUrl?: string;
-        needsPlaceConfirmation?: boolean;
-        extractionStatus: string;
-      } = { extractionStatus: "ENRICHED" };
-      if (enriched.placeId) {
-        placesUpdate.googlePlaceId = enriched.placeId;
-      }
-      if (enriched.lat !== null && enriched.lng !== null) {
-        placesUpdate.lat = enriched.lat;
-        placesUpdate.lng = enriched.lng;
-      }
-      if (enriched.imageUrl && (!savedItem.placePhotoUrl || savedItem.placePhotoUrl === "")) {
-        placesUpdate.placePhotoUrl = enriched.imageUrl;
-      }
-      if (enriched.website && !savedItem.websiteUrl && !isMapsUrl(enriched.website)) {
-        placesUpdate.websiteUrl = enriched.website;
-      }
-      if (!enriched.placeId) {
-        placesUpdate.needsPlaceConfirmation = true;
-      }
-      await db.savedItem.update({ where: { id: savedItem.id }, data: placesUpdate });
-      const manualEnrichedPhotoUrl = placesUpdate.placePhotoUrl ?? null;
-      const manualEnrichedWebsite = placesUpdate.websiteUrl ?? null;
+      const manualEnrichedPhotoUrl = enriched.imageUrl && (!savedItem.placePhotoUrl || savedItem.placePhotoUrl === "") ? enriched.imageUrl : null;
+      const manualEnrichedWebsite = enriched.website && !savedItem.websiteUrl && !isMapsUrl(enriched.website) ? enriched.website : null;
+      await db.savedItem.update({
+        where: { id: savedItem.id },
+        data: {
+          extractionStatus: "ENRICHED",
+          ...(enriched.placeId ? { googlePlaceId: enriched.placeId } : {}),
+          ...(enriched.lat !== null && enriched.lng !== null ? { lat: enriched.lat, lng: enriched.lng } : {}),
+          ...(manualEnrichedPhotoUrl ? { placePhotoUrl: manualEnrichedPhotoUrl } : {}),
+          ...(manualEnrichedWebsite ? { websiteUrl: manualEnrichedWebsite } : {}),
+          ...(!enriched.placeId ? { needsPlaceConfirmation: true } : {}),
+        },
+      });
 
       // Auto-assign to matching trip only when no explicit tripId was supplied
       let matchedTrip: { id: string; title: string; destinationCity: string | null } | null = null;
