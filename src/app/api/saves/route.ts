@@ -102,23 +102,41 @@ export async function POST(request: Request) {
           placePhotoUrl: await toDurableImageUrl(parsed.placePhotoUrl ?? null),
           tripId: parsed.tripId ?? null,
           lodgingType: inferLodgingType({ url: parsed.website, name: parsed.title }) ?? null,
-          extractionStatus: "ENRICHED",
+          extractionStatus: "PENDING",
           status: parsed.tripId ? "TRIP_ASSIGNED" : "UNORGANIZED",
         },
       });
-      // Enrich with Google Places photo at save time (synchronous — result in same response)
-      let manualEnrichedPhotoUrl: string | null = null;
-      let manualEnrichedWebsite: string | null = null;
-      const needsEnrichment = !savedItem.placePhotoUrl || savedItem.placePhotoUrl === "";
-      if (needsEnrichment) {
-        const enriched = await enrichWithPlaces(parsed.title, parsed.city?.trim() ?? "");
-        const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string } = {};
-        if (enriched.imageUrl) { placesUpdate.placePhotoUrl = enriched.imageUrl; manualEnrichedPhotoUrl = enriched.imageUrl; }
-        if (enriched.website && !savedItem.websiteUrl && !isMapsUrl(enriched.website)) { placesUpdate.websiteUrl = enriched.website; manualEnrichedWebsite = enriched.website; }
-        if (Object.keys(placesUpdate).length > 0) {
-          await db.savedItem.update({ where: { id: savedItem.id }, data: placesUpdate });
-        }
+
+      // Always run Places resolution to populate googlePlaceId, lat, lng — not just photo.
+      const enriched = await enrichWithPlaces(parsed.title, parsed.city?.trim() ?? "");
+      const placesUpdate: {
+        googlePlaceId?: string;
+        lat?: number;
+        lng?: number;
+        placePhotoUrl?: string;
+        websiteUrl?: string;
+        needsPlaceConfirmation?: boolean;
+        extractionStatus: string;
+      } = { extractionStatus: "ENRICHED" };
+      if (enriched.placeId) {
+        placesUpdate.googlePlaceId = enriched.placeId;
       }
+      if (enriched.lat !== null && enriched.lng !== null) {
+        placesUpdate.lat = enriched.lat;
+        placesUpdate.lng = enriched.lng;
+      }
+      if (enriched.imageUrl && (!savedItem.placePhotoUrl || savedItem.placePhotoUrl === "")) {
+        placesUpdate.placePhotoUrl = enriched.imageUrl;
+      }
+      if (enriched.website && !savedItem.websiteUrl && !isMapsUrl(enriched.website)) {
+        placesUpdate.websiteUrl = enriched.website;
+      }
+      if (!enriched.placeId) {
+        placesUpdate.needsPlaceConfirmation = true;
+      }
+      await db.savedItem.update({ where: { id: savedItem.id }, data: placesUpdate });
+      const manualEnrichedPhotoUrl = placesUpdate.placePhotoUrl ?? null;
+      const manualEnrichedWebsite = placesUpdate.websiteUrl ?? null;
 
       // Auto-assign to matching trip only when no explicit tripId was supplied
       let matchedTrip: { id: string; title: string; destinationCity: string | null } | null = null;
