@@ -1982,8 +1982,15 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   const [editActivityTitle, setEditActivityTitle] = useState("");
   const [editingItinFields, setEditingItinFields] = useState(false);
   const [editItTime, setEditItTime] = useState("");
+  const [editItArrivalTime, setEditItArrivalTime] = useState("");
   const [editItDate, setEditItDate] = useState("");
   const [editItNotes, setEditItNotes] = useState("");
+  const [editItTitle, setEditItTitle] = useState("");
+  const [editItFromCity, setEditItFromCity] = useState("");
+  const [editItToCity, setEditItToCity] = useState("");
+  const [editItFromAirport, setEditItFromAirport] = useState("");
+  const [editItToAirport, setEditItToAirport] = useState("");
+  const [editItAddress, setEditItAddress] = useState("");
   const [editItSaving, setEditItSaving] = useState(false);
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
   const [detailRemover, setDetailRemover] = useState<(() => void) | null>(null);
@@ -4125,6 +4132,80 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                 const paxLabel = sit.passengers.length > 0
                   ? sit.passengers.length <= 2 ? sit.passengers.join(", ") : `${sit.passengers.length} passengers`
                   : null;
+                const itEditInputStyle: React.CSSProperties = { width: "100%", border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "10px 12px", fontSize: "14px", color: "#1a1a1a", outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
+                if (editingItinFields) return (
+                  <div>
+                    <p style={{ ...titleStyle, marginBottom: "20px" }}>
+                      {(editItFromAirport || editItFromCity || editItToAirport || editItToCity)
+                        ? `${editItFromAirport || editItFromCity || "?"} → ${editItToAirport || editItToCity || "?"}`
+                        : route}
+                    </p>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                        <div>
+                          <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>From airport</label>
+                          <input type="text" value={editItFromAirport} onChange={e => setEditItFromAirport(e.target.value)} placeholder="e.g. JFK" style={itEditInputStyle} />
+                        </div>
+                        <div>
+                          <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>To airport</label>
+                          <input type="text" value={editItToAirport} onChange={e => setEditItToAirport(e.target.value)} placeholder="e.g. NRT" style={itEditInputStyle} />
+                        </div>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                        <div>
+                          <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>From city</label>
+                          <input type="text" value={editItFromCity} onChange={e => setEditItFromCity(e.target.value)} placeholder="e.g. New York" style={itEditInputStyle} />
+                        </div>
+                        <div>
+                          <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>To city</label>
+                          <input type="text" value={editItToCity} onChange={e => setEditItToCity(e.target.value)} placeholder="e.g. Tokyo" style={itEditInputStyle} />
+                        </div>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                        <div>
+                          <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>Departs</label>
+                          <input type="time" value={editItTime} onChange={e => setEditItTime(e.target.value)} style={itEditInputStyle} />
+                        </div>
+                        <div>
+                          <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>Arrives</label>
+                          <input type="time" value={editItArrivalTime} onChange={e => setEditItArrivalTime(e.target.value)} style={itEditInputStyle} />
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>Date</label>
+                        <input type="date" value={editItDate} onChange={e => setEditItDate(e.target.value)} style={itEditInputStyle} />
+                      </div>
+                      <div>
+                        <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>Notes</label>
+                        <textarea value={editItNotes} onChange={e => setEditItNotes(e.target.value)} rows={2} placeholder="Any notes..." style={{ ...itEditInputStyle, resize: "none" }} />
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        setEditItSaving(true);
+                        try {
+                          const res = await fetch(`/api/trips/${tripId}/itinerary/${sit.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ fromAirport: editItFromAirport || null, toAirport: editItToAirport || null, fromCity: editItFromCity || null, toCity: editItToCity || null, departureTime: editItTime || null, arrivalTime: editItArrivalTime || null, scheduledDate: editItDate || null, notes: editItNotes || null }),
+                          });
+                          const d = await res.json();
+                          if (res.ok && d.item) {
+                            setLocalItineraryItems(prev => prev.map(i => i.id === sit.id ? { ...i, ...d.item } : i));
+                            setSelectedItineraryItem(prev => prev ? { ...prev, ...d.item } : null);
+                          }
+                          setEditingItinFields(false);
+                        } catch { /* ignore */ } finally { setEditItSaving(false); }
+                      }}
+                      style={{ display: "block", width: "100%", marginTop: "16px", padding: "12px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: editItSaving ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: editItSaving ? 0.7 : 1 }}
+                    >
+                      {editItSaving ? "Saving..." : "Save changes"}
+                    </button>
+                    <button onClick={() => setEditingItinFields(false)} style={{ display: "block", width: "100%", marginTop: "10px", background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "#717171", textAlign: "center", fontFamily: "inherit" }}>
+                      Cancel
+                    </button>
+                  </div>
+                );
                 return (
                   <div>
                     <p style={titleStyle}>{route}</p>
@@ -4136,6 +4217,12 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
                       {paxLabel && <><span style={lblStyle}>Passengers</span><span style={rowStyle}>{paxLabel}</span></>}
                     </div>
+                    <button
+                      onClick={() => { setEditItFromAirport(sit.fromAirport ?? ""); setEditItToAirport(sit.toAirport ?? ""); setEditItFromCity(sit.fromCity ?? ""); setEditItToCity(sit.toCity ?? ""); setEditItTime(sit.departureTime ?? ""); setEditItArrivalTime(sit.arrivalTime ?? ""); setEditItDate(sit.scheduledDate ?? ""); setEditItNotes(sit.notes ?? ""); setEditingItinFields(true); }}
+                      style={{ display: "block", width: "100%", marginTop: "8px", padding: "12px", backgroundColor: "transparent", color: "#C4664A", border: "1.5px solid #C4664A", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      Edit
+                    </button>
                   </div>
                 );
               })()}
@@ -4314,8 +4401,24 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                 const itEditInputStyle: React.CSSProperties = { width: "100%", border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "10px 12px", fontSize: "14px", color: "#1a1a1a", outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
                 if (editingItinFields) return (
                   <div>
-                    <p style={{ ...titleStyle, marginBottom: "20px" }}>{trainRoute}</p>
+                    <p style={{ ...titleStyle, marginBottom: "20px" }}>
+                      {(editItFromCity || editItToCity) ? `${editItFromCity || "?"} → ${editItToCity || "?"}` : trainRoute}
+                    </p>
                     <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                        <div>
+                          <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>From</label>
+                          <input type="text" value={editItFromCity} onChange={e => setEditItFromCity(e.target.value)} placeholder="e.g. Myrdal" style={itEditInputStyle} />
+                        </div>
+                        <div>
+                          <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>To</label>
+                          <input type="text" value={editItToCity} onChange={e => setEditItToCity(e.target.value)} placeholder="e.g. Flam" style={itEditInputStyle} />
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>Operator</label>
+                        <input type="text" value={editItTitle} onChange={e => setEditItTitle(e.target.value)} placeholder="e.g. Vy" style={itEditInputStyle} />
+                      </div>
                       <div>
                         <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>Departure time</label>
                         <input type="time" value={editItTime} onChange={e => setEditItTime(e.target.value)} style={itEditInputStyle} />
@@ -4336,13 +4439,13 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                           const res = await fetch(`/api/trips/${tripId}/itinerary/${sit.id}`, {
                             method: "PATCH",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ departureTime: editItTime || null, scheduledDate: editItDate || null, notes: editItNotes || null }),
+                            body: JSON.stringify({ fromCity: editItFromCity || null, toCity: editItToCity || null, title: editItTitle || null, departureTime: editItTime || null, scheduledDate: editItDate || null, notes: editItNotes || null }),
                           });
                           const d = await res.json();
                           if (res.ok && d.item) {
                             setLocalItineraryItems(prev => prev.map(i => i.id === sit.id ? { ...i, ...d.item } : i));
+                            setSelectedItineraryItem(prev => prev ? { ...prev, ...d.item } : null);
                           }
-                          setSelectedItineraryItem(null);
                           setEditingItinFields(false);
                         } catch { /* ignore */ } finally { setEditItSaving(false); }
                       }}
@@ -4366,7 +4469,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
                     </div>
                     <button
-                      onClick={() => { setEditItTime(sit.departureTime ?? ""); setEditItDate(sit.scheduledDate ?? ""); setEditItNotes(sit.notes ?? ""); setEditingItinFields(true); }}
+                      onClick={() => { setEditItFromCity(sit.fromCity ?? ""); setEditItToCity(sit.toCity ?? ""); setEditItTitle(sit.title ?? ""); setEditItTime(sit.departureTime ?? ""); setEditItDate(sit.scheduledDate ?? ""); setEditItNotes(sit.notes ?? ""); setEditingItinFields(true); }}
                       style={{ display: "block", width: "100%", marginTop: "8px", padding: "12px", backgroundColor: "transparent", color: "#C4664A", border: "1.5px solid #C4664A", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
                     >
                       Edit
@@ -4470,6 +4573,79 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                       style={{ display: "block", width: "100%", marginTop: "8px", padding: "12px", backgroundColor: "transparent", color: "#C4664A", border: "1.5px solid rgba(196,102,74,0.4)", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
                     >
                       Share
+                    </button>
+                  </div>
+                );
+              })()}
+
+              {/* Generic edit form — RESTAURANT, BUS, CAR, FERRY, TRANSFER, and any other type not handled above */}
+              {!["FLIGHT", "LODGING", "TRAIN", "ACTIVITY"].includes(sit.type) && (() => {
+                const itEditInputStyle: React.CSSProperties = { width: "100%", border: "1.5px solid #E8E8E8", borderRadius: "10px", padding: "10px 12px", fontSize: "14px", color: "#1a1a1a", outline: "none", fontFamily: "inherit", boxSizing: "border-box" };
+                if (editingItinFields) return (
+                  <div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                      <div>
+                        <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>Name</label>
+                        <input type="text" value={editItTitle} onChange={e => setEditItTitle(e.target.value)} placeholder="Name or title..." style={itEditInputStyle} />
+                      </div>
+                      <div>
+                        <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>Time</label>
+                        <input type="time" value={editItTime} onChange={e => setEditItTime(e.target.value)} style={itEditInputStyle} />
+                      </div>
+                      <div>
+                        <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>Date</label>
+                        <input type="date" value={editItDate} onChange={e => setEditItDate(e.target.value)} style={itEditInputStyle} />
+                      </div>
+                      <div>
+                        <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>Address</label>
+                        <input type="text" value={editItAddress} onChange={e => setEditItAddress(e.target.value)} placeholder="Address (optional)..." style={itEditInputStyle} />
+                      </div>
+                      <div>
+                        <label style={{ ...lblStyle, display: "block", marginBottom: "6px" }}>Notes</label>
+                        <textarea value={editItNotes} onChange={e => setEditItNotes(e.target.value)} rows={3} placeholder="Any notes..." style={{ ...itEditInputStyle, resize: "none" }} />
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        setEditItSaving(true);
+                        try {
+                          const res = await fetch(`/api/trips/${tripId}/itinerary/${sit.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ title: editItTitle || null, departureTime: editItTime || null, scheduledDate: editItDate || null, address: editItAddress || null, notes: editItNotes || null }),
+                          });
+                          const d = await res.json();
+                          if (res.ok && d.item) {
+                            setLocalItineraryItems(prev => prev.map(i => i.id === sit.id ? { ...i, ...d.item } : i));
+                            setSelectedItineraryItem(prev => prev ? { ...prev, ...d.item } : null);
+                          }
+                          setEditingItinFields(false);
+                        } catch { /* ignore */ } finally { setEditItSaving(false); }
+                      }}
+                      style={{ display: "block", width: "100%", marginTop: "16px", padding: "12px", backgroundColor: "#1B3A5C", color: "#fff", border: "none", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: editItSaving ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: editItSaving ? 0.7 : 1 }}
+                    >
+                      {editItSaving ? "Saving..." : "Save changes"}
+                    </button>
+                    <button onClick={() => setEditingItinFields(false)} style={{ display: "block", width: "100%", marginTop: "10px", background: "none", border: "none", cursor: "pointer", fontSize: "13px", color: "#717171", textAlign: "center", fontFamily: "inherit" }}>
+                      Cancel
+                    </button>
+                  </div>
+                );
+                return (
+                  <div>
+                    <p style={titleStyle}>{sit.title}</p>
+                    <div style={gridStyle}>
+                      {sit.scheduledDate && <><span style={lblStyle}>Date</span><span style={rowStyle}>{fmtDateModal(sit.scheduledDate)}</span></>}
+                      {sit.departureTime && <><span style={lblStyle}>Time</span><span style={rowStyle}>{formatTime(sit.departureTime) || sit.departureTime}</span></>}
+                      {sit.address && <><span style={lblStyle}>Address</span><span style={rowStyle}>{sit.address}</span></>}
+                      {sit.notes && <><span style={lblStyle}>Notes</span><span style={rowStyle}>{sit.notes}</span></>}
+                      {sit.confirmationCode && <><span style={lblStyle}>Confirmation</span><span style={{ ...rowStyle, fontWeight: 700 }}>{sit.confirmationCode}</span></>}
+                    </div>
+                    <button
+                      onClick={() => { setEditItTitle(sit.title ?? ""); setEditItTime(sit.departureTime ?? ""); setEditItDate(sit.scheduledDate ?? ""); setEditItAddress(sit.address ?? ""); setEditItNotes(sit.notes ?? ""); setEditingItinFields(true); }}
+                      style={{ display: "block", width: "100%", marginTop: "8px", padding: "12px", backgroundColor: "transparent", color: "#C4664A", border: "1.5px solid #C4664A", borderRadius: "10px", fontSize: "14px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                    >
+                      Edit
                     </button>
                   </div>
                 );
