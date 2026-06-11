@@ -63,6 +63,7 @@ export type DayItemRow = {
   categoryTags: string[];    // full array for edit sheet chip init
   rawTime: string | null;    // "HH:MM" for edit sheet time picker init
   endTime: string | null;    // "HH:MM" end time for display and edit
+  savedItemId?: string | null;
 };
 
 // ── GET /api/trips/[id]/day-items ─────────────────────────────────────────────
@@ -116,7 +117,7 @@ export async function GET(
       select: {
         id: true, title: true, time: true, endTime: true, venueName: true,
         address: true, dayIndex: true, sortOrder: true, type: true, imageUrl: true,
-        savedItem: { select: { categoryTags: true } },
+        savedItem: { select: { id: true, categoryTags: true } },
       },
     }),
     db.flight.findMany({
@@ -238,6 +239,7 @@ export async function GET(
           categoryTags: activityCategoryTags,
           rawTime: a.time ?? null,
           endTime: a.endTime ?? null,
+          savedItemId: a.savedItem?.id ?? null,
         },
       });
     }
