@@ -2415,8 +2415,14 @@ Field notes:
       const confirmedDate = (extracted.scheduledDate ?? extracted.departureDate ?? extracted.checkIn ?? extracted.arrivalDate) as string | null;
       const dayIndex = confirmedDate ? await getDayIndex(resolvedTripId, confirmedDate) : null;
 
+      const effectiveFromCity = (extracted.fromCity as string | null) ?? (extracted.city as string | null) ?? null;
+      const rawExtractedToCity = (extracted.toCity as string | null) ?? null;
+      // Never write toCity = fromCity: identical endpoints mean Claude mis-assigned the
+      // destination to the origin. Null is more honest than silently echoing the origin.
+      const effectiveToCity = (rawExtractedToCity && rawExtractedToCity !== effectiveFromCity) ? rawExtractedToCity : null;
+
       const routeParts: string[] = [];
-      if (extracted.fromCity && extracted.toCity) routeParts.push(`${extracted.fromCity as string} → ${extracted.toCity as string}`);
+      if (effectiveFromCity && effectiveToCity) routeParts.push(`${effectiveFromCity} → ${effectiveToCity}`);
       if (extracted.departureTime) routeParts.push(`departs ${extracted.departureTime as string}`);
       if (extracted.arrivalTime) routeParts.push(`arrives ${extracted.arrivalTime as string}`);
       const autoNotes = routeParts.length > 0 ? routeParts.join(" · ") : null;
@@ -2514,14 +2520,14 @@ Field notes:
         }
       }
 
-      const catchAllVenueUrl = resolveCanonicalUrl({ name: itemTitle, city: (extracted.city as string | null) ?? (extracted.toCity as string | null) ?? '' });
+      const catchAllVenueUrl = resolveCanonicalUrl({ name: itemTitle, city: (extracted.city as string | null) ?? effectiveToCity ?? '' });
       const item = existingCatchAll
         ? await db.itineraryItem.update({
             where: { id: existingCatchAll.id },
-            data: { title: itemTitle, scheduledDate: confirmedDate, departureTime: (extracted.departureTime as string | null) ?? null, arrivalTime: (extracted.arrivalTime as string | null) ?? null, fromCity: (extracted.fromCity as string | null) ?? (extracted.city as string | null) ?? null, toCity: (extracted.toCity as string | null) ?? null, notes: autoNotes, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex, venueUrl: catchAllVenueUrl },
+            data: { title: itemTitle, scheduledDate: confirmedDate, departureTime: (extracted.departureTime as string | null) ?? null, arrivalTime: (extracted.arrivalTime as string | null) ?? null, fromCity: effectiveFromCity, toCity: effectiveToCity, notes: autoNotes, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex, venueUrl: catchAllVenueUrl },
           })
         : await db.itineraryItem.create({
-            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: catchAllType, title: itemTitle, scheduledDate: confirmedDate, departureTime: (extracted.departureTime as string | null) ?? null, arrivalTime: (extracted.arrivalTime as string | null) ?? null, fromCity: (extracted.fromCity as string | null) ?? (extracted.city as string | null) ?? null, toCity: (extracted.toCity as string | null) ?? null, confirmationCode: catchAllConf, notes: autoNotes, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex, venueUrl: catchAllVenueUrl },
+            data: { tripId: resolvedTripId, familyProfileId: familyProfile.id, type: catchAllType, title: itemTitle, scheduledDate: confirmedDate, departureTime: (extracted.departureTime as string | null) ?? null, arrivalTime: (extracted.arrivalTime as string | null) ?? null, fromCity: effectiveFromCity, toCity: effectiveToCity, confirmationCode: catchAllConf, notes: autoNotes, address: (extracted.address as string | null) ?? null, totalCost: parsedCost, currency: detectedCurrency, passengers, dayIndex, venueUrl: catchAllVenueUrl },
           });
 
       if (matchedTrip && extracted.confirmationCode) {
