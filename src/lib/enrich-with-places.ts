@@ -34,7 +34,9 @@ function cityMatches(
   const target = norm(destinationCity);
   if (!target) return true;
   if (!components || components.length === 0) return false;
-  const CITY_TYPES = ["locality", "administrative_area_level_1", "administrative_area_level_2", "sublocality", "sublocality_level_1", "postal_town"];
+  // Include administrative_area_level_3 so sub-districts like "South Kuta" are checked
+  // alongside the standard city-level types.
+  const CITY_TYPES = ["locality", "administrative_area_level_1", "administrative_area_level_2", "administrative_area_level_3", "sublocality", "sublocality_level_1", "postal_town"];
   for (const comp of components) {
     if (!comp.types.some(t => CITY_TYPES.includes(t))) continue;
     const long = norm(comp.long_name);
@@ -42,6 +44,20 @@ function cityMatches(
     if (!long && !short) continue;
     if (long.includes(target) || short.includes(target) || (target.length >= 4 && (long.includes(target.slice(0, 4)) || short.includes(target.slice(0, 4))))) {
       return true;
+    }
+  }
+  // Province-level fallback: token overlap across all non-country, non-postal components.
+  // Handles translated or adjacent-area names ("South Kuta" ↔ "Kuta Selatan", "Jimbaran").
+  const targetTokens = target.split(/\s+/).filter(t => t.length > 2);
+  if (targetTokens.length > 0) {
+    for (const comp of components) {
+      if (comp.types.includes("country") || comp.types.includes("postal_code")) continue;
+      const cn = norm(comp.long_name);
+      if (!cn) continue;
+      const cnTokens = cn.split(/\s+/);
+      if (targetTokens.some(t => cnTokens.includes(t)) || cnTokens.some(t => t.length > 2 && targetTokens.includes(t))) {
+        return true;
+      }
     }
   }
   return false;

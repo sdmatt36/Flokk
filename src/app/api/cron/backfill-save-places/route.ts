@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { enrichWithPlaces } from "@/lib/enrich-with-places";
+import { enrichWithPlaces, nameSimilar } from "@/lib/enrich-with-places";
 import { PLACES_INFRA_STATUSES } from "@/lib/google-places";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +13,7 @@ const FIND_PLACE_URL = "https://maps.googleapis.com/maps/api/place/findplacefrom
 
 type PlaceResult = {
   placeId: string;
+  name: string | null;
   formattedAddress: string | null;
   lat: number | null;
   lng: number | null;
@@ -35,13 +36,24 @@ function extractPlaceIdFromUrl(url: string): string | null {
   return match?.[1] ?? null;
 }
 
+// Extract lat/lng from Google Maps URLs that embed coordinates as @lat,lng
+function extractCoordsFromUrl(url: string): { lat: number; lng: number } | null {
+  const match = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (!match) return null;
+  const lat = parseFloat(match[1]);
+  const lng = parseFloat(match[2]);
+  if (isNaN(lat) || isNaN(lng)) return null;
+  return { lat, lng };
+}
+
 async function detailsFromPlaceId(placeId: string): Promise<PlaceResult | null> {
   if (!API_KEY) return null;
   try {
-    const res = await fetch(`${DETAILS_URL}?place_id=${encodeURIComponent(placeId)}&fields=formatted_address,address_components,geometry&language=en&key=${API_KEY}`);
+    const res = await fetch(`${DETAILS_URL}?place_id=${encodeURIComponent(placeId)}&fields=name,formatted_address,address_components,geometry&language=en&key=${API_KEY}`);
     const data = await res.json() as {
       status?: string;
       result?: {
+        name?: string;
         formatted_address?: string;
         address_components?: Array<{ long_name: string; types: string[] }>;
         geometry?: { location?: { lat: number; lng: number } };
@@ -52,6 +64,7 @@ async function detailsFromPlaceId(placeId: string): Promise<PlaceResult | null> 
     const country = comps.find(c => c.types.includes("country"))?.long_name ?? null;
     return {
       placeId,
+      name: data.result.name ?? null,
       formattedAddress: data.result.formatted_address ?? null,
       lat: data.result.geometry?.location?.lat ?? null,
       lng: data.result.geometry?.location?.lng ?? null,
@@ -60,19 +73,43 @@ async function detailsFromPlaceId(placeId: string): Promise<PlaceResult | null> 
   } catch { return null; }
 }
 
-// Resolve a Google/Maps URL to a PlaceResult via redirect + place details.
-async function resolveFromMapsUrl(url: string): Promise<PlaceResult | null> {
+// Resolve a Google/Maps URL to a PlaceResult.
+// rawTitle is required to guard against stale links: if the user renamed a save the
+// sourceUrl may still point to the original place. We skip the result when the resolved
+// place name no longer matches the save's rawTitle.
+async function resolveFromMapsUrl(url: string, rawTitle: string): Promise<PlaceResult | null> {
   if (!API_KEY) return null;
   try {
     const resolved = url.includes("goo.gl") ? await followRedirect(url) : url;
+
+    // Path A: extract ChIJ place_id embedded in URL → Place Details → name check
     const placeId = extractPlaceIdFromUrl(resolved);
-    if (!placeId) return null;
-    return await detailsFromPlaceId(placeId);
+    if (placeId) {
+      const result = await detailsFromPlaceId(placeId);
+      if (result) {
+        if (result.name && !nameSimilar(rawTitle, result.name)) {
+          console.log(`[backfill-save-places] [link-skip] "${rawTitle}" → place "${result.name}" — stale link, skipping`);
+          return null;
+        }
+        return result;
+      }
+    }
+
+    // Path B: newer Maps URLs encode coordinates as @lat,lng instead of ChIJ place_id.
+    // Search near those coordinates using rawTitle as the query.
+    const coords = extractCoordsFromUrl(resolved);
+    if (coords) {
+      return await findPlaceNearCoords(rawTitle, coords.lat, coords.lng);
+    }
+
+    return null;
   } catch { return null; }
 }
 
-// Reverse-geocode coordinates to verify internal consistency before trusting them.
-// Returns null if country or city can't be verified against the save's stored values.
+// Reverse-geocode coordinates to verify they are plausibly in the same country as the save.
+// Requires destinationCity to be set — country-only is too broad for large countries where
+// the bad backfill may have written coords in a different province (e.g. Jakarta ≠ Bali,
+// both Indonesia). A save with no destinationCity cannot be verified this way.
 async function verifyCoords(
   lat: number,
   lng: number,
@@ -80,7 +117,6 @@ async function verifyCoords(
   destinationCity: string | null,
 ): Promise<{ country: string | null; city: string | null } | null> {
   if (!API_KEY) return null;
-  // Require at least a city to verify — country-only is too broad (Bali ≠ Jakarta, both Indonesia)
   if (!destinationCity) return null;
   try {
     const res = await fetch(`${GEOCODE_URL}?latlng=${lat},${lng}&language=en&key=${API_KEY}`);
@@ -89,18 +125,16 @@ async function verifyCoords(
     const comps = data.results[0].address_components;
     const country = comps.find(c => c.types.includes("country"))?.long_name ?? null;
 
-    // Country check: if destinationCountry is set, geocoded country must match.
-    // Combined with the destinationCity guard above, this is sufficient to reject
-    // cross-city bad coords (e.g. Jakarta coords on a Bali save with no city set
-    // are rejected because destinationCity is null, not because of country mismatch).
+    // Country must match when both values are present. This is the primary cross-region guard.
     if (destinationCountry && country) {
       const strictNorm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
       if (strictNorm(country) !== strictNorm(destinationCountry)) return null;
     }
 
-    // No positive city-level match required — sub-district names are too unstable across
-    // geocoder responses (e.g. "South Kuta" vs "Kuta Selatan" vs "Jimbaran" for the same
-    // area). Country + destinationCity-is-set is a sufficient guard.
+    // Province-level consistency: accept when country matches and destinationCity is set.
+    // Sub-district names are too unstable across geocoder responses to require an exact
+    // locality match (e.g. "South Kuta" vs "Kuta Selatan" vs "Jimbaran" are all the same
+    // area). Country + destinationCity-is-set provides the within-country guard.
     const city = comps.find(c => c.types.includes("locality"))?.long_name
       ?? comps.find(c => c.types.includes("administrative_area_level_3"))?.long_name
       ?? comps.find(c => c.types.includes("administrative_area_level_2"))?.long_name
@@ -110,20 +144,21 @@ async function verifyCoords(
   } catch { return null; }
 }
 
-// Location-biased place lookup when coordinates are verified trustworthy.
-// Uses a 1 km radius so results are tightly constrained to the save's known location.
+// Location-biased place lookup using a 5 km radius to accommodate saves whose stored
+// coordinates may be slightly off from the actual place location.
 async function findPlaceNearCoords(name: string, lat: number, lng: number): Promise<PlaceResult | null> {
   if (!API_KEY) return null;
   try {
     const res = await fetch(
       `${FIND_PLACE_URL}?input=${encodeURIComponent(name)}&inputtype=textquery` +
-      `&locationbias=circle:1000@${lat},${lng}` +
-      `&fields=place_id,formatted_address,address_components,geometry&language=en&key=${API_KEY}`
+      `&locationbias=circle:5000@${lat},${lng}` +
+      `&fields=place_id,name,formatted_address,address_components,geometry&language=en&key=${API_KEY}`
     );
     const data = await res.json() as {
       status?: string;
       candidates?: Array<{
         place_id: string;
+        name?: string;
         formatted_address?: string;
         address_components?: Array<{ long_name: string; types: string[] }>;
         geometry?: { location?: { lat: number; lng: number } };
@@ -135,6 +170,7 @@ async function findPlaceNearCoords(name: string, lat: number, lng: number): Prom
     const country = comps.find(comp => comp.types.includes("country"))?.long_name ?? null;
     return {
       placeId: c.place_id,
+      name: c.name ?? null,
       formattedAddress: c.formatted_address ?? null,
       lat: c.geometry?.location?.lat ?? null,
       lng: c.geometry?.location?.lng ?? null,
@@ -163,6 +199,7 @@ export async function GET(request: Request) {
       destinationCountry: true,
       sourceUrl: true,
       mapsUrl: true,
+      websiteUrl: true,
       lat: true,
       lng: true,
       googlePlaceId: true,
@@ -185,15 +222,18 @@ export async function GET(request: Request) {
       let result: PlaceResult | null = null;
       let source = "null";
 
-      // Priority 1: Google Maps URL — ground truth for the exact place the user saved
-      const mapsLink = [item.mapsUrl, item.sourceUrl].find(u => u && isGoogleMapsUrl(u)) ?? null;
+      // Priority 1: Google Maps URL — ground truth when it name-matches rawTitle.
+      // Check mapsUrl first (user-set Maps deep link), then sourceUrl, then websiteUrl.
+      // The name guard prevents a stale link (e.g. from a renamed save) from overwriting
+      // correct user-edited data with the original place's info.
+      const mapsLink = [item.mapsUrl, item.sourceUrl, item.websiteUrl].find(u => u && isGoogleMapsUrl(u)) ?? null;
       if (mapsLink) {
-        result = await resolveFromMapsUrl(mapsLink);
+        result = await resolveFromMapsUrl(mapsLink, item.rawTitle!);
         if (result) source = "link";
       }
 
-      // Priority 2: Verified existing coordinates — location-biased search in a 1 km radius.
-      // Only used when destinationCity is set so we can confirm the coords are internally consistent.
+      // Priority 2: Verified existing coordinates — province-level consistency check
+      // (country + destinationCity set), then location-biased search within 5 km.
       if (!result && item.lat !== null && item.lng !== null) {
         const verified = await verifyCoords(item.lat, item.lng, item.destinationCountry, item.destinationCity);
         if (verified) {
@@ -207,12 +247,14 @@ export async function GET(request: Request) {
       }
 
       // Priority 3: Text search by name + city — only when destinationCity is set.
-      // enrichWithPlaces validates the result against the city, reducing cross-city matches.
+      // enrichWithPlaces validates against the city (province-level fallback included),
+      // reducing cross-city false matches.
       if (!result && item.destinationCity) {
         const enriched = await enrichWithPlaces(item.rawTitle!, item.destinationCity);
         if (enriched.placeId) {
           result = {
             placeId: enriched.placeId,
+            name: null,
             formattedAddress: enriched.formattedAddress,
             lat: enriched.lat,
             lng: enriched.lng,
