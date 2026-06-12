@@ -94,6 +94,7 @@ export async function PATCH(
   }
   if (typeof body.destinationCity === "string" || body.destinationCity === null) updateData.destinationCity = body.destinationCity ?? null;
   if (typeof body.destinationCountry === "string" || body.destinationCountry === null) updateData.destinationCountry = body.destinationCountry ?? null;
+  if (typeof body.address === "string" || body.address === null) updateData.address = body.address ?? null;
   if (typeof body.websiteUrl === "string" || body.websiteUrl === null) updateData.websiteUrl = body.websiteUrl ?? null;
   if (typeof body.dayIndex === "number" || body.dayIndex === null) updateData.dayIndex = body.dayIndex;
   if (typeof body.scheduledDate === "string" || body.scheduledDate === null) updateData.scheduledDate = body.scheduledDate ?? null;
@@ -114,6 +115,19 @@ export async function PATCH(
   try {
     console.log("[PATCH /api/saves] updateData:", JSON.stringify(updateData));
     const updated = await db.savedItem.update({ where: { id }, data: updateData });
+
+    // ManualActivity address sync — keep ManualActivity.address in lockstep with SavedItem.address
+    // so the day-items endpoint (which reads ManualActivity.address for manualActivity rows) stays current.
+    if ("address" in updateData) {
+      try {
+        await db.manualActivity.updateMany({
+          where: { savedItemId: id },
+          data: { address: updated.address ?? null },
+        });
+      } catch (e) {
+        console.error("[address-sync-manual-activity] failed for save:", id, e);
+      }
+    }
 
     // PlaceRating write-through — fires when userRating is updated.
     // Keeps PlaceRating in sync with userRating so Community Picks aggregation is accurate.

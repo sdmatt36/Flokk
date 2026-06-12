@@ -23,6 +23,7 @@ type FeedSaveItem = {
   displayTitle: string;
   destinationCity: string | null;
   destinationCountry: string | null;
+  address: string | null;
   categoryTags: string[];
   needsAdvanceBooking: boolean;
   advanceBookingReason: string | null;
@@ -98,6 +99,7 @@ type DbSave = {
   mediaThumbnailUrl: string | null;
   destinationCity: string | null;
   destinationCountry: string | null;
+  address: string | null;
   categoryTags: string[];
   sourceMethod: string | null;
   extractionStatus: string | null;
@@ -156,6 +158,7 @@ function buildFeedItem(s: DbSave): FeedSaveItem {
     displayTitle,
     destinationCity: s.destinationCity,
     destinationCountry: s.destinationCountry,
+    address: s.address ?? null,
     categoryTags: s.categoryTags,
     needsAdvanceBooking: s.needsAdvanceBooking,
     advanceBookingReason: s.advanceBookingReason,
@@ -276,6 +279,7 @@ export async function GET(req: NextRequest) {
       userRating: true,
       needsAdvanceBooking: true,
       advanceBookingReason: true,
+      address: true,
       communitySpot: { select: { photoUrl: true, websiteUrl: true } },
       tripDocuments: { select: { type: true } },
     },
