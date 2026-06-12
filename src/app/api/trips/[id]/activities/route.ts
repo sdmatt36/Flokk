@@ -163,6 +163,7 @@ export async function POST(
   let activityEnrichedWebsite: string | null = null;
   let activityEnrichedAddress: string | null = null;
   let activityEnrichedCountry: string | null = null;
+  let activityEnrichedPlaceId: string | null = null;
   const activityCity = [trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", ");
   if (!activity.imageUrl || !activity.website) {
     const enriched = await enrichWithPlaces(activity.venueName ?? activity.title, activityCity);
@@ -178,6 +179,7 @@ export async function POST(
       activityEnrichedAddress = enriched.formattedAddress;
     }
     if (enriched.country) activityEnrichedCountry = enriched.country;
+    if (enriched.placeId) activityEnrichedPlaceId = enriched.placeId;
     // Persist coordinates from Places when not already set by client or geocoding
     if (enriched.lat !== null && lat === null) { placesUpdate.lat = enriched.lat; lat = enriched.lat; }
     if (enriched.lng !== null && lng === null) { placesUpdate.lng = enriched.lng; lng = enriched.lng; }
@@ -244,6 +246,7 @@ export async function POST(
           placePhotoUrl: activityEnrichedImageUrl ?? sanitizedImageUrl ?? null,
           destinationCity: cityForSaved,
           destinationCountry: activityEnrichedCountry ?? trip.destinationCountry ?? null,
+          googlePlaceId: activityEnrichedPlaceId ?? null,
           categoryTags: initTags,
           status: "TRIP_ASSIGNED",
           sourceMethod: "manual_activity",

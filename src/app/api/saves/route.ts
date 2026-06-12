@@ -294,12 +294,16 @@ export async function POST(request: Request) {
     // Enrich with Google Places photo at save time (synchronous — result in same response)
     let urlEnrichedPhotoUrl: string | null = null;
     let urlEnrichedWebsite: string | null = null;
-    if (rawTitle && !savedItem.placePhotoUrl) {
+    if (rawTitle && (!savedItem.placePhotoUrl || !savedItem.googlePlaceId)) {
       const enriched = await enrichWithPlaces(rawTitle, destinationCity ?? "");
-      const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string; destinationCountry?: string } = {};
-      if (enriched.imageUrl) { placesUpdate.placePhotoUrl = enriched.imageUrl; urlEnrichedPhotoUrl = enriched.imageUrl; }
+      const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string; destinationCountry?: string; googlePlaceId?: string; address?: string; lat?: number; lng?: number } = {};
+      if (enriched.imageUrl && !savedItem.placePhotoUrl) { placesUpdate.placePhotoUrl = enriched.imageUrl; urlEnrichedPhotoUrl = enriched.imageUrl; }
       if (enriched.website && !savedItem.websiteUrl && !isMapsUrl(enriched.website)) { placesUpdate.websiteUrl = enriched.website; urlEnrichedWebsite = enriched.website; }
       if (enriched.country && !savedItem.destinationCountry) { placesUpdate.destinationCountry = enriched.country; }
+      if (enriched.placeId) { placesUpdate.googlePlaceId = enriched.placeId; }
+      if (enriched.formattedAddress) { placesUpdate.address = enriched.formattedAddress; }
+      if (enriched.lat !== null && !savedItem.lat) { placesUpdate.lat = enriched.lat; }
+      if (enriched.lng !== null && !savedItem.lng) { placesUpdate.lng = enriched.lng; }
       if (Object.keys(placesUpdate).length > 0) {
         await db.savedItem.update({ where: { id: savedItem.id }, data: placesUpdate });
       }

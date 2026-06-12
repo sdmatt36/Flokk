@@ -25,6 +25,8 @@ export async function GET(request: Request) {
       destinationCountry: true,
       websiteUrl: true,
       placePhotoUrl: true,
+      address: true,
+      googlePlaceId: true,
       enrichmentAttempts: true,
     },
     take: 25,
@@ -40,7 +42,7 @@ export async function GET(request: Request) {
   for (const item of items) {
     processed++;
     try {
-      const { website, imageUrl, formattedAddress, country } = await enrichWithPlaces(
+      const { website, imageUrl, formattedAddress, country, placeId } = await enrichWithPlaces(
         item.rawTitle!,
         item.destinationCity ?? ""
       );
@@ -48,8 +50,9 @@ export async function GET(request: Request) {
       const updateData: Record<string, unknown> = {};
       if (website && !item.websiteUrl) updateData.websiteUrl = website;
       if (imageUrl && !item.placePhotoUrl) updateData.placePhotoUrl = imageUrl;
-      if (formattedAddress) updateData.address = formattedAddress;
+      if (formattedAddress && !item.address) updateData.address = formattedAddress;
       if (country && !item.destinationCountry) updateData.destinationCountry = country;
+      if (placeId && !item.googlePlaceId) updateData.googlePlaceId = placeId;
 
       // On the third attempt with still-null placePhotoUrl, give up permanently
       const willBeThirdAttempt = (item.enrichmentAttempts ?? 0) + 1 >= 3;
