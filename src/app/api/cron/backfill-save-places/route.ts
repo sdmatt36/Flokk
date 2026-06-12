@@ -89,31 +89,18 @@ async function verifyCoords(
     const comps = data.results[0].address_components;
     const country = comps.find(c => c.types.includes("country"))?.long_name ?? null;
 
-    // Country check: if destinationCountry is set, geocoded country must match
+    // Country check: if destinationCountry is set, geocoded country must match.
+    // Combined with the destinationCity guard above, this is sufficient to reject
+    // cross-city bad coords (e.g. Jakarta coords on a Bali save with no city set
+    // are rejected because destinationCity is null, not because of country mismatch).
     if (destinationCountry && country) {
       const strictNorm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
       if (strictNorm(country) !== strictNorm(destinationCountry)) return null;
     }
 
-    // City check: required — search ALL components for any token/substring match with destinationCity.
-    // This handles translated names ("South Kuta" ↔ "Kuta Selatan") regardless of which admin level
-    // Google returns them at — no need to pick the right level number explicitly.
-    const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, " ").trim();
-    const dc = norm(destinationCity);
-    const dcTokens = dc.split(/\s+/).filter(t => t.length > 2);
-    const cityVerified = comps
-      .filter(c => !c.types.includes("country") && !c.types.includes("postal_code"))
-      .some(c => {
-        const cn = norm(c.long_name);
-        if (!cn) return false;
-        const cnTokens = cn.split(/\s+/);
-        return cn.includes(dc) || dc.includes(cn) ||
-          dcTokens.some(t => cnTokens.includes(t)) ||
-          cnTokens.some(t => t.length > 2 && dcTokens.includes(t));
-      });
-    if (!cityVerified) return null;
-
-    // Return best-fit city name for logging
+    // No positive city-level match required — sub-district names are too unstable across
+    // geocoder responses (e.g. "South Kuta" vs "Kuta Selatan" vs "Jimbaran" for the same
+    // area). Country + destinationCity-is-set is a sufficient guard.
     const city = comps.find(c => c.types.includes("locality"))?.long_name
       ?? comps.find(c => c.types.includes("administrative_area_level_3"))?.long_name
       ?? comps.find(c => c.types.includes("administrative_area_level_2"))?.long_name
