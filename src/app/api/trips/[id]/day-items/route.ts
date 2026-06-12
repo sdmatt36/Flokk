@@ -55,6 +55,7 @@ export type DayItemRow = {
   kind: "booking" | "activity";
   title: string;
   subtitle: string | null;
+  address: string | null;
   time: string | null;       // pre-formatted "3:00 PM" or null
   badge: string;
   dayIndex: number;
@@ -136,7 +137,7 @@ export async function GET(
       select: {
         id: true, rawTitle: true, rawDescription: true, startTime: true, endTime: true,
         categoryTags: true, tourId: true, dayIndex: true, sortOrder: true,
-        placePhotoUrl: true,
+        placePhotoUrl: true, address: true,
       },
     }),
   ]);
@@ -204,6 +205,7 @@ export async function GET(
           id: s.id, kind: "activity",
           title: rawTitle,
           subtitle: s.rawDescription ?? null,
+          address: s.address ?? null,
           time: formatTime(s.startTime),
           badge: s.categoryTags.length > 0 ? formatCategoryTag(s.categoryTags[0]) : "Activity",
           dayIndex: dayIdx,
@@ -230,7 +232,8 @@ export async function GET(
         row: {
           id: a.id, kind: "activity",
           title: a.title,
-          subtitle: a.venueName ?? a.address ?? null,
+          subtitle: a.venueName ?? null,
+          address: a.address ?? null,
           time: formatTime(a.time),
           badge: activityCategoryTags.length > 0 ? formatCategoryTag(activityCategoryTags[0]) : "Activity",
           dayIndex: dayIdx,
@@ -266,6 +269,7 @@ export async function GET(
           id: f.id, kind: "booking",
           title: `Flight: ${f.fromAirport} → ${f.toAirport}`,
           subtitle: f.airline ?? null,
+          address: null,
           time: isArrival ? formatTime(f.arrivalTime) : formatTime(f.departureTime),
           badge: "Flight",
           dayIndex: dayIdx,
@@ -334,6 +338,7 @@ export async function GET(
           id: it.id, kind: "booking",
           title: it.title,
           subtitle,
+          address: it.type !== "FLIGHT" ? (it.address ?? null) : null,
           time: displayTime,
           badge: TYPE_LABELS[it.type] ?? it.type,
           dayIndex: dayIdx,
