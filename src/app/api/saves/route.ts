@@ -119,6 +119,7 @@ export async function POST(request: Request) {
           ...(enriched.lat !== null && enriched.lng !== null ? { lat: enriched.lat, lng: enriched.lng } : {}),
           ...(manualEnrichedPhotoUrl ? { placePhotoUrl: manualEnrichedPhotoUrl } : {}),
           ...(manualEnrichedWebsite ? { websiteUrl: manualEnrichedWebsite } : {}),
+          ...(enriched.formattedAddress ? { address: enriched.formattedAddress } : {}),
           ...(!enriched.placeId ? { needsPlaceConfirmation: true } : {}),
         },
       });

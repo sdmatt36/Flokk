@@ -50,12 +50,12 @@ function cityMatches(
 export async function enrichWithPlaces(
   name: string,
   city: string
-): Promise<{ imageUrl: string | null; website: string | null; city: string | null; placeId: string | null; lat: number | null; lng: number | null }> {
-  if (!GOOGLE_MAPS_API_KEY || !name.trim()) return { imageUrl: null, website: null, city: null, placeId: null, lat: null, lng: null };
+): Promise<{ imageUrl: string | null; website: string | null; city: string | null; placeId: string | null; lat: number | null; lng: number | null; formattedAddress: string | null }> {
+  if (!GOOGLE_MAPS_API_KEY || !name.trim()) return { imageUrl: null, website: null, city: null, placeId: null, lat: null, lng: null, formattedAddress: null };
 
   try {
     const candidates = extractSearchableTitle(name);
-    if (candidates.length === 0) return { imageUrl: null, website: null, city: null, placeId: null, lat: null, lng: null };
+    if (candidates.length === 0) return { imageUrl: null, website: null, city: null, placeId: null, lat: null, lng: null, formattedAddress: null };
 
     for (const candidate of candidates) {
       const query = [candidate.trim(), city.trim()].filter(Boolean).join(" ");
@@ -67,14 +67,14 @@ export async function enrichWithPlaces(
       const searchData = await searchRes.json() as { status?: string; results?: { place_id: string }[] };
       if (PLACES_INFRA_STATUSES.has(searchData.status ?? "")) {
         console.error(`[places] INFRA status=${searchData.status} context=enrichWithPlaces:textsearch query="${query}"`);
-        return { imageUrl: null, website: null, city: null, placeId: null, lat: null, lng: null };
+        return { imageUrl: null, website: null, city: null, placeId: null, lat: null, lng: null, formattedAddress: null };
       }
       const placeId = searchData.results?.[0]?.place_id ?? null;
       if (!placeId) continue;
 
-      // Step 2: Place details → name + website + photo_reference + address_components + geometry
+      // Step 2: Place details → name + website + photo_reference + address_components + formatted_address + geometry
       const detailsRes = await fetch(
-        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,website,photos,address_components,geometry&language=en&key=${GOOGLE_MAPS_API_KEY}`
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,website,photos,address_components,formatted_address,geometry&language=en&key=${GOOGLE_MAPS_API_KEY}`
       );
       const detailsData = await detailsRes.json() as {
         status?: string;
@@ -83,12 +83,13 @@ export async function enrichWithPlaces(
           website?: string;
           photos?: { photo_reference: string }[];
           address_components?: { long_name: string; short_name: string; types: string[] }[];
+          formatted_address?: string;
           geometry?: { location?: { lat: number; lng: number } };
         };
       };
       if (PLACES_INFRA_STATUSES.has(detailsData.status ?? "")) {
         console.error(`[places] INFRA status=${detailsData.status} context=enrichWithPlaces:details placeId="${placeId}"`);
-        return { imageUrl: null, website: null, city: null, placeId: null, lat: null, lng: null };
+        return { imageUrl: null, website: null, city: null, placeId: null, lat: null, lng: null, formattedAddress: null };
       }
       const result = detailsData.result;
       if (!result) continue;
@@ -106,6 +107,7 @@ export async function enrichWithPlaces(
       const photoRef = result.photos?.[0]?.photo_reference ?? null;
       const lat = result.geometry?.location?.lat ?? null;
       const lng = result.geometry?.location?.lng ?? null;
+      const formattedAddress = result.formatted_address ?? null;
 
       // Extract city from address_components: locality → postal_town → admin_area_level_2 → admin_area_level_1
       // postal_town is used in UK addresses where locality is absent (e.g. London boroughs)
@@ -141,13 +143,13 @@ export async function enrichWithPlaces(
         }
       }
 
-      return { imageUrl: await toDurableImageUrl(imageUrl), website, city: extractedCity, placeId, lat, lng };
+      return { imageUrl: await toDurableImageUrl(imageUrl), website, city: extractedCity, placeId, lat, lng, formattedAddress };
     }
 
     // All candidates exhausted without a valid Places match
     console.log(`[enrich-no-match] "${name}" exhausted ${candidates.length} candidates`);
-    return { imageUrl: null, website: null, city: null, placeId: null, lat: null, lng: null };
+    return { imageUrl: null, website: null, city: null, placeId: null, lat: null, lng: null, formattedAddress: null };
   } catch {
-    return { imageUrl: null, website: null, city: null, placeId: null, lat: null, lng: null };
+    return { imageUrl: null, website: null, city: null, placeId: null, lat: null, lng: null, formattedAddress: null };
   }
 }

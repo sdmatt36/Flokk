@@ -161,15 +161,20 @@ export async function POST(
   // Website resolution runs unconditionally when missing (decoupled from imageUrl gate).
   let activityEnrichedImageUrl: string | null = null;
   let activityEnrichedWebsite: string | null = null;
+  let activityEnrichedAddress: string | null = null;
   const activityCity = [trip?.destinationCity, trip?.destinationCountry].filter(Boolean).join(", ");
   if (!activity.imageUrl || !activity.website) {
     const enriched = await enrichWithPlaces(activity.venueName ?? activity.title, activityCity);
-    const placesUpdate: { imageUrl?: string; website?: string; lat?: number; lng?: number } = {};
+    const placesUpdate: { imageUrl?: string; website?: string; address?: string; lat?: number; lng?: number } = {};
     if (enriched.imageUrl && !activity.imageUrl) { placesUpdate.imageUrl = enriched.imageUrl; activityEnrichedImageUrl = enriched.imageUrl; }
     if (!activity.website) {
       const resolvedWebsite = enriched.website ?? resolveCanonicalUrl({ name: activity.title, city: activityCity });
       placesUpdate.website = resolvedWebsite ?? undefined;
       activityEnrichedWebsite = resolvedWebsite;
+    }
+    if (enriched.formattedAddress && !activity.address) {
+      placesUpdate.address = enriched.formattedAddress;
+      activityEnrichedAddress = enriched.formattedAddress;
     }
     // Persist coordinates from Places when not already set by client or geocoding
     if (enriched.lat !== null && lat === null) { placesUpdate.lat = enriched.lat; lat = enriched.lat; }
@@ -232,6 +237,7 @@ export async function POST(
           lat: lat ?? null,
           lng: lng ?? null,
           notes: notes ?? null,
+          address: activityEnrichedAddress ?? (typeof address === "string" && address.trim() ? address.trim() : null),
           websiteUrl: activityEnrichedWebsite ?? (typeof website === "string" ? website : null) ?? null,
           placePhotoUrl: activityEnrichedImageUrl ?? sanitizedImageUrl ?? null,
           destinationCity: cityForSaved,

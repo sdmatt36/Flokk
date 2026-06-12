@@ -420,6 +420,7 @@ model SavedItem {
   lodgingType              String?   // hotel | vacation_rental | bnb | cruise_ship | campsite | motel | resort | other
   mapsUrl                  String?   // Google Maps deep link (separate from venue websiteUrl)
   googlePlaceId            String?   // Google Places place_id — not unique (multiple profiles can save the same place)
+  address                  String?
   manualActivity           ManualActivity? @relation("ManualActivitySavedItem")
   cityId                   String?
   city                     City?     @relation(fields: [cityId], references: [id], onDelete: SetNull)
