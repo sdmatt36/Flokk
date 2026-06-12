@@ -122,6 +122,7 @@ export async function POST(request: Request) {
           ...(manualEnrichedPhotoUrl ? { placePhotoUrl: manualEnrichedPhotoUrl } : {}),
           ...(manualEnrichedWebsite ? { websiteUrl: manualEnrichedWebsite } : {}),
           ...(enriched.formattedAddress ? { address: enriched.formattedAddress } : {}),
+          ...(enriched.country ? { destinationCountry: enriched.country } : {}),
           ...(!enriched.placeId ? { needsPlaceConfirmation: true } : {}),
         },
       });
@@ -294,10 +295,11 @@ export async function POST(request: Request) {
     let urlEnrichedPhotoUrl: string | null = null;
     let urlEnrichedWebsite: string | null = null;
     if (rawTitle && !savedItem.placePhotoUrl) {
-      const enriched = await enrichWithPlaces(rawTitle, "");
-      const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string } = {};
+      const enriched = await enrichWithPlaces(rawTitle, destinationCity ?? "");
+      const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string; destinationCountry?: string } = {};
       if (enriched.imageUrl) { placesUpdate.placePhotoUrl = enriched.imageUrl; urlEnrichedPhotoUrl = enriched.imageUrl; }
       if (enriched.website && !savedItem.websiteUrl && !isMapsUrl(enriched.website)) { placesUpdate.websiteUrl = enriched.website; urlEnrichedWebsite = enriched.website; }
+      if (enriched.country && !savedItem.destinationCountry) { placesUpdate.destinationCountry = enriched.country; }
       if (Object.keys(placesUpdate).length > 0) {
         await db.savedItem.update({ where: { id: savedItem.id }, data: placesUpdate });
       }

@@ -22,6 +22,7 @@ export async function GET(request: Request) {
       id: true,
       rawTitle: true,
       destinationCity: true,
+      destinationCountry: true,
       websiteUrl: true,
       placePhotoUrl: true,
       enrichmentAttempts: true,
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
   for (const item of items) {
     processed++;
     try {
-      const { website, imageUrl, formattedAddress } = await enrichWithPlaces(
+      const { website, imageUrl, formattedAddress, country } = await enrichWithPlaces(
         item.rawTitle!,
         item.destinationCity ?? ""
       );
@@ -48,6 +49,7 @@ export async function GET(request: Request) {
       if (website && !item.websiteUrl) updateData.websiteUrl = website;
       if (imageUrl && !item.placePhotoUrl) updateData.placePhotoUrl = imageUrl;
       if (formattedAddress) updateData.address = formattedAddress;
+      if (country && !item.destinationCountry) updateData.destinationCountry = country;
 
       // On the third attempt with still-null placePhotoUrl, give up permanently
       const willBeThirdAttempt = (item.enrichmentAttempts ?? 0) + 1 >= 3;
