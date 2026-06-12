@@ -52,6 +52,7 @@ const ManualSaveSchema = z.object({
   country: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   website: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
   tripId: z.string().optional().nullable(),
   placePhotoUrl: z.string().optional().nullable(),
 });
@@ -98,6 +99,7 @@ export async function POST(request: Request) {
           destinationCity: parsed.city?.trim() || null,
           categoryTags: normalizeAndDedupeCategoryTags(parsed.category ? [normalizeCategorySlug(parsed.category) ?? parsed.category] : []),
           notes: parsed.notes?.trim() || null,
+          address: parsed.address?.trim() || null,
           websiteUrl: parsed.website?.trim() || null,
           placePhotoUrl: await toDurableImageUrl(parsed.placePhotoUrl ?? null),
           tripId: parsed.tripId ?? null,
