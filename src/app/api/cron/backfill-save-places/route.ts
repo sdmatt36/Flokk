@@ -27,7 +27,7 @@ export async function GET(request: Request) {
       enrichmentAttempts: true,
     },
     take: 25,
-    orderBy: { savedAt: "asc" },
+    orderBy: { savedAt: "desc" },
   });
 
   console.log(`[backfill-save-places] Processing ${items.length} saves`);
