@@ -24,6 +24,7 @@ export async function GET(
     include: {
       trip: { select: { id: true, title: true } },
       communitySpot: { select: { websiteUrl: true } },
+      manualActivity: { select: { address: true } },
     },
   });
   if (!item || item.familyProfileId !== profileId) {
@@ -42,10 +43,11 @@ export async function GET(
   if (pr?.rating != null) effectiveRating = pr.rating;
   if (pr?.wouldReturn != null) effectiveWouldReturn = pr.wouldReturn;
 
-  const { communitySpot, ...itemData } = item;
+  const { communitySpot, manualActivity, ...itemData } = item;
   return NextResponse.json({
     item: {
       ...itemData,
+      address: itemData.address ?? manualActivity?.address ?? null,
       communitySpotWebsiteUrl: communitySpot?.websiteUrl ?? null,
       userRating: effectiveRating,
       wouldReturn: effectiveWouldReturn,
