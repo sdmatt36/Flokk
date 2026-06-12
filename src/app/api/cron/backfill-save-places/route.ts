@@ -88,7 +88,10 @@ async function verifyCoords(
     if (PLACES_INFRA_STATUSES.has(data.status ?? "") || !data.results?.length) return null;
     const comps = data.results[0].address_components;
     const country = comps.find(c => c.types.includes("country"))?.long_name ?? null;
+    // Check locality first, then sub-district (admin_area_level_3 covers "South Kuta"/"Kuta Selatan"),
+    // then district (admin_area_level_2), so granular matches take priority over broad regency names.
     const city = comps.find(c => c.types.includes("locality"))?.long_name
+      ?? comps.find(c => c.types.includes("administrative_area_level_3"))?.long_name
       ?? comps.find(c => c.types.includes("administrative_area_level_2"))?.long_name
       ?? null;
 
@@ -98,12 +101,17 @@ async function verifyCoords(
       if (norm(country) !== norm(destinationCountry)) return null;
     }
 
-    // City check: required — destinationCity must fuzzy-match geocoded city
+    // City check: required — destinationCity must fuzzy-match geocoded city.
+    // Falls back to token overlap to handle translated names ("South Kuta" ↔ "Kuta Selatan").
     if (!city) return null;
     const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, " ").trim();
     const gc = norm(city);
     const dc = norm(destinationCity);
-    if (!gc.includes(dc) && !dc.includes(gc)) return null;
+    const gcTokens = gc.split(/\s+/);
+    const dcTokens = dc.split(/\s+/);
+    const hasTokenOverlap = gcTokens.some(t => t.length > 2 && dcTokens.includes(t)) ||
+      dcTokens.some(t => t.length > 2 && gcTokens.includes(t));
+    if (!gc.includes(dc) && !dc.includes(gc) && !hasTokenOverlap) return null;
 
     return { country, city };
   } catch { return null; }
