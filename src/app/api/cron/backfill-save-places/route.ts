@@ -88,30 +88,36 @@ async function verifyCoords(
     if (PLACES_INFRA_STATUSES.has(data.status ?? "") || !data.results?.length) return null;
     const comps = data.results[0].address_components;
     const country = comps.find(c => c.types.includes("country"))?.long_name ?? null;
-    // Check locality first, then sub-district (admin_area_level_3 covers "South Kuta"/"Kuta Selatan"),
-    // then district (admin_area_level_2), so granular matches take priority over broad regency names.
+
+    // Country check: if destinationCountry is set, geocoded country must match
+    if (destinationCountry && country) {
+      const strictNorm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (strictNorm(country) !== strictNorm(destinationCountry)) return null;
+    }
+
+    // City check: required — search ALL components for any token/substring match with destinationCity.
+    // This handles translated names ("South Kuta" ↔ "Kuta Selatan") regardless of which admin level
+    // Google returns them at — no need to pick the right level number explicitly.
+    const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, " ").trim();
+    const dc = norm(destinationCity);
+    const dcTokens = dc.split(/\s+/).filter(t => t.length > 2);
+    const cityVerified = comps
+      .filter(c => !c.types.includes("country") && !c.types.includes("postal_code"))
+      .some(c => {
+        const cn = norm(c.long_name);
+        if (!cn) return false;
+        const cnTokens = cn.split(/\s+/);
+        return cn.includes(dc) || dc.includes(cn) ||
+          dcTokens.some(t => cnTokens.includes(t)) ||
+          cnTokens.some(t => t.length > 2 && dcTokens.includes(t));
+      });
+    if (!cityVerified) return null;
+
+    // Return best-fit city name for logging
     const city = comps.find(c => c.types.includes("locality"))?.long_name
       ?? comps.find(c => c.types.includes("administrative_area_level_3"))?.long_name
       ?? comps.find(c => c.types.includes("administrative_area_level_2"))?.long_name
       ?? null;
-
-    // Country check: if destinationCountry is set, geocoded country must match
-    if (destinationCountry && country) {
-      const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-      if (norm(country) !== norm(destinationCountry)) return null;
-    }
-
-    // City check: required — destinationCity must fuzzy-match geocoded city.
-    // Falls back to token overlap to handle translated names ("South Kuta" ↔ "Kuta Selatan").
-    if (!city) return null;
-    const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]/g, " ").trim();
-    const gc = norm(city);
-    const dc = norm(destinationCity);
-    const gcTokens = gc.split(/\s+/);
-    const dcTokens = dc.split(/\s+/);
-    const hasTokenOverlap = gcTokens.some(t => t.length > 2 && dcTokens.includes(t)) ||
-      dcTokens.some(t => t.length > 2 && gcTokens.includes(t));
-    if (!gc.includes(dc) && !dc.includes(gc) && !hasTokenOverlap) return null;
 
     return { country, city };
   } catch { return null; }
