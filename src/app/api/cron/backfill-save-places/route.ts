@@ -106,14 +106,15 @@ async function resolveFromMapsUrl(url: string, rawTitle: string): Promise<PlaceR
   } catch { return null; }
 }
 
-// Reverse-geocode coordinates to verify they are plausibly in the same country as the save.
-// Requires destinationCity to be set — country-only is too broad for large countries where
-// the bad backfill may have written coords in a different province (e.g. Jakarta ≠ Bali,
-// both Indonesia). A save with no destinationCity cannot be verified this way.
+// Reverse-geocode coordinates to confirm they resolve to a real place.
+// Requires destinationCity to be set so we have a reference point; saves with no city
+// cannot be verified and fall back to null.
+// Country is NOT used as a hard rejection here — if stored destinationCountry is wrong
+// (e.g. "Iceland" tagging a Norway save), the resolved country from the coords path is
+// trusted and written back to reconcile the label.
 async function verifyCoords(
   lat: number,
   lng: number,
-  destinationCountry: string | null,
   destinationCity: string | null,
 ): Promise<{ country: string | null; city: string | null } | null> {
   if (!API_KEY) return null;
@@ -124,22 +125,10 @@ async function verifyCoords(
     if (PLACES_INFRA_STATUSES.has(data.status ?? "") || !data.results?.length) return null;
     const comps = data.results[0].address_components;
     const country = comps.find(c => c.types.includes("country"))?.long_name ?? null;
-
-    // Country must match when both values are present. This is the primary cross-region guard.
-    if (destinationCountry && country) {
-      const strictNorm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-      if (strictNorm(country) !== strictNorm(destinationCountry)) return null;
-    }
-
-    // Province-level consistency: accept when country matches and destinationCity is set.
-    // Sub-district names are too unstable across geocoder responses to require an exact
-    // locality match (e.g. "South Kuta" vs "Kuta Selatan" vs "Jimbaran" are all the same
-    // area). Country + destinationCity-is-set provides the within-country guard.
     const city = comps.find(c => c.types.includes("locality"))?.long_name
       ?? comps.find(c => c.types.includes("administrative_area_level_3"))?.long_name
       ?? comps.find(c => c.types.includes("administrative_area_level_2"))?.long_name
       ?? null;
-
     return { country, city };
   } catch { return null; }
 }
@@ -216,6 +205,8 @@ export async function GET(request: Request) {
   let resolvedCoords = 0;
   let resolvedName = 0;
   let leftNull = 0;
+  let countryMismatchRejected = 0;
+  let countryReconciled = 0;
 
   for (const item of items) {
     try {
@@ -232,10 +223,11 @@ export async function GET(request: Request) {
         if (result) source = "link";
       }
 
-      // Priority 2: Verified existing coordinates — province-level consistency check
-      // (country + destinationCity set), then location-biased search within 5 km.
+      // Priority 2: Verified existing coordinates — destinationCity is required as a
+      // reference point; country is NOT checked so mislabeled saves (e.g. "Iceland" for
+      // a Norway save) get their label reconciled from the geocoded result.
       if (!result && item.lat !== null && item.lng !== null) {
-        const verified = await verifyCoords(item.lat, item.lng, item.destinationCountry, item.destinationCity);
+        const verified = await verifyCoords(item.lat, item.lng, item.destinationCity);
         if (verified) {
           result = await findPlaceNearCoords(item.rawTitle!, item.lat, item.lng);
           // Don't overwrite trustworthy stored coords — only take address/placeId/country
@@ -249,18 +241,29 @@ export async function GET(request: Request) {
       // Priority 3: Text search by name + city — only when destinationCity is set.
       // enrichWithPlaces validates against the city (province-level fallback included),
       // reducing cross-city false matches.
+      // Country guard: if the resolved place's country contradicts the save's stored
+      // destinationCountry, reject — a cross-country name match is almost always wrong
+      // (e.g. "Croque Madame La Barra" Uruguay resolving to Buenos Aires, Argentina).
       if (!result && item.destinationCity) {
         const enriched = await enrichWithPlaces(item.rawTitle!, item.destinationCity);
         if (enriched.placeId) {
-          result = {
-            placeId: enriched.placeId,
-            name: null,
-            formattedAddress: enriched.formattedAddress,
-            lat: enriched.lat,
-            lng: enriched.lng,
-            country: enriched.country,
-          };
-          source = "name";
+          const normStr = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+          const countryOk = !enriched.country || !item.destinationCountry ||
+            normStr(enriched.country) === normStr(item.destinationCountry);
+          if (!countryOk) {
+            countryMismatchRejected++;
+            console.log(`[backfill-save-places] [name-country-reject] "${item.rawTitle}" — resolved ${enriched.country} ≠ stored ${item.destinationCountry}`);
+          } else {
+            result = {
+              placeId: enriched.placeId,
+              name: null,
+              formattedAddress: enriched.formattedAddress,
+              lat: enriched.lat,
+              lng: enriched.lng,
+              country: enriched.country,
+            };
+            source = "name";
+          }
         }
       }
 
@@ -276,7 +279,16 @@ export async function GET(request: Request) {
           updateData.lat = result.lat;
           updateData.lng = result.lng;
         }
-        if (result.country) updateData.destinationCountry = result.country;
+        // Link/coords paths: reconcile destinationCountry from the resolved place.
+        // Name path: country was already validated above so writing is safe.
+        if (result.country) {
+          const normStr = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+          if (item.destinationCountry && normStr(result.country) !== normStr(item.destinationCountry)) {
+            countryReconciled++;
+            console.log(`[backfill-save-places] [country-reconcile] "${item.rawTitle}" ${item.destinationCountry} → ${result.country}`);
+          }
+          updateData.destinationCountry = result.country;
+        }
 
         await db.savedItem.update({ where: { id: item.id }, data: updateData });
 
@@ -306,5 +318,5 @@ export async function GET(request: Request) {
     },
   });
 
-  return NextResponse.json({ processed: items.length, resolvedLink, resolvedCoords, resolvedName, leftNull, remaining });
+  return NextResponse.json({ processed: items.length, resolvedLink, resolvedCoords, resolvedName, leftNull, countryMismatchRejected, countryReconciled, remaining });
 }
