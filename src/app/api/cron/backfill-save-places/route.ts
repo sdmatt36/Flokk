@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { enrichWithPlaces, nameSimilar } from "@/lib/enrich-with-places";
+import { enrichWithPlaces, nameSimilar, cityMatches } from "@/lib/enrich-with-places";
 import { PLACES_INFRA_STATUSES } from "@/lib/google-places";
 
 export const dynamic = "force-dynamic";
@@ -112,6 +112,10 @@ async function resolveFromMapsUrl(url: string, rawTitle: string): Promise<PlaceR
 // Country is NOT used as a hard rejection here — if stored destinationCountry is wrong
 // (e.g. "Iceland" tagging a Norway save), the resolved country from the coords path is
 // trusted and written back to reconcile the label.
+// Guard: requires geocoded city to match destinationCity (via province-level token overlap).
+// Rejects saves whose stored coords are in the wrong region entirely (e.g. Buenos Aires coords
+// for a Uruguay save). Allows cross-border adjacency (Salève/Geneva, South Kuta/Jimbaran).
+// Country is NOT checked here — a city match with a different country means reconciliation.
 async function verifyCoords(
   lat: number,
   lng: number,
@@ -121,9 +125,13 @@ async function verifyCoords(
   if (!destinationCity) return null;
   try {
     const res = await fetch(`${GEOCODE_URL}?latlng=${lat},${lng}&language=en&key=${API_KEY}`);
-    const data = await res.json() as { status?: string; results?: Array<{ address_components: Array<{ long_name: string; types: string[] }> }> };
+    const data = await res.json() as { status?: string; results?: Array<{ address_components: Array<{ long_name: string; short_name: string; types: string[] }> }> };
     if (PLACES_INFRA_STATUSES.has(data.status ?? "") || !data.results?.length) return null;
     const comps = data.results[0].address_components;
+    if (!cityMatches(comps, destinationCity)) {
+      console.log(`[backfill-save-places] [coords-city-reject] (${lat},${lng}) geocoded outside "${destinationCity}" — skipping coords path`);
+      return null;
+    }
     const country = comps.find(c => c.types.includes("country"))?.long_name ?? null;
     const city = comps.find(c => c.types.includes("locality"))?.long_name
       ?? comps.find(c => c.types.includes("administrative_area_level_3"))?.long_name

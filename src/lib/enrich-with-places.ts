@@ -26,7 +26,7 @@ export function nameSimilar(a: string, b: string): boolean {
   return overlap > 0 || norm(a).includes(norm(b)) || norm(b).includes(norm(a));
 }
 
-function cityMatches(
+export function cityMatches(
   components: Array<{ long_name: string; short_name: string; types: string[] }> | undefined,
   destinationCity: string | null | undefined
 ): boolean {
