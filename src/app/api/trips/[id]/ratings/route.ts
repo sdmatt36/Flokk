@@ -6,7 +6,7 @@ import { sendRatingsCompleteEvent } from "@/lib/loops";
 import { writeThroughCommunitySpot } from "@/lib/community-write-through";
 import { ensureSavedItemForRating } from "@/lib/ensure-saved-item-for-rating";
 import { normalizePlaceName } from "@/lib/google-places";
-import { canViewTrip, canEditTripContent } from "@/lib/trip-permissions";
+import { getTripAccess, canEditTripContent } from "@/lib/trip-permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const profileId = await resolveProfileId(userId);
   if (!profileId) return NextResponse.json({ error: "No family profile" }, { status: 400 });
 
-  if (!(await canViewTrip(profileId, tripId))) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const access = await getTripAccess(profileId, tripId);
+  if (!access) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const ratings = await db.placeRating.findMany({
     where: { tripId },

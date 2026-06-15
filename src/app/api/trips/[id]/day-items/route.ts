@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
-import { canViewTrip } from "@/lib/trip-permissions";
+import { canViewTrip, getTripAccess } from "@/lib/trip-permissions";
 import { mergeDuplicateLodging } from "@/lib/itinerary/merge-duplicate-lodging";
 
 export const dynamic = "force-dynamic";
@@ -65,6 +65,7 @@ export type DayItemRow = {
   rawTime: string | null;    // "HH:MM" for edit sheet time picker init
   endTime: string | null;    // "HH:MM" end time for display and edit
   savedItemId?: string | null;
+  confirmationCode?: string | null;
 };
 
 // ── GET /api/trips/[id]/day-items ─────────────────────────────────────────────
@@ -95,7 +96,11 @@ export async function GET(
   const profileId = await resolveProfileId(userId);
   if (!profileId) return NextResponse.json({ error: "No family profile" }, { status: 400 });
 
-  if (!(await canViewTrip(profileId, tripId))) {
+  const [canView, access] = await Promise.all([
+    canViewTrip(profileId, tripId),
+    getTripAccess(profileId, tripId),
+  ]);
+  if (!canView) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
@@ -278,6 +283,7 @@ export async function GET(
           categoryTags: [],
           rawTime: null,
           endTime: null,
+          confirmationCode: f.confirmationCode ?? null,
         },
       });
     }
@@ -347,6 +353,7 @@ export async function GET(
           categoryTags: [],
           rawTime: null,
           endTime: null,
+          confirmationCode: it.confirmationCode ?? null,
         },
       });
     }
@@ -377,6 +384,14 @@ export async function GET(
 
     return { dayIndex: dayIdx, items: compacted.map(i => i.row) };
   });
+
+  if (!access) {
+    for (const day of days) {
+      for (const item of day.items) {
+        item.confirmationCode = null;
+      }
+    }
+  }
 
   return NextResponse.json({ days });
 }

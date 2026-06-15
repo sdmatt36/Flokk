@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
+import { resolveProfileId } from "@/lib/profile-access";
+import { getTripAccess } from "@/lib/trip-permissions";
 
 type TiptapDoc = { type: "doc"; content: unknown[] };
 
@@ -28,6 +30,13 @@ export async function GET(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id: tripId } = await params;
+
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "No family profile" }, { status: 400 });
+
+  const access = await getTripAccess(profileId, tripId);
+  if (!access) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
   const { searchParams } = new URL(req.url);
   const dayParam = searchParams.get("dayIndex");
 
