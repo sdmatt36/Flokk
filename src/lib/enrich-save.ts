@@ -833,8 +833,8 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
       }
     }
 
-    // Step 2: Geocode if lat is null
-    if (item.lat == null) {
+    // Step 2: Geocode if lat is null and website resolution didn't already provide coords
+    if (item.lat == null && !coords) {
       coords = await geocode(workingTitle, item.destinationCity, item.destinationCountry);
     }
 
