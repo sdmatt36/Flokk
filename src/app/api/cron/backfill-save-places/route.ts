@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { enrichWithPlaces, nameSimilar, cityMatches } from "@/lib/enrich-with-places";
 import { PLACES_INFRA_STATUSES } from "@/lib/google-places";
+import { resolveWebsitePlace } from "@/lib/enrich-save";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -22,6 +23,13 @@ type PlaceResult = {
 
 function isGoogleMapsUrl(url: string): boolean {
   return /maps\.app\.goo\.gl|goo\.gl\/maps|maps\.google\.|google\.com\/maps/i.test(url);
+}
+
+function isDirectBusinessUrl(url: string): boolean {
+  try {
+    const h = new URL(url).hostname.replace(/^(www\.|m\.)/, "");
+    return !/instagram|tiktok|youtube|youtu\.be|pinterest|threads|twitter|facebook|airbnb|booking\.com|hotels\.com|expedia|tripadvisor|yelp|tabelog|getyourguide|viator|klook|google\.com|maps\.app|goo\.gl/i.test(h);
+  } catch { return false; }
 }
 
 async function followRedirect(url: string): Promise<string> {
@@ -212,6 +220,7 @@ export async function GET(request: Request) {
   let resolvedLink = 0;
   let resolvedCoords = 0;
   let resolvedName = 0;
+  let resolvedWebsite = 0;
   let leftNull = 0;
   let countryMismatchRejected = 0;
   let countryReconciled = 0;
@@ -275,6 +284,29 @@ export async function GET(request: Request) {
         }
       }
 
+      // Priority 4: Website HTML extraction — fetch the save's business website, use Claude to
+      // extract address, do a precise Places lookup. Only when Priorities 1-3 all failed.
+      if (!result) {
+        const urlToTry = [item.sourceUrl, item.websiteUrl].find(
+          u => u && !isGoogleMapsUrl(u) && isDirectBusinessUrl(u)
+        ) ?? null;
+        if (urlToTry) {
+          console.log(`[backfill-save-places] [website] "${item.rawTitle}" → trying ${urlToTry}`);
+          const wr = await resolveWebsitePlace(urlToTry, item.rawTitle!, item.destinationCity, item.destinationCountry);
+          if (wr) {
+            result = {
+              placeId: wr.placeId,
+              name: wr.placeName,
+              formattedAddress: wr.formattedAddress,
+              lat: wr.lat,
+              lng: wr.lng,
+              country: wr.country,
+            };
+            source = "website";
+          }
+        }
+      }
+
       const updateData: Record<string, unknown> = {
         enrichmentAttempts: { increment: 1 },
       };
@@ -282,8 +314,8 @@ export async function GET(request: Request) {
       if (result) {
         if (result.placeId && !item.googlePlaceId) updateData.googlePlaceId = result.placeId;
         if (result.formattedAddress && !item.address) updateData.address = result.formattedAddress;
-        // Write coords only for Maps URL path (ground truth) or when save has none
-        if (source === "link" && result.lat !== null && result.lng !== null) {
+        // Write coords only for Maps URL path (ground truth), website path, or when save has none
+        if ((source === "link" || source === "website") && result.lat !== null && result.lng !== null) {
           updateData.lat = result.lat;
           updateData.lng = result.lng;
         }
@@ -305,6 +337,7 @@ export async function GET(request: Request) {
 
         if (source === "link") resolvedLink++;
         else if (source === "coords") resolvedCoords++;
+        else if (source === "website") resolvedWebsite++;
         else resolvedName++;
       } else {
         await db.savedItem.update({ where: { id: item.id }, data: updateData });
@@ -326,5 +359,5 @@ export async function GET(request: Request) {
     },
   });
 
-  return NextResponse.json({ processed: items.length, resolvedLink, resolvedCoords, resolvedName, leftNull, countryMismatchRejected, countryReconciled, remaining });
+  return NextResponse.json({ processed: items.length, resolvedLink, resolvedCoords, resolvedName, resolvedWebsite, leftNull, countryMismatchRejected, countryReconciled, remaining });
 }

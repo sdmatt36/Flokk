@@ -14,6 +14,232 @@ import { toDurableImageUrl } from "@/lib/imageStore";
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
 
+export type WebsitePlaceInfo = {
+  placeId: string;
+  formattedAddress: string;
+  lat: number;
+  lng: number;
+  country: string | null;
+  placeName: string | null;
+};
+
+function extractPageContent(html: string, maxChars: number): string {
+  // Extract up to 3 JSON-LD blocks, capped at 800 chars each
+  const jsonLdBlocks: string[] = [];
+  const jsonLdRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = jsonLdRe.exec(html)) !== null && jsonLdBlocks.length < 3) {
+    const block = m[1].trim().slice(0, 800);
+    if (block) jsonLdBlocks.push(block);
+  }
+  const jsonLdText = jsonLdBlocks.join("\n");
+
+  // Strip <script> and <style> tags, then all remaining tags, get footer text
+  const stripped = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ");
+  const footerText = stripped.slice(-3000);
+
+  return (jsonLdText + "\n" + footerText).trim().slice(0, maxChars);
+}
+
+function isDirectBusinessWebsite(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.replace(/^(www\.|m\.)/, "");
+    if (/instagram|tiktok|youtube|youtu\.be|pinterest|threads|twitter|facebook|airbnb|booking\.com|hotels\.com|expedia|tripadvisor|yelp|tabelog|getyourguide|viator|klook|google\.com|maps\.app|goo\.gl/i.test(hostname)) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function resolveWebsitePlace(
+  websiteUrl: string,
+  rawTitle: string,
+  destinationCity: string | null,
+  destinationCountry: string | null
+): Promise<WebsitePlaceInfo | null> {
+  try {
+    // Step 1: Fetch page HTML
+    let html: string;
+    try {
+      const res = await fetch(websiteUrl, {
+        headers: { "User-Agent": "Googlebot/2.1 (+http://www.google.com/bot.html)" },
+        redirect: "follow",
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) {
+        console.log(`[website-resolve] fetch failed: ${res.status} for ${websiteUrl}`);
+        return null;
+      }
+      html = await res.text();
+    } catch (err) {
+      console.log(`[website-resolve] fetch error for ${websiteUrl}:`, err);
+      return null;
+    }
+
+    // Step 2: Extract page content
+    const pageContent = extractPageContent(html, 4500);
+
+    // Step 3: Claude Haiku — extract location info
+    let name: string | null = null;
+    let streetAddress: string | null = null;
+    let extractedCity: string | null = null;
+    let extractedCountry: string | null = null;
+    try {
+      const response = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 200,
+        messages: [{
+          role: "user",
+          content: `Extract business location info from this webpage content. Return JSON only, no other text.
+{"name":string|null,"streetAddress":string|null,"city":string|null,"country":string|null}
+
+streetAddress: full street address (number + street + district/area) if present on the page, else null.
+city: city where the business is physically located, else null.
+country: country name, else null.
+
+Content:
+${pageContent}`,
+        }],
+      });
+      const content = response.content[0];
+      if (content.type !== "text") return null;
+      const text = content.text.trim().replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim();
+      const parsed = JSON.parse(text) as {
+        name: string | null;
+        streetAddress: string | null;
+        city: string | null;
+        country: string | null;
+      };
+      name = parsed.name ?? null;
+      streetAddress = parsed.streetAddress ?? null;
+      extractedCity = parsed.city ?? null;
+      extractedCountry = parsed.country ?? null;
+    } catch (err) {
+      console.log(`[website-resolve] Claude extraction error for ${websiteUrl}:`, err);
+      return null;
+    }
+
+    // Step 4: Build Places Text Search query
+    const placeName = name ?? rawTitle;
+    const queryCity = extractedCity ?? destinationCity;
+    const queryCountry = extractedCountry ?? destinationCountry;
+
+    let query: string;
+    if (streetAddress && queryCity) {
+      query = `${placeName} ${streetAddress} ${queryCity}`.trim().slice(0, 200);
+    } else if (queryCity || queryCountry) {
+      query = `${placeName} ${queryCity ?? ""} ${queryCountry ?? ""}`.trim().slice(0, 200);
+    } else {
+      console.log(`[website-resolve] insufficient info to build query for ${websiteUrl}`);
+      return null;
+    }
+
+    // Step 5: Places Text Search
+    const textSearchUrl =
+      `https://maps.googleapis.com/maps/api/place/textsearch/json?` +
+      `query=${encodeURIComponent(query)}&language=en&key=${GOOGLE_MAPS_API_KEY}`;
+    let textSearchResults: Array<{ place_id: string; formatted_address?: string }>;
+    try {
+      const res = await fetch(textSearchUrl, { signal: AbortSignal.timeout(8000) });
+      const data = await res.json() as {
+        status: string;
+        results: Array<{ place_id: string; formatted_address?: string }>;
+      };
+      if (PLACES_INFRA_STATUSES.has(data.status)) {
+        console.error(`[website-resolve] INFRA status=${data.status} for query="${query}"`);
+        return null;
+      }
+      if (!data.results?.length) {
+        console.log(`[website-resolve] no text search results for query="${query}"`);
+        return null;
+      }
+      textSearchResults = data.results;
+    } catch (err) {
+      console.log(`[website-resolve] text search error:`, err);
+      return null;
+    }
+
+    // Step 6: Pick best candidate
+    let bestResult = textSearchResults[0];
+    if (destinationCountry && textSearchResults.length > 1) {
+      const countryTokens = destinationCountry.toLowerCase().replace(/[^a-z0-9 ]/g, "").split(/\s+/);
+      const match = textSearchResults.find(r =>
+        r.formatted_address &&
+        countryTokens.some(token => r.formatted_address!.toLowerCase().includes(token))
+      );
+      if (match) bestResult = match;
+    }
+
+    // Step 7: Place Details
+    const detailsUrl =
+      `https://maps.googleapis.com/maps/api/place/details/json?` +
+      `place_id=${encodeURIComponent(bestResult.place_id)}&` +
+      `fields=name,formatted_address,address_components,geometry&language=en&key=${GOOGLE_MAPS_API_KEY}`;
+    let detailsData: {
+      status: string;
+      result?: {
+        name?: string;
+        formatted_address?: string;
+        address_components?: Array<{ long_name: string; types: string[] }>;
+        geometry?: { location?: { lat: number; lng: number } };
+      };
+    };
+    try {
+      const res = await fetch(detailsUrl, { signal: AbortSignal.timeout(8000) });
+      detailsData = await res.json() as typeof detailsData;
+    } catch (err) {
+      console.log(`[website-resolve] place details error:`, err);
+      return null;
+    }
+    if (PLACES_INFRA_STATUSES.has(detailsData.status)) {
+      console.error(`[website-resolve] INFRA status=${detailsData.status} context=place details placeId=${bestResult.place_id}`);
+      return null;
+    }
+    if (!detailsData.result) return null;
+
+    // Step 8: Extract fields
+    const dr = detailsData.result;
+    const lat = dr.geometry?.location?.lat;
+    const lng = dr.geometry?.location?.lng;
+    const formattedAddress = dr.formatted_address ?? null;
+    const comps = dr.address_components ?? [];
+    const resolvedCountry = comps.find(c => c.types.includes("country"))?.long_name ?? null;
+
+    if (lat == null || lng == null || !formattedAddress) {
+      console.log(`[website-resolve] missing lat/lng or address for placeId=${bestResult.place_id}`);
+      return null;
+    }
+
+    // Step 9: Country guard
+    if (destinationCountry && resolvedCountry) {
+      const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (norm(resolvedCountry) !== norm(destinationCountry)) {
+        console.log(`[website-resolve] country mismatch: "${resolvedCountry}" ≠ "${destinationCountry}" — skipping`);
+        return null;
+      }
+    }
+
+    // Step 10: Return result
+    return {
+      placeId: bestResult.place_id,
+      formattedAddress,
+      lat,
+      lng,
+      country: resolvedCountry,
+      placeName: dr.name ?? name,
+    };
+  } catch (err) {
+    console.log(`[website-resolve] unexpected error for ${websiteUrl}:`, err);
+    return null;
+  }
+}
+
 async function fetchWithScrapingBee(url: string): Promise<string | null> {
   const apiKey = process.env.SCRAPINGBEE_API_KEY;
   if (!apiKey) return null;
@@ -455,6 +681,9 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
       destinationCity: true,
       destinationCountry: true,
       sourceUrl: true,
+      websiteUrl: true,
+      googlePlaceId: true,
+      address: true,
       sourceMethod: true,
       sourcePlatform: true,
       lat: true,
@@ -531,6 +760,28 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
     } catch (err) {
       console.error(`[enrich] Google Maps fast-path failed for ${item.id}:`, err);
       // skipNormalEnrichment stays false — normal flow runs as fallback
+    }
+  }
+
+  // Website resolution: fetch business website HTML → Claude address extraction → precise Places lookup
+  // Only fires when we have a direct business URL and are still missing placeId or address
+  let websitePlaceId: string | null = null;
+  let websiteAddress: string | null = null;
+  let websiteCountry: string | null = null;
+  if (!skipNormalEnrichment) {
+    const urlToTry = [item.sourceUrl, item.websiteUrl].find(
+      u => u && !isGoogleMaps && isDirectBusinessWebsite(u)
+    ) ?? null;
+    if (urlToTry && (!item.googlePlaceId || !item.address)) {
+      console.log(`[enrich] website-resolve attempt: ${urlToTry}`);
+      const wr = await resolveWebsitePlace(urlToTry, workingTitle, item.destinationCity, item.destinationCountry);
+      if (wr) {
+        websitePlaceId = wr.placeId;
+        websiteAddress = wr.formattedAddress;
+        websiteCountry = wr.country;
+        coords = { lat: wr.lat, lng: wr.lng };
+        console.log(`[enrich] website-resolved: placeId=${wr.placeId} address="${wr.formattedAddress}"`);
+      }
     }
   }
 
@@ -681,6 +932,9 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   ) {
     updateData.needsPlaceConfirmation = true;
   }
+  if (websitePlaceId && !item.googlePlaceId) updateData.googlePlaceId = websitePlaceId;
+  if (websiteAddress && !item.address) updateData.address = websiteAddress;
+  if (websiteCountry && !item.destinationCountry) updateData.destinationCountry = websiteCountry;
   updateData.extractionStatus = "ENRICHED";
 
   await db.savedItem.update({ where: { id: item.id }, data: updateData });
