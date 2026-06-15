@@ -375,6 +375,7 @@ export async function POST(req: NextRequest) {
   const logCtx: {
     senderEmail: string;
     subject: string | null;
+    messageId: string | null;
     resolutionPath: "profile_member" | "direct_user" | "delegate" | "none";
     familyProfileId: string | null;
     extractedType: string | null;
@@ -391,6 +392,7 @@ export async function POST(req: NextRequest) {
   } = {
     senderEmail: "",
     subject: null,
+    messageId: null,
     resolutionPath: "none",
     familyProfileId: null,
     extractedType: null,
@@ -427,6 +429,13 @@ export async function POST(req: NextRequest) {
     }
 
     logCtx.subject = subject || null;
+    // Message-ID uniquely identifies a CloudMailin delivery — present in normalized
+    // (payload.headers) and plain formats. Null-safe: missing header writes null.
+    logCtx.messageId = (() => {
+      const raw = payload.headers?.["message-id"] ?? payload.headers?.["Message-ID"] ??
+                  payload["message-id"] ?? payload["Message-ID"] ?? "";
+      return String(raw).trim() || null;
+    })();
     const rawBody = text || html || "";
     logCtx.rawEmailSize = rawBody.length;
     logCtx.rawEmail = rawBody.length > 0 ? rawBody.slice(0, 200_000) : null;

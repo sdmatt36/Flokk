@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 export type ExtractionLogInput = {
   senderEmail: string;
   subject?: string | null;
+  messageId?: string | null;
   resolutionPath: "profile_member" | "direct_user" | "delegate" | "none";
   familyProfileId?: string | null;
   extractedType?: string | null;
@@ -26,6 +27,7 @@ export async function logExtraction(input: ExtractionLogInput): Promise<void> {
       data: {
         senderEmail: input.senderEmail.toLowerCase(),
         subject: input.subject ?? null,
+        messageId: input.messageId ?? null,
         resolutionPath: input.resolutionPath,
         familyProfileId: input.familyProfileId ?? null,
         extractedType: input.extractedType ?? null,

@@ -1154,6 +1154,7 @@ model ExtractionLog {
   createdAt           DateTime  @default(now())
   senderEmail         String
   subject             String?
+  messageId           String?   // RFC 2822 Message-ID header — uniquely identifies a CloudMailin delivery
   resolutionPath      String    // "profile_member" | "direct_user" | "delegate" | "none"
   familyProfileId     String?
   extractedType       String?   // "hotel" | "flight" | "activity" | "train" | "car_rental" | "restaurant" | "unknown" | "cancellation" | "refund"
