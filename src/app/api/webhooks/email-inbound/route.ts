@@ -1838,11 +1838,18 @@ Field notes:
             const isHomeHub = depFromAirport ? HOME.has(depFromAirport) : false;
 
             if (!alreadyCovered && !isHomeHub) {
+              const depDateStr = (extracted.departureDate as string | null) ?? null;
               const existingDepTrip = (trips as Array<{ id: string; title?: string | null; destinationCity?: string | null; startDate?: Date | null; endDate?: Date | null; status?: string | null }>)
-                .find((t) =>
-                  (t.destinationCity ?? "").toLowerCase().trim() === depCityLower &&
-                  t.status !== "COMPLETED",
-                );
+                .find((t) => {
+                  if ((t.destinationCity ?? "").toLowerCase().trim() !== depCityLower) return false;
+                  if (t.status === "COMPLETED") return false;
+                  if (depDateStr && t.startDate && t.endDate) {
+                    const s = t.startDate.toISOString().slice(0, 10);
+                    const e = t.endDate.toISOString().slice(0, 10);
+                    if (depDateStr < s || depDateStr > e) return false;
+                  }
+                  return true;
+                });
 
               if (existingDepTrip) {
                 additionalRelatedTrips = [
@@ -1851,35 +1858,7 @@ Field notes:
                 ];
                 console.log(`[email-inbound] mandatory departure-trip: added existing trip "${existingDepTrip.title}" for fromCity "${depFromCity}"`);
               } else {
-                // No existing trip for the departure city — auto-create one
-                const depDate = (extracted.departureDate as string | null) ?? null;
-                const depTripData = await buildTripFromExtraction({
-                  cities: [depFromCity],
-                  country: null,
-                  startDate: depDate,
-                  endDate: depDate,
-                });
-                const depAutoTrip = await db.$transaction(async (tx) => {
-                  const created = await tx.trip.create({
-                    data: { ...depTripData, familyProfileId: familyProfile.id },
-                  });
-                  await tx.tripCollaborator.create({
-                    data: {
-                      tripId: created.id,
-                      familyProfileId: familyProfile.id,
-                      role: "OWNER",
-                      invitedById: familyProfile.id,
-                      invitedAt: new Date(),
-                      acceptedAt: new Date(),
-                    },
-                  });
-                  return created;
-                });
-                additionalRelatedTrips = [
-                  ...additionalRelatedTrips,
-                  { trip: depAutoTrip as unknown as TripRecord, confidence: 0.90, matchType: "from-city-auto-created" },
-                ];
-                console.log(`[email-inbound] mandatory departure-trip: auto-created "${depTripData.title}" for fromCity "${depFromCity}": ${depAutoTrip.id}`);
+                console.log(`[email-inbound] mandatory departure-trip: no date-overlapping trip for fromCity "${depFromCity}" — skipping`);
               }
             }
           }
