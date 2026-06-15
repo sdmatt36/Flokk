@@ -1555,6 +1555,72 @@ Field notes:
         }
       }
 
+      // ── Profile-level idempotency guard ──────────────────────────────────────
+      // writeFlightFromEmail deduplicates on (tripId, confirmationCode), not on
+      // (familyProfileId, confirmationCode). If a re-forward resolves to a different
+      // trip than the original, writeFlightFromEmail sees a new (tripId, code) pair
+      // and creates a second FlightBooking. Guard here: if this confirmationCode
+      // already exists on ANY trip in this profile, refresh those existing bookings
+      // in place and return early — never spawn new bookings or trips.
+      // GUARDRAIL: keyed on familyProfileId only; two different profiles sharing the
+      // same confirmationCode (two travelers on one booking) stay separate.
+      if (outboundConf) {
+        const existingProfileBookings = await db.flightBooking.findMany({
+          where: {
+            confirmationCode: outboundConf,
+            trip: { familyProfileId: familyProfile.id },
+          },
+          select: { id: true, tripId: true },
+        });
+
+        if (existingProfileBookings.length > 0) {
+          console.log(
+            `[email-inbound] idempotency: ${outboundConf} already on ` +
+            `${existingProfileBookings.length} trip(s) for profile ${familyProfile.id} ` +
+            `— refreshing legs in place, skipping new booking/trip creation`
+          );
+          // Build legs without geocoding (dayIndex null — existing rows keep their positions)
+          const refreshLegs: WriteFlightLeg[] = flightLegs.map((leg) => ({
+            airline: leg.airline ?? (extracted.airline as string | null) ?? null,
+            flightNumber: leg.flightNumber ?? (extracted.flightNumber as string | null) ?? "",
+            fromAirport: leg.from,
+            fromCity: leg.fromCity ?? leg.from,
+            toAirport: leg.to,
+            toCity: leg.toCity ?? leg.to,
+            departureDate: leg.departureDate ?? "",
+            departureTime: leg.departureTime ?? "",
+            arrivalDate: leg.arrivalDate ?? null,
+            arrivalTime: leg.arrivalTime ?? null,
+            duration: null,
+            dayIndex: null,
+            type: "outbound",
+            notes: null,
+            cabin: leg.cabin ?? null,
+            seats: leg.seats ?? null,
+          }));
+          for (const existing of existingProfileBookings) {
+            const refreshResult = await writeFlightFromEmail({
+              tripId: existing.tripId,
+              confirmationCode: outboundConf,
+              airline: (extracted.airline as string | null) ?? null,
+              cabinClass: refreshLegs[0]?.cabin ?? "economy",
+              status: "booked",
+              sortOrder: 0,
+              seatNumbers: null,
+              notes: null,
+              legs: refreshLegs,
+            });
+            console.log(`[email-inbound] idempotency refresh: tripId=${existing.tripId}, action=${refreshResult.dedupAction}`);
+          }
+          await logExtraction({
+            ...logCtx,
+            outcome: "duplicate_skipped",
+            errorMessage: `flight idempotency: ${outboundConf} already on ${existingProfileBookings.length} trip(s)`,
+          });
+          return NextResponse.json({ received: true, idempotent: true, refreshed: existingProfileBookings.map((b) => b.id) });
+        }
+      }
+
       console.log(`[email-inbound] creating ${flightLegs.length} flight ItineraryItem(s) for confirmation ${outboundConf ?? "(no code)"}`);
 
       // Validation warnings — never block extraction, only log
