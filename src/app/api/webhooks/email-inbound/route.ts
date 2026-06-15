@@ -1568,7 +1568,7 @@ Field notes:
         const existingProfileBookings = await db.flightBooking.findMany({
           where: {
             confirmationCode: outboundConf,
-            trip: { familyProfileId: familyProfile.id },
+            familyProfileId: familyProfile.id,
           },
           select: { id: true, tripId: true },
         });
@@ -1601,6 +1601,7 @@ Field notes:
           for (const existing of existingProfileBookings) {
             const refreshResult = await writeFlightFromEmail({
               tripId: existing.tripId,
+              familyProfileId: familyProfile.id,
               confirmationCode: outboundConf,
               airline: (extracted.airline as string | null) ?? null,
               cabinClass: refreshLegs[0]?.cabin ?? "economy",
@@ -1805,6 +1806,7 @@ Field notes:
       if (resolvedTripId) {
         writeResult = await writeFlightFromEmail({
           tripId: resolvedTripId,
+          familyProfileId: familyProfile.id,
           confirmationCode: outboundConf,
           airline: (extracted.airline as string | null) ?? null,
           cabinClass: writeFlightLegs[0]?.cabin ?? "economy",
@@ -2051,6 +2053,7 @@ Field notes:
 
           const relWriteResult = await writeFlightFromEmail({
             tripId: relTripId,
+            familyProfileId: familyProfile.id,
             confirmationCode: outboundConf,
             airline: (extracted.airline as string | null) ?? null,
             cabinClass: relWriteFlightLegs[0]?.cabin ?? "economy",

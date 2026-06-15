@@ -37,6 +37,7 @@ export type WriteFlightLeg = {
 
 export type WriteFlightInput = {
   tripId: string;
+  familyProfileId: string | null;
   confirmationCode: string | null;
   airline: string | null;
   cabinClass: string;
@@ -55,7 +56,7 @@ export type WriteFlightResult = {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function writeFlightFromEmail(input: WriteFlightInput, dbOverride?: any): Promise<WriteFlightResult> {
-  const { tripId, confirmationCode, airline, cabinClass, status, sortOrder, seatNumbers, notes, legs } = input;
+  const { tripId, familyProfileId, confirmationCode, airline, cabinClass, status, sortOrder, seatNumbers, notes, legs } = input;
   const prisma = dbOverride ?? defaultDb;
   const trimmedCode = confirmationCode?.trim() || null;
 
@@ -88,7 +89,7 @@ export async function writeFlightFromEmail(input: WriteFlightInput, dbOverride?:
           );
         } else {
           const booking = await tx.flightBooking.create({
-            data: { tripId, confirmationCode: trimmedCode, airline, cabinClass, seatNumbers, notes, status, sortOrder },
+            data: { tripId, familyProfileId, confirmationCode: trimmedCode, airline, cabinClass, seatNumbers, notes, status, sortOrder },
           });
           bookingId = booking.id;
           action = "created";
@@ -96,7 +97,7 @@ export async function writeFlightFromEmail(input: WriteFlightInput, dbOverride?:
       } else {
         // No confirmation code — always create; dedup not possible
         const booking = await tx.flightBooking.create({
-          data: { tripId, confirmationCode: null, airline, cabinClass, seatNumbers, notes, status, sortOrder },
+          data: { tripId, familyProfileId, confirmationCode: null, airline, cabinClass, seatNumbers, notes, status, sortOrder },
         });
         bookingId = booking.id;
         action = "created";

@@ -748,6 +748,7 @@ model FlightBooking {
   id               String    @id @default(cuid())
   tripId           String
   trip             Trip      @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  familyProfileId  String?
   confirmationCode String?
   airline          String?
   cabinClass       String    @default("economy")
@@ -760,6 +761,7 @@ model FlightBooking {
 
   @@unique([tripId, confirmationCode], name: "unique_trip_confirmation")
   @@index([tripId])
+  @@index([familyProfileId, confirmationCode])
 }
 
 model Flight {
