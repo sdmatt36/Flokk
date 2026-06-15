@@ -67,7 +67,10 @@ export async function PATCH(
   const profileId = await resolveProfileId(userId);
   if (!profileId) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const item = await db.savedItem.findUnique({ where: { id } });
+  const item = await db.savedItem.findUnique({
+    where: { id },
+    include: { manualActivity: { select: { id: true } } },
+  });
   if (!item || item.familyProfileId !== profileId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -91,6 +94,7 @@ export async function PATCH(
   } else if (body.tripId === null) {
     updateData.tripId = null;
     updateData.status = "UNORGANIZED";
+    updateData.dayIndex = null;
   }
   if (typeof body.destinationCity === "string" || body.destinationCity === null) updateData.destinationCity = body.destinationCity ?? null;
   if (typeof body.destinationCountry === "string" || body.destinationCountry === null) updateData.destinationCountry = body.destinationCountry ?? null;
@@ -115,6 +119,15 @@ export async function PATCH(
   try {
     console.log("[PATCH /api/saves] updateData:", JSON.stringify(updateData));
     const updated = await db.savedItem.update({ where: { id }, data: updateData });
+
+    // When unassigning from a trip, remove the paired ManualActivity so the itinerary stays clean.
+    if (body.tripId === null && item.manualActivity?.id) {
+      try {
+        await db.manualActivity.delete({ where: { id: item.manualActivity.id } });
+      } catch (e) {
+        console.error("[unassign-manual-activity] failed for save:", id, e);
+      }
+    }
 
     // ManualActivity address sync — keep ManualActivity.address in lockstep with SavedItem.address
     // so the day-items endpoint (which reads ManualActivity.address for manualActivity rows) stays current.
@@ -221,6 +234,6 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  await db.savedItem.delete({ where: { id } });
+  await db.savedItem.update({ where: { id }, data: { deletedAt: new Date() } });
   return NextResponse.json({ success: true });
 }

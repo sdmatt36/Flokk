@@ -181,7 +181,10 @@ export async function DELETE(
   await db.$transaction(async (tx) => {
     await tx.manualActivity.delete({ where: { id: activityId } });
     if (activity?.savedItemId) {
-      await tx.savedItem.delete({ where: { id: activity.savedItemId } });
+      await tx.savedItem.update({
+        where: { id: activity.savedItemId },
+        data: { tripId: null, dayIndex: null, status: "UNORGANIZED" },
+      });
     }
   });
 
