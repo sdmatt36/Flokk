@@ -278,11 +278,6 @@ function normalizeLocationToKeywords(raw: string): string[] {
   return [raw.trim()];
 }
 
-// Home airports — when a flight departs AND arrives at one of these, it is
-// a round trip originating from home. In that case destination keyword matching
-// is unreliable (final toAirport is the home airport, not the destination), so
-// P0 match uses departure date overlap instead.
-const HOME_AIRPORTS = new Set(["NRT", "HND", "LHR", "LGW", "YVR", "JFK", "LAX"]);
 
 // ── Vault flight field resolution ────────────────────────────────────────────
 // When Claude fails to extract airports/times on a re-forward, fill in missing
@@ -903,16 +898,21 @@ Field notes:
 
     let matchedTrip: typeof trips[0] | null = null;
 
-    // Priority 0: Round-trip flight — both fromAirport and toAirport are home airports.
-    // toAirport is the return leg landing at home, so it is NOT the trip destination.
-    // Skip keyword matching entirely and match by departure date overlap instead.
-    // Example: NRT→SIN→CMB→LHR→NRT — toAirport=NRT, but destination is Sri Lanka.
+    // Priority 0: Round-trip flight — first leg departure == last leg arrival.
+    // The scalar toAirport is the return landing (= origin), NOT the destination.
+    // Skip keyword matching entirely; match by departure date overlap instead.
+    // Detected structurally from the legs array; no hardcoded home-airport set.
+    // Falls back to scalar fromAirport === toAirport when legs[] is absent.
     const fromIATA = (extracted.fromAirport as string | null)?.toUpperCase() ?? null;
     const toIATA   = (extracted.toAirport   as string | null)?.toUpperCase() ?? null;
+    const rawLegsForShape = Array.isArray(extracted.legs)
+      ? extracted.legs as Array<{ from: string; to: string }>
+      : [];
     const isRoundTrip =
       extracted.type === "flight" &&
-      !!fromIATA && HOME_AIRPORTS.has(fromIATA) &&
-      !!toIATA   && HOME_AIRPORTS.has(toIATA);
+      (rawLegsForShape.length >= 2
+        ? rawLegsForShape[0].from.toUpperCase() === rawLegsForShape[rawLegsForShape.length - 1].to.toUpperCase()
+        : !!fromIATA && !!toIATA && fromIATA === toIATA);
 
     if (isRoundTrip && bookingDate) {
       const roundTripMatches = eligibleTrips.filter((t) => dateInTripRange(bookingDate, t));
@@ -1430,25 +1430,46 @@ Field notes:
         console.log(`[email-inbound] resolved flight fields from prior vault — from: ${resolved.fromAirport} to: ${resolved.toAirport} dep: ${resolved.departureTime}`);
       }
 
-      // Derive outbound destination from legs array — never trust Claude's
-      // outboundDestination/outboundDestinationAirport interpretation.
-      // For HND→SIN→CMB→LHR→HND: nonHomeLegs = [SIN, CMB], picks CMB (last non-home).
+      // Derive outbound destination from legs array structurally.
+      // Round trip (legs[0].from === legs[last].to): walk the sequence tracking
+      // visited airports; the `from` of the first leg whose `to` revisits a prior
+      // airport is the turnaround (= true destination). No home-airport list needed.
+      // One-way or open-jaw: last leg's `to` is the destination.
       const legs = Array.isArray(extracted.legs)
         ? extracted.legs as Array<{ from: string; to: string; fromCity?: string; toCity?: string; departure?: string }>
         : [];
 
-      const HOME = new Set(["NRT", "HND", "LHR", "LGW", "YVR", "JFK", "LAX"]);
-
       let effectiveToAirport: string | null = null;
       let effectiveToCity: string | null = null;
 
-      if (legs.length > 1) {
-        const nonHomeLegs = legs.filter((l) => !HOME.has(l.to));
-        const outboundLeg = nonHomeLegs[nonHomeLegs.length - 1] ?? null;
-        if (outboundLeg) {
-          effectiveToAirport = outboundLeg.to;
-          effectiveToCity    = outboundLeg.toCity ?? outboundLeg.to;
-          console.log(`[email-inbound] multi-leg flight detected: ${legs.length} legs, derived outbound: ${effectiveToCity} (${effectiveToAirport})`);
+      if (legs.length >= 2) {
+        const firstFrom = legs[0].from.toUpperCase();
+        const lastTo    = legs[legs.length - 1].to.toUpperCase();
+
+        if (firstFrom === lastTo) {
+          // Round trip: find turnaround via first airport revisit
+          const visited = new Set<string>([firstFrom]);
+          for (const leg of legs) {
+            const legTo = leg.to.toUpperCase();
+            if (visited.has(legTo)) {
+              effectiveToAirport = leg.from.toUpperCase();
+              effectiveToCity    = leg.fromCity ?? leg.from;
+              break;
+            }
+            visited.add(leg.from.toUpperCase());
+            visited.add(legTo);
+          }
+          if (effectiveToAirport) {
+            console.log(`[email-inbound] round-trip legs: ${legs.length} legs, turnaround: ${effectiveToCity} (${effectiveToAirport})`);
+          }
+        }
+
+        if (!effectiveToAirport) {
+          // One-way or open-jaw: destination = final arrival
+          const lastLeg = legs[legs.length - 1];
+          effectiveToAirport = lastLeg.to;
+          effectiveToCity    = lastLeg.toCity ?? lastLeg.to;
+          console.log(`[email-inbound] one-way/open-jaw: ${legs.length} legs, destination: ${effectiveToCity} (${effectiveToAirport})`);
         }
       } else if (legs.length === 1) {
         effectiveToAirport = legs[0].to;
@@ -1888,14 +1909,13 @@ Field notes:
         );
 
         // ── Mandatory departure-trip coverage ────────────────────────────────
-        // Every flight must appear in BOTH the departure city trip and the arrival
-        // city trip. If fromCity is not already covered by any related trip, find
-        // the existing departure-city trip or auto-create one.
-        // Guard: skip well-known home hubs (NRT, HND, etc.) to avoid creating
-        // spurious home-city trips from transit airports.
+        // For one-way and multi-stop itineraries: if the departure city has an
+        // existing trip (date-overlapping) not already in the related-trip list,
+        // add it so the booking appears in both the departure and arrival trips.
+        // Round trips skip this block — departure == final arrival (home), never
+        // a separate trip destination.
         {
           const depFromCity = (extracted.fromCity as string | null)?.trim() ?? null;
-          const depFromAirport = (extracted.fromAirport as string | null)?.trim() ?? null;
 
           if (depFromCity && extracted.type === "flight" && confidenceScore >= 0.85) {
             const depCityLower = depFromCity.toLowerCase();
@@ -1903,9 +1923,8 @@ Field notes:
               (r) => r.confidence >= 0.85 &&
                 (r.trip.destinationCity ?? "").toLowerCase().trim() === depCityLower,
             );
-            const isHomeHub = depFromAirport ? HOME.has(depFromAirport) : false;
 
-            if (!alreadyCovered && !isHomeHub) {
+            if (!alreadyCovered && !isRoundTrip) {
               const depDateStr = (extracted.departureDate as string | null) ?? null;
               const existingDepTrip = (trips as Array<{ id: string; title?: string | null; destinationCity?: string | null; startDate?: Date | null; endDate?: Date | null; status?: string | null }>)
                 .find((t) => {
