@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { normalizeCategorySlug } from "@/lib/categories";
 import { getTripCoverImage } from "@/lib/destination-images";
+import { getCityImageUrl } from "@/lib/city-image";
 import type { CommunityTripCardTrip } from "@/components/shared/cards/CommunityTripCard";
 import type { TourCardItem } from "@/components/shared/cards/TourCard";
 import type { PickSpot } from "@/app/(app)/discover/_components/PicksGrid";
@@ -356,5 +357,78 @@ export async function fetchContinentData(slug: string): Promise<ContinentPageDat
       allCountries: [...row.countries].sort((a, b) => a.name.localeCompare(b.name)),
     },
     countries,
+  };
+}
+
+// ── Country drill-down ─────────────────────────────────────────────────────────
+
+export type CountryCity = {
+  id: string;
+  slug: string;
+  name: string;
+  coverImageUrl: string | null;
+  spotCount: number;
+};
+
+export type CountryPageData = {
+  country: {
+    id: string;
+    slug: string;
+    name: string;
+    blurb: string | null;
+    photoUrl: string | null;
+    photoCredit: string | null;
+    continentId: string;
+    continent: { slug: string; name: string };
+  };
+  cities: CountryCity[];
+};
+
+export async function fetchCountryData(slug: string): Promise<CountryPageData | null> {
+  const row = await db.country.findUnique({
+    where: { slug },
+    select: {
+      id: true,
+      name: true,
+      blurb: true,
+      photoUrl: true,
+      photoCredit: true,
+      continentId: true,
+      continent: { select: { name: true, slug: true } },
+      cities: {
+        where: { featured: true, type: "CITY" },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          photoUrl: true,
+          heroPhotoUrl: true,
+          _count: { select: { communitySpots: true } },
+        },
+        orderBy: [{ priorityRank: "asc" }, { name: "asc" }],
+      },
+    },
+  });
+
+  if (!row) return null;
+
+  return {
+    country: {
+      id: row.id,
+      slug,
+      name: row.name,
+      blurb: row.blurb ?? null,
+      photoUrl: row.photoUrl ?? null,
+      photoCredit: row.photoCredit ?? null,
+      continentId: row.continentId,
+      continent: row.continent,
+    },
+    cities: row.cities.map((c) => ({
+      id: c.id,
+      slug: c.slug,
+      name: c.name,
+      coverImageUrl: getCityImageUrl(c.heroPhotoUrl, c.photoUrl),
+      spotCount: c._count.communitySpots,
+    })),
   };
 }

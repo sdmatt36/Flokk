@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { DM_Sans } from "next/font/google";
 import { CountryCityCard } from "./CountryCityCard";
-import { getCityImageUrl } from "@/lib/city-image";
 
 const dmSans = DM_Sans({ subsets: ["latin"], display: "swap" });
 
@@ -27,8 +26,7 @@ interface City {
   id: string;
   slug: string;
   name: string;
-  photoUrl: string | null;
-  heroPhotoUrl: string | null;
+  coverImageUrl: string | null;
   spotCount: number;
 }
 
@@ -56,7 +54,7 @@ export function CountryCityGrid({ cities }: CountryCityGridProps) {
               key={city.id}
               slug={city.slug}
               name={city.name}
-              photoUrl={getCityImageUrl(city.heroPhotoUrl, city.photoUrl)}
+              photoUrl={city.coverImageUrl}
               spotCount={city.spotCount}
             />
           ))}

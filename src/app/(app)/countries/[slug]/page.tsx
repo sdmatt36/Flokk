@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { Playfair_Display, DM_Sans } from "next/font/google";
 import { db } from "@/lib/db";
+import { fetchCountryData } from "@/lib/discover-data";
 import { CountrySectionNav } from "./_components/CountrySectionNav";
 import { CountryCityGrid } from "./_components/CountryCityGrid";
 import { FilteredItinerariesSection } from "@/app/(app)/discover/_components/FilteredItinerariesSection";
@@ -39,41 +40,9 @@ export default async function CountryPage(
   const { slug } = await params;
 
   // Step 1: country + cities
-  const country = await db.country.findUnique({
-    where: { slug },
-    select: {
-      id: true,
-      name: true,
-      blurb: true,
-      photoUrl: true,
-      photoCredit: true,
-      continentId: true,
-      continent: { select: { name: true, slug: true } },
-      cities: {
-        where: { featured: true, type: "CITY" },
-        select: {
-          id: true,
-          slug: true,
-          name: true,
-          photoUrl: true,
-          heroPhotoUrl: true,
-          _count: { select: { communitySpots: true } },
-        },
-        orderBy: [{ priorityRank: "asc" }, { name: "asc" }],
-      },
-    },
-  });
-
-  if (!country) notFound();
-
-  const allCities = country.cities.map((c) => ({
-    id: c.id,
-    slug: c.slug,
-    name: c.name,
-    photoUrl: c.photoUrl,
-    heroPhotoUrl: c.heroPhotoUrl,
-    spotCount: c._count.communitySpots,
-  }));
+  const data = await fetchCountryData(slug);
+  if (!data) notFound();
+  const { country, cities: allCities } = data;
 
   // Step 2: content sections + sibling countries in parallel
   const [trips, spots, tours, siblingCountries] = await Promise.all([
@@ -149,7 +118,7 @@ export default async function CountryPage(
 
   console.log(`[CountryPage] slug=${slug} itineraries=${trips.length} spots=${spots.length} tours=${tours.length}`);
 
-  const totalSpots = country.cities.reduce((sum, c) => sum + c._count.communitySpots, 0);
+  const totalSpots = allCities.reduce((sum, c) => sum + c.spotCount, 0);
 
   const FOOD_CATS = new Set(["food_and_drink"]);
   const LODGING_CATS = new Set(["lodging"]);
