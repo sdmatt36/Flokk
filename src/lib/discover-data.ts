@@ -384,6 +384,370 @@ export type CountryPageData = {
   cities: CountryCity[];
 };
 
+// ── City drill-down ────────────────────────────────────────────────────────────
+
+export type CityPickItem = {
+  id: string;
+  name: string;
+  category: string | null;
+  cuisine: string | null | undefined;
+  lodgingType: string | null | undefined;
+  photoUrl: string | null;
+  averageRating: number | null;
+  ratingCount: number;
+  description: string | null;
+  websiteUrl: string | null | undefined;
+  address: string | null | undefined;
+  lat: number | null | undefined;
+  lng: number | null | undefined;
+  googlePlaceId: string | null | undefined;
+  contributorName?: string | null;
+};
+
+export type CityItineraryItem = {
+  id: string;
+  title: string;
+  destinationCity: string | null;
+  destinationCountry: string | null;
+  shareToken: string | null;
+  heroImageUrl?: string | null;
+  isAnonymous: boolean;
+  startDate: Date | null;
+  endDate: Date | null;
+  familyProfile: { familyName: string | null } | null;
+};
+
+export type CityTourItem = {
+  id: string;
+  title: string;
+  destinationCity: string | null;
+  destinationCountry: string | null;
+  shareToken: string | null;
+  transport: string | null;
+  stopCount: number;
+  firstStopImageUrl: string | null;
+};
+
+export type CityRelatedCity = {
+  slug: string;
+  name: string;
+  country: string;
+  coverImageUrl: string | null;
+};
+
+export type SpotBuckets = {
+  foodAndDrink: { items: CityPickItem[]; total: number };
+  activities: { items: CityPickItem[]; total: number; categories: { category: string; count: number }[] };
+  lodging: { items: CityPickItem[]; total: number };
+};
+
+export type CityPageData = {
+  city: {
+    id: string;
+    slug: string;
+    name: string;
+    blurb: string | null;
+    photoUrl: string | null;
+    heroPhotoUrl: string | null;
+    heroPhotoAttribution: string | null;
+    latitude: number | null;
+    longitude: number | null;
+    countryId: string;
+    country: {
+      id: string;
+      name: string;
+      slug: string;
+      continentId: string;
+      continent: { id: string; name: string; slug: string };
+    };
+  };
+  spotCount: number;
+  itineraryCount: number;
+  tourCount: number;
+  ratingCount: number;
+  siblingCities: Array<{ slug: string; name: string }>;
+  itineraries: CityItineraryItem[];
+  tours: CityTourItem[];
+  foodAndDrink: { items: CityPickItem[]; total: number };
+  activities: { items: CityPickItem[]; total: number; categories: { category: string; count: number }[] };
+  lodging: { items: CityPickItem[]; total: number };
+  relatedCities: CityRelatedCity[];
+};
+
+const BUCKET_FOOD = new Set(["food_and_drink", "Food", "food"]);
+const BUCKET_LODGING = new Set(["lodging", "Lodging"]);
+
+export function buildSpotBuckets(spots: CityPickItem[]): SpotBuckets {
+  const food = spots.filter((s) => BUCKET_FOOD.has(s.category ?? ""));
+  const lodging = spots.filter((s) => BUCKET_LODGING.has(s.category ?? ""));
+  const activities = spots.filter(
+    (s) => !BUCKET_FOOD.has(s.category ?? "") && !BUCKET_LODGING.has(s.category ?? "")
+  );
+  const catCounts = new Map<string, number>();
+  for (const s of activities) {
+    if (s.category) catCounts.set(s.category, (catCounts.get(s.category) ?? 0) + 1);
+  }
+  const categories = [...catCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([category, count]) => ({ category, count }));
+  return {
+    foodAndDrink: { items: food, total: food.length },
+    activities: { items: activities, total: activities.length, categories },
+    lodging: { items: lodging, total: lodging.length },
+  };
+}
+
+function slugForDedup(s: string): string {
+  return s.toLowerCase().normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+export async function fetchCityData(slug: string): Promise<CityPageData | null> {
+  try {
+    const city = await db.city.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        blurb: true,
+        photoUrl: true,
+        heroPhotoUrl: true,
+        heroPhotoAttribution: true,
+        latitude: true,
+        longitude: true,
+        countryId: true,
+        country: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            continentId: true,
+            continent: { select: { id: true, name: true, slug: true } },
+          },
+        },
+      },
+    });
+    if (!city) return null;
+
+    interface RatingRow {
+      name: string;
+      category: string;
+      averageRating: number;
+      ratingCount: bigint | number;
+    }
+
+    const [
+      spots, itineraries, tours, ratingRows,
+      spotCount, itineraryCount, tourCount, ratingCount,
+      siblingCities, sameCountryCities,
+    ] = await Promise.all([
+      db.communitySpot.findMany({
+        where: { cityId: city.id },
+        select: {
+          id: true, name: true, category: true, cuisine: true, lodgingType: true,
+          photoUrl: true, averageRating: true, ratingCount: true, description: true,
+          websiteUrl: true, address: true, lat: true, lng: true, googlePlaceId: true,
+          author: { select: { familyName: true } },
+        },
+        orderBy: [{ ratingCount: "desc" }, { averageRating: "desc" }],
+        take: 50,
+      }),
+      db.trip.findMany({
+        where: {
+          isPublic: true,
+          shareToken: { not: null },
+          destinationCity: { contains: city.name, mode: "insensitive" },
+        },
+        select: {
+          id: true, title: true, destinationCity: true, destinationCountry: true,
+          heroImageUrl: true, shareToken: true, startDate: true, endDate: true, isAnonymous: true,
+          familyProfile: { select: { familyName: true } },
+        },
+        orderBy: { viewCount: "desc" },
+        take: 12,
+      }),
+      db.generatedTour.findMany({
+        where: {
+          isPublic: true,
+          deletedAt: null,
+          shareToken: { not: null },
+          destinationCity: { contains: city.name, mode: "insensitive" },
+        },
+        select: {
+          id: true, title: true, destinationCity: true, destinationCountry: true,
+          shareToken: true, transport: true,
+          stops: {
+            where: { deletedAt: null },
+            orderBy: { orderIndex: "asc" },
+            take: 1,
+            select: { imageUrl: true },
+          },
+          _count: { select: { stops: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 12,
+      }),
+      db.$queryRaw<RatingRow[]>`
+        SELECT
+          "placeName" AS name,
+          "placeType" AS category,
+          AVG("rating")::float AS "averageRating",
+          COUNT(DISTINCT "familyProfileId")::int AS "ratingCount"
+        FROM "PlaceRating"
+        WHERE LOWER("destinationCity") = LOWER(${city.name})
+        GROUP BY "placeName", "placeType"
+      `,
+      db.communitySpot.count({ where: { cityId: city.id } }),
+      db.trip.count({
+        where: { isPublic: true, shareToken: { not: null }, destinationCity: { contains: city.name, mode: "insensitive" } },
+      }),
+      db.generatedTour.count({
+        where: { isPublic: true, deletedAt: null, shareToken: { not: null }, destinationCity: { contains: city.name, mode: "insensitive" } },
+      }),
+      db.spotContribution.count({ where: { spot: { cityId: city.id }, rating: { not: null } } }),
+      db.city.findMany({
+        where: { countryId: city.countryId, id: { not: city.id }, featured: true },
+        orderBy: { priorityRank: "asc" },
+        take: 12,
+        select: { slug: true, name: true },
+      }),
+      db.city.findMany({
+        where: { countryId: city.countryId, id: { not: city.id }, featured: true },
+        orderBy: { priorityRank: "asc" },
+        take: 4,
+        select: { slug: true, name: true, photoUrl: true, heroPhotoUrl: true, country: { select: { name: true } } },
+      }),
+    ]);
+
+    // Fill related cities to 6 from same continent, different country
+    const needed = 6 - sameCountryCities.length;
+    const continentFill = needed > 0
+      ? await db.city.findMany({
+          where: {
+            featured: true,
+            id: { not: city.id },
+            country: { continentId: city.country.continentId, id: { not: city.countryId } },
+          },
+          orderBy: { priorityRank: "asc" },
+          take: needed,
+          select: { slug: true, name: true, photoUrl: true, heroPhotoUrl: true, country: { select: { name: true } } },
+        })
+      : [];
+
+    const relatedCities: CityRelatedCity[] = [...sameCountryCities, ...continentFill].map((c) => ({
+      slug: c.slug,
+      name: c.name,
+      country: c.country.name,
+      coverImageUrl: getCityImageUrl(c.heroPhotoUrl, c.photoUrl),
+    }));
+
+    // Dedup spots by name + merge PlaceRating aggregates (mirrors loadCity)
+    const spotMap = new Map<string, CityPickItem>();
+    for (const s of spots) {
+      const nameKey = slugForDedup(s.name);
+      if (!spotMap.has(nameKey)) {
+        const normCat = normalizeCategorySlug(s.category) ?? s.category;
+        spotMap.set(nameKey, { ...s, category: normCat, contributorName: s.author?.familyName ?? null });
+      }
+    }
+
+    const prOnlyMap = new Map<string, CityPickItem>();
+    for (const row of ratingRows) {
+      const nameKey = slugForDedup(row.name);
+      const count = Number(row.ratingCount);
+      const normCat = normalizeCategorySlug(row.category) ?? "other";
+      const csEntry = spotMap.get(nameKey);
+
+      if (csEntry) {
+        const newCount = csEntry.ratingCount + count;
+        const newAvg =
+          ((csEntry.averageRating ?? 0) * csEntry.ratingCount + row.averageRating * count) / newCount;
+        const promotedCategory =
+          csEntry.category === "other" && normCat && normCat !== "other" ? normCat : csEntry.category;
+        spotMap.set(nameKey, { ...csEntry, category: promotedCategory, averageRating: newAvg, ratingCount: newCount });
+      } else {
+        const prEntry = prOnlyMap.get(nameKey);
+        if (prEntry) {
+          const newCount = prEntry.ratingCount + count;
+          const newAvg =
+            ((prEntry.averageRating ?? 0) * prEntry.ratingCount + row.averageRating * count) / newCount;
+          prOnlyMap.set(nameKey, { ...prEntry, averageRating: newAvg, ratingCount: newCount });
+        } else {
+          prOnlyMap.set(nameKey, {
+            id: `pr_${nameKey}`,
+            name: row.name,
+            category: normCat,
+            cuisine: null,
+            lodgingType: null,
+            photoUrl: null,
+            averageRating: row.averageRating,
+            ratingCount: count,
+            description: null,
+            websiteUrl: null,
+            address: null,
+            lat: null,
+            lng: null,
+            googlePlaceId: null,
+          });
+        }
+      }
+    }
+
+    const allSpots: CityPickItem[] = [...spotMap.values(), ...prOnlyMap.values()];
+    const buckets = buildSpotBuckets(allSpots);
+
+    return {
+      city: {
+        id: city.id,
+        slug: city.slug,
+        name: city.name,
+        blurb: city.blurb ?? null,
+        photoUrl: city.photoUrl ?? null,
+        heroPhotoUrl: city.heroPhotoUrl ?? null,
+        heroPhotoAttribution: city.heroPhotoAttribution ?? null,
+        latitude: city.latitude ?? null,
+        longitude: city.longitude ?? null,
+        countryId: city.countryId,
+        country: {
+          id: city.country.id,
+          name: city.country.name,
+          slug: city.country.slug,
+          continentId: city.country.continentId,
+          continent: {
+            id: city.country.continent.id,
+            name: city.country.continent.name,
+            slug: city.country.continent.slug,
+          },
+        },
+      },
+      spotCount,
+      itineraryCount,
+      tourCount,
+      ratingCount,
+      siblingCities,
+      itineraries: itineraries as unknown as CityItineraryItem[],
+      tours: tours.map((t) => ({
+        id: t.id,
+        title: t.title,
+        destinationCity: t.destinationCity,
+        destinationCountry: t.destinationCountry,
+        shareToken: t.shareToken,
+        transport: t.transport,
+        stopCount: t._count.stops,
+        firstStopImageUrl: t.stops[0]?.imageUrl ?? null,
+      })),
+      ...buckets,
+      relatedCities,
+    };
+  } catch (err) {
+    console.error("[fetchCityData] error", err);
+    return null;
+  }
+}
+
 export async function fetchCountryData(slug: string): Promise<CountryPageData | null> {
   const row = await db.country.findUnique({
     where: { slug },

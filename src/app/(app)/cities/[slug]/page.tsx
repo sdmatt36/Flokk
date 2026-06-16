@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
-import { db } from "@/lib/db";
-import { normalizeCategorySlug } from "@/lib/categories";
+import { fetchCityData } from "@/lib/discover-data";
 import { CityHero } from "./_components/CityHero";
 import { SectionNav } from "./_components/SectionNav";
 import { CitySection } from "./_components/CitySection";
@@ -14,200 +13,13 @@ import { LateralPeerNav } from "@/components/shared/LateralPeerNav";
 import { FlokkersAlsoLove } from "@/components/shared/FlokkersAlsoLove";
 import { BackBar } from "@/components/shared/BackBar";
 
-// ── Category buckets ─────────────────────────────────────────────────────────
-
-const FOOD_CATEGORIES = new Set(["food_and_drink", "Food", "food"]);
-const LODGING_CATEGORIES = new Set(["lodging", "Lodging"]);
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function slugForDedup(s: string): string {
-  return s.toLowerCase().normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
-// ── Data loading ──────────────────────────────────────────────────────────────
-
-type SpotItem = {
-  id: string;
-  name: string;
-  category: string | null;
-  cuisine: string | null;
-  lodgingType: string | null;
-  photoUrl: string | null;
-  averageRating: number | null;
-  ratingCount: number;
-  description: string | null;
-  websiteUrl: string | null;
-  address: string | null;
-  lat: number | null;
-  lng: number | null;
-  googlePlaceId: string | null;
-  contributorName?: string | null;
-};
-
-async function loadCity(slug: string) {
-  try {
-    const city = await db.city.findUnique({
-      where: { slug },
-      include: { country: { include: { continent: true } } },
-    });
-    if (!city) return null;
-
-    interface RatingRow {
-      name: string;
-      category: string;
-      averageRating: number;
-      ratingCount: bigint | number;
-    }
-
-    const [spots, trips, tours, ratingRows, spotCount, tripCount, tourCount, ratingCount, siblingCities] = await Promise.all([
-      db.communitySpot.findMany({
-        where: { cityId: city.id },
-        select: {
-          id: true, name: true, category: true, cuisine: true, lodgingType: true,
-          photoUrl: true, averageRating: true, ratingCount: true, description: true,
-          websiteUrl: true, address: true, lat: true, lng: true, googlePlaceId: true,
-          author: { select: { familyName: true } },
-        },
-        orderBy: [{ ratingCount: "desc" }, { averageRating: "desc" }],
-        take: 50,
-      }),
-      db.trip.findMany({
-        where: {
-          isPublic: true,
-          shareToken: { not: null },
-          destinationCity: { contains: city.name, mode: "insensitive" },
-        },
-        select: {
-          id: true, title: true, destinationCity: true, destinationCountry: true,
-          heroImageUrl: true, shareToken: true, startDate: true, endDate: true, isAnonymous: true,
-          familyProfile: { select: { familyName: true } },
-          _count: { select: { savedItems: true, placeRatings: true } },
-        },
-        orderBy: { viewCount: "desc" },
-        take: 12,
-      }),
-      db.generatedTour.findMany({
-        where: {
-          isPublic: true,
-          deletedAt: null,
-          shareToken: { not: null },
-          destinationCity: { contains: city.name, mode: "insensitive" },
-        },
-        select: {
-          id: true, title: true, destinationCity: true, destinationCountry: true,
-          shareToken: true, transport: true,
-          stops: {
-            where: { deletedAt: null },
-            orderBy: { orderIndex: "asc" },
-            take: 1,
-            select: { imageUrl: true },
-          },
-          _count: { select: { stops: true } },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 12,
-      }),
-      db.$queryRaw<RatingRow[]>`
-        SELECT
-          "placeName" AS name,
-          "placeType" AS category,
-          AVG("rating")::float AS "averageRating",
-          COUNT(DISTINCT "familyProfileId")::int AS "ratingCount"
-        FROM "PlaceRating"
-        WHERE LOWER("destinationCity") = LOWER(${city.name})
-        GROUP BY "placeName", "placeType"
-      `,
-      db.communitySpot.count({ where: { cityId: city.id } }),
-      db.trip.count({ where: { isPublic: true, shareToken: { not: null }, destinationCity: { contains: city.name, mode: "insensitive" } } }),
-      db.generatedTour.count({ where: { isPublic: true, deletedAt: null, shareToken: { not: null }, destinationCity: { contains: city.name, mode: "insensitive" } } }),
-      db.spotContribution.count({ where: { spot: { cityId: city.id }, rating: { not: null } } }),
-      db.city.findMany({
-        where: { countryId: city.countryId, id: { not: city.id }, featured: true },
-        orderBy: { priorityRank: "asc" },
-        take: 12,
-        select: { slug: true, name: true },
-      }),
-    ]);
-
-    // Build dedup map from CommunitySpot — key by slug(name) only.
-    // Sort order ensures highest-rated CS wins on name collision.
-    const spotMap = new Map<string, SpotItem>();
-    for (const s of spots) {
-      const nameKey = slugForDedup(s.name);
-      if (!spotMap.has(nameKey)) {
-        const normCat = normalizeCategorySlug(s.category) ?? s.category;
-        spotMap.set(nameKey, { ...s, category: normCat, contributorName: s.author?.familyName ?? null });
-      }
-    }
-
-    // Merge PlaceRating aggregates — key by slug(name) only.
-    // CS row wins for visual data (photo, category, description).
-    // Ratings aggregate: weighted average + summed count.
-    const prOnlyMap = new Map<string, SpotItem>();
-    for (const row of ratingRows) {
-      const nameKey = slugForDedup(row.name);
-      const count = Number(row.ratingCount);
-      const normCat = normalizeCategorySlug(row.category) ?? "other";
-      const csEntry = spotMap.get(nameKey);
-
-      if (csEntry) {
-        // Augment CommunitySpot with aggregated PlaceRating data
-        const newCount = csEntry.ratingCount + count;
-        const newAvg = ((csEntry.averageRating ?? 0) * csEntry.ratingCount + row.averageRating * count) / newCount;
-        // Promote PR's specific category when CS has the low-info 'other' fallback.
-        const promotedCategory =
-          csEntry.category === "other" && normCat && normCat !== "other"
-            ? normCat
-            : csEntry.category;
-        spotMap.set(nameKey, { ...csEntry, category: promotedCategory, averageRating: newAvg, ratingCount: newCount });
-      } else {
-        // PR-only: aggregate multiple placeType rows for same place name
-        const prEntry = prOnlyMap.get(nameKey);
-        if (prEntry) {
-          const newCount = prEntry.ratingCount + count;
-          const newAvg = ((prEntry.averageRating ?? 0) * prEntry.ratingCount + row.averageRating * count) / newCount;
-          prOnlyMap.set(nameKey, { ...prEntry, averageRating: newAvg, ratingCount: newCount });
-        } else {
-          prOnlyMap.set(nameKey, {
-            id: `pr_${nameKey}`,
-            name: row.name,
-            category: normCat,
-            cuisine: null,
-            lodgingType: null,
-            photoUrl: null,
-            averageRating: row.averageRating,
-            ratingCount: count,
-            description: null,
-            websiteUrl: null,
-            address: null,
-            lat: null,
-            lng: null,
-            googlePlaceId: null,
-          });
-        }
-      }
-    }
-
-    const allSpots: SpotItem[] = [...spotMap.values(), ...prOnlyMap.values()];
-
-    return { city, spots: allSpots, trips, tours, spotCount, tripCount, tourCount, ratingCount, siblingCities };
-  } catch (err) {
-    console.error("[loadCity] error", err);
-    return null;
-  }
-}
-
 // ── SEO ───────────────────────────────────────────────────────────────────────
 
 export async function generateMetadata(
   { params }: { params: Promise<{ slug: string }> }
 ): Promise<Metadata> {
   const { slug } = await params;
-  const data = await loadCity(slug);
+  const data = await fetchCityData(slug);
   if (!data) return { title: "City not found | Flokk" };
 
   const { city } = data;
@@ -242,22 +54,18 @@ function slugifyCountry(name: string) {
 
 export default async function CityPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const data = await loadCity(slug);
+  const data = await fetchCityData(slug);
   if (!data) notFound();
 
-  const { city, spots, trips, tours, spotCount, tripCount, tourCount, ratingCount, siblingCities } = data;
+  const {
+    city, spotCount, itineraryCount, tourCount, ratingCount,
+    siblingCities, itineraries, tours, foodAndDrink, activities, lodging,
+  } = data;
   const country = city.country;
   const continent = country.continent;
 
   const continentSlug = slugifyContinent(continent.name);
   const countrySlug = slugifyCountry(country.name);
-
-  // Bucket spots by category
-  const foodSpots = spots.filter((s) => FOOD_CATEGORIES.has(s.category ?? ""));
-  const lodgingSpots = spots.filter((s) => LODGING_CATEGORIES.has(s.category ?? ""));
-  const activitySpots = spots.filter(
-    (s) => !FOOD_CATEGORIES.has(s.category ?? "") && !LODGING_CATEGORIES.has(s.category ?? "")
-  );
 
   // JSON-LD
   const jsonLd = {
@@ -295,7 +103,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
         heroPhotoAttribution={city.heroPhotoAttribution}
         blurb={city.blurb}
         spotCount={spotCount}
-        tripCount={tripCount}
+        tripCount={itineraryCount}
         tourCount={tourCount}
         ratingCount={ratingCount}
       />
@@ -329,13 +137,13 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
         <CitySection
           id="itineraries"
           title="Itineraries"
-          count={trips.length}
+          count={itineraries.length}
           emptyText="No itineraries here yet. Plan one and share."
-          isEmpty={trips.length === 0}
+          isEmpty={itineraries.length === 0}
           addHref="/trips/new"
           addLabel="Add →"
         >
-          {trips.map((trip) => (
+          {itineraries.map((trip) => (
             <div key={trip.id}>
               <CommunityTripCard trip={trip} />
             </div>
@@ -358,12 +166,12 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
                 tour={{
                   id: tour.id,
                   title: tour.title,
-                  destinationCity: tour.destinationCity,
+                  destinationCity: tour.destinationCity ?? "",
                   destinationCountry: tour.destinationCountry,
                   shareToken: tour.shareToken,
-                  stopCount: tour._count.stops,
+                  stopCount: tour.stopCount,
                   transport: tour.transport,
-                  firstStopImageUrl: tour.stops[0]?.imageUrl ?? null,
+                  firstStopImageUrl: tour.firstStopImageUrl,
                 }}
               />
             </div>
@@ -374,7 +182,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
         <SpotSection
           id="food"
           title="Food & Drink"
-          spots={foodSpots}
+          spots={foodAndDrink.items}
           cityName={city.name}
           emptyText="No food picks yet. Got a favorite? Share it."
           filterField="cuisine"
@@ -385,7 +193,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
         <SpotSection
           id="activities"
           title="Activities"
-          spots={activitySpots}
+          spots={activities.items}
           cityName={city.name}
           emptyText={`No activities yet. Help us build ${city.name}.`}
           filterField="category"
@@ -396,7 +204,7 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
         <SpotSection
           id="lodging"
           title="Lodging"
-          spots={lodgingSpots}
+          spots={lodging.items}
           cityName={city.name}
           emptyText="No lodging picks yet."
           filterField="lodgingType"
