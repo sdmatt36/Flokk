@@ -10,14 +10,22 @@ export async function GET(req: NextRequest) {
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "200", 10), 500);
   const offset = parseInt(searchParams.get("offset") ?? "0", 10);
 
-  let all = await fetchPicks();
+  const all = await fetchPicks();
 
-  if (category && category !== "all") {
-    all = all.filter((p) => p.category === category);
+  // Compute category facets from full normalized pool before any category filter
+  const countMap = new Map<string, number>();
+  for (const p of all) {
+    if (p.category) countMap.set(p.category, (countMap.get(p.category) ?? 0) + 1);
   }
+  const categories = [...countMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([cat, count]) => ({ category: cat, count }));
 
-  const total = all.length;
-  const picks = all.slice(offset, offset + limit);
+  const filtered =
+    category && category !== "all" ? all.filter((p) => p.category === category) : all;
 
-  return NextResponse.json({ picks, total });
+  const total = filtered.length;
+  const picks = filtered.slice(offset, offset + limit);
+
+  return NextResponse.json({ picks, total, categories });
 }

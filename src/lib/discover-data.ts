@@ -1,9 +1,30 @@
 import { db } from "@/lib/db";
+import { normalizeCategorySlug } from "@/lib/categories";
 import type { CommunityTripCardTrip } from "@/components/shared/cards/CommunityTripCard";
 import type { TourCardItem } from "@/components/shared/cards/TourCard";
 import type { PickSpot } from "@/app/(app)/discover/_components/PicksGrid";
 
 export const TRANSPORT_CATEGORIES = ["train", "flight", "airline", "transport", "transit"];
+
+const JUNK_NAME_PREFIXES = [
+  "Flight from ",
+  "Flight to ",
+  "Flight ",
+  "Transfer ",
+  "Drive to ",
+  "Ferry to ",
+  "Train to ",
+];
+const JUNK_NAME_CONTAINS = ["airport transfer"];
+const JUNK_DAY_RE = /^Day \d+ *:/i;
+
+function isJunkPick(name: string): boolean {
+  const n = name.trim();
+  if (JUNK_DAY_RE.test(n)) return true;
+  const lower = n.toLowerCase();
+  if (JUNK_NAME_CONTAINS.some((p) => lower.includes(p))) return true;
+  return JUNK_NAME_PREFIXES.some((p) => n.startsWith(p));
+}
 
 interface PlaceRatingRow {
   city_key: string;
@@ -89,7 +110,7 @@ function inferCategoryFromTypes(placeTypes: string[]): string | null {
     )
   )
     return "lodging";
-  return "activities";
+  return "experiences";
 }
 
 export async function fetchPicks(): Promise<PickSpot[]> {
@@ -219,5 +240,7 @@ export async function fetchPicks(): Promise<PickSpot[]> {
     }
   }
 
-  return result;
+  return result
+    .filter((s) => !isJunkPick(s.name))
+    .map((s) => ({ ...s, category: normalizeCategorySlug(s.category) }));
 }
