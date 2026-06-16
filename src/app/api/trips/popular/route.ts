@@ -22,6 +22,7 @@ export type PopularCard = {
   country: string | null;
   imageUrl: string;
   tripId: string | null;
+  shareToken: string | null;
   label: string;
 };
 
@@ -38,6 +39,7 @@ export async function GET(_req: NextRequest) {
       status: "COMPLETED",
       endDate: { lt: new Date() },
       familyProfileId: { not: profileId },
+      shareToken: { not: null },
     },
     select: {
       id: true,
@@ -46,6 +48,7 @@ export async function GET(_req: NextRequest) {
       startDate: true,
       endDate: true,
       heroImageUrl: true,
+      shareToken: true,
     },
     orderBy: { endDate: "desc" },
     take: 40,
@@ -74,6 +77,7 @@ export async function GET(_req: NextRequest) {
       country: t.destinationCountry ?? null,
       imageUrl: getTripCoverImage(t.destinationCity, t.destinationCountry, t.heroImageUrl),
       tripId: t.id,
+      shareToken: t.shareToken ?? null,
       label,
     });
   }
@@ -97,6 +101,7 @@ export async function GET(_req: NextRequest) {
         country: fb.country,
         imageUrl: getTripCoverImage(fb.city, fb.country, null),
         tripId: null,
+        shareToken: null,
         label: "Anonymous Flokker",
       });
       if (cards.length >= 4) break;
