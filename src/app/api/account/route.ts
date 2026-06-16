@@ -16,6 +16,15 @@ export async function DELETE() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // TEMPORARY pre-launch safety guard. Remove before public launch.
+  const DEV_PROTECTED_CLERK_IDS = ["user_3B68dQIbRRU8GZnMcSaoJwBg9GS"];
+  if (DEV_PROTECTED_CLERK_IDS.includes(clerkId)) {
+    return NextResponse.json(
+      { error: "This account is protected during development." },
+      { status: 403 },
+    );
+  }
+
   const user = await db.user.findUnique({
     where: { clerkId },
     select: { id: true },
