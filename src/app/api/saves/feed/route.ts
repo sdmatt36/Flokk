@@ -21,6 +21,7 @@ type FeedSaveItem = {
   id: string;
   coverImageUrl: string;
   displayTitle: string;
+  rawTitle: string | null;
   destinationCity: string | null;
   destinationCountry: string | null;
   address: string | null;
@@ -156,6 +157,7 @@ function buildFeedItem(s: DbSave): FeedSaveItem {
     id: s.id,
     coverImageUrl,
     displayTitle,
+    rawTitle: s.rawTitle ?? null,
     destinationCity: s.destinationCity,
     destinationCountry: s.destinationCountry,
     address: s.address ?? null,
