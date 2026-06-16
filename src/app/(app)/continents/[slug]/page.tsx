@@ -2,8 +2,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Playfair_Display, DM_Sans } from "next/font/google";
-import { db } from "@/lib/db";
 import { CONTINENT_CONFIGS } from "@/lib/continents";
+import { fetchContinentData } from "@/lib/discover-data";
 import { CountryGrid } from "./_components/CountryGrid";
 import { ScopedSearchBar } from "@/components/shared/ScopedSearchBar";
 import { FlokkersAlsoLove } from "@/components/shared/FlokkersAlsoLove";
@@ -35,65 +35,11 @@ export default async function ContinentPage(
   const config = CONTINENT_CONFIGS.find((c) => c.slug === slug);
   if (!config) notFound();
 
-  const continent = await db.continent.findUnique({
-    where: { slug },
-    select: {
-      id: true,
-      blurb: true,
-      name: true,
-      photoUrl: true,
-      countries: {
-        orderBy: { name: "asc" },
-        select: {
-          slug: true,
-          name: true,
-          blurb: true,
-          photoUrl: true,
-          cities: {
-            where: { featured: true, type: "CITY" },
-            select: {
-              name: true,
-              photoUrl: true,
-              heroPhotoUrl: true,
-              _count: { select: { communitySpots: true } },
-            },
-          },
-        },
-      },
-    },
-  });
+  const data = await fetchContinentData(slug);
+  if (!data) notFound();
 
-  if (!continent) notFound();
-
-  // Server-side: compute spot totals and top-3 cities per country
-  const countries = continent.countries.map((c) => ({
-    slug: c.slug,
-    name: c.name,
-    photoUrl: c.photoUrl ?? null,
-    blurb: c.blurb ?? null,
-    _count: { cities: c.cities.length },
-    spotCount: c.cities.reduce((sum, city) => sum + city._count.communitySpots, 0),
-    topCities: (() => {
-      const sorted = [...c.cities]
-        .sort((a, b) => {
-          const aPhoto = (a.heroPhotoUrl ?? a.photoUrl) != null ? 1 : 0;
-          const bPhoto = (b.heroPhotoUrl ?? b.photoUrl) != null ? 1 : 0;
-          if (bPhoto !== aPhoto) return bPhoto - aPhoto;
-          if (b._count.communitySpots !== a._count.communitySpots)
-            return b._count.communitySpots - a._count.communitySpots;
-          return a.name.localeCompare(b.name);
-        })
-        .slice(0, 3)
-        .map((city) => ({ name: city.name, photoUrl: city.heroPhotoUrl ?? city.photoUrl ?? null }));
-      // country.photoUrl takes priority over topCity photo as hero image
-      if (c.photoUrl != null && sorted.length > 0) {
-        return [{ ...sorted[0], photoUrl: c.photoUrl }, ...sorted.slice(1)];
-      }
-      return sorted;
-    })(),
-  })).filter((c) => c._count.cities > 0 || (c.blurb && c.blurb.length >= 20 && c.photoUrl));
-
-  const allCountriesAZ = [...continent.countries].sort((a, b) => a.name.localeCompare(b.name));
+  const { continent, countries } = data;
+  const allCountriesAZ = continent.allCountries;
 
   return (
     <main>

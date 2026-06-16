@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { normalizeCategorySlug } from "@/lib/categories";
+import { getTripCoverImage } from "@/lib/destination-images";
 import type { CommunityTripCardTrip } from "@/components/shared/cards/CommunityTripCard";
 import type { TourCardItem } from "@/components/shared/cards/TourCard";
 import type { PickSpot } from "@/app/(app)/discover/_components/PicksGrid";
@@ -243,4 +244,117 @@ export async function fetchPicks(): Promise<PickSpot[]> {
   return result
     .filter((s) => !isJunkPick(s.name))
     .map((s) => ({ ...s, category: normalizeCategorySlug(s.category) }));
+}
+
+// ── Continent drill-down ───────────────────────────────────────────────────────
+
+export type ContinentCountry = {
+  id: string;
+  slug: string;
+  name: string;
+  photoUrl: string | null;
+  blurb: string | null;
+  coverImageUrl: string;
+  _count: { cities: number };
+  spotCount: number;
+  topCities: Array<{ name: string; photoUrl: string | null }>;
+};
+
+export type ContinentPageData = {
+  continent: {
+    id: string;
+    name: string;
+    blurb: string | null;
+    photoUrl: string | null;
+    allCountries: Array<{ slug: string; name: string }>;
+  };
+  countries: ContinentCountry[];
+};
+
+export async function fetchContinentData(slug: string): Promise<ContinentPageData | null> {
+  const row = await db.continent.findUnique({
+    where: { slug },
+    select: {
+      id: true,
+      name: true,
+      blurb: true,
+      photoUrl: true,
+      countries: {
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          blurb: true,
+          photoUrl: true,
+          cities: {
+            where: { featured: true, type: "CITY" },
+            select: {
+              name: true,
+              photoUrl: true,
+              heroPhotoUrl: true,
+              _count: { select: { communitySpots: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!row) return null;
+
+  const countries: ContinentCountry[] = row.countries.map((c) => {
+    const cityCount = c.cities.length;
+    const spotCount = c.cities.reduce((sum, city) => sum + city._count.communitySpots, 0);
+    const topCities = (() => {
+      const sorted = [...c.cities]
+        .sort((a, b) => {
+          const aPhoto = (a.heroPhotoUrl ?? a.photoUrl) != null ? 1 : 0;
+          const bPhoto = (b.heroPhotoUrl ?? b.photoUrl) != null ? 1 : 0;
+          if (bPhoto !== aPhoto) return bPhoto - aPhoto;
+          if (b._count.communitySpots !== a._count.communitySpots)
+            return b._count.communitySpots - a._count.communitySpots;
+          return a.name.localeCompare(b.name);
+        })
+        .slice(0, 3)
+        .map((city) => ({
+          name: city.name,
+          photoUrl: city.heroPhotoUrl ?? city.photoUrl ?? null,
+        }));
+      // country.photoUrl takes priority over topCity photo as hero image — mirrors CountryCard
+      if (c.photoUrl != null && sorted.length > 0) {
+        return [{ ...sorted[0], photoUrl: c.photoUrl }, ...sorted.slice(1)];
+      }
+      return sorted;
+    })();
+
+    // Cover image: same chain as CountryCard.tsx
+    const cityPhoto = topCities[0]?.photoUrl ?? c.photoUrl ?? null;
+    const coverImageUrl = cityPhoto ?? getTripCoverImage(null, c.name, null);
+
+    return {
+      id: c.id,
+      slug: c.slug,
+      name: c.name,
+      photoUrl: c.photoUrl ?? null,
+      blurb: c.blurb ?? null,
+      coverImageUrl,
+      _count: { cities: cityCount },
+      spotCount,
+      topCities,
+    };
+  }).filter(
+    (c) => c._count.cities > 0 || (c.blurb && c.blurb.length >= 20 && c.photoUrl),
+  );
+
+  return {
+    continent: {
+      id: row.id,
+      name: row.name,
+      blurb: row.blurb ?? null,
+      photoUrl: row.photoUrl ?? null,
+      allCountries: [...row.countries].sort((a, b) => a.name.localeCompare(b.name)),
+    },
+    countries,
+  };
 }
