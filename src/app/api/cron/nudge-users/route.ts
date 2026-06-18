@@ -22,7 +22,6 @@ const SUPPRESSION_BASE = new Set(
     "matt@camdenjackson.com",
     "sdmatt36@gmail.com",
     "matt@strongerconsulting.com",
-    "jenifer.luisi@gmail.com",
   ].map(normalizeEmail)
 );
 
