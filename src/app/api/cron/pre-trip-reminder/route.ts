@@ -64,9 +64,9 @@ export async function GET(request: Request) {
     for (const w of WINDOWS) {
       if (daysUntilStart < w.minDays || daysUntilStart > w.maxDays) continue;
 
-      // EmailLog guard: one send per (recipient + type + tripId)
+      // EmailLog guard: only successful sends block retry
       const prior = await db.emailLog.findFirst({
-        where: { recipient: email, type: w.type, tripId: trip.id },
+        where: { recipient: email, type: w.type, tripId: trip.id, status: "sent" },
         select: { id: true },
       });
       if (prior) { skipped++; continue; }
@@ -86,6 +86,7 @@ export async function GET(request: Request) {
         } catch (e) {
           console.error(`[pre-trip-reminder] send failed for ${trip.id} ${w.type}:`, e);
         }
+        await new Promise(r => setTimeout(r, 250));
       }
     }
   }

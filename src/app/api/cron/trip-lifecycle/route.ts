@@ -85,7 +85,7 @@ export async function GET(request: Request) {
     if (!email) continue;
 
     const prior = await db.emailLog.findFirst({
-      where: { recipient: email, type: "post_trip_rating", tripId: trip.id },
+      where: { recipient: email, type: "post_trip_rating", tripId: trip.id, status: "sent" },
       select: { id: true },
     });
     if (prior) continue;
@@ -99,6 +99,7 @@ export async function GET(request: Request) {
       } catch (e) {
         console.error(`[trip-lifecycle] post_trip_rating failed for ${trip.id}:`, e);
       }
+      await new Promise(r => setTimeout(r, 250));
     }
   }
 

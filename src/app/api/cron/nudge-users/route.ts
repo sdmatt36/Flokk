@@ -99,7 +99,7 @@ export async function GET(request: Request) {
     if (!hasAnyActivity) {
       // ── never_activated branch ────────────────────────────────────────────
       const prior = await db.emailLog.findFirst({
-        where: { recipient: email!, type: "onboarding_nudge", createdAt: { gte: resendCutoff } },
+        where: { recipient: email!, type: "onboarding_nudge", status: "sent", createdAt: { gte: resendCutoff } },
         select: { id: true },
       });
       if (prior) { skipped++; continue; }
@@ -116,6 +116,7 @@ export async function GET(request: Request) {
         } catch (e) {
           console.error(`[nudge-users] onboarding_nudge failed for ${profile.id}:`, e);
         }
+        await new Promise(r => setTimeout(r, 250));
       }
     } else {
       // ── lapsed branch ─────────────────────────────────────────────────────
@@ -126,7 +127,7 @@ export async function GET(request: Request) {
       if (lastActivity >= inactivityCutoff) { skipped++; continue; }
 
       const prior = await db.emailLog.findFirst({
-        where: { recipient: email!, type: "inactivity", createdAt: { gte: resendCutoff } },
+        where: { recipient: email!, type: "inactivity", status: "sent", createdAt: { gte: resendCutoff } },
         select: { id: true },
       });
       if (prior) { skipped++; continue; }
@@ -143,6 +144,7 @@ export async function GET(request: Request) {
         } catch (e) {
           console.error(`[nudge-users] inactivity failed for ${profile.id}:`, e);
         }
+        await new Promise(r => setTimeout(r, 250));
       }
     }
   }
