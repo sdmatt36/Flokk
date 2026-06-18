@@ -24,7 +24,8 @@ export type LifecycleEmailType =
   | "pre_trip_7"
   | "pre_trip_1"
   | "post_trip_rating"
-  | "inactivity";
+  | "inactivity"
+  | "onboarding_nudge";
 
 export const LIFECYCLE_EMAIL_TYPES: LifecycleEmailType[] = [
   "welcome",
@@ -36,6 +37,7 @@ export const LIFECYCLE_EMAIL_TYPES: LifecycleEmailType[] = [
   "pre_trip_1",
   "post_trip_rating",
   "inactivity",
+  "onboarding_nudge",
 ];
 
 export interface LifecycleEmailParams {
@@ -200,6 +202,23 @@ function tmpl_inactivity(homeHref: string, unsubUrl: string) {
   };
 }
 
+function tmpl_onboarding_nudge(discoverHref: string, newTripHref: string, unsubUrl: string) {
+  return {
+    subject: "Your Flokk account is ready when you are.",
+    html: emailLayout(
+      greetLine() +
+      p("You signed up for Flokk a while ago but have not started a trip yet. Here is the two-minute version to get going.") +
+      p("Create a trip. It does not need to be booked. A destination and rough dates is enough. That trip is the container everything else hangs on, your saves, your bookings, your plan.") +
+      p("The fastest start is to steal one. Families who have already traveled have shared full itineraries on Discover, and you can copy any of them into your own trip in a tap.") +
+      ctaButton("Find a trip to steal", discoverHref) +
+      `<p style="text-align:center;margin:-8px 0 24px;font-size:15px;font-family:${SANS};"><a href="${newTripHref}" style="color:#C4664A;text-decoration:underline;">Or start a blank trip</a></p>` +
+      p("And if something stopped you when you signed up, reply and tell us. We want to fix it.") +
+      signOff(),
+      { marketing: true, unsubscribeUrl: unsubUrl }
+    ),
+  };
+}
+
 // ── Send funnel ───────────────────────────────────────────────────────────────
 
 export async function sendLifecycleEmail(
@@ -257,13 +276,18 @@ export async function sendLifecycleEmail(
       tpl = tmpl_inactivity(homeHref, unsubUrl);
       break;
     }
+    case "onboarding_nudge": {
+      const unsubUrl = buildUnsubscribeUrl(to);
+      tpl = tmpl_onboarding_nudge(discoverHref, newTripHref, unsubUrl);
+      break;
+    }
     default: {
       const _: never = type;
       throw new Error(`Unknown lifecycle email type: ${_}`);
     }
   }
 
-  const MARKETING_TYPES = new Set<LifecycleEmailType>(["inactivity"]);
+  const MARKETING_TYPES = new Set<LifecycleEmailType>(["inactivity", "onboarding_nudge"]);
   const isMarketing = MARKETING_TYPES.has(type);
   const unsubUrl = isMarketing ? buildUnsubscribeUrl(to) : undefined;
 

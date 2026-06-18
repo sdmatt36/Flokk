@@ -5,9 +5,11 @@ import { sendLifecycleEmail } from "@/lib/lifecycle-emails";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const INACTIVITY_DAYS = 21;
 const ACCOUNT_AGE_DAYS = 21;
-const RESEND_DAYS = 60;
+const INACTIVITY_DAYS  = 21;
+const RESEND_DAYS      = 60;
+
+const SUPPRESSION_LIST = ["matt@camdenjackson.com", "sdmatt36@gmail.com"];
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -19,61 +21,124 @@ export async function GET(request: Request) {
   const dryRun = searchParams.get("dryRun") === "true";
 
   const now = new Date();
-  const accountAgeCutoff  = new Date(now.getTime() - ACCOUNT_AGE_DAYS  * 86_400_000);
-  const inactivityCutoff  = new Date(now.getTime() - INACTIVITY_DAYS   * 86_400_000);
-  const resendCutoff      = new Date(now.getTime() - RESEND_DAYS        * 86_400_000);
+  const accountAgeCutoff = new Date(now.getTime() - ACCOUNT_AGE_DAYS * 86_400_000);
+  const inactivityCutoff = new Date(now.getTime() - INACTIVITY_DAYS  * 86_400_000);
+  const resendCutoff     = new Date(now.getTime() - RESEND_DAYS       * 86_400_000);
 
-  // Fetch profiles whose user account is old enough and has not opted out.
-  // Include most-recent save and trip so we can compute last-activity in JS.
+  // Activity computation:
+  //   last save  = MAX(SavedItem.savedAt)  WHERE SavedItem.familyProfileId = profile.id AND deletedAt IS NULL
+  //   last trip  = MAX(Trip.updatedAt)     WHERE Trip.familyProfileId = profile.id AND isAnonymous=false AND isPlacesLibrary=false
+  //   last activity = MAX(last save, last trip)
+  // Join path: User.id → FamilyProfile.userId → FamilyProfile.id → savedItems / trips
   const profiles = await db.familyProfile.findMany({
     where: {
       user: {
-        createdAt: { lt: accountAgeCutoff },
+        createdAt:       { lt: accountAgeCutoff },
         marketingOptOut: false,
+        email:           { notIn: SUPPRESSION_LIST },
       },
     },
     include: {
       user: { select: { email: true, createdAt: true } },
-      savedItems: { orderBy: { savedAt: "desc" }, take: 1, select: { savedAt: true } },
-      trips: { orderBy: { updatedAt: "desc" }, take: 1, select: { updatedAt: true } },
+      savedItems: {
+        where:   { deletedAt: null },
+        orderBy: { savedAt: "desc" },
+        take:    1,
+        select:  { savedAt: true },
+      },
+      trips: {
+        where:   { isAnonymous: false, isPlacesLibrary: false },
+        orderBy: { updatedAt: "desc" },
+        take:    1,
+        select:  { updatedAt: true },
+      },
+      _count: {
+        select: {
+          savedItems: { where: { deletedAt: null } },
+          trips:      { where: { isAnonymous: false, isPlacesLibrary: false } },
+        },
+      },
     },
   });
 
-  type WouldSend = { profileId: string; recipient: string; lastActivityDaysAgo: number };
-  const wouldSend: WouldSend[] = [];
-  let sent = 0;
-  let skipped = 0;
+  type LapsedEntry         = { profileId: string; recipient: string; lastActivityDaysAgo: number };
+  type NeverActivatedEntry = { profileId: string; recipient: string; accountAgeDays: number };
+
+  const lapsedWouldSend:         LapsedEntry[]         = [];
+  const neverActivatedWouldSend: NeverActivatedEntry[]  = [];
+  let lapsedSent         = 0;
+  let neverActivatedSent = 0;
+  let skipped            = 0;
 
   for (const profile of profiles) {
     const email = profile.user?.email;
     if (!email) continue;
 
-    const lastSave  = profile.savedItems[0]?.savedAt ?? new Date(0);
-    const lastTrip  = profile.trips[0]?.updatedAt     ?? new Date(0);
-    const lastActivity = new Date(Math.max(lastSave.getTime(), lastTrip.getTime()));
+    const hasAnyActivity = profile._count.savedItems > 0 || profile._count.trips > 0;
 
-    if (lastActivity >= inactivityCutoff) { skipped++; continue; }
+    if (!hasAnyActivity) {
+      // ── never_activated branch ────────────────────────────────────────────
+      const prior = await db.emailLog.findFirst({
+        where: { recipient: email, type: "onboarding_nudge", createdAt: { gte: resendCutoff } },
+        select: { id: true },
+      });
+      if (prior) { skipped++; continue; }
 
-    // No inactivity email in the last RESEND_DAYS
-    const prior = await db.emailLog.findFirst({
-      where: { recipient: email, type: "inactivity", createdAt: { gte: resendCutoff } },
-      select: { id: true },
-    });
-    if (prior) { skipped++; continue; }
+      const accountAgeDays = Math.round(
+        (now.getTime() - new Date(profile.user.createdAt).getTime()) / 86_400_000
+      );
+      neverActivatedWouldSend.push({ profileId: profile.id, recipient: email, accountAgeDays });
 
-    const lastActivityDaysAgo = Math.round((now.getTime() - lastActivity.getTime()) / 86_400_000);
-    wouldSend.push({ profileId: profile.id, recipient: email, lastActivityDaysAgo });
+      if (!dryRun) {
+        try {
+          await sendLifecycleEmail("onboarding_nudge", { to: email });
+          neverActivatedSent++;
+        } catch (e) {
+          console.error(`[nudge-users] onboarding_nudge failed for ${profile.id}:`, e);
+        }
+      }
+    } else {
+      // ── lapsed branch ─────────────────────────────────────────────────────
+      const lastSave     = profile.savedItems[0]?.savedAt  ?? new Date(0);
+      const lastTrip     = profile.trips[0]?.updatedAt     ?? new Date(0);
+      const lastActivity = new Date(Math.max(lastSave.getTime(), lastTrip.getTime()));
 
-    if (!dryRun) {
-      try {
-        await sendLifecycleEmail("inactivity", { to: email });
-        sent++;
-      } catch (e) {
-        console.error(`[nudge-users] inactivity email failed for ${profile.id}:`, e);
+      if (lastActivity >= inactivityCutoff) { skipped++; continue; }
+
+      const prior = await db.emailLog.findFirst({
+        where: { recipient: email, type: "inactivity", createdAt: { gte: resendCutoff } },
+        select: { id: true },
+      });
+      if (prior) { skipped++; continue; }
+
+      const lastActivityDaysAgo = Math.round(
+        (now.getTime() - lastActivity.getTime()) / 86_400_000
+      );
+      lapsedWouldSend.push({ profileId: profile.id, recipient: email, lastActivityDaysAgo });
+
+      if (!dryRun) {
+        try {
+          await sendLifecycleEmail("inactivity", { to: email });
+          lapsedSent++;
+        } catch (e) {
+          console.error(`[nudge-users] inactivity failed for ${profile.id}:`, e);
+        }
       }
     }
   }
 
-  console.log(`[nudge-users] dryRun=${dryRun} profiles=${profiles.length} wouldSend=${wouldSend.length} sent=${sent} skipped=${skipped}`);
-  return NextResponse.json({ dryRun, profiles: profiles.length, wouldSend, count: wouldSend.length, sent, skipped });
+  console.log(
+    `[nudge-users] dryRun=${dryRun} profiles=${profiles.length}` +
+    ` lapsed.wouldSend=${lapsedWouldSend.length} lapsed.sent=${lapsedSent}` +
+    ` neverActivated.wouldSend=${neverActivatedWouldSend.length} neverActivated.sent=${neverActivatedSent}` +
+    ` skipped=${skipped}`
+  );
+
+  return NextResponse.json({
+    dryRun,
+    profiles:       profiles.length,
+    lapsed:         { wouldSend: lapsedWouldSend,         count: lapsedWouldSend.length,         sent: lapsedSent         },
+    neverActivated: { wouldSend: neverActivatedWouldSend, count: neverActivatedWouldSend.length, sent: neverActivatedSent },
+    skipped,
+  });
 }
