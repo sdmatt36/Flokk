@@ -43,7 +43,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${inter.className} ${dmSans.variable} antialiased`}>
-        <ClerkProvider>
+        <ClerkProvider
+          localization={{
+            signIn: { start: { title: "Welcome back", subtitle: "Please sign in to continue" } },
+            signUp: { start: { title: "Create your account" } },
+          }}
+        >
           {children}
           <Toaster />
           <Analytics />
