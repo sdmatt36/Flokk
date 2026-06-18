@@ -13,11 +13,11 @@ export function ctaButton(label: string, href: string): string {
 
 export function emailLayout(
   body: string,
-  opts: { marketing?: boolean } = {}
+  opts: { marketing?: boolean; unsubscribeUrl?: string } = {}
 ): string {
   const unsubscribe = opts.marketing
     ? `<p style="margin:8px 0 0;font-size:12px;color:#bbb;font-family:Arial,Helvetica,sans-serif;">
-         To stop receiving marketing emails,&nbsp;<a href="{{{unsubscribeUrl}}}" style="color:#bbb;">unsubscribe here</a>.
+         To stop receiving marketing emails,&nbsp;<a href="${opts.unsubscribeUrl ?? "#"}" style="color:#bbb;">unsubscribe here</a>.
        </p>`
     : "";
 

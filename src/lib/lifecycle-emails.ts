@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { sendEmail, type SendEmailResult } from "@/lib/email";
 import { emailLayout, ctaButton } from "@/lib/email-templates";
 import { db } from "@/lib/db";
@@ -6,6 +7,12 @@ const BASE = "https://www.flokktravel.com";
 
 function url(path: string): string {
   return `${BASE}${path}`;
+}
+
+function buildUnsubscribeUrl(email: string): string {
+  const secret = process.env.CRON_SECRET ?? "dev";
+  const token = crypto.createHmac("sha256", secret).update(email).digest("hex");
+  return `${BASE}/api/unsubscribe?email=${encodeURIComponent(email)}&token=${token}`;
 }
 
 export type LifecycleEmailType =
@@ -44,7 +51,7 @@ const SANS  = "Arial,Helvetica,sans-serif";
 const PB    = "margin:0 0 16px;font-size:16px;line-height:1.6;color:#2c2c2c;";
 
 function greetLine(): string {
-  return `<p style="${PB}font-family:${SERIF};font-size:18px;font-weight:600;color:#1B3A5C;">Hi, Flokker!</p>`;
+  return `<p style="margin:0 0 16px;line-height:1.6;font-family:${SERIF};font-size:18px;font-weight:600;color:#1B3A5C;">Hi, Flokker!</p>`;
 }
 
 function p(text: string): string {
@@ -177,7 +184,7 @@ function tmpl_post_trip_rating(destination: string, tripHref: string) {
   };
 }
 
-function tmpl_inactivity(homeHref: string) {
+function tmpl_inactivity(homeHref: string, unsubUrl: string) {
   return {
     subject: "Still planning something?",
     html: emailLayout(
@@ -188,7 +195,7 @@ function tmpl_inactivity(homeHref: string) {
       ctaButton("Open Flokk", homeHref) +
       p("And if Flokk is not fitting how you travel, reply and tell us why. That feedback is worth a lot.") +
       signOff(),
-      { marketing: true }
+      { marketing: true, unsubscribeUrl: unsubUrl }
     ),
   };
 }
@@ -245,14 +252,29 @@ export async function sendLifecycleEmail(
     case "post_trip_rating":
       tpl = tmpl_post_trip_rating(d, tripHref);
       break;
-    case "inactivity":
-      tpl = tmpl_inactivity(homeHref);
+    case "inactivity": {
+      const unsubUrl = buildUnsubscribeUrl(to);
+      tpl = tmpl_inactivity(homeHref, unsubUrl);
       break;
+    }
     default: {
       const _: never = type;
       throw new Error(`Unknown lifecycle email type: ${_}`);
     }
   }
 
-  return sendEmail(to, tpl.subject, tpl.html, type, { replyTo: "hello@flokktravel.com" });
+  const MARKETING_TYPES = new Set<LifecycleEmailType>(["inactivity"]);
+  const isMarketing = MARKETING_TYPES.has(type);
+  const unsubUrl = isMarketing ? buildUnsubscribeUrl(to) : undefined;
+
+  return sendEmail(to, tpl.subject, tpl.html, type, {
+    replyTo: "hello@flokktravel.com",
+    ...(params.tripId ? { tripId: params.tripId } : {}),
+    ...(isMarketing && unsubUrl ? {
+      headers: {
+        "List-Unsubscribe": `<${unsubUrl}>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    } : {}),
+  });
 }

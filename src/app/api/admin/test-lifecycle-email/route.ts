@@ -59,8 +59,9 @@ export async function POST(req: Request) {
   }
 
   const results: Record<string, unknown> = {};
-  for (const type of types) {
-    results[type] = await sendLifecycleEmail(type, { to, tripId: sampleTripId });
+  for (let i = 0; i < types.length; i++) {
+    if (i > 0) await new Promise(r => setTimeout(r, 250));
+    results[types[i]] = await sendLifecycleEmail(types[i], { to, tripId: sampleTripId });
   }
 
   const allOk = Object.values(results).every((r) => (r as { success: boolean }).success);

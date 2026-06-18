@@ -24,6 +24,7 @@ model User {
   subscriptionTier  SubTier       @default(FREE)
   isPrimaryPlanner  Boolean       @default(true)
   isDiscoverable    Boolean       @default(false)
+  marketingOptOut   Boolean       @default(false)
   familyProfile     FamilyProfile?
   following         Follow[]      @relation("Follower")
   followers         Follow[]      @relation("Following")
@@ -1297,8 +1298,10 @@ model EmailLog {
   providerMessageId String?
   status            String   // "sent" | "failed"
   errorMessage      String?
+  tripId            String?
 
   @@index([recipient, createdAt])
   @@index([status])
   @@index([createdAt])
+  @@index([tripId])
 }

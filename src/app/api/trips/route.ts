@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
 import { getTripCoverImage } from "@/lib/destination-images";
+import { sendLifecycleEmail } from "@/lib/lifecycle-emails";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +127,23 @@ export async function POST(req: Request) {
     });
     return created;
   });
+
+  // Send trip_created email once per user (first trip only). Fire-and-forget.
+  try {
+    const user = await db.user.findUnique({ where: { clerkId: userId }, select: { email: true } });
+    if (user?.email) {
+      const prior = await db.emailLog.findFirst({
+        where: { recipient: user.email, type: "trip_created" },
+        select: { id: true },
+      });
+      if (!prior) {
+        sendLifecycleEmail("trip_created", { to: user.email, tripId: trip.id })
+          .catch(e => console.error("[trips] trip_created email failed:", e));
+      }
+    }
+  } catch (e) {
+    console.error("[trips] trip_created email lookup failed:", e);
+  }
 
   return NextResponse.json({ tripId: trip.id });
 }

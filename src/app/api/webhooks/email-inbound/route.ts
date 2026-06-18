@@ -20,8 +20,18 @@ import { inferPlatformFromUrl } from "@/lib/saved-item-types";
 import { isSaveableBooking, createBookingSavedItem } from "@/lib/booking-saved-item";
 import { detectBookingSource, isManageUrl } from "@/lib/lodging/detect-source";
 import { inferLodgingType } from "@/lib/infer-lodging-type";
+import { sendLifecycleEmail } from "@/lib/lifecycle-emails";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
+
+async function fireForwardConfirmed(email: string, tripId: string | null) {
+  if (!tripId || !email) return;
+  try {
+    await sendLifecycleEmail("forward_confirmed", { to: email, tripId });
+  } catch (e) {
+    console.error("[email-inbound] forward_confirmed email failed:", e);
+  }
+}
 
 function buildSaveConfirmationEmail(
   title: string,
@@ -2199,6 +2209,7 @@ Field notes:
         ? (scheduleChangedExistingCount > 0 ? "success_updated" : "schedule_change_no_match")
         : "success";
       await logExtraction({ ...logCtx, outcome: flightOutcome });
+      await fireForwardConfirmed(senderEmail, resolvedTripId);
       return NextResponse.json({
         received: true, status: "success", type: "flight",
         primaryTripId: resolvedTripId,
@@ -2432,6 +2443,7 @@ Field notes:
       await incrementBudget(resolvedTripId, derivedTotalCost);
       logCtx.itineraryItemIds = [checkInItem.id];
       await logExtraction({ ...logCtx, outcome: "success" });
+      await fireForwardConfirmed(senderEmail, resolvedTripId);
       return NextResponse.json({ received: true, status: "success", type: "hotel", tripId: resolvedTripId });
 
     // ── Cruise ─────────────────────────────────────────────────────────────────
@@ -2535,6 +2547,7 @@ Field notes:
       logCtx.itineraryItemIds = createdPortIds;
       console.log(`[email-inbound] cruise created: ${cruiseBooking.id} — ${createdPortIds.length} ports`);
       await logExtraction({ ...logCtx, outcome: "success" });
+      await fireForwardConfirmed(senderEmail, resolvedTripId);
       return NextResponse.json({ received: true, status: "success", type: "cruise", cruiseBookingId: cruiseBooking.id, ports: createdPortIds.length });
 
     // ── Train / activity / other (replaces SavedItem) ─────────────────────────
@@ -2753,6 +2766,7 @@ Field notes:
       await incrementBudget(resolvedTripId, parsedCost);
       logCtx.itineraryItemIds = [item.id];
       await logExtraction({ ...logCtx, outcome: "success" });
+      await fireForwardConfirmed(senderEmail, resolvedTripId);
       return NextResponse.json({ received: true, status: "success", type: itemTypeStr, tripId: resolvedTripId });
     }
 

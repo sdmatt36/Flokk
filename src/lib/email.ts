@@ -12,7 +12,7 @@ export async function sendEmail(
   subject: string,
   html: string,
   type: string,
-  options?: { replyTo?: string }
+  options?: { replyTo?: string; tripId?: string; headers?: Record<string, string> }
 ): Promise<SendEmailResult> {
   const resend = new Resend(process.env.RESEND_API_KEY);
   let status: "sent" | "failed" = "failed";
@@ -26,6 +26,7 @@ export async function sendEmail(
       subject,
       html,
       ...(options?.replyTo ? { replyTo: options.replyTo } : {}),
+      ...(options?.headers ? { headers: options.headers } : {}),
     });
     if (res.error) {
       errorMessage = `${res.error.name}: ${res.error.message}`;
@@ -52,6 +53,7 @@ export async function sendEmail(
       providerMessageId: providerMessageId ?? null,
       status,
       errorMessage: errorMessage ?? null,
+      tripId: options?.tripId ?? null,
     },
   });
 
