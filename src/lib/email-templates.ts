@@ -1,4 +1,4 @@
-const LOGO_URL = "https://www.flokktravel.com/favicon.png";
+const LOGO_URL = "https://www.flokktravel.com/email-logo.png";
 
 export function greet(firstName?: string | null): string {
   const name = firstName?.trim();
@@ -27,8 +27,7 @@ export function emailLayout(
       <table role="presentation" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;">
         <tr>
           <td style="background:#1B3A5C;padding:20px 32px;">
-            <img src="${LOGO_URL}" width="32" height="32" alt="" style="display:inline-block;vertical-align:middle;border:0;" />
-            <span style="display:inline-block;vertical-align:middle;margin-left:10px;font-family:Georgia,serif;font-size:22px;font-weight:bold;color:#ffffff;letter-spacing:0.5px;">Flokk</span>
+            <img src="${LOGO_URL}" width="120" height="34" alt="Flokk" style="display:block;border:0;" />
           </td>
         </tr>
         <tr>

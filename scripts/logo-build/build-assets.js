@@ -215,6 +215,32 @@ function buildWordmarkIconSVG(canvasSize, { maskable = false } = {}) {
 }
 
 /**
+ * Email header logo: 240×68 transparent PNG (2× retina, display at 120×34).
+ * Navy background so it blends with the email header row (#1B3A5C).
+ * "flokk" in white, "." in terracotta.
+ */
+function buildEmailLogoSVG() {
+  const W = 240, H = 68;
+  // Target the wordmark at ~210px wide within the 240px canvas
+  let fontSize = 52;
+  let { wordD, dotD, width, height } = flokkDotPaths(fontSize, WHITE);
+  if (width > W * 0.88) {
+    const scale = (W * 0.88) / width;
+    fontSize = Math.round(fontSize * scale);
+    ({ wordD, dotD, width, height } = flokkDotPaths(fontSize, WHITE));
+  }
+  const tx = (W - width) / 2;
+  const ty = (H - height) / 2;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <rect width="${W}" height="${H}" fill="${NAVY}"/>
+  <g transform="translate(${tx.toFixed(2)},${ty.toFixed(2)})">
+    <path d="${wordD}" fill="${WHITE}"/>
+    <path d="${dotD}" fill="${TERRA}"/>
+  </g>
+</svg>`;
+}
+
+/**
  * OG image: 1200×630, paper background, large "flokk." in navy.
  */
 function buildOGImageSVG() {
@@ -373,6 +399,12 @@ async function main() {
   await svgToPng(
     buildOGImageSVG(),
     path.join(PUBLIC_DIR, 'og-image.png'),
+  );
+
+  // Email header logo (240×68 @2x, display 120×34)
+  await svgToPng(
+    buildEmailLogoSVG(),
+    path.join(PUBLIC_DIR, 'email-logo.png'),
   );
 
   // Clean up tmp files
