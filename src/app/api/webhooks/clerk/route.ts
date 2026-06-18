@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Webhook } from "svix";
 import { db } from "@/lib/db";
-import { sendEmail } from "@/lib/email";
-import { emailLayout, greet } from "@/lib/email-templates";
+import { sendLifecycleEmail } from "@/lib/lifecycle-emails";
 
 export const dynamic = "force-dynamic";
 
@@ -66,19 +65,7 @@ export async function POST(req: NextRequest) {
 
     // Welcome email
     try {
-      const html = emailLayout(
-        `<p style="margin:0 0 20px;font-size:18px;font-weight:bold;color:#1B3A5C;">${greet(firstName || null)}</p>
-         <p style="margin:0 0 16px;">Welcome to Flokk &mdash; your personal travel save, plan, and share hub.</p>
-         <p style="margin:0 0 16px;">Start by saving a restaurant, hotel, or experience you&rsquo;ve been eyeing. Your first save takes about 10 seconds.</p>
-         <p style="margin:0;">— Matt</p>`,
-      );
-      const result = await sendEmail(
-        email,
-        "Welcome to Flokk",
-        html,
-        "welcome",
-        { replyTo: "hello@flokktravel.com" },
-      );
+      const result = await sendLifecycleEmail("welcome", { to: email });
       if (!result.success) {
         console.error("[CLERK_WEBHOOK_WELCOME_EMAIL_FAILURE]", { clerkId, email, error: result.error, logId: result.logId });
       } else {
