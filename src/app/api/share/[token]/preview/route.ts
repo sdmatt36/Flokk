@@ -1,38 +1,42 @@
-import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { resolveProfileId } from "@/lib/profile-access";
-import { canViewTrip, getTripAccess } from "@/lib/trip-permissions";
 import { buildDayItems } from "@/lib/itinerary/build-day-items";
 
 export const dynamic = "force-dynamic";
 
-export type { DayItemRow } from "@/lib/itinerary/build-day-items";
-
-// ── GET /api/trips/[id]/day-items ─────────────────────────────────────────────
+// ── GET /api/share/[token]/preview ────────────────────────────────────────────
+//
+// Public JSON preview of a shared trip's days and stops.
+// No auth required — possessing the shareToken is the access grant.
 
 export async function GET(
   _req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ token: string }> }
 ) {
-  const { userId } = await auth();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { token } = await params;
 
-  const { id: tripId } = await params;
+  const trip = await db.trip.findFirst({
+    where: { shareToken: token },
+    select: {
+      id: true,
+      title: true,
+      destinationCity: true,
+      destinationCountry: true,
+      heroImageUrl: true,
+      isAnonymous: true,
+      startDate: true,
+      endDate: true,
+      familyProfile: { select: { familyName: true } },
+    },
+  });
 
-  const profileId = await resolveProfileId(userId);
-  if (!profileId) return NextResponse.json({ error: "No family profile" }, { status: 400 });
-
-  const [canView, access] = await Promise.all([
-    canViewTrip(profileId, tripId),
-    getTripAccess(profileId, tripId),
-  ]);
-  if (!canView) {
+  if (!trip) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const [trip, rawItineraryItems, activities, flights, savedItems] = await Promise.all([
-    db.trip.findUnique({ where: { id: tripId }, select: { destinationCity: true, startDate: true, endDate: true } }),
+  const tripId = trip.id;
+
+  const [rawItineraryItems, activities, flights, savedItems] = await Promise.all([
     db.itineraryItem.findMany({
       where: { tripId, cancelledAt: null },
       orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
@@ -74,21 +78,15 @@ export async function GET(
     }),
   ]);
 
-  const days = buildDayItems(
-    trip ?? { destinationCity: null, startDate: null, endDate: null },
-    rawItineraryItems,
-    activities,
-    flights,
-    savedItems,
-  );
+  const days = buildDayItems(trip, rawItineraryItems, activities, flights, savedItems);
 
-  if (!access) {
-    for (const day of days) {
-      for (const item of day.items) {
-        item.confirmationCode = null;
-      }
-    }
-  }
-
-  return NextResponse.json({ days });
+  return NextResponse.json({
+    title: trip.title,
+    destinationCity: trip.destinationCity,
+    destinationCountry: trip.destinationCountry,
+    heroImageUrl: trip.heroImageUrl,
+    isAnonymous: trip.isAnonymous,
+    familyName: trip.isAnonymous ? null : (trip.familyProfile?.familyName ?? null),
+    days,
+  });
 }
