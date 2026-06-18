@@ -42,6 +42,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json() as {
+    communitySpotId?: string | null;
     title?: string;
     city?: string | null;
     lat?: number | null;
@@ -78,6 +79,7 @@ export async function POST(request: Request) {
 
   const created = await db.savedItem.create({
     data: {
+      communitySpotId: body.communitySpotId ?? null,
       familyProfileId: profileId,
       tripId: body.tripId ?? null,
       rawTitle: body.title.trim(),

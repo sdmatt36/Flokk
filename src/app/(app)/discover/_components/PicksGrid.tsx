@@ -31,6 +31,7 @@ export function PicksGrid({ spots }: { spots: PickSpot[] }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        communitySpotId: spot.id,
         title: spot.name,
         city: spot.city,
         lat: spot.lat ?? undefined,
