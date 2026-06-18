@@ -1286,3 +1286,19 @@ model ShareEvent {
   @@index([entityType])
   @@index([createdAt])
 }
+
+model EmailLog {
+  id                String   @id @default(cuid())
+  createdAt         DateTime @default(now())
+  recipient         String
+  type              String
+  subject           String
+  provider          String   @default("resend")
+  providerMessageId String?
+  status            String   // "sent" | "failed"
+  errorMessage      String?
+
+  @@index([recipient, createdAt])
+  @@index([status])
+  @@index([createdAt])
+}
