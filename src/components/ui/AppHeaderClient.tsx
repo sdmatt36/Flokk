@@ -7,6 +7,7 @@ import { Menu, X, LogOut, Search } from "lucide-react";
 import { useClerk, UserButton } from "@clerk/nextjs";
 import { UniversalSearchBar } from "@/components/shared/UniversalSearchBar";
 import { UniversalSearchOverlay } from "@/components/shared/UniversalSearchOverlay";
+import { FlokkWordmark } from "@/components/ui/FlokkWordmark";
 
 function useIsDesktop() {
   const [isDesktop, setIsDesktop] = useState(false);
@@ -84,9 +85,7 @@ export function AppHeaderClient({
           {/* Left: wordmark + desktop search bar */}
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
             <Link href="/" style={{ textDecoration: "none" }}>
-              <span style={{ fontSize: "18px", fontWeight: 800, color: "#1a1a1a", letterSpacing: "-0.02em" }}>
-                Flokk
-              </span>
+              <FlokkWordmark size={18} />
             </Link>
             {isDesktop && <UniversalSearchBar />}
           </div>

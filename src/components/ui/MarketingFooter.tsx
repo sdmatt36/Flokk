@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FlokkWordmark } from "@/components/ui/FlokkWordmark";
 
 const FOOTER_COLS = [
   {
@@ -43,7 +44,7 @@ export function MarketingFooter() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "32px" }}>
           {/* Brand */}
           <div style={{ gridColumn: "span 1" }}>
-            <p style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 600, color: "#fff", margin: "0 0 8px" }}>Flokk</p>
+            <div style={{ marginBottom: "8px" }}><FlokkWordmark size={20} variant="white" /></div>
             <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.6)", margin: "0 0 16px" }}>Save anywhere. Use here.</p>
           </div>
           {/* Columns */}
