@@ -18,11 +18,20 @@ export const metadata: Metadata = {
     url: "https://flokktravel.com",
     siteName: "Flokk",
     type: "website",
+    images: [
+      {
+        url: "https://www.flokktravel.com/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "flokk.",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Flokk | Family travel, planned.",
     description: "Save it, plan it, book it, share it. Save anywhere. Use here.",
+    images: ["https://www.flokktravel.com/og-image.png"],
   },
 };
 
