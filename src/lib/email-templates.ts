@@ -18,7 +18,7 @@ export function emailLayout(
   const unsubHref = (opts.unsubscribeUrl ?? "#").replace(/&/g, "&amp;");
   const unsubscribe = opts.marketing
     ? `<p style="margin:8px 0 0;font-size:12px;color:#bbb;font-family:Arial,Helvetica,sans-serif;">
-         To stop receiving marketing emails,&nbsp;<a href="${unsubHref}" style="color:#bbb;">unsubscribe here</a>.
+         To stop receiving Flokk reminders,&nbsp;<a href="${unsubHref}" style="color:#bbb;">unsubscribe here</a>.
        </p>`
     : "";
 
