@@ -39,7 +39,7 @@ export async function GET(
   const { id: tripId } = await params;
 
   const activities = await db.manualActivity.findMany({
-    where: { tripId },
+    where: { tripId, deletedAt: null },
     orderBy: [{ date: "asc" }, { time: "asc" }],
   });
 
@@ -101,7 +101,7 @@ export async function POST(
   // Dedup check — reject if same title+date already exists for this trip (unless caller passes force:true)
   if (!body.force) {
     const existing = await db.manualActivity.findFirst({
-      where: { tripId, title: { equals: title.trim(), mode: "insensitive" }, date },
+      where: { tripId, title: { equals: title.trim(), mode: "insensitive" }, date, deletedAt: null },
       select: { id: true },
     });
     if (existing) {

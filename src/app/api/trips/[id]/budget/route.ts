@@ -14,7 +14,7 @@ async function getTrackedTotal(tripId: string, targetCurrency: string): Promise<
       select: { totalCost: true, currency: true, type: true },
     }),
     db.manualActivity.findMany({
-      where: { tripId },
+      where: { tripId, deletedAt: null },
       select: { price: true, currency: true },
     }),
   ]);

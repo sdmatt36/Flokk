@@ -58,6 +58,7 @@ export async function POST(
     where: {
       tripId: sourceId,
       dayIndex: { in: dayIndexes },
+      deletedAt: null,
     },
     select: { title: true, notes: true, lat: true, lng: true, website: true },
   });

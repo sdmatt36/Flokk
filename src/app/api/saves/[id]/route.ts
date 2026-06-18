@@ -228,12 +228,21 @@ export async function DELETE(
 
   const item = await db.savedItem.findUnique({
     where: { id },
-    select: { familyProfileId: true },
+    select: { familyProfileId: true, manualActivity: { select: { id: true } } },
   });
   if (!item || item.familyProfileId !== profileId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  await db.savedItem.update({ where: { id }, data: { deletedAt: new Date() } });
+  await db.$transaction(async (tx) => {
+    await tx.savedItem.update({ where: { id }, data: { deletedAt: new Date() } });
+    if (item.manualActivity?.id) {
+      await tx.manualActivity.update({
+        where: { id: item.manualActivity.id },
+        data: { deletedAt: new Date() },
+      });
+    }
+  });
+
   return NextResponse.json({ success: true });
 }

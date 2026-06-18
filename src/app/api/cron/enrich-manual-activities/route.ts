@@ -26,6 +26,7 @@ export async function GET(request: Request) {
         { imageUrl: null },
       ],
       enrichmentAttempts: { lt: 3 },
+      deletedAt: null,
     },
     select: {
       id: true,
