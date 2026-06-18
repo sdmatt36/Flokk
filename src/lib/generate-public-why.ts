@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
+import { HAIKU } from "@/lib/ai-models";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -22,7 +23,7 @@ export async function generatePublicWhyForStops(
       const typeLabel = stop.placeTypes.slice(0, 4).join(", ") || "attraction";
       const durationLabel = stop.durationMin ? `${stop.durationMin} min` : "varies";
       const msg = await anthropic.messages.create({
-        model: "claude-haiku-4-5-20251001",
+        model: HAIKU,
         max_tokens: 120,
         messages: [{
           role: "user",
@@ -63,7 +64,7 @@ export async function generateNeutralSubtitle(
 ): Promise<string> {
   try {
     const msg = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: HAIKU,
       max_tokens: 80,
       messages: [{
         role: "user",

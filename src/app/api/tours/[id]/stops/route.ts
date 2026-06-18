@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { HAIKU } from "@/lib/ai-models";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
@@ -130,7 +131,7 @@ async function generateWhyText(
   const context = editorialSummary ? `Google says: "${editorialSummary}". ` : "";
   try {
     const msg = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: HAIKU,
       max_tokens: 120,
       messages: [{
         role: "user",

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
+import { SONNET } from "@/lib/ai-models";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -100,7 +101,7 @@ ${dayStrings.length > 0 ? dayStrings.join("\n\n") : "No scheduled items yet."}`;
 
   try {
     const msg = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+      model: SONNET,
       max_tokens: 1000,
       system: `You are a knowledgeable family travel assistant reviewing a trip itinerary. Your job is to give 3–5 specific, actionable observations about this itinerary. Focus on: timing conflicts (e.g. checkout before departure), gaps (empty days before long flights), missing logistics (no airport transfer noted before early flight), pacing issues (too many activities in one day), and practical suggestions specific to the destination and family composition.
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { HAIKU } from "@/lib/ai-models";
 import { db } from "@/lib/db";
 import { textSearchPhoto } from "@/lib/google-places";
 
@@ -42,7 +43,7 @@ Return ONLY a JSON object: {"queries": ["<query1>", "<query2>", "<query3>"]}`;
   let queries: string[] = [];
   try {
     const res = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: HAIKU,
       max_tokens: 300,
       messages: [{ role: "user", content: prompt }],
     });

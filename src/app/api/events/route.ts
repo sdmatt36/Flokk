@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { canViewTrip } from "@/lib/trip-permissions";
 import Anthropic from "@anthropic-ai/sdk";
+import { HAIKU } from "@/lib/ai-models";
 import { extractRichTripContext } from "@/lib/trip-context-rich";
 import type { RichTripContext } from "@/lib/trip-context-rich";
 import { fetchSportsDBEvents } from "@/lib/events/thesportsdb";
@@ -363,7 +364,7 @@ async function generateWhyThisFamily(
 
   try {
     const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: HAIKU,
       max_tokens: 200,
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],

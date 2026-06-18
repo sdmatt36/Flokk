@@ -4,6 +4,7 @@
 import { inngest } from "../client";
 import { db } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
+import { HAIKU } from "@/lib/ai-models";
 import he from "he";
 import { getVenueImage } from "@/lib/destination-images";
 
@@ -22,7 +23,7 @@ async function extractInstagramTitle(
   try {
     const location = [city, country].filter(Boolean).join(", ");
     const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: HAIKU,
       max_tokens: 150,
       messages: [{
         role: "user",
@@ -97,7 +98,7 @@ async function generateDescription(
   try {
     const location = [city, country].filter(Boolean).join(", ");
     const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: HAIKU,
       max_tokens: 120,
       messages: [{
         role: "user",

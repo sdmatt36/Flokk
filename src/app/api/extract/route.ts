@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { HAIKU } from "@/lib/ai-models";
 import he from "he";
 import { checkLimit } from "@/lib/ratelimit";
 
@@ -122,7 +123,7 @@ export async function POST(request: Request) {
       console.log("[extract] No OG title — calling Claude to infer from URL");
       try {
         const msg = await anthropic.messages.create({
-          model: "claude-haiku-4-5-20251001",
+          model: HAIKU,
           max_tokens: 200,
           messages: [{
             role: "user",

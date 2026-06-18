@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import Anthropic from "@anthropic-ai/sdk";
+import { SONNET } from "@/lib/ai-models";
 import { haversineMeters, haversineKm } from "@/lib/geo";
 import { optimizeRouteOrder } from "@/lib/tour-route-optimization";
 import { resolveCanonicalUrl } from "@/lib/url-resolver";
@@ -801,7 +802,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
     console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=metadata_start total_elapsed_ms=${tMetaStart - t0}`);
     try {
       const metadataResponse = await anthropic.messages.create({
-        model: "claude-sonnet-4-6",
+        model: SONNET,
         max_tokens: 256,
         system: `You are naming a themed day tour. Generate a vivid, specific title and subtitle. Call emit_tour_metadata exactly once.\nGroup framing: ${GROUP_FRAMING[inputGroup] ?? "natural group language"}. Match this in the subtitle — solo tours say "solo" or "for one", couples say "the two of you", family tours say "with the kids", etc. Never mislabel the group type.\nSubtitle rules: describe theme, mood, and group experience. Do NOT name specific venues. Do NOT write "kicks off at X" or "starts the day at X" — the starting stop is chosen after this step.\nGrammar: use "an" before vowel sounds (e.g., "an adults-only walk"), "a" before consonant sounds.${childNames.length > 0 ? `\nNAME CONSISTENCY: The family's children are named: ${childNames.join(", ")}. If the subtitle references children by name, use exactly these names. Do not use generic terms like "the kids" if you choose to name them.` : ""}\n${emDashRule}`,
         tools: [emitTourMetadataTool],
@@ -858,7 +859,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
       const finalSystemPrompt = extraInstruction ? `${systemPrompt}\n\n${extraInstruction}` : systemPrompt;
 
       const stream = anthropic.messages.stream({
-        model: "claude-sonnet-4-6",
+        model: SONNET,
         max_tokens: 4096,
         system: finalSystemPrompt,
         tools: [emitTourStopTool],
@@ -1081,7 +1082,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
         };
 
         const fillStream = anthropic.messages.stream({
-          model: "claude-sonnet-4-6",
+          model: SONNET,
           max_tokens: 4096,
           system: `${systemPrompt}\n\n${fillInstruction}`,
           tools: [fillTool],
@@ -1337,7 +1338,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
             const rfFillInstruction = `ALREADY ACCEPTED STOPS — DO NOT REPEAT THESE:\n${alreadyAccepted.map((n, i) => `${i + 1}. ${n}`).join("\n")}\n\nEmit exactly ${missing} NEW stop(s).\n\n${regenInstruction}`;
             const rfFillTool: Anthropic.Tool = { ...emitTourStopTool, description: `Emit exactly ${missing} new stop(s). Do NOT repeat any already-accepted stop.` };
             const rfStream = anthropic.messages.stream({
-              model: "claude-sonnet-4-6", max_tokens: 4096,
+              model: SONNET, max_tokens: 4096,
               system: `${systemPrompt}\n\n${rfFillInstruction}`,
               tools: [rfFillTool], tool_choice: { type: "tool", name: "emit_tour_stop" },
               messages: [{ role: "user", content: userMessage }],

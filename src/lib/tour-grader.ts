@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { SONNET } from "@/lib/ai-models";
 import { haversineKm } from "@/lib/geo";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -195,7 +196,7 @@ async function runJudgment(
   };
 
   const resp = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
+    model: SONNET,
     max_tokens: 512,
     system: `You are a tour quality grader. Score the proposed tour STRICTLY against the provided context.
 - familyFitScore: how well stops fit the given family (ages, dietary restrictions, food allergies, interests, pace). Never penalize for context NOT given to you.

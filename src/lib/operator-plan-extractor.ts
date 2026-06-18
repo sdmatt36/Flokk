@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { SONNET } from "@/lib/ai-models";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -109,7 +110,7 @@ const EXTRACT_TOOL = {
 export async function extractOperatorPlan(emailBody: string, subject: string): Promise<OperatorPlanResult | null> {
   try {
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: SONNET,
       max_tokens: 4096,
       tools: [EXTRACT_TOOL],
       tool_choice: { type: "tool", name: "extract_operator_plan" },

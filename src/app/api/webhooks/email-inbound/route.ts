@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { SONNET } from "@/lib/ai-models";
 import { Resend } from "resend";
 import { db } from "@/lib/db";
 import { Prisma } from "@prisma/client";
@@ -661,7 +662,7 @@ Field notes:
 
     for (let attempt = 1; attempt <= 2 && !extracted; attempt++) {
       const response = await anthropic.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: SONNET,
         max_tokens: 1500,
         messages: [{
           role: "user",

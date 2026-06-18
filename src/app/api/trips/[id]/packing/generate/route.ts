@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import Anthropic from "@anthropic-ai/sdk";
+import { HAIKU } from "@/lib/ai-models";
 import { canEditTripContent } from "@/lib/trip-permissions";
 
 export const dynamic = "force-dynamic";
@@ -96,7 +97,7 @@ Rules:
 
     console.log("[packing/generate] Calling Claude API, destination:", destination);
     const message = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: HAIKU,
       max_tokens: 4000,
       system: "You are a travel packing list generator. You respond ONLY with valid JSON. No markdown, no backticks, no explanation. Just the raw JSON object.",
       messages: [{ role: "user", content: prompt }],

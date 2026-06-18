@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { SONNET } from "@/lib/ai-models";
 import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
@@ -127,7 +128,7 @@ Rules:
 - descriptions: 1-2 sentences, no generic filler like "a great place to visit"`;
 
   const res = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
+    model: SONNET,
     max_tokens: 4096,
     messages: [{ role: "user", content: prompt }],
   });

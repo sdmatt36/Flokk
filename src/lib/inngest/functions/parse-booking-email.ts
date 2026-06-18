@@ -1,6 +1,7 @@
 import { inngest } from "../client";
 import { db } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
+import { HAIKU } from "@/lib/ai-models";
 import { getVenueImage } from "@/lib/destination-images";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -136,7 +137,7 @@ export const parseBookingEmail = inngest.createFunction(
       console.log("[parse-booking] calling Claude, content length:", emailContent.length);
 
       const response = await anthropic.messages.create({
-        model: "claude-haiku-4-5-20251001",
+        model: HAIKU,
         max_tokens: 1000,
         messages: [{
           role: "user",

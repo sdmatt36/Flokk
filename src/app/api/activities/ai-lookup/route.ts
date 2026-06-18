@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { HAIKU } from "@/lib/ai-models";
 import { checkLimit } from "@/lib/ratelimit";
 
 export type AiActivityLookupResult = {
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const cityContext = [city, country].filter(Boolean).join(", ") || "unknown";
     const message = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: HAIKU,
       max_tokens: 256,
       system: "You are a travel data assistant. Return only valid JSON, no other text.",
       messages: [{

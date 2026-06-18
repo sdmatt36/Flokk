@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { HAIKU } from "@/lib/ai-models";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { findBestInsertionIndex } from "@/lib/tour-route-optimization";
@@ -283,7 +284,7 @@ Generate stops that complement the accepted set thematically. They must fit the 
 
   try {
     const stream = anthropic.messages.stream({
-      model: "claude-haiku-4-5-20251001",
+      model: HAIKU,
       max_tokens: 4096,
       system: systemPrompt,
       tools: [emitTourStopTool],

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { HAIKU } from "@/lib/ai-models";
 
 const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_PLACES_API_KEY;
 
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
     const anthropic = new Anthropic();
     const location = [city, country].filter(Boolean).join(", ") || "unknown location";
     const message = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: HAIKU,
       max_tokens: 256,
       system: "Return only valid JSON, no explanation.",
       messages: [{

@@ -3,6 +3,7 @@
 
 import { db } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
+import { HAIKU } from "@/lib/ai-models";
 import he from "he";
 import { getVenueImage } from "@/lib/destination-images";
 import { resolveGooglePhotoUrl, PLACES_INFRA_STATUSES } from "@/lib/google-places";
@@ -92,7 +93,7 @@ export async function resolveWebsitePlace(
     let extractedCountry: string | null = null;
     try {
       const response = await anthropic.messages.create({
-        model: "claude-haiku-4-5-20251001",
+        model: HAIKU,
         max_tokens: 200,
         messages: [{
           role: "user",
@@ -434,7 +435,7 @@ async function extractSocialCaption(
 ): Promise<{ title: string | null; description: string; destinationCity: string | null; destinationCountry: string | null; category: string | null } | null> {
   try {
     const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: HAIKU,
       max_tokens: 400,
       messages: [{
         role: "user",
@@ -565,7 +566,7 @@ async function generateDescription(
   try {
     const location = [city, country].filter(Boolean).join(", ");
     const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: HAIKU,
       max_tokens: 120,
       messages: [{
         role: "user",

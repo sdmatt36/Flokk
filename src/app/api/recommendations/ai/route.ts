@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { canViewTrip } from "@/lib/trip-permissions";
 import Anthropic from "@anthropic-ai/sdk";
+import { HAIKU } from "@/lib/ai-models";
 import { normalizeCategorySlug } from "@/lib/categories";
 import { resolveCanonicalUrl } from "@/lib/url-resolver";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
@@ -306,7 +307,7 @@ Generate exactly ${aiNeeded} recommendations distributed across segments per the
   const aiRawRecs: FetchedRec[] = [];
   try {
     const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: HAIKU,
       max_tokens: 4096,
       system: systemPrompt,
       messages: [{ role: "user", content: haikuPrompt }],

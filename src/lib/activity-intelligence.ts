@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
+import { HAIKU } from "@/lib/ai-models";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
 
 let _client: Anthropic | null = null;
@@ -29,7 +30,7 @@ export async function classifyActivityType(
 
   try {
     const message = await getClient().messages.create({
-      model: "claude-haiku-4-5",
+      model: HAIKU,
       max_tokens: 10,
       messages: [
         {

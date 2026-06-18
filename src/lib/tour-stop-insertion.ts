@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
 import { resolveProfileId } from "@/lib/profile-access";
 import Anthropic from "@anthropic-ai/sdk";
+import { SONNET } from "@/lib/ai-models";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -387,7 +388,7 @@ export async function addStopToTour(opts: {
   try {
     const anthropic = new Anthropic();
     const aiResponse = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+      model: SONNET,
       max_tokens: 256,
       messages: [{ role: "user", content: promptLines.join("\n") }],
     });
@@ -645,7 +646,7 @@ Return ONLY a JSON object, no prose, no markdown:
   try {
     const anthropic = new Anthropic();
     const aiResponse = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+      model: SONNET,
       max_tokens: 256,
       messages: [{ role: "user", content: systemPrompt }],
     });
@@ -895,7 +896,7 @@ Return ONLY a JSON object, no prose, no markdown:
   try {
     const anthropic = new Anthropic();
     const aiResponse = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+      model: SONNET,
       max_tokens: 256,
       messages: [{ role: "user", content: systemPrompt }],
     });
@@ -1158,7 +1159,7 @@ Return ONLY a JSON object, no prose, no markdown:
   try {
     const anthropic = new Anthropic();
     const aiResponse = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+      model: SONNET,
       max_tokens: 256,
       messages: [{ role: "user", content: systemPrompt }],
     });
@@ -1420,7 +1421,7 @@ Return ONLY a JSON object, no prose, no markdown:
   try {
     const anthropic = new Anthropic();
     const aiResponse = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+      model: SONNET,
       max_tokens: 256,
       messages: [{ role: "user", content: systemPrompt }],
     });

@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { SONNET } from "@/lib/ai-models";
 import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
 import { searchUnsplashPhotoWithCredit } from "@/lib/unsplash";
@@ -93,7 +94,7 @@ Return strict JSON only, no markdown:
   let res: Awaited<ReturnType<typeof anthropic.messages.create>>;
   try {
     res = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
+      model: SONNET,
       max_tokens: 8000,
       messages: [{ role: "user", content: prompt }],
     });
