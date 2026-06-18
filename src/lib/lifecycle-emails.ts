@@ -11,8 +11,9 @@ function url(path: string): string {
 
 function buildUnsubscribeUrl(email: string): string {
   const secret = process.env.CRON_SECRET ?? "dev";
-  const token = crypto.createHmac("sha256", secret).update(email).digest("hex");
-  return `${BASE}/api/unsubscribe?email=${encodeURIComponent(email)}&token=${token}`;
+  const hmac = crypto.createHmac("sha256", secret).update(email).digest("hex");
+  const b64email = Buffer.from(email).toString("base64url");
+  return `${BASE}/api/unsubscribe/${b64email}.${hmac}`;
 }
 
 export type LifecycleEmailType =
