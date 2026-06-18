@@ -36,6 +36,7 @@ const isPublicRoute = createRouteMatcher([
   "/explore(.*)",
   "/destination(.*)",
   "/trip/(.*)/preview",
+  "/api/share/(.*)/preview",
   "/api/img(.*)",
   "/api/webhooks(.*)",
   "/api/cron(.*)",

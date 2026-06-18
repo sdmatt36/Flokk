@@ -24,7 +24,7 @@ function normalizeUrl(url: string): string {
 // Layers 2 (Claude classification), 3 (Google Places),
 // and 4 (community data) are not yet implemented.
 
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
@@ -33,7 +33,6 @@ import { z, ZodError } from "zod";
 import { extractOgMetadata } from "@/lib/og-extract";
 import { inferPlatformFromUrl } from "@/lib/saved-item-types";
 import { getVenueImage } from "@/lib/destination-images";
-import { sendTransactional, sendSaveMilestoneEvent } from "@/lib/loops";
 import { enrichSavedItem } from "@/lib/enrich-save";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
@@ -330,27 +329,6 @@ export async function POST(request: Request) {
       } catch (e) {
         console.error("[saves] url trip match failed:", e);
       }
-    }
-
-    // Loops: fire first-save if this is their first saved item; milestones at 10 and 25
-    try {
-      const saveCount = await db.savedItem.count({ where: { familyProfileId: saveProfile.id } });
-      if (saveCount === 1) {
-        const clerkUser = await currentUser();
-        const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? "";
-        const firstName = clerkUser?.firstName ?? "";
-        await sendTransactional(email, "cmn5lkkpe0dkm0ix9bdca2o54", {
-          firstName,
-          itemTitle: savedItem.rawTitle ?? "",
-        });
-      }
-      if (saveCount === 10 || saveCount === 25) {
-        const clerkUser = await currentUser();
-        const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? "";
-        await sendSaveMilestoneEvent(email, saveCount);
-      }
-    } catch (e) {
-      console.error("[loops] first-save trigger failed:", e);
     }
 
     return NextResponse.json({

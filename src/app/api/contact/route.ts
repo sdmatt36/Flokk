@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-import { createLoopsContact } from "@/lib/loops";
 
 export const dynamic = "force-dynamic";
 
@@ -73,12 +72,6 @@ export async function POST(req: Request) {
     console.log("[contact] Resend confirm error:", JSON.stringify(confirmRes.error));
     if (confirmRes.error) {
       console.error("[contact] RESEND FAILED (confirm):", confirmRes.error.name, confirmRes.error.message);
-    }
-
-    // Add to Loops as a contact
-    const loopsResult = await createLoopsContact(email, firstName, lastName);
-    if (!loopsResult.success) {
-      console.error("[CONTACT_LOOPS_FAILURE]", { email, error: loopsResult.error });
     }
 
     return NextResponse.json({ success: true });

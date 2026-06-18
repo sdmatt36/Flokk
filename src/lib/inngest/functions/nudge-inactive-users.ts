@@ -1,7 +1,5 @@
 import { inngest } from "../client";
 import { db } from "@/lib/db";
-import { clerkClient } from "@clerk/nextjs/server";
-import { sendTransactional } from "@/lib/loops";
 
 export const nudgeInactiveUsers = inngest.createFunction(
   { id: "nudge-inactive-users" },
@@ -28,17 +26,10 @@ export const nudgeInactiveUsers = inngest.createFunction(
     for (const profile of profiles) {
       await step.run(`nudge-${profile.id}`, async () => {
         try {
-          const clerk = await clerkClient();
-          const clerkUser = await clerk.users.getUser(profile.user.clerkId);
-          const firstName = clerkUser.firstName ?? "";
-          const email = profile.user.email;
-
-          await sendTransactional(email, "cmn5lny7g0t3v0ivuxp2nbz6h", { firstName });
           await db.familyProfile.update({
             where: { id: profile.id },
             data: { nudgeSentAt: new Date() },
           });
-          console.log("[loops] nudge sent to", email);
           nudged++;
         } catch (e) {
           console.error("[nudge] failed for profile", profile.id, e);

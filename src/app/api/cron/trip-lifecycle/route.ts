@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { sendTripCompletedEvent } from "@/lib/loops";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -46,7 +45,6 @@ export async function GET(request: Request) {
   console.log(`[trip-lifecycle] Found ${tripsToComplete.length} trips to complete`);
 
   let completed = 0;
-  let emailed = 0;
 
   for (const trip of tripsToComplete) {
     try {
@@ -55,16 +53,6 @@ export async function GET(request: Request) {
         data: { status: "COMPLETED" },
       });
       completed++;
-
-      const userEmail = trip.familyProfile?.user?.email;
-      if (userEmail) {
-        await sendTripCompletedEvent(userEmail, {
-          tripDestination: trip.destinationCity ?? "your destination",
-          tripTitle: trip.title ?? `${trip.destinationCity ?? "Your"} trip`,
-        });
-        emailed++;
-      }
-
       console.log(`[trip-lifecycle] Completed trip: ${trip.id} — ${trip.title}`);
     } catch (err) {
       console.error(`[trip-lifecycle] Failed for trip ${trip.id}:`, err);
@@ -74,6 +62,5 @@ export async function GET(request: Request) {
   return NextResponse.json({
     processed: tripsToComplete.length,
     completed,
-    emailed,
   });
 }

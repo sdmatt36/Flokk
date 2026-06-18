@@ -18,7 +18,7 @@ Every commit pushed to `main` MUST pass all of the following before push:
 3. **Touched-surface declaration** (Discipline 9.51) — files modified + dependent surfaces + behaviors to preserve, listed before code is written.
 4. **Regression behavior set review** (Discipline 9.52) — read `docs/FLOKK_REGRESSION_BEHAVIOR_SET.md` entries for any surface modified. If a listed behavior might regress, HALT.
 5. **Shared-component halt** (Discipline 9.53) — modifications to `src/components/forms/`, `cards/`, `modals/`, or other multi-surface directories require strategic-chat confirmation before proceeding; multi-surface commits split along surface boundaries.
-6. **Plain commit message** — no Co-Authored-By trailers, no AI attribution, no emoji.
+6. **Plain commit message** — never add Co-Authored-By trailers, no AI attribution, no "Generated with" line, no emoji.
 
 After push, strategic chat verifies READY-state via `Vercel:list_deployments` and post-deploy behavior via `Vercel:web_fetch_vercel_url` (Disciplines 9.45 + 9.46). Code does not assume post-deploy verification has happened until strategic chat confirms.
 
@@ -65,7 +65,7 @@ pipelines today.
 - Clerk auth
 - Claude API: claude-sonnet-4-6
 - Google Maps Platform (geocoding) + Mapbox (rendering)
-- CloudMailin inbound, Resend transactional, Loops.so lifecycle
+- CloudMailin inbound, Resend transactional
 - Vercel Pro + Supabase hosting
 
 ## Key File Paths
@@ -78,7 +78,7 @@ src/app/api/admin/reenrich-instagram/route.ts
 src/app/api/saves/[id]/identify/route.ts
 src/app/share/[token]/page.tsx
 src/lib/enrich-save.ts
-src/lib/loops.ts
+src/lib/email-templates.ts
 src/components/features/trips/TripTabContent.tsx
 src/components/features/trips/TripMap.tsx
 src/components/features/trips/BookingIntelCard.tsx
@@ -155,7 +155,7 @@ present. Do not maintain a separate queue in this file — it drifts.
 
 ## Environment Variables (all in Vercel)
 ANTHROPIC_API_KEY, GOOGLE_MAPS_API_KEY, NEXT_PUBLIC_GOOGLE_PLACES_API_KEY,
-NEXT_PUBLIC_MAPBOX_TOKEN, RESEND_API_KEY, LOOPS_API_KEY,
+NEXT_PUBLIC_MAPBOX_TOKEN, RESEND_API_KEY,
 CLERK_WEBHOOK_SECRET, NEXT_PUBLIC_UNSPLASH_ACCESS_KEY,
 CRON_SECRET, DATABASE_URL,
 INNGEST_SIGNING_KEY (kept but unused — do not activate)

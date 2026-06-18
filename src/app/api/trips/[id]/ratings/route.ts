@@ -1,8 +1,7 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
-import { sendRatingsCompleteEvent } from "@/lib/loops";
 import { writeThroughCommunitySpot } from "@/lib/community-write-through";
 import { ensureSavedItemForRating } from "@/lib/ensure-saved-item-for-rating";
 import { normalizePlaceName } from "@/lib/google-places";
@@ -201,18 +200,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       console.error("[community-write-through] trips/ratings failed:", e);
     }
   }
-
-  try {
-    const totalActivities = await db.manualActivity.count({ where: { tripId } });
-    const ratedActivities = await db.placeRating.count({ where: { tripId, manualActivityId: { not: null } } });
-    if (totalActivities > 0 && ratedActivities >= totalActivities) {
-      const clerkUser = await currentUser();
-      const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? "";
-      await sendRatingsCompleteEvent(email, {
-        tripDestination: trip.destinationCity ?? trip.title ?? "your destination",
-      });
-    }
-  } catch (e) { console.error("[loops] ratings_complete check error", e); }
 
   return NextResponse.json({ success: true, rating });
 }

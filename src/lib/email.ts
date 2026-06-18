@@ -11,7 +11,8 @@ export async function sendEmail(
   to: string,
   subject: string,
   html: string,
-  type: string
+  type: string,
+  options?: { replyTo?: string }
 ): Promise<SendEmailResult> {
   const resend = new Resend(process.env.RESEND_API_KEY);
   let status: "sent" | "failed" = "failed";
@@ -19,7 +20,13 @@ export async function sendEmail(
   let errorMessage: string | undefined;
 
   try {
-    const res = await resend.emails.send({ from: FROM, to, subject, html });
+    const res = await resend.emails.send({
+      from: FROM,
+      to,
+      subject,
+      html,
+      ...(options?.replyTo ? { replyTo: options.replyTo } : {}),
+    });
     if (res.error) {
       errorMessage = `${res.error.name}: ${res.error.message}`;
       console.error("[email] Resend error:", res.error);

@@ -1,9 +1,8 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
-import { sendTransactional, sendTripCreatedEvent, updateLoopsContact } from "@/lib/loops";
 import { getTripCoverImage } from "@/lib/destination-images";
 
 export const dynamic = "force-dynamic";
@@ -127,48 +126,6 @@ export async function POST(req: Request) {
     });
     return created;
   });
-
-  // Loops: fire first-trip-created if this is their first trip
-  try {
-    const tripCount = await db.trip.count({ where: { familyProfileId: familyProfile.id } });
-    if (tripCount === 1) {
-      const clerkUser = await currentUser();
-      const email = clerkUser?.emailAddresses?.[0]?.emailAddress ?? "";
-      const firstName = clerkUser?.firstName ?? "";
-      await sendTransactional(email, "cmn5lhq4k0uk60iyud4tn6qa1", {
-        firstName,
-        tripName: trip.title,
-        tripDestination: trip.destinationCity ?? "",
-      });
-    }
-  } catch (e) {
-    console.error("[loops] first-trip trigger failed:", e);
-  }
-
-  // Loops: trip_created event + updateContact on every trip creation
-  const destination = trip.destinationCity || trip.destinationCountry || undefined;
-  let loopsEmail = "";
-  try {
-    const clerkUser = await currentUser();
-    loopsEmail = clerkUser?.emailAddresses?.[0]?.emailAddress ?? "";
-  } catch (e) {
-    console.error("[loops] currentUser for trip_created failed:", e);
-  }
-
-  try {
-    await sendTripCreatedEvent(loopsEmail, { tripDestination: destination });
-  } catch (err) {
-    console.error("[loops] sendTripCreatedEvent failed:", err);
-  }
-
-  try {
-    await updateLoopsContact(loopsEmail, {
-      hasCreatedTrip: true,
-      ...(destination !== undefined ? { tripDestination: destination } : {}),
-    });
-  } catch (err) {
-    console.error("[loops] updateLoopsContact failed:", err);
-  }
 
   return NextResponse.json({ tripId: trip.id });
 }
