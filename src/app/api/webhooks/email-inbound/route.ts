@@ -997,6 +997,56 @@ Field notes:
       }
     }
 
+    // Priority 1.5: scheduledDate containment — actual event date falls inside a trip's window.
+    // Catches restaurant/activity/train bookings forwarded well ahead of travel: bookingDate
+    // (checkIn/departureDate) is null for these types, so P2 would never fire. The scheduledDate
+    // is the reservation date, which must lie inside the trip for this to be a safe match.
+    // Only attaches when the set of candidate trips reduces to exactly one after tiebreaking.
+    if (!matchedTrip) {
+      const schedDate = (extracted.scheduledDate as string | null) ?? null;
+      if (schedDate) {
+        const [sy, sm, sd] = schedDate.split("-").map(Number);
+        const schedMs = new Date(sy, sm - 1, sd).getTime();
+        const dateContained = eligibleTrips.filter((t) => {
+          if (!t.startDate || !t.endDate) return false;
+          const start = new Date(t.startDate); start.setHours(0, 0, 0, 0);
+          const end = new Date(t.endDate); end.setHours(23, 59, 59, 999);
+          return schedMs >= start.getTime() && schedMs <= end.getTime();
+        });
+        console.log(`[email-match] P1.5 scheduledDate (${schedDate}) containment: ${dateContained.length} trip(s) — ${dateContained.map(t => `"${t.title}"`).join(", ")}`);
+
+        let p15Winner: typeof trips[0] | null = null;
+        if (dateContained.length === 1) {
+          p15Winner = dateContained[0];
+        } else if (dateContained.length > 1) {
+          // Tiebreak 1: prefer trips whose destination keywords match
+          const cityMatched = dateContained.filter((t) => destKeywords.length > 0 && tripMatchesDestination(t, destKeywords));
+          const afterCity = cityMatched.length === 1 ? cityMatched : dateContained;
+          if (afterCity.length === 1) {
+            p15Winner = afterCity[0];
+          } else {
+            // Tiebreak 2: narrowest date range
+            const sorted = [...afterCity].sort((a, b) => {
+              const durA = (a.endDate ? new Date(a.endDate).getTime() : Infinity) - (a.startDate ? new Date(a.startDate).getTime() : 0);
+              const durB = (b.endDate ? new Date(b.endDate).getTime() : Infinity) - (b.startDate ? new Date(b.startDate).getTime() : 0);
+              return durA - durB;
+            });
+            const durTop = (sorted[0].endDate ? new Date(sorted[0].endDate).getTime() : Infinity) - (sorted[0].startDate ? new Date(sorted[0].startDate).getTime() : 0);
+            const durNext = (sorted[1].endDate ? new Date(sorted[1].endDate).getTime() : Infinity) - (sorted[1].startDate ? new Date(sorted[1].startDate).getTime() : 0);
+            if (durTop < durNext) {
+              p15Winner = sorted[0];
+            } else {
+              console.log(`[email-match] P1.5 ambiguous: ${afterCity.length} trips tie on range — not attaching`);
+            }
+          }
+        }
+        if (p15Winner) {
+          matchedTrip = p15Winner;
+          console.log(`[email-match] P1.5 matched: "${matchedTrip.title}" (scheduledDate: ${schedDate})`);
+        }
+      }
+    }
+
     // Priority 2: Date overlap only — when destination wasn't extracted or didn't match
     if (!matchedTrip && bookingDate) {
       const dateMatches = eligibleTrips.filter((t) => dateInTripRange(bookingDate, t));
