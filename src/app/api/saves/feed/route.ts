@@ -36,6 +36,7 @@ type FeedSaveItem = {
   link: string | null;
   savedAt: string;
   isPending: boolean;
+  communitySpotId: string | null;
 };
 
 type FeedSection = {
@@ -118,6 +119,7 @@ type DbSave = {
   userRating: number | null;
   needsAdvanceBooking: boolean;
   advanceBookingReason: string | null;
+  communitySpotId: string | null;
   communitySpot: { photoUrl: string | null; websiteUrl: string | null } | null;
   tripDocuments: { type: string }[];
 };
@@ -172,6 +174,7 @@ function buildFeedItem(s: DbSave): FeedSaveItem {
     link,
     savedAt: s.savedAt.toISOString(),
     isPending: s.extractionStatus === "PENDING",
+    communitySpotId: s.communitySpotId,
   };
 }
 
@@ -282,6 +285,7 @@ export async function GET(req: NextRequest) {
       needsAdvanceBooking: true,
       advanceBookingReason: true,
       address: true,
+      communitySpotId: true,
       communitySpot: { select: { photoUrl: true, websiteUrl: true } },
       tripDocuments: { select: { type: true } },
     },

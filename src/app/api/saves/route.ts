@@ -54,6 +54,7 @@ const ManualSaveSchema = z.object({
   address: z.string().optional().nullable(),
   tripId: z.string().optional().nullable(),
   placePhotoUrl: z.string().optional().nullable(),
+  communitySpotId: z.string().optional().nullable(),
 });
 
 const SaveSchema = z.object({
@@ -102,6 +103,7 @@ export async function POST(request: Request) {
           websiteUrl: parsed.website?.trim() || null,
           placePhotoUrl: await toDurableImageUrl(parsed.placePhotoUrl ?? null),
           tripId: parsed.tripId ?? null,
+          communitySpotId: parsed.communitySpotId ?? null,
           lodgingType: inferLodgingType({ url: parsed.website, name: parsed.title }) ?? null,
           extractionStatus: "PENDING",
           status: parsed.tripId ? "TRIP_ASSIGNED" : "UNORGANIZED",

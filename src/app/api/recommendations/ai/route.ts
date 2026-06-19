@@ -48,6 +48,7 @@ export type FetchedRec = {
   segmentIndex: number | null;
   proximityLabel: string | null;
   avgRating?: number;
+  communitySpotId?: string | null;
 };
 
 export async function GET(req: NextRequest) {
@@ -213,6 +214,7 @@ export async function GET(req: NextRequest) {
       segmentIndex: null,
       proximityLabel: null,
       avgRating: s.avgRating,
+      communitySpotId: s.id,
     };
   });
 
@@ -397,6 +399,7 @@ Generate exactly ${aiNeeded} recommendations distributed across segments per the
         segmentIndex: m.segIdx >= 0 ? m.segIdx + 1 : null,
         proximityLabel: null,
         photoUrl: enriched.imageUrl,
+        communitySpotId: null,
       });
     }
 

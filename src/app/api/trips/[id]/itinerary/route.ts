@@ -76,7 +76,7 @@ export async function POST(
   }
 
   const body = await req.json();
-  const { title, location, imageUrl, dayIndex, lat, lng, categoryTags } = body as {
+  const { title, location, imageUrl, dayIndex, lat, lng, categoryTags, communitySpotId } = body as {
     title: string;
     location?: string;
     imageUrl?: string;
@@ -84,6 +84,7 @@ export async function POST(
     lat?: number;
     lng?: number;
     categoryTags?: string[];
+    communitySpotId?: string;
   };
 
   if (!title || dayIndex === undefined || dayIndex === null) {
@@ -104,6 +105,7 @@ export async function POST(
       lat: lat ?? null,
       lng: lng ?? null,
       categoryTags: normalizeAndDedupeCategoryTags(categoryTags ?? []),
+      communitySpotId: communitySpotId ?? null,
       status: "TRIP_ASSIGNED",
     },
   });

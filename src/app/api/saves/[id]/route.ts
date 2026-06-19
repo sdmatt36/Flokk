@@ -105,6 +105,7 @@ export async function PATCH(
   if (typeof body.sortOrder === "number") updateData.sortOrder = body.sortOrder;
   if (typeof body.startTime === "string" || body.startTime === null) updateData.startTime = body.startTime ?? null;
   if (typeof body.endTime === "string" || body.endTime === null) updateData.endTime = body.endTime ?? null;
+  if (typeof body.communitySpotId === "string" && item.communitySpotId === null) updateData.communitySpotId = body.communitySpotId;
   if (typeof body.lodgingType === "string" || body.lodgingType === null) updateData.lodgingType = body.lodgingType ?? null;
   if (typeof body.extractedCheckin === "string" || body.extractedCheckin === null) updateData.extractedCheckin = body.extractedCheckin ?? null;
   if (typeof body.extractedCheckout === "string" || body.extractedCheckout === null) updateData.extractedCheckout = body.extractedCheckout ?? null;
