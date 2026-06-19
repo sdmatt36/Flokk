@@ -5738,6 +5738,7 @@ type FetchedRec = {
   segmentCity: string | null;
   proximityLabel: string | null;
   avgRating?: number;
+  communitySpotId?: string | null;
 };
 
 type EventCard = {
@@ -6045,7 +6046,7 @@ function RecommendedContent({
                           const res = await fetch("/api/saves", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ sourceMethod: "URL_PASTE", title: rec.name, category: rec.category, city: rec.segmentCity ?? destinationCity ?? undefined, tripId, placePhotoUrl: rec.photoUrl ?? rec.imageUrl ?? undefined }),
+                            body: JSON.stringify({ sourceMethod: "URL_PASTE", title: rec.name, category: rec.category, city: rec.segmentCity ?? destinationCity ?? undefined, tripId, placePhotoUrl: rec.photoUrl ?? rec.imageUrl ?? undefined, ...(rec.communitySpotId ? { communitySpotId: rec.communitySpotId } : {}) }),
                           });
                           if (!res.ok) throw new Error();
                           setSaveStates(prev => ({ ...prev, [rec.name]: "done" }));
