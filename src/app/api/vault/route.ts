@@ -31,6 +31,7 @@ type FlightCard = {
   airline: string | null;
   confirmationCode: string | null;
   cabinClass: string | null;
+  flightBookingId: string | null;
   legs: FlightLeg[];
 };
 
@@ -160,6 +161,7 @@ function shapeFlightCard(doc: EnrichedVaultDocument): FlightCard {
     airline: str(c.airline),
     confirmationCode: str(c.confirmationCode),
     cabinClass: str(c.cabinClass),
+    flightBookingId: str(c._flightBookingId) ?? null,
     legs: (c.legs as FlightLeg[] | undefined) ?? [],
   };
 }
