@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import sharp from "sharp";
 import { SONNET } from "@/lib/ai-models";
 import { Resend } from "resend";
 import { db } from "@/lib/db";
@@ -265,6 +266,30 @@ function htmlToText(html: string): string {
     .replace(/\n{3,}/g, "\n\n")
     .trim();
   return s;
+}
+
+// ── Image normalization for vision ─────────────────────────────────────────────
+// Forwarded confirmation emails carry images with quirks the vision API rejects
+// (odd color profiles, CMYK, alpha, oversized dimensions, unusual encodings),
+// and one bad image 400s the whole call. Re-encode every image through sharp to
+// a clean baseline JPEG sized to Anthropic's recommended max long edge. On ANY
+// sharp error this returns null so the caller skips just that one image; it never
+// throws.
+async function normalizeImageForVision(
+  buf: Buffer,
+): Promise<{ data: string; mediaType: "image/jpeg" } | null> {
+  try {
+    const out = await sharp(buf)
+      .rotate() // EXIF auto-orient
+      .flatten({ background: "#ffffff" }) // drop alpha onto white
+      .resize({ width: 1568, height: 1568, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    return { data: out.toString("base64"), mediaType: "image/jpeg" };
+  } catch (e) {
+    console.warn("[email-inbound] image normalize failed, skipping image:", (e as Error)?.message ?? e);
+    return null;
+  }
 }
 
 // ── Trip matching helpers ──────────────────────────────────────────────────────
@@ -721,19 +746,48 @@ Field notes:
 
     contentBlocks.push({ type: "text", text: promptText });
 
+    const IMAGE_MIMES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    // Cap images sent to the model at the 8 largest by byte size to bound vision
+    // time within maxDuration. PDFs are not capped here.
+    const MAX_IMAGES = 8;
+    const selectedImages = new Set(
+      filteredAttachments
+        .filter((a) => IMAGE_MIMES.includes(String(a.content_type ?? "")))
+        .sort((a, b) => (Number(b.size) || 0) - (Number(a.size) || 0))
+        .slice(0, MAX_IMAGES),
+    );
+
+    let normalizedImageCount = 0;
+    let skippedImageCount = 0;
     for (const att of filteredAttachments) {
       const mimeType = String(att.content_type ?? "");
       const data = String(att.content ?? "");
       if (!data) continue;
       if (mimeType === "application/pdf") {
         contentBlocks.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data } });
-      } else if (["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(mimeType)) {
-        const normalizedMime = mimeType === "image/jpg" ? "image/jpeg" : mimeType;
-        contentBlocks.push({ type: "image", source: { type: "base64", media_type: normalizedMime, data } });
+      } else if (IMAGE_MIMES.includes(mimeType)) {
+        if (!selectedImages.has(att)) continue; // over the 8-image cap
+        // Normalize every image through sharp before sending to vision. A single
+        // image that sharp cannot process is skipped, not fatal. Failures that
+        // survive normalization are still caught by the Fix-1 image-strip retry.
+        let buf: Buffer;
+        try {
+          buf = Buffer.from(data, "base64");
+        } catch {
+          skippedImageCount++;
+          continue;
+        }
+        const normalized = await normalizeImageForVision(buf);
+        if (normalized) {
+          contentBlocks.push({ type: "image", source: { type: "base64", media_type: normalized.mediaType, data: normalized.data } });
+          normalizedImageCount++;
+        } else {
+          skippedImageCount++;
+        }
       }
     }
 
-    console.log(`[email-inbound] calling Claude — body: ${emailContent.length} chars, attachments: ${filteredAttachments.length}, content blocks: ${contentBlocks.length}`);
+    console.log(`[email-inbound] calling Claude — body: ${emailContent.length} chars, attachments: ${filteredAttachments.length}, images normalized: ${normalizedImageCount}, images skipped: ${skippedImageCount}, content blocks: ${contentBlocks.length}`);
 
     let extracted: Record<string, unknown> | undefined;
     let lastResponseText = "";
