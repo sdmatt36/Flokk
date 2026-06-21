@@ -517,22 +517,34 @@ export async function POST(req: NextRequest) {
       ? payload.attachments
       : [];
 
+    // image/gif removed: animated/tracking gifs are what the Anthropic image API 400s on.
     const SUPPORTED_MIME = new Set([
       "application/pdf",
-      "image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif",
+      "image/jpeg", "image/jpg", "image/png", "image/webp",
     ]);
     const TWO_MB = 2 * 1024 * 1024;
     const THREE_MB = 3 * 1024 * 1024;
+    // Floor for images only: drops tracking pixels and tiny signature/logo images that
+    // carry no booking detail and frequently trip the image API. PDFs are exempt.
+    const MIN_IMAGE_BYTES = 5 * 1024;
 
     const totalAttachmentBytes = rawAttachments.reduce((sum, a) => sum + (Number(a.size) || 0), 0);
     logCtx.attachmentCount = rawAttachments.length;
     logCtx.attachmentMimeTypes = rawAttachments.map((a) => String(a.content_type ?? "unknown"));
     logCtx.attachmentSizeBytes = totalAttachmentBytes;
 
-    // Filter: supported MIME, drop >2MB individuals, then apply 3MB total budget
+    // Filter: supported MIME, drop >2MB individuals, drop sub-5KB images (keep PDFs),
+    // then apply 3MB total budget
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let filteredAttachments: Array<Record<string, any>> = rawAttachments
-      .filter((a) => SUPPORTED_MIME.has(String(a.content_type ?? "")) && (Number(a.size) || 0) <= TWO_MB);
+      .filter((a) => {
+        const mime = String(a.content_type ?? "");
+        const size = Number(a.size) || 0;
+        if (!SUPPORTED_MIME.has(mime) || size > TWO_MB) return false;
+        // Size floor applies to images only — PDFs can legitimately be small.
+        if (mime !== "application/pdf" && size < MIN_IMAGE_BYTES) return false;
+        return true;
+      });
 
     let attachmentsTruncated = false;
     if (filteredAttachments.reduce((s, a) => s + (Number(a.size) || 0), 0) > THREE_MB) {
@@ -658,7 +670,7 @@ Field notes:
       if (!data) continue;
       if (mimeType === "application/pdf") {
         contentBlocks.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data } });
-      } else if (["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"].includes(mimeType)) {
+      } else if (["image/jpeg", "image/jpg", "image/png", "image/webp"].includes(mimeType)) {
         const normalizedMime = mimeType === "image/jpg" ? "image/jpeg" : mimeType;
         contentBlocks.push({ type: "image", source: { type: "base64", media_type: normalizedMime, data } });
       }
@@ -671,15 +683,44 @@ Field notes:
     let lastParseErr: unknown;
 
     for (let attempt = 1; attempt <= 2 && !extracted; attempt++) {
-      const response = await anthropic.messages.create({
-        model: SONNET,
-        max_tokens: 1500,
-        messages: [{
-          role: "user",
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          content: contentBlocks as any,
-        }],
-      });
+      let response;
+      try {
+        response = await anthropic.messages.create({
+          model: SONNET,
+          max_tokens: 1500,
+          messages: [{
+            role: "user",
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            content: contentBlocks as any,
+          }],
+        });
+      } catch (apiErr) {
+        // An Anthropic 4xx (e.g. 400 "Could not process image") must never bounce the
+        // email. Retry once with image blocks removed — the text body alone parses
+        // cleanly (~0.97). PDF/document blocks and the text prompt are kept.
+        const status = (apiErr as { status?: number })?.status;
+        const hasImages = contentBlocks.some((b) => b.type === "image");
+        if (status && status >= 400 && status < 500 && hasImages) {
+          const before = contentBlocks.length;
+          for (let i = contentBlocks.length - 1; i >= 0; i--) {
+            if (contentBlocks[i].type === "image") contentBlocks.splice(i, 1);
+          }
+          console.warn(`[email-inbound] Anthropic ${status} with images — retrying text/PDF only (dropped ${before - contentBlocks.length} image block(s))`);
+          response = await anthropic.messages.create({
+            model: SONNET,
+            max_tokens: 1500,
+            messages: [{
+              role: "user",
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              content: contentBlocks as any,
+            }],
+          });
+        } else {
+          // Non-4xx, or no images to strip, or the image-stripped retry also failed:
+          // fall through to the outer catch, which logs and returns a 200 error.
+          throw apiErr;
+        }
+      }
       const content = response.content[0];
       if (content.type !== "text") {
         lastResponseText = "(non-text response)";
@@ -2227,26 +2268,42 @@ Field notes:
 
       // Safety guard: tripId must never be null when writing hotel items
       if (!resolvedTripId) {
-        console.warn(`[email-inbound] hotel branch: resolvedTripId null for "${hotelName}" (confidence=${confidenceScore.toFixed(2)}) — creating emergency trip`);
         const emergencyCityOrName = (extracted.city as string | null)?.trim() || (extracted.toCity as string | null)?.trim() || hotelName;
-        const emergencyData = await buildTripFromExtraction({
-          cities: [emergencyCityOrName],
-          country: (extracted.country as string | null) ?? null,
-          startDate: checkInDate,
-          endDate: checkOutDate,
-        });
-        const emergencyTrip = await db.$transaction(async (tx) => {
-          const created = await tx.trip.create({ data: { ...emergencyData, familyProfileId: familyProfile.id } });
-          await tx.tripCollaborator.create({
-            data: { tripId: created.id, familyProfileId: familyProfile.id, role: "OWNER", invitedById: familyProfile.id, invitedAt: new Date(), acceptedAt: new Date() },
+        // Same-city dedup guard as the primary auto-create (~1115): attach to an
+        // existing non-COMPLETED trip for this destination instead of spawning a
+        // duplicate. Re-forwarding the same booking must reuse the existing trip.
+        const emergencyCityLower = emergencyCityOrName.toLowerCase().trim();
+        const dedupExisting = (trips as Array<{ id: string; title?: string | null; destinationCity?: string | null; status?: string | null }>)
+          .find((t) =>
+            (t.destinationCity ?? "").toLowerCase().trim() === emergencyCityLower &&
+            t.status !== "COMPLETED",
+          );
+        if (dedupExisting) {
+          resolvedTripId = dedupExisting.id;
+          matchedTrip = dedupExisting as typeof trips[0];
+          logCtx.matchedTripId = dedupExisting.id;
+          console.log(`[email-inbound] hotel branch: attaching to existing same-city trip "${dedupExisting.title}" (${dedupExisting.id}) instead of emergency-creating for "${emergencyCityOrName}"`);
+        } else {
+          console.warn(`[email-inbound] hotel branch: resolvedTripId null for "${hotelName}" (confidence=${confidenceScore.toFixed(2)}) — creating emergency trip`);
+          const emergencyData = await buildTripFromExtraction({
+            cities: [emergencyCityOrName],
+            country: (extracted.country as string | null) ?? null,
+            startDate: checkInDate,
+            endDate: checkOutDate,
           });
-          return created;
-        });
-        resolvedTripId = emergencyTrip.id;
-        matchedTrip = emergencyTrip as typeof trips[0];
-        logCtx.autoCreatedTripId = emergencyTrip.id;
-        logCtx.matchedTripId = emergencyTrip.id;
-        console.log(`[email-inbound] emergency hotel trip created: "${emergencyData.title}" id: ${emergencyTrip.id}`);
+          const emergencyTrip = await db.$transaction(async (tx) => {
+            const created = await tx.trip.create({ data: { ...emergencyData, familyProfileId: familyProfile.id } });
+            await tx.tripCollaborator.create({
+              data: { tripId: created.id, familyProfileId: familyProfile.id, role: "OWNER", invitedById: familyProfile.id, invitedAt: new Date(), acceptedAt: new Date() },
+            });
+            return created;
+          });
+          resolvedTripId = emergencyTrip.id;
+          matchedTrip = emergencyTrip as typeof trips[0];
+          logCtx.autoCreatedTripId = emergencyTrip.id;
+          logCtx.matchedTripId = emergencyTrip.id;
+          console.log(`[email-inbound] emergency hotel trip created: "${emergencyData.title}" id: ${emergencyTrip.id}`);
+        }
       }
 
       const checkInDayIndex = checkInDate ? await getDayIndex(resolvedTripId, checkInDate) : null;
@@ -2773,6 +2830,9 @@ Field notes:
   } catch (err) {
     console.error("[email-inbound] error:", err);
     await logExtraction({ ...logCtx, outcome: "error", errorMessage: err instanceof Error ? err.message : String(err) });
-    return NextResponse.json({ error: "Failed to process" }, { status: 500 });
+    // Always return 2xx to CloudMailin. A non-2xx makes CloudMailin/Gmail treat the
+    // delivery as failed and bounce/retry for days. Failures are captured in the
+    // ExtractionLog above; matches the other handled-failure branches.
+    return NextResponse.json({ received: true, status: "error" });
   }
 }
