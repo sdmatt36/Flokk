@@ -220,6 +220,53 @@ function detectCurrency(raw: unknown): string | null {
   return null;
 }
 
+// ── HTML to text for model input ───────────────────────────────────────────────
+// Marketing/confirmation emails bury the booking table (dates, confirmation
+// number) deep in the HTML behind large <style> blocks. Naive tag-stripping
+// leaves all that CSS in place and the booking detail gets pushed past the
+// length cap. This drops non-content blocks, inserts newlines at block
+// boundaries, decodes common entities, and normalizes whitespace so the booking
+// content survives within the cap.
+function htmlToText(html: string): string {
+  let s = html;
+  // Remove <style> and <script> blocks including their contents.
+  s = s.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ");
+  s = s.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ");
+  // Remove HTML comments.
+  s = s.replace(/<!--[\s\S]*?-->/g, " ");
+  // Insert newlines at block boundaries.
+  s = s.replace(/<br\s*\/?>/gi, "\n");
+  s = s.replace(/<\/(p|div|tr|li|h[1-6])\s*>/gi, "\n");
+  // Strip all remaining tags.
+  s = s.replace(/<[^>]*>/g, " ");
+  // Decode common named entities.
+  s = s
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x27;/gi, "'")
+    .replace(/&amp;/gi, "&");
+  // Decode numeric entities where practical (decimal and hex).
+  s = s.replace(/&#(\d+);/g, (_m, d) => {
+    const code = Number(d);
+    return Number.isFinite(code) ? String.fromCodePoint(code) : _m;
+  });
+  s = s.replace(/&#x([0-9a-f]+);/gi, (_m, h) => {
+    const code = parseInt(h, 16);
+    return Number.isFinite(code) ? String.fromCodePoint(code) : _m;
+  });
+  // Normalize whitespace: collapse spaces/tabs, trim each line, collapse 3+ newlines to 2.
+  s = s
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return s;
+}
+
 // ── Trip matching helpers ──────────────────────────────────────────────────────
 
 function tripMatchesDestination(
@@ -567,9 +614,19 @@ export async function POST(req: NextRequest) {
     const contentBlocks: Array<Record<string, any>> = [];
 
     // ── Claude extraction ──────────────────────────────────────────────────────
-    const emailContent = text
-      ? text.substring(0, 8000)
-      : html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().substring(0, 8000);
+    // Build the model input so booking content is always included. The cleaned HTML
+    // is entity-decoded and CSS/script/comment boilerplate is removed so the booking
+    // table survives. Prefer whichever of the plain text or cleaned HTML carries more
+    // content; if both are non-empty and clearly differ, keep both so nothing is lost.
+    const cleaned = html ? htmlToText(html) : "";
+    const plainPart = (text && text.trim().length > 0) ? text.trim() : "";
+    let modelBody: string;
+    if (plainPart && cleaned && plainPart !== cleaned) {
+      modelBody = `${plainPart}\n\n${cleaned}`;
+    } else {
+      modelBody = plainPart.length >= cleaned.length ? plainPart : cleaned;
+    }
+    const emailContent = modelBody.substring(0, 24000);
 
     // Detect schedule-change emails by subject before Claude sees them.
     // Southwest and other carriers return prose (not JSON) when the prompt has no
