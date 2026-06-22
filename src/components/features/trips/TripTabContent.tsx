@@ -7586,8 +7586,14 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
                   Share
                 </button>
                 <a
-                  href={tripId ? `/tour?tripId=${tripId}` : "/tour"}
+                  href={`/tour?id=${tour.id}`}
                   style={{ fontSize: "13px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
+                >
+                  View tour
+                </a>
+                <a
+                  href={tripId ? `/tour?tripId=${tripId}` : "/tour"}
+                  style={{ fontSize: "13px", fontWeight: 500, color: "#9CA3AF", textDecoration: "none" }}
                 >
                   Start over
                 </a>
