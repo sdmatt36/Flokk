@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
 import { findNearestStopInsertionPoint } from "@/lib/tour-stop-insertion";
+import { getTravelTimeMin } from "@/lib/travel-time";
 import { ticketFallbackFromSignals, ticketClassificationGuidance, isTicketSignal, type TicketSignal } from "@/lib/tour-ticket";
 
 export const dynamic = "force-dynamic";
@@ -88,26 +89,6 @@ async function resolvePlaceFull(name: string, address: string, destinationCity: 
   }
 }
 
-async function getTravelTimeMin(
-  from: { lat: number; lng: number },
-  to: { lat: number; lng: number },
-  transport: string
-): Promise<number | null> {
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-  if (!token) return null;
-  try {
-    const profile = transport === "Walking" ? "walking" : "driving";
-    const coords = `${from.lng},${from.lat};${to.lng},${to.lat}`;
-    const res = await fetch(
-      `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coords}?access_token=${token}&overview=false`
-    );
-    const data = await res.json() as { routes?: Array<{ duration: number }> };
-    const secs = data.routes?.[0]?.duration;
-    return secs != null ? Math.round(secs / 60) : null;
-  } catch {
-    return null;
-  }
-}
 
 // Single Haiku tool call that returns BOTH the why-text and the ticket classification.
 // The why is kept robust: a missing/failed ticket parse never blanks the why — it always

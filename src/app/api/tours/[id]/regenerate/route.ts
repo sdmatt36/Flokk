@@ -7,6 +7,7 @@ import { resolveProfileId } from "@/lib/profile-access";
 import { findBestInsertionIndex } from "@/lib/tour-route-optimization";
 import { haversineKm } from "@/lib/geo";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
+import { measureAdjacentLegs } from "@/lib/travel-time";
 
 // Note: helpers duplicated from generate/route.ts (refactor to shared lib deferred)
 
@@ -388,6 +389,27 @@ Generate stops that complement the accepted set thematically. They must fit the 
     where: { tourId, deletedAt: null },
     orderBy: { orderIndex: "asc" },
   });
+
+  // ── Measured travel legs ──────────────────────────────────────────────────────
+  // Replace the model's guessed travelTime with real Mapbox legs measured across the
+  // FINAL post-insertion order using the tour's transport profile (this stop -> next;
+  // last stop = 0). Parallel Promise.all; a missing coord or Mapbox failure stores null
+  // for that leg and never aborts regeneration.
+  try {
+    const legs = await measureAdjacentLegs(
+      finalActive.map(s => ({ lat: s.lat, lng: s.lng })),
+      transport,
+    );
+    await Promise.all(
+      finalActive.map((s, i) =>
+        db.tourStop.update({ where: { id: s.id }, data: { travelTimeMin: legs[i] } })
+      )
+    );
+    // Reflect measured values in the response built below.
+    finalActive.forEach((s, i) => { s.travelTimeMin = legs[i]; });
+  } catch (legErr) {
+    console.error("[travel-legs] regeneration measurement failed:", legErr);
+  }
 
   const finalFormatted = finalActive.map(s => ({
     id: s.id,

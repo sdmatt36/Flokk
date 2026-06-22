@@ -12,6 +12,7 @@ import { aggregateTripContext, flatChildAges, describePace, topInterests } from 
 import { DestinationType, Prisma } from "@prisma/client";
 import { gradeTour, graderFlagsToInstruction, type GraderFamilyContext, type GraderGenerationInputs, type GraderStop } from "@/lib/tour-grader";
 import { generatePublicWhyForStops, classifyTicketsForStops } from "@/lib/generate-public-why";
+import { measureAdjacentLegs } from "@/lib/travel-time";
 import { ticketFallbackFromSignals } from "@/lib/tour-ticket";
 import { checkLimit } from "@/lib/ratelimit";
 
@@ -1541,6 +1542,30 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
         );
         anchorViolation = { distance: Math.round(maxEndpointDist), threshold: anchorThreshold };
         console.log(`[tour-anchor-violation] first=${Math.round(firstDist)}m, last=${Math.round(lastDist)}m from lodging (threshold=${anchorThreshold}m)`);
+      }
+    }
+
+    // ── Measured travel legs ─────────────────────────────────────────────────────
+    // Generation previously persisted the model's GUESSED travelTime. Replace it with
+    // real Mapbox legs measured in FINAL stop order using the tour's transport profile
+    // (this stop -> next; last stop = 0). One parallel Promise.all to protect the
+    // generation timeout. A missing coord or Mapbox failure stores null for that leg and
+    // never aborts generation.
+    if (tourId && finalStopsFromDb.length > 0) {
+      try {
+        const legs = await measureAdjacentLegs(
+          finalStopsFromDb.map(s => ({ lat: s.lat, lng: s.lng })),
+          transport,
+        );
+        await Promise.all(
+          finalStopsFromDb.map((s, i) =>
+            db.tourStop.update({ where: { id: s.id }, data: { travelTimeMin: legs[i] } })
+          )
+        );
+        // Reflect the measured values in the response built below.
+        finalStopsFromDb.forEach((s, i) => { s.travelTimeMin = legs[i]; });
+      } catch (legErr) {
+        console.error("[travel-legs] generation measurement failed:", legErr);
       }
     }
 

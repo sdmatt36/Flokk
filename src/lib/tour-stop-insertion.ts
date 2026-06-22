@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
 import { resolveProfileId } from "@/lib/profile-access";
+import { getTravelTimeMin } from "@/lib/travel-time";
 import Anthropic from "@anthropic-ai/sdk";
 import { SONNET } from "@/lib/ai-models";
 
@@ -154,29 +155,6 @@ export function findNearestStopInsertionPoint(
   }
 
   return { insertAfterStopId: nearest.id, distanceKm: minDistance };
-}
-
-// Mapbox Directions travel time in minutes between two points. Identical to the helper
-// the manual POST /stops path uses, so AI-added stops get the same real walk/drive legs.
-async function getTravelTimeMin(
-  from: { lat: number; lng: number },
-  to: { lat: number; lng: number },
-  transport: string
-): Promise<number | null> {
-  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-  if (!token) return null;
-  try {
-    const profile = transport === "Walking" ? "walking" : "driving";
-    const coords = `${from.lng},${from.lat};${to.lng},${to.lat}`;
-    const res = await fetch(
-      `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coords}?access_token=${token}&overview=false`
-    );
-    const data = await res.json() as { routes?: Array<{ duration: number }> };
-    const secs = data.routes?.[0]?.duration;
-    return secs != null ? Math.round(secs / 60) : null;
-  } catch {
-    return null;
-  }
 }
 
 // Recompute only the two legs an insertion at `insertAt` touches, mirroring the manual
