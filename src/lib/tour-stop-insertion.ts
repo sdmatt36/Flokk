@@ -156,6 +156,68 @@ export function findNearestStopInsertionPoint(
   return { insertAfterStopId: nearest.id, distanceKm: minDistance };
 }
 
+// Mapbox Directions travel time in minutes between two points. Identical to the helper
+// the manual POST /stops path uses, so AI-added stops get the same real walk/drive legs.
+async function getTravelTimeMin(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+  transport: string
+): Promise<number | null> {
+  const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+  if (!token) return null;
+  try {
+    const profile = transport === "Walking" ? "walking" : "driving";
+    const coords = `${from.lng},${from.lat};${to.lng},${to.lat}`;
+    const res = await fetch(
+      `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coords}?access_token=${token}&overview=false`
+    );
+    const data = await res.json() as { routes?: Array<{ duration: number }> };
+    const secs = data.routes?.[0]?.duration;
+    return secs != null ? Math.round(secs / 60) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Recompute only the two legs an insertion at `insertAt` touches, mirroring the manual
+// POST /stops path: prevStop -> new (stored on prevStop) and new -> nextStop (stored on
+// the new stop; 0 when the new stop ends up last, per the last-stop convention). Untouched
+// legs are left alone. prev/next are derived from the shift boundary — prevStop is the
+// last stop NOT shifted (largest orderIndex < insertAt), nextStop is the first stop that
+// IS shifted (smallest orderIndex >= insertAt) — so this is correct even when orderIndex
+// values are sparse (the new stop lands between those two).
+async function recomputeTouchedLegs(
+  stops: Array<{ id: string; orderIndex: number; lat: number | null; lng: number | null }>,
+  insertAt: number,
+  newLat: number | null,
+  newLng: number | null,
+  transport: string
+): Promise<{ prevStopId: string | null; prevToNew: number | null; newStopTravelTime: number }> {
+  const sorted = [...stops].sort((a, b) => a.orderIndex - b.orderIndex);
+  const unshifted = sorted.filter(s => s.orderIndex < insertAt);
+  const shifted = sorted.filter(s => s.orderIndex >= insertAt);
+  const prevStop = unshifted.length > 0 ? unshifted[unshifted.length - 1] : null;
+  const nextStop = shifted.length > 0 ? shifted[0] : null;
+
+  let prevToNew: number | null = null;
+  if (prevStop?.lat != null && prevStop?.lng != null && newLat != null && newLng != null) {
+    prevToNew = await getTravelTimeMin(
+      { lat: prevStop.lat, lng: prevStop.lng },
+      { lat: newLat, lng: newLng },
+      transport
+    );
+  }
+  let newToNext: number | null = null;
+  if (nextStop?.lat != null && nextStop?.lng != null && newLat != null && newLng != null) {
+    newToNext = await getTravelTimeMin(
+      { lat: newLat, lng: newLng },
+      { lat: nextStop.lat, lng: nextStop.lng },
+      transport
+    );
+  }
+  return { prevStopId: prevStop?.id ?? null, prevToNew, newStopTravelTime: newToNext ?? 0 };
+}
+
 function childrenAgesSummary(members: Array<{ role: string; birthDate: Date | null }>): string {
   const today = new Date();
   const ages = members
@@ -241,6 +303,7 @@ export async function addStopToTour(opts: {
     select: {
       familyProfileId: true,
       destinationCity: true,
+      transport: true,
       stops: {
         where: { deletedAt: null },
         orderBy: { orderIndex: "asc" },
@@ -286,6 +349,16 @@ export async function addStopToTour(opts: {
     } else {
       insertAt = Math.max(1, Math.floor(tour.stops.length * 0.4));
     }
+    // Recompute the two touched legs (prevStop -> new, new -> next) the same way the
+    // manual POST /stops path does, using the pre-shift stop list.
+    const { prevStopId, prevToNew, newStopTravelTime } = await recomputeTouchedLegs(
+      tour.stops,
+      insertAt,
+      prefetchedCandidate.lat,
+      prefetchedCandidate.lng,
+      tour.transport
+    );
+
     const stopsToShift = tour.stops.filter(s => s.orderIndex >= insertAt);
     await Promise.all(
       stopsToShift.map(s =>
@@ -304,7 +377,7 @@ export async function addStopToTour(opts: {
         lat: prefetchedCandidate.lat,
         lng: prefetchedCandidate.lng,
         durationMin: prefetchedCandidate.durationMin,
-        travelTimeMin: null,
+        travelTimeMin: newStopTravelTime,
         why: prefetchedCandidate.why,
         familyNote: prefetchedCandidate.familyNote,
         imageUrl: prefetchedCandidate.imageUrl,
@@ -314,6 +387,11 @@ export async function addStopToTour(opts: {
         placeTypes: prefetchedCandidate.placeTypes,
       },
     });
+
+    // Point the previous stop's outgoing leg at the new stop.
+    if (prevToNew != null && prevStopId) {
+      await db.tourStop.update({ where: { id: prevStopId }, data: { travelTimeMin: prevToNew } });
+    }
 
     const pickedPlace = {
       name: prefetchedCandidate.name,
@@ -461,6 +539,17 @@ export async function addStopToTour(opts: {
   }
 
   const insertAt = Math.max(1, Math.floor(tour.stops.length * 0.4));
+
+  // Recompute the two touched legs (prevStop -> new, new -> next) the same way the manual
+  // POST /stops path does, using the pre-shift stop list and the resolved place coords.
+  const { prevStopId, prevToNew, newStopTravelTime } = await recomputeTouchedLegs(
+    tour.stops,
+    insertAt,
+    lat,
+    lng,
+    tour.transport
+  );
+
   const stopsToShift = tour.stops.filter(s => s.orderIndex >= insertAt);
   await Promise.all(
     stopsToShift.map(s =>
@@ -479,7 +568,7 @@ export async function addStopToTour(opts: {
       lat,
       lng,
       durationMin: config.defaultDurationMinutes,
-      travelTimeMin: null,
+      travelTimeMin: newStopTravelTime,
       why: why || null,
       familyNote: familyNote || null,
       imageUrl,
@@ -489,6 +578,11 @@ export async function addStopToTour(opts: {
       placeTypes,
     },
   });
+
+  // Point the previous stop's outgoing leg at the new stop.
+  if (prevToNew != null && prevStopId) {
+    await db.tourStop.update({ where: { id: prevStopId }, data: { travelTimeMin: prevToNew } });
+  }
 
   const pickedPlace = { name: placeName, placeId: placeId ?? "", rating, address: address ?? "" };
 
