@@ -5,6 +5,26 @@ Canonical source — if a discipline appears here and in CLAUDE.md, this file ha
 
 ---
 
+## Pre-Build Inventory Gate (highest-priority operating rule)
+
+This is the rule that prevents the single most recurring cross-chat failure: building something new, or a lesser version of a feature, while a core existing capability has been removed, regressed, or left unmirrored.
+
+Before issuing ANY prompt that builds or modifies a feature on web or mobile, the FIRST action is a read-only, current-state inventory of that exact feature, stated explicitly in the chat. The inventory has three parts:
+
+1. The full action set the WEB component already offers, read from the actual component and its endpoints, never from memory, prior notes, or the way the request was framed.
+2. Recent git changes or regressions in that area, found by checking history, including any commit that removed or simplified actions.
+3. The mobile gap: what mobile has today versus the full web set.
+
+No build or port prompt goes out until that three-part inventory is on the table.
+
+NEVER build a lesser version of a feature (for example, a plain manual add) while the core capability (for example, AI add or replace stops, or create a new tour) is missing or regressed. Restore and match the full existing set first. Building something new while a core existing component is stripped or unmirrored is the violation this gate exists to stop.
+
+Founder enforcement lever: at any point, before a build prompt is acted on, the founder may say "inventory first." The build does not proceed until the three-part inventory is produced. This puts a hard stop in the founder's hands rather than relying on the assistant to hold the rule mid-flow.
+
+This gate sits above feature velocity, and is read at the start of every session as part of the mandatory file read.
+
+---
+
 ## Discipline 4.62 — Visual Verification Required on UI Changes
 
 When a prompt edits any UI component, page layout, or styling, Claude Code MUST run
