@@ -122,7 +122,7 @@ function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: num
 
 // Used by Snack, Photo spot, and Rest resolvers where the candidate venue is
 // location-specific. NOT used by Bathroom (hotel-lobby trick is segment-agnostic).
-function findNearestStopInsertionPoint(
+export function findNearestStopInsertionPoint(
   candidateLat: number,
   candidateLng: number,
   stops: Array<{ id: string; lat: number | null; lng: number | null; orderIndex: number }>

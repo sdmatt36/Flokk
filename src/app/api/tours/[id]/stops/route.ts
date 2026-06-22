@@ -5,6 +5,7 @@ import { HAIKU } from "@/lib/ai-models";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
+import { findNearestStopInsertionPoint } from "@/lib/tour-stop-insertion";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -188,10 +189,7 @@ export async function POST(
     return NextResponse.json({ error: "name is required" }, { status: 400 });
   }
 
-  const maxOrder = tour.stops[0]?.orderIndex ?? -1;
-  const prevStop = tour.stops[0]; // last active stop (highest orderIndex)
-
-  // Run Places enrichment and AI why-text in parallel
+  // Run Places enrichment and AI why-text in parallel — placement needs coords.
   const [places] = await Promise.all([
     resolvePlaceFull(body.name.trim(), body.address ?? "", tour.destinationCity),
   ]);
@@ -207,25 +205,67 @@ export async function POST(
       tour.inputVibe,
     );
 
-  // Compute travel time from previous stop → this stop
-  let travelTimeForPrev: number | null = null;
-  if (prevStop?.lat && prevStop?.lng && places?.lat && places?.lng) {
-    travelTimeForPrev = await getTravelTimeMin(
+  // ── Placement: insert in the route-logical slot, mirroring the AI add path ──
+  // Reuse findNearestStopInsertionPoint (the helper addStopToTour uses): place the
+  // new stop immediately after the geographically nearest existing stop and shift
+  // the tail. Falls back to append when the place or all stops lack coordinates.
+  const stopsAsc = [...tour.stops].sort((a, b) => a.orderIndex - b.orderIndex);
+  const maxOrder = stopsAsc.length > 0 ? stopsAsc[stopsAsc.length - 1].orderIndex : -1;
+  let insertAt: number;
+  let prevStop: (typeof stopsAsc)[number] | null;
+  let nextStop: (typeof stopsAsc)[number] | null;
+  if (places && places.lat != null && places.lng != null && stopsAsc.some((s) => s.lat != null && s.lng != null)) {
+    const { insertAfterStopId } = findNearestStopInsertionPoint(places.lat, places.lng, stopsAsc);
+    const afterIdx = stopsAsc.findIndex((s) => s.id === insertAfterStopId);
+    prevStop = stopsAsc[afterIdx];
+    nextStop = stopsAsc[afterIdx + 1] ?? null;
+    insertAt = prevStop.orderIndex + 1;
+  } else {
+    // No coordinates to place against — append (original behavior).
+    insertAt = maxOrder + 1;
+    prevStop = stopsAsc.length > 0 ? stopsAsc[stopsAsc.length - 1] : null;
+    nextStop = null;
+  }
+
+  // ── Recompute only the two legs the insertion touches ──
+  // prevStop -> new (stored on prevStop), and new -> nextStop (stored on the new
+  // stop; 0 when the new stop ends up last, per the existing last-stop convention).
+  let prevToNew: number | null = null;
+  if (prevStop?.lat != null && prevStop?.lng != null && places?.lat != null && places?.lng != null) {
+    prevToNew = await getTravelTimeMin(
       { lat: prevStop.lat, lng: prevStop.lng },
       { lat: places.lat, lng: places.lng },
       tour.transport
     );
+  }
+  let newToNext: number | null = null;
+  if (nextStop?.lat != null && nextStop?.lng != null && places?.lat != null && places?.lng != null) {
+    newToNext = await getTravelTimeMin(
+      { lat: places.lat, lng: places.lng },
+      { lat: nextStop.lat, lng: nextStop.lng },
+      tour.transport
+    );
+  }
+  const newStopTravelTime = newToNext ?? 0;
+
+  // Shift the tail (orderIndex >= insertAt) to make room — only when inserting
+  // before an existing stop. Append needs no shift.
+  if (nextStop) {
+    await db.tourStop.updateMany({
+      where: { tourId: id, deletedAt: null, orderIndex: { gte: insertAt } },
+      data: { orderIndex: { increment: 1 } },
+    });
   }
 
   const stop = await db.tourStop.create({
     data: {
       id: crypto.randomUUID(),
       tourId: id,
-      orderIndex: maxOrder + 1,
+      orderIndex: insertAt,
       name: body.name.trim(),
       address: places?.formattedAddress ?? body.address?.trim() ?? null,
       durationMin: body.durationMin ?? 30,
-      travelTimeMin: 0,
+      travelTimeMin: newStopTravelTime,
       why: whyText,
       familyNote: null,
       lat: places?.lat ?? null,
@@ -238,11 +278,11 @@ export async function POST(
     },
   });
 
-  // Update the previous stop's travelTimeMin to point to this new stop
-  if (travelTimeForPrev != null && prevStop) {
+  // Update the previous stop's outgoing leg to point at the new stop.
+  if (prevToNew != null && prevStop) {
     await db.tourStop.update({
       where: { id: prevStop.id },
-      data: { travelTimeMin: travelTimeForPrev },
+      data: { travelTimeMin: prevToNew },
     });
   }
 
@@ -254,14 +294,14 @@ export async function POST(
     lat: stop.lat ?? 0,
     lng: stop.lng ?? 0,
     duration: stop.durationMin ?? 30,
-    travelTime: 0,
+    travelTime: newStopTravelTime,
     why: stop.why ?? "",
     familyNote: "",
     imageUrl: stop.imageUrl ?? null,
     websiteUrl: stop.websiteUrl ?? null,
     ticketRequired: stop.ticketRequired ?? null,
-    // Also return updated travelTime for previous stop so client can sync
-    prevStopTravelTime: travelTimeForPrev,
+    // Also return the previous stop's recomputed leg so the client can sync.
+    prevStopTravelTime: prevToNew,
     prevStopId: prevStop?.id ?? null,
   });
 }
