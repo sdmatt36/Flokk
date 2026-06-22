@@ -11,7 +11,8 @@ import { resolveGooglePhotoUrl, PLACES_INFRA_STATUSES, PlacesInfraError } from "
 import { aggregateTripContext, flatChildAges, describePace, topInterests } from "@/lib/trip-context-multi";
 import { DestinationType, Prisma } from "@prisma/client";
 import { gradeTour, graderFlagsToInstruction, type GraderFamilyContext, type GraderGenerationInputs, type GraderStop } from "@/lib/tour-grader";
-import { generatePublicWhyForStops } from "@/lib/generate-public-why";
+import { generatePublicWhyForStops, classifyTicketsForStops } from "@/lib/generate-public-why";
+import { ticketFallbackFromSignals } from "@/lib/tour-ticket";
 import { checkLimit } from "@/lib/ratelimit";
 
 export const dynamic = "force-dynamic";
@@ -145,27 +146,6 @@ function scrubEmDash(s: string | null | undefined): string | null {
 }
 
 type ResolvedStop = RawStop & { imageUrl: string | null; websiteUrl: string | null; placeId: string | null; ticketRequired: string | null; placeTypes: string[]; businessStatus: string | null };
-
-function deriveTicketSignal(
-  types: string[],
-  priceLevel: number | undefined,
-  editorialSummary: string | undefined
-): string {
-  const FREE_TYPES = ["park", "natural_feature", "neighborhood", "route", "political", "locality", "sublocality", "church", "place_of_worship"];
-  const TICKET_TYPES = ["museum", "art_gallery", "aquarium", "zoo", "amusement_park", "tourist_attraction", "stadium", "bowling_alley", "movie_theater", "theme_park"];
-  const ADVANCE_TYPES = ["amusement_park", "zoo", "aquarium", "theme_park"];
-
-  if (ADVANCE_TYPES.some(t => types.includes(t))) return "advance-booking-recommended";
-  if (TICKET_TYPES.some(t => types.includes(t))) {
-    if (priceLevel !== undefined && priceLevel === 0) return "free";
-    return "ticket-required";
-  }
-  if (FREE_TYPES.some(t => types.includes(t))) return "free";
-  const summary = (editorialSummary ?? "").toLowerCase();
-  if (summary.includes("free admission") || summary.includes("no admission")) return "free";
-  if (summary.includes("admission") || summary.includes("ticket")) return "ticket-required";
-  return "unknown";
-}
 
 function ageFromBirthDate(birthDate: Date | string | null | undefined): number | null {
   if (!birthDate) return null;
@@ -340,7 +320,9 @@ async function resolveAgainstPlaces(stop: RawStop, destinationCity: string, tran
     const priceLevel = detailsData.result?.price_level;
     const editorialSummary = detailsData.result?.editorial_summary?.overview;
     const businessStatus = detailsData.result?.business_status ?? null;
-    const ticketRequired = deriveTicketSignal(placeTypes, priceLevel, editorialSummary);
+    // Deterministic baseline; a confident model value overrides it later via the
+    // batched classifyTicketsForStops pass (B2).
+    const ticketRequired = ticketFallbackFromSignals(placeTypes, priceLevel, editorialSummary);
     console.log(`[tour-resolve] OK "${stop.name}" -> ${lat},${lng}${imageUrl ? " [photo]" : ""} ticket=${ticketRequired} status=${businessStatus ?? "unknown"}`);
     return { ...stop, lat, lng, imageUrl, websiteUrl, placeId: firstResult.place_id, ticketRequired, placeTypes, businessStatus };
   } catch (e) {
@@ -1559,6 +1541,20 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
         );
         anchorViolation = { distance: Math.round(maxEndpointDist), threshold: anchorThreshold };
         console.log(`[tour-anchor-violation] first=${Math.round(firstDist)}m, last=${Math.round(lastDist)}m from lodging (threshold=${anchorThreshold}m)`);
+      }
+    }
+
+    // ── Ticket classification (B2): one batched Haiku pass over the resolved stops ──
+    // Stops already carry the deterministic fallback (set at resolve time); this only
+    // overrides with a confident model value. Runs only when time budget allows.
+    if (tourId && finalStopsFromDb.length > 0 && Date.now() - t0 < 108_000) {
+      try {
+        await classifyTicketsForStops(
+          finalStopsFromDb.map(s => ({ id: s.id, name: s.name, placeTypes: s.placeTypes ?? [], websiteUrl: s.websiteUrl })),
+          destinationCity,
+        );
+      } catch (ticketErr) {
+        console.error("[ticket-classify] generation pipeline failed:", ticketErr);
       }
     }
 

@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
 import { findNearestStopInsertionPoint } from "@/lib/tour-stop-insertion";
+import { ticketFallbackFromSignals, ticketClassificationGuidance, isTicketSignal, type TicketSignal } from "@/lib/tour-ticket";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -24,7 +25,6 @@ async function resolvePlaceFull(name: string, address: string, destinationCity: 
   editorialSummary: string | null;
   types: string[];
   priceLevel: number | null;
-  ticketRequired: string | null;
 } | null> {
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) return null;
@@ -67,18 +67,8 @@ async function resolvePlaceFull(name: string, address: string, destinationCity: 
     const priceLevel = det.result?.price_level ?? null;
     const editorialSummary = det.result?.editorial_summary?.overview ?? null;
 
-    // Derive ticket signal (mirrors generate/route.ts logic)
-    const freeTypes = ["park", "natural_feature", "beach", "landmark", "neighborhood", "point_of_interest"];
-    const ticketTypes = ["museum", "art_gallery", "amusement_park", "zoo", "aquarium", "tourist_attraction", "stadium", "movie_theater", "night_club"];
-    let ticketRequired = "unknown";
-    if (types.some(t => freeTypes.includes(t)) && !types.some(t => ticketTypes.includes(t))) {
-      ticketRequired = "free";
-    } else if (types.some(t => ticketTypes.includes(t))) {
-      ticketRequired = "ticket-required";
-    } else if (priceLevel != null && priceLevel > 0) {
-      ticketRequired = "ticket-required";
-    }
-
+    // ticketRequired is no longer derived here — it now rides the AI why-call
+    // (generateWhyAndTicket), with ticketFallbackFromSignals as the deterministic fallback.
     const websiteUrl = det.result?.website
       ?? `https://www.google.com/maps/place/?q=place_id:${first.place_id}`;
 
@@ -92,7 +82,6 @@ async function resolvePlaceFull(name: string, address: string, destinationCity: 
       editorialSummary,
       types,
       priceLevel,
-      ticketRequired,
     };
   } catch {
     return null;
@@ -120,29 +109,64 @@ async function getTravelTimeMin(
   }
 }
 
-async function generateWhyText(
-  stopName: string,
-  editorialSummary: string | null,
-  tourTitle: string,
-  destinationCity: string,
-  transport: string,
-  inputVibe: string[]
-): Promise<string> {
+// Single Haiku tool call that returns BOTH the why-text and the ticket classification.
+// The why is kept robust: a missing/failed ticket parse never blanks the why — it always
+// falls back to the model's why or a safe default. ticketRequired is null when the model
+// answers "unknown" or the call/parse fails, so the caller applies the deterministic
+// fallback (ticketFallbackFromSignals).
+async function generateWhyAndTicket(args: {
+  stopName: string;
+  types: string[];
+  priceLevel: number | null;
+  websiteUrl: string | null;
+  editorialSummary: string | null;
+  tourTitle: string;
+  destinationCity: string;
+  transport: string;
+  inputVibe: string[];
+}): Promise<{ why: string; ticketRequired: TicketSignal | null }> {
+  const { stopName, types, priceLevel, websiteUrl, editorialSummary, tourTitle, destinationCity, transport, inputVibe } = args;
   const vibeStr = inputVibe.join(", ") || "general interest";
+  const fallbackWhy = `A great stop in ${destinationCity}.`;
   const context = editorialSummary ? `Google says: "${editorialSummary}". ` : "";
+  const signals = `Google types: [${types.join(", ") || "none"}]. Price level: ${priceLevel ?? "n/a"}. Website: ${websiteUrl ?? "none"}.`;
   try {
     const msg = await anthropic.messages.create({
       model: HAIKU,
-      max_tokens: 120,
+      max_tokens: 400,
+      tools: [{
+        name: "emit_stop_enrichment",
+        description: "Emit the why-text and the ticketing classification for this tour stop.",
+        input_schema: {
+          type: "object",
+          properties: {
+            why: { type: "string", description: `1-2 sentences (max 40 words) explaining why "${stopName}" in ${destinationCity} is a great addition to a ${transport.toLowerCase()} tour called "${tourTitle}" with a ${vibeStr} vibe. Specific, warm, and family-friendly. No quotes.` },
+            ticketRequired: { type: "string", enum: ["free", "ticket-required", "advance-booking-recommended", "unknown"], description: ticketClassificationGuidance() },
+          },
+          required: ["why", "ticketRequired"],
+        },
+      }],
+      tool_choice: { type: "tool", name: "emit_stop_enrichment" },
       messages: [{
         role: "user",
-        content: `Write 1-2 sentences (max 40 words) explaining why "${stopName}" in ${destinationCity} is a great addition to a ${transport.toLowerCase()} tour called "${tourTitle}" with a ${vibeStr} vibe. ${context}Be specific, warm, and family-friendly. No quotes, no prefix.`,
+        content: `Stop: "${stopName}" in ${destinationCity}. ${context}${signals}`,
       }],
     });
-    const text = msg.content[0]?.type === "text" ? msg.content[0].text.trim() : "";
-    return text || `A great stop in ${destinationCity}.`;
+
+    let input: { why?: unknown; ticketRequired?: unknown } = {};
+    for (const block of msg.content) {
+      if (block.type === "tool_use") {
+        input = block.input as { why?: unknown; ticketRequired?: unknown };
+        break;
+      }
+    }
+    const why = typeof input.why === "string" && input.why.trim() ? input.why.trim() : fallbackWhy;
+    const ticketRequired = isTicketSignal(input.ticketRequired) && input.ticketRequired !== "unknown"
+      ? input.ticketRequired
+      : null;
+    return { why, ticketRequired };
   } catch {
-    return `A great stop in ${destinationCity}.`;
+    return { why: fallbackWhy, ticketRequired: null };
   }
 }
 
@@ -189,21 +213,26 @@ export async function POST(
     return NextResponse.json({ error: "name is required" }, { status: 400 });
   }
 
-  // Run Places enrichment and AI why-text in parallel — placement needs coords.
-  const [places] = await Promise.all([
-    resolvePlaceFull(body.name.trim(), body.address ?? "", tour.destinationCity),
-  ]);
+  // Resolve the place first — both the why/ticket call and placement need its signals.
+  const places = await resolvePlaceFull(body.name.trim(), body.address ?? "", tour.destinationCity);
 
-  // Generate why text once we have the editorial summary from Places
-  const whyText = body.notes?.trim()
-    || await generateWhyText(
-      body.name.trim(),
-      places?.editorialSummary ?? null,
-      tour.title,
-      tour.destinationCity,
-      tour.transport,
-      tour.inputVibe,
-    );
+  // One AI call returns the why-text AND the ticket classification, fed the place signals.
+  const enrichment = await generateWhyAndTicket({
+    stopName: body.name.trim(),
+    types: places?.types ?? [],
+    priceLevel: places?.priceLevel ?? null,
+    websiteUrl: places?.websiteUrl ?? null,
+    editorialSummary: places?.editorialSummary ?? null,
+    tourTitle: tour.title,
+    destinationCity: tour.destinationCity,
+    transport: tour.transport,
+    inputVibe: tour.inputVibe,
+  });
+  // User notes win for the why; otherwise the model's why. ticketRequired comes from the
+  // model, falling back to the shared deterministic helper only when the model is unsure.
+  const whyText = body.notes?.trim() || enrichment.why;
+  const ticketRequired = enrichment.ticketRequired
+    ?? ticketFallbackFromSignals(places?.types ?? [], places?.priceLevel, places?.editorialSummary);
 
   // ── Placement: insert in the route-logical slot, mirroring the AI add path ──
   // Reuse findNearestStopInsertionPoint (the helper addStopToTour uses): place the
@@ -273,7 +302,7 @@ export async function POST(
       imageUrl: places?.imageUrl ?? null,
       websiteUrl: places?.websiteUrl ?? null,
       placeId: places?.placeId ?? null,
-      ticketRequired: places?.ticketRequired ?? null,
+      ticketRequired,
       placeTypes: places?.types ?? [],
     },
   });

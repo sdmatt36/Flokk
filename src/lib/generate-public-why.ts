@@ -1,8 +1,82 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import { HAIKU } from "@/lib/ai-models";
+import { ticketClassificationGuidance, isTicketSignal } from "@/lib/tour-ticket";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+// B2: batched AI ticket classification over already-resolved stops (which carry the
+// Google types + website). One Haiku tool call for the whole tour — cheaper and more
+// time-budget-friendly than per-stop calls in the resolution hot path. Stops keep the
+// deterministic fallback (ticketFallbackFromSignals, set at resolve time); this only
+// OVERRIDES with a CONFIDENT model value. An "unknown"/failed classification leaves the
+// fallback untouched.
+export async function classifyTicketsForStops(
+  stops: { id: string; name: string; placeTypes: string[]; websiteUrl: string | null }[],
+  city: string,
+): Promise<{ updated: number; failed: number }> {
+  if (stops.length === 0) return { updated: 0, failed: 0 };
+  try {
+    const msg = await anthropic.messages.create({
+      model: HAIKU,
+      max_tokens: 1024,
+      tools: [{
+        name: "emit_ticket_classifications",
+        description: "Classify the ticketing requirement for each tour stop.",
+        input_schema: {
+          type: "object",
+          properties: {
+            stops: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string" },
+                  ticketRequired: { type: "string", enum: ["free", "ticket-required", "advance-booking-recommended", "unknown"] },
+                },
+                required: ["id", "ticketRequired"],
+              },
+            },
+          },
+          required: ["stops"],
+        },
+      }],
+      tool_choice: { type: "tool", name: "emit_ticket_classifications" },
+      messages: [{
+        role: "user",
+        content: `${ticketClassificationGuidance()}\n\nClassify each stop in ${city}. Return exactly one classification per stop id.\n\n${stops
+          .map((s) => `- id=${s.id} | name="${s.name}" | types=[${s.placeTypes.join(", ")}] | website=${s.websiteUrl ?? "none"}`)
+          .join("\n")}`,
+      }],
+    });
+
+    let rows: Array<{ id?: unknown; ticketRequired?: unknown }> = [];
+    for (const block of msg.content) {
+      if (block.type === "tool_use") {
+        const input = block.input as { stops?: Array<{ id?: unknown; ticketRequired?: unknown }> };
+        rows = Array.isArray(input.stops) ? input.stops : [];
+        break;
+      }
+    }
+
+    let updated = 0;
+    await Promise.allSettled(
+      rows.map(async (row) => {
+        const id = typeof row.id === "string" ? row.id : null;
+        const tr = row.ticketRequired;
+        // Only override with a CONFIDENT value; "unknown" keeps the deterministic fallback.
+        if (id && isTicketSignal(tr) && tr !== "unknown") {
+          await db.tourStop.update({ where: { id }, data: { ticketRequired: tr } });
+          updated++;
+        }
+      }),
+    );
+    return { updated, failed: stops.length - updated };
+  } catch (e) {
+    console.error("[ticket-classify] batched pass failed:", e);
+    return { updated: 0, failed: stops.length };
+  }
+}
 
 type StopInput = {
   id: string;
