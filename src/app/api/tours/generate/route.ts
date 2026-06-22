@@ -12,7 +12,7 @@ import { aggregateTripContext, flatChildAges, describePace, topInterests } from 
 import { DestinationType, Prisma } from "@prisma/client";
 import { gradeTour, graderFlagsToInstruction, type GraderFamilyContext, type GraderGenerationInputs, type GraderStop } from "@/lib/tour-grader";
 import { generatePublicWhyForStops, classifyTicketsForStops } from "@/lib/generate-public-why";
-import { measureAdjacentLegs } from "@/lib/travel-time";
+import { measureAdjacentLegs, maxWalkMinutes, countMeasuredWalkViolations } from "@/lib/travel-time";
 import { ticketFallbackFromSignals } from "@/lib/tour-ticket";
 import { checkLimit } from "@/lib/ratelimit";
 
@@ -158,11 +158,24 @@ function ageFromBirthDate(birthDate: Date | string | null | undefined): number |
   return age >= 0 ? age : null;
 }
 
-function maxWalkMinutes(youngestChildAge: number | null): number {
-  if (youngestChildAge === null) return 15;
-  if (youngestChildAge < 5) return 6;
-  if (youngestChildAge <= 10) return 10;
-  return 15;
+// Single decision point for residual walking-distance problems after the authoritative
+// MEASURED per-leg check. Today: never drop a stop and never re-generate (the one cheap
+// pre-retry already ran) — accept the tour and let the honest GET warning surface it. A
+// future transit-bridge (insert a transit/taxi leg, reorder) replaces the body here
+// without restructuring the surrounding pipeline.
+function resolveResidualWalkViolations(args: {
+  transport: string;
+  measuredViolations: number;
+  tourId: string | null;
+  thresholdMin: number;
+}): void {
+  const { transport, measuredViolations, tourId, thresholdMin } = args;
+  if (transport !== "Walking" || measuredViolations <= 0) return;
+  console.log(
+    `[tour-walk-measured] tourId=${tourId ?? "?"} residual_violations=${measuredViolations} ` +
+    `threshold=${thresholdMin}min — accepted (no stop dropped, single retry already spent; surfaced via warning)`
+  );
+  // FUTURE transit-bridge slots in here.
 }
 
 function getMaxStopRadiusKm(transport: string): number {
@@ -1564,6 +1577,13 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
         );
         // Reflect the measured values in the response built below.
         finalStopsFromDb.forEach((s, i) => { s.travelTimeMin = legs[i]; });
+
+        // Authoritative MEASURED per-leg walk check (final order). This is the real
+        // violation signal — the earlier pre-retry used cheap haversine distance. We do
+        // NOT re-generate on it (the single retry is already spent) and we do NOT drop
+        // stops; residual violations route to the single decision point below.
+        const measuredViolations = countMeasuredWalkViolations(legs, maxWalk);
+        resolveResidualWalkViolations({ transport, measuredViolations, tourId, thresholdMin: maxWalk });
       } catch (legErr) {
         console.error("[travel-legs] generation measurement failed:", legErr);
       }

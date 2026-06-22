@@ -64,3 +64,29 @@ export async function measureAdjacentLegs(
 
   return legs;
 }
+
+// Walking-leg budget in minutes, scaled by the youngest child's age. Single source of
+// truth — previously duplicated in generate, regenerate, and tours/[id] GET.
+export function maxWalkMinutes(youngestChildAge: number | null): number {
+  if (youngestChildAge === null) return 15;
+  if (youngestChildAge < 5) return 6;
+  if (youngestChildAge <= 10) return 10;
+  return 15;
+}
+
+// Count consecutive legs whose MEASURED travel time exceeds the walking budget. `legs` is
+// the per-stop onward-leg array from measureAdjacentLegs (entry i = stop i -> i+1; the
+// last entry is the no-onward-leg 0), or any equivalent stored travelTimeMin list. A null
+// (unmeasured) leg is not counted as a violation. The last entry is excluded — it is the
+// terminal stop with no onward leg.
+export function countMeasuredWalkViolations(
+  legs: Array<number | null>,
+  thresholdMin: number
+): number {
+  let count = 0;
+  for (let i = 0; i < legs.length - 1; i++) {
+    const leg = legs[i];
+    if (leg != null && leg > thresholdMin) count++;
+  }
+  return count;
+}

@@ -7,7 +7,7 @@ import { resolveProfileId } from "@/lib/profile-access";
 import { findBestInsertionIndex } from "@/lib/tour-route-optimization";
 import { haversineKm } from "@/lib/geo";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
-import { measureAdjacentLegs } from "@/lib/travel-time";
+import { measureAdjacentLegs, maxWalkMinutes } from "@/lib/travel-time";
 
 // Note: helpers duplicated from generate/route.ts (refactor to shared lib deferred)
 
@@ -75,12 +75,6 @@ function ageFromBirthDate(birthDate: Date | string | null | undefined): number |
   return age >= 0 ? age : null;
 }
 
-function maxWalkMinutes(youngestChildAge: number | null): number {
-  if (youngestChildAge === null) return 15;
-  if (youngestChildAge < 5) return 6;
-  if (youngestChildAge <= 10) return 10;
-  return 15;
-}
 
 function getMaxStopRadiusKm(transport: string): number {
   const t = transport.toLowerCase();
