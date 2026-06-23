@@ -698,7 +698,7 @@ export async function POST(req: NextRequest) {
 
     const emitTourStopTool: Anthropic.Tool = {
       name: "emit_tour_stop",
-      description: `Emit one stop for the tour. Call this tool exactly ${targetStops} times, once per stop, in order.`,
+      description: `Emit one stop for the tour. Call once per stop, in order, for up to ${targetStops} stops. Fewer is fine; follow the STOP COUNT and CONSTRAINT HIERARCHY guidance in the system prompt.`,
       input_schema: {
         type: "object",
         properties: {
@@ -772,7 +772,7 @@ ABSOLUTE RULES — violating any of these means the tour fails:
 3. ${transport === "Walking" ? `Walking tour: every consecutive stop pair MUST be within ${maxWalk} minutes walk (~${maxDistMeters}m) of each other. Cluster tightly in one neighborhood.` : transport === "Metro / Transit" ? "Metro tour: stops can span the city but must be reachable by public transit." : "Car tour: no distance constraint."}
 4. Total time (sum of all duration + travelTime) must not exceed ${maxMinutes} minutes.
 
-CONSTRAINT HIERARCHY: Rules 3 (walking-radius / transit) and 4 (total time <= ${maxMinutes} min) are HARD — never violate them. Stop count and any theme or vibe minimums (including the animals minimum) are SOFT and must yield to the hard constraints. If they conflict, drop a stop or the theme requirement rather than break compactness or the time budget.
+CONSTRAINT HIERARCHY: Rules 3 (walking-radius / transit) and 4 (total time <= ${maxMinutes} min) are HARD — never violate them. Stop count and any theme or vibe minimums are SOFT and must yield to those hard constraints. If they conflict, drop a stop or the theme requirement rather than break compactness or the time budget.
 
 ANCHOR SIZING: Large attractions (zoo, theme/amusement park, large aquarium, major museum, botanical garden, large national/forest park) are multi-hour anchors. Give each a realistic durationMin for a true visit (roughly: zoo or theme park >= 120 min; aquarium or major museum >= 90 min) — never an artificially short dwell to fit more stops. An anchor consumes most of the budget, so include only 1-2 additional nearby stops alongside it. On a Walking tour, NEVER include an anchor that falls outside the walking cluster; if the only such anchor is far, omit it.
 
