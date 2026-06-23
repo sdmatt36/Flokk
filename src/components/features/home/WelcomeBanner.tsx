@@ -49,7 +49,7 @@ export function WelcomeBanner() {
     {
       num: "03",
       title: "Save in-app",
-      body: <>Tap Save on any spot, recommendation, or trip you want to steal. Add your own favorite places to Spots whenever you find one.</>,
+      body: <>Tap Save on any Pick or trip you want to steal, and add your own favorite places whenever you find one.</>,
     },
   ];
 
