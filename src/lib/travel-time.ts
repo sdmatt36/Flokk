@@ -4,6 +4,9 @@
 // import from here. Generate/Regenerate also use this to measure legs instead of
 // persisting the AI model's guessed travelTime.
 
+import { db } from "@/lib/db";
+import { haversineKm } from "@/lib/geo";
+
 type Coord = { lat: number; lng: number };
 
 // Mapbox Directions profile for a tour's transport mode. Walking tours use the walking
@@ -89,4 +92,141 @@ export function countMeasuredWalkViolations(
     if (leg != null && leg > thresholdMin) count++;
   }
   return count;
+}
+
+// ── Hard walking-leg cap ────────────────────────────────────────────────────────
+// No AI-generated WALKING tour ships with a measured leg over this many minutes between
+// consecutive stops. Deterministic, code-enforced — additive to the soft family-threshold
+// warning (maxWalkMinutes / countMeasuredWalkViolations), which is left intact.
+export const MAX_WALK_LEG_MIN = 20;
+
+// Straight-line proxy used for the DROP DECISION only (no per-iteration Mapbox calls):
+// ~1.6 km is roughly a 20-minute walk. The authoritative cap stays the MEASURED
+// MAX_WALK_LEG_MIN — the kept set is re-measured with Mapbox once after dropping.
+const MAX_WALK_LEG_KM = 1.6;
+
+type WalkCapStop = { id: string; lat: number | null; lng: number | null };
+type CoordStop = { id: string; lat: number; lng: number };
+
+function countLegBreaches(seq: CoordStop[]): number {
+  let n = 0;
+  for (let i = 0; i < seq.length - 1; i++) {
+    if (haversineKm(seq[i], seq[i + 1]) > MAX_WALK_LEG_KM) n++;
+  }
+  return n;
+}
+
+// Greedy nearest-neighbor ordering anchored on the first stop.
+function nearestNeighborOrder(seq: CoordStop[]): CoordStop[] {
+  if (seq.length <= 2) return [...seq];
+  const remaining = [...seq];
+  const ordered: CoordStop[] = [remaining.shift()!];
+  while (remaining.length > 0) {
+    const cur = ordered[ordered.length - 1];
+    let best = 0;
+    let bestD = haversineKm(cur, remaining[0]);
+    for (let j = 1; j < remaining.length; j++) {
+      const d = haversineKm(cur, remaining[j]);
+      if (d < bestD) { bestD = d; best = j; }
+    }
+    ordered.push(remaining.splice(best, 1)[0]);
+  }
+  return ordered;
+}
+
+// The two globally-closest stops (min pairwise haversine), in input order.
+function twoClosest(seq: CoordStop[]): CoordStop[] {
+  let bi = 0;
+  let bj = 1;
+  let bd = Infinity;
+  for (let i = 0; i < seq.length; i++) {
+    for (let j = i + 1; j < seq.length; j++) {
+      const d = haversineKm(seq[i], seq[j]);
+      if (d < bd) { bd = d; bi = i; bj = j; }
+    }
+  }
+  return [seq[bi], seq[bj]];
+}
+
+// Enforce the hard cap on a Walking tour's stops. Drop decisions use the resolved lat/lng
+// + haversine: while any consecutive leg would exceed the cap, drop the farthest geographic
+// outlier among the stops touching a breaching leg, re-order the rest nearest-neighbor from
+// the first kept stop, and recheck. Floor: never below 2 stops — keep the 2 closest. Persists
+// by soft-deleting dropped rows, renumbering kept orderIndex contiguously from 0, then
+// re-measuring the kept set ONCE and writing the real travelTimeMin (last stop 0). Never
+// throws — a failure leaves the tour exactly as the prior measure pass left it.
+//
+// Returns null (a true no-op: no DB writes, no Mapbox calls) when transport !== "Walking",
+// fewer than 2 coord-bearing stops, or the stops already comply — so the common compliant
+// case costs only a haversine scan. Returns { droppedIds } when it changed the tour.
+export async function enforceWalkLegCap(
+  tourId: string,
+  transport: string,
+  stops: WalkCapStop[],
+): Promise<{ droppedIds: string[] } | null> {
+  if (transport !== "Walking") return null;
+  try {
+    const coordStops: CoordStop[] = stops.filter(
+      (s): s is CoordStop => s.lat != null && s.lng != null,
+    );
+    const coordlessStops = stops.filter((s) => s.lat == null || s.lng == null);
+    if (coordStops.length < 2) return null;
+    if (countLegBreaches(coordStops) === 0) return null; // already compliant — no-op
+
+    let working = [...coordStops];
+    while (working.length > 2 && countLegBreaches(working) > 0) {
+      // Candidates: the endpoints of every breaching leg.
+      const candidateIdx = new Set<number>();
+      for (let i = 0; i < working.length - 1; i++) {
+        if (haversineKm(working[i], working[i + 1]) > MAX_WALK_LEG_KM) {
+          candidateIdx.add(i);
+          candidateIdx.add(i + 1);
+        }
+      }
+      // Drop the farthest geographic outlier (max distance to the current centroid).
+      const cLat = working.reduce((s, x) => s + x.lat, 0) / working.length;
+      const cLng = working.reduce((s, x) => s + x.lng, 0) / working.length;
+      let worst = -1;
+      let worstD = -1;
+      for (const idx of candidateIdx) {
+        const d = haversineKm(working[idx], { lat: cLat, lng: cLng });
+        if (d > worstD) { worstD = d; worst = idx; }
+      }
+      working.splice(worst, 1);
+      working = nearestNeighborOrder(working);
+    }
+    // Floor: if a breach survives (only possible at exactly 2 stops), keep the 2 closest.
+    if (countLegBreaches(working) > 0) {
+      working = twoClosest(coordStops);
+    }
+
+    const keptIds = new Set(working.map((s) => s.id));
+    const droppedIds = coordStops.filter((s) => !keptIds.has(s.id)).map((s) => s.id);
+    if (droppedIds.length === 0) return null; // nothing actually dropped
+
+    // Persist. Soft-delete dropped rows so the live tour (deletedAt IS NULL) excludes them.
+    await db.tourStop.updateMany({
+      where: { id: { in: droppedIds } },
+      data: { deletedAt: new Date() },
+    });
+    // Kept set = reordered coord-bearing stops, then any coordless stops appended.
+    const finalKept: WalkCapStop[] = [...working, ...coordlessStops];
+    await Promise.all(
+      finalKept.map((s, i) => db.tourStop.update({ where: { id: s.id }, data: { orderIndex: i } })),
+    );
+    // Re-measure the kept set ONCE and write the real travelTimeMin (last stop 0).
+    const legs = await measureAdjacentLegs(
+      finalKept.map((s) => ({ lat: s.lat, lng: s.lng })),
+      transport,
+    );
+    await Promise.all(
+      finalKept.map((s, i) => db.tourStop.update({ where: { id: s.id }, data: { travelTimeMin: legs[i] } })),
+    );
+
+    console.log(`[walk-cap] tourId=${tourId} dropped=${droppedIds.length} kept=${finalKept.length} (cap=${MAX_WALK_LEG_MIN}min/~${MAX_WALK_LEG_KM}km)`);
+    return { droppedIds };
+  } catch (e) {
+    console.error("[walk-cap] enforcement failed:", e);
+    return null;
+  }
 }

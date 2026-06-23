@@ -7,7 +7,7 @@ import { resolveProfileId } from "@/lib/profile-access";
 import { findBestInsertionIndex } from "@/lib/tour-route-optimization";
 import { haversineKm } from "@/lib/geo";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
-import { measureAdjacentLegs, maxWalkMinutes } from "@/lib/travel-time";
+import { measureAdjacentLegs, maxWalkMinutes, enforceWalkLegCap } from "@/lib/travel-time";
 
 // Note: helpers duplicated from generate/route.ts (refactor to shared lib deferred)
 
@@ -379,7 +379,7 @@ Generate stops that complement the accepted set thematically. They must fit the 
   }
 
   // Return all active stops in their new order so the client can fully replace its state
-  const finalActive = await db.tourStop.findMany({
+  let finalActive = await db.tourStop.findMany({
     where: { tourId, deletedAt: null },
     orderBy: { orderIndex: "asc" },
   });
@@ -403,6 +403,26 @@ Generate stops that complement the accepted set thematically. They must fit the 
     finalActive.forEach((s, i) => { s.travelTimeMin = legs[i]; });
   } catch (legErr) {
     console.error("[travel-legs] regeneration measurement failed:", legErr);
+  }
+
+  // ── Hard walking-leg cap (additive to the soft warning) ──────────────────────
+  // Deterministic: no Walking tour ships with a measured leg over MAX_WALK_LEG_MIN. Drops
+  // outliers, soft-deletes them, renumbers, and re-measures the kept set. No-op on
+  // non-Walking or already-compliant tours. Wrapped so a failure never aborts regeneration.
+  try {
+    const enf = await enforceWalkLegCap(
+      tourId,
+      transport,
+      finalActive.map(s => ({ id: s.id, lat: s.lat, lng: s.lng })),
+    );
+    if (enf && enf.droppedIds.length > 0) {
+      finalActive = await db.tourStop.findMany({
+        where: { tourId, deletedAt: null },
+        orderBy: { orderIndex: "asc" },
+      });
+    }
+  } catch (capErr) {
+    console.error("[walk-cap] regenerate enforcement failed:", capErr);
   }
 
   const finalFormatted = finalActive.map(s => ({

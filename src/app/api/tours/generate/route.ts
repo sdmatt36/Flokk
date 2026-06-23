@@ -12,7 +12,7 @@ import { aggregateTripContext, flatChildAges, describePace, topInterests } from 
 import { DestinationType, Prisma } from "@prisma/client";
 import { gradeTour, graderFlagsToInstruction, type GraderFamilyContext, type GraderGenerationInputs, type GraderStop } from "@/lib/tour-grader";
 import { generatePublicWhyForStops, classifyTicketsForStops } from "@/lib/generate-public-why";
-import { measureAdjacentLegs, maxWalkMinutes, countMeasuredWalkViolations } from "@/lib/travel-time";
+import { measureAdjacentLegs, maxWalkMinutes, countMeasuredWalkViolations, enforceWalkLegCap } from "@/lib/travel-time";
 import { ticketFallbackFromSignals } from "@/lib/tour-ticket";
 import { checkLimit } from "@/lib/ratelimit";
 
@@ -1592,6 +1592,29 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
         resolveResidualWalkViolations({ transport, measuredViolations, tourId, thresholdMin: maxWalk });
       } catch (legErr) {
         console.error("[travel-legs] generation measurement failed:", legErr);
+      }
+    }
+
+    // ── Hard walking-leg cap (additive to the soft warning above) ────────────────
+    // Deterministic: no Walking tour ships with a measured leg over MAX_WALK_LEG_MIN. Drops
+    // outliers, soft-deletes them, renumbers, and re-measures the kept set. No-op on
+    // non-Walking or already-compliant tours. Wrapped so a failure never aborts generation.
+    if (tourId && finalStopsFromDb.length > 0) {
+      try {
+        const enf = await enforceWalkLegCap(
+          tourId,
+          transport,
+          finalStopsFromDb.map(s => ({ id: s.id, lat: s.lat, lng: s.lng })),
+        );
+        if (enf && enf.droppedIds.length > 0) {
+          // Re-read the live (kept) set so the response and later passes reflect the cap.
+          finalStopsFromDb = await db.tourStop.findMany({
+            where: { tourId, deletedAt: null },
+            orderBy: { orderIndex: "asc" },
+          });
+        }
+      } catch (capErr) {
+        console.error("[walk-cap] generate enforcement failed:", capErr);
       }
     }
 
