@@ -4,6 +4,7 @@ import sharp from "sharp";
 import { SONNET } from "@/lib/ai-models";
 import { Resend } from "resend";
 import { db } from "@/lib/db";
+import { mintTripShareToken } from "@/lib/trip-share-token";
 import { Prisma } from "@prisma/client";
 import { writeFlightFromEmail, WriteFlightLeg } from "@/lib/flights/extract-and-write";
 import { findAllRelatedTrips, type TripRecord } from "@/lib/flights/find-related-trips";
@@ -1296,9 +1297,10 @@ Field notes:
             startDate: autoStart,
             endDate: autoEnd,
           });
+          const autoTripShareToken = await mintTripShareToken();
           const autoTrip = await db.$transaction(async (tx) => {
             const created = await tx.trip.create({
-              data: { ...autoData, familyProfileId: familyProfile.id },
+              data: { ...autoData, familyProfileId: familyProfile.id, shareToken: autoTripShareToken },
             });
             await tx.tripCollaborator.create({
               data: {
@@ -1340,9 +1342,10 @@ Field notes:
             endDate: plan.endDate,
           });
 
+          const planTripShareToken = await mintTripShareToken();
           const planTrip = await db.$transaction(async (tx) => {
             const created = await tx.trip.create({
-              data: { ...planData, familyProfileId: familyProfile.id },
+              data: { ...planData, familyProfileId: familyProfile.id, shareToken: planTripShareToken },
             });
             await tx.tripCollaborator.create({
               data: {
@@ -2402,8 +2405,9 @@ Field notes:
             startDate: checkInDate,
             endDate: checkOutDate,
           });
+          const emergencyTripShareToken = await mintTripShareToken();
           const emergencyTrip = await db.$transaction(async (tx) => {
-            const created = await tx.trip.create({ data: { ...emergencyData, familyProfileId: familyProfile.id } });
+            const created = await tx.trip.create({ data: { ...emergencyData, familyProfileId: familyProfile.id, shareToken: emergencyTripShareToken } });
             await tx.tripCollaborator.create({
               data: { tripId: created.id, familyProfileId: familyProfile.id, role: "OWNER", invitedById: familyProfile.id, invitedAt: new Date(), acceptedAt: new Date() },
             });

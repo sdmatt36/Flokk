@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
+import { mintTripShareToken } from "@/lib/trip-share-token";
 
 export async function POST() {
   const { userId } = await auth();
@@ -13,6 +14,7 @@ export async function POST() {
     return NextResponse.json({ error: "No family profile" }, { status: 400 });
   }
 
+  const tripShareToken = await mintTripShareToken();
   const trip = await db.$transaction(async (tx) => {
     const created = await tx.trip.create({
       data: {
@@ -24,6 +26,7 @@ export async function POST() {
         endDate: new Date("2025-05-08"),
         status: "PLANNING",
         privacy: "PRIVATE",
+        shareToken: tripShareToken,
         savedItems: {
           create: [
             {

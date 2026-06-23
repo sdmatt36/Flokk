@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { mintTripShareToken } from "@/lib/trip-share-token";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { sendLifecycleEmail } from "@/lib/lifecycle-emails";
@@ -111,9 +112,10 @@ export async function POST(req: Request) {
     : null;
   const tripData = titleOverride ? { ...builtData, title: titleOverride } : builtData;
 
+  const tripShareToken = await mintTripShareToken();
   const trip = await db.$transaction(async (tx) => {
     const created = await tx.trip.create({
-      data: { ...tripData, familyProfileId: familyProfile.id },
+      data: { ...tripData, familyProfileId: familyProfile.id, shareToken: tripShareToken },
     });
     await tx.tripCollaborator.create({
       data: {

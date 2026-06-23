@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { getVenueImage } from "@/lib/destination-images";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
+import { mintTripShareToken } from "@/lib/trip-share-token";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 
 export async function POST(request: Request) {
@@ -53,6 +54,7 @@ export async function POST(request: Request) {
       isAnonymous: true,
     });
 
+    const tripShareToken = await mintTripShareToken();
     const newTrip = await db.$transaction(async (tx) => {
       const created = await tx.trip.create({
         data: {
@@ -61,6 +63,7 @@ export async function POST(request: Request) {
           heroImageUrl: source.heroImageUrl ?? builtData.heroImageUrl,
           familyProfileId: profileId,
           sourceTripId: sourceTripId,
+          shareToken: tripShareToken,
         },
       });
       await tx.tripCollaborator.create({

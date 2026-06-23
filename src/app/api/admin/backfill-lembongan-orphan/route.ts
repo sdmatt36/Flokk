@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
+import { mintTripShareToken } from "@/lib/trip-share-token";
 
 export const dynamic = "force-dynamic";
 
@@ -38,12 +39,14 @@ export async function POST(req: NextRequest) {
     endDate: "2026-06-16",
   });
 
+  const tripShareToken = await mintTripShareToken();
   const result = await db.$transaction(async (tx) => {
     const trip = await tx.trip.create({
       data: {
         ...tripData,
         title: "Lembongan Jun '26",
         familyProfileId: FAMILY_PROFILE_ID,
+        shareToken: tripShareToken,
       },
     });
 

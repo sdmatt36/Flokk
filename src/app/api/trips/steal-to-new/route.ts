@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
+import { mintTripShareToken } from "@/lib/trip-share-token";
 import { getTripAccess, canEditTripContent } from "@/lib/trip-permissions";
 import { buildClonedItem, computeScheduledDate } from "@/lib/clone-saved-items";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
@@ -172,6 +173,7 @@ export async function POST(req: Request) {
   );
 
   // Create new trip for this user, record source lineage
+  const tripShareToken = await mintTripShareToken();
   const newTrip = await db.$transaction(async (tx) => {
     const created = await tx.trip.create({
       data: {
@@ -179,6 +181,7 @@ export async function POST(req: Request) {
         title: resolvedTitle,
         familyProfileId: profileId,
         sourceTripId: sourceTrip.id,
+        shareToken: tripShareToken,
       },
     });
     await tx.tripCollaborator.create({
