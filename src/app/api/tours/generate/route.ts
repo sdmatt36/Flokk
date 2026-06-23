@@ -416,7 +416,7 @@ export async function POST(req: NextRequest) {
   } else {
     // "Half day (4 hrs)" or unrecognised — default 4 hrs
     maxMinutes = 240;
-    targetStops = 4;
+    targetStops = 6;
   }
 
   let tourId: string | undefined;
@@ -646,7 +646,7 @@ export async function POST(req: NextRequest) {
       const vibeStopFloor = Math.max(1, Math.round(targetStops * 0.4));
       if (inputVibe.includes("parks_play")) rules.push(`"parks_play" vibe: MINIMUM ${vibeStopFloor} stops must be parks, playgrounds, green spaces, outdoor activity zones, or climbing structures. These are the spine of the tour. Non-negotiable.`);
       if (inputVibe.includes("sweets")) rules.push(`"sweets" vibe: MINIMUM ${vibeStopFloor} stops must be dedicated sweets venues — bakeries, gelato, candy stores, chocolatiers, dessert cafes, pastry shops. Sweets IS the theme. Other stops complement; sweets dominate.`);
-      if (inputVibe.includes("animals")) rules.push(`"animals" vibe: aim for up to ${Math.min(vibeStopFloor, 3)} animal-focused stop(s) — zoos, aquariums, wildlife sanctuaries, urban farms, butterfly gardens, insect museums, animal encounters — but each MUST also satisfy the ${transport === "Walking" ? "walking-radius (Walking)" : "transit-radius"} rule above. This minimum is conditional: if no qualifying animal venue exists within the cluster without violating compactness, DROP the animal requirement rather than reaching across the city for one.`);
+      if (inputVibe.includes("animals")) rules.push(`"animals" vibe: MINIMUM ${Math.min(vibeStopFloor, 3)} stops must be animal-focused — zoos, aquariums, wildlife sanctuaries, urban farms, butterfly gardens, insect museums, animal encounters. Mandatory, not optional.`);
       if (inputVibe.includes("food_markets")) rules.push(`"food_markets" vibe: MINIMUM ${vibeStopFloor} stops must be food markets, street food stalls, culinary halls, or food-focused venues.`);
       if (inputVibe.includes("culture")) rules.push(`"culture" vibe: MINIMUM ${vibeStopFloor} stops must be cultural venues — museums, galleries, historic sites, temples, palaces, heritage districts.`);
       if (inputVibe.includes("nature")) rules.push(`"nature" vibe: MINIMUM ${vibeStopFloor} stops must be outdoor/nature venues — parks, gardens, viewpoints, rivers, nature trails, botanical gardens.`);
@@ -698,7 +698,7 @@ export async function POST(req: NextRequest) {
 
     const emitTourStopTool: Anthropic.Tool = {
       name: "emit_tour_stop",
-      description: `Emit one stop for the tour. Call once per stop, in order, for up to ${targetStops} stops. Fewer is fine; follow the STOP COUNT and CONSTRAINT HIERARCHY guidance in the system prompt.`,
+      description: `Emit one stop for the tour. Call this tool exactly ${targetStops} times, once per stop, in order.`,
       input_schema: {
         type: "object",
         properties: {
@@ -760,23 +760,17 @@ NAME CONSISTENCY: If you use specific names in any stop, use those same names th
       ? `\nSOLO NOTE: This is a personal solo trip for one adult taking time away from others. Use "you" framing exclusively throughout all why and familyNote fields. Zero references to companions, family members, group, or anyone's names.`
       : "";
 
-    const stopCountRule = `STOP COUNT: Aim for UP TO ${targetStops} stops. Fewer is completely acceptable and often better — quality and tight clustering beat quantity. NEVER add a stop that breaks the walking-radius or time-budget rules below just to reach a count. A shorter, tightly-clustered tour is a SUCCESS; a padded or scattered one is a FAILURE.`;
+    const stopCountRule = `STOP COUNT: You MUST call emit_tour_stop exactly ${targetStops} times. Not ${targetStops - 1}, not fewer. If a stop is hard to find, substitute the nearest similar venue. Ending with fewer stops than required means the tour fails.`;
 
     const namedPlaceRule = `NAMED-PLACE RULE: If the tour theme mentions any specific place, attraction, neighborhood, park, market, or venue by name (e.g. "Central Park", "Shinjuku", "the Louvre", "Tsukiji Market"), that exact named place MUST appear as a stop. It is a hard requirement — do not substitute a "similar" alternative.`;
 
-    const systemPrompt = `You are a travel expert building themed day tours. Call emit_tour_stop once per stop, in order.
+    const systemPrompt = `You are a travel expert building themed day tours. Call emit_tour_stop exactly ${targetStops} times — once per stop, in order.
 
 ABSOLUTE RULES — violating any of these means the tour fails:
 1. Every stop MUST be a real, operating venue physically located IN ${destinationCity}. No venues from other cities. No "branch" workarounds. No closed or fictional places.
 2. Every stop MUST directly serve the theme. No tangential sightseeing added for variety.
 3. ${transport === "Walking" ? `Walking tour: every consecutive stop pair MUST be within ${maxWalk} minutes walk (~${maxDistMeters}m) of each other. Cluster tightly in one neighborhood.` : transport === "Metro / Transit" ? "Metro tour: stops can span the city but must be reachable by public transit." : "Car tour: no distance constraint."}
 4. Total time (sum of all duration + travelTime) must not exceed ${maxMinutes} minutes.
-
-CONSTRAINT HIERARCHY: Rules 3 (walking-radius / transit) and 4 (total time <= ${maxMinutes} min) are HARD — never violate them. Stop count and any theme or vibe minimums are SOFT and must yield to those hard constraints. If they conflict, drop a stop or the theme requirement rather than break compactness or the time budget.
-
-ANCHOR SIZING: Large attractions (zoo, theme/amusement park, large aquarium, major museum, botanical garden, large national/forest park) are multi-hour anchors. Give each a realistic durationMin for a true visit (roughly: zoo or theme park >= 120 min; aquarium or major museum >= 90 min) — never an artificially short dwell to fit more stops. An anchor consumes most of the budget, so include only 1-2 additional nearby stops alongside it. On a Walking tour, NEVER include an anchor that falls outside the walking cluster; if the only such anchor is far, omit it.
-
-HONEST BUDGETING: durationMin must reflect a realistic visit length, and total dwell + travel must be <= ${maxMinutes} minutes. If the plan exceeds the budget, drop the lowest-priority stop — do NOT shrink dwell times unrealistically to make stops fit.
 ${familyNoteRule}
 
 ${stopCountRule}
