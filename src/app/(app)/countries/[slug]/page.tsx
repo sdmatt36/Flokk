@@ -44,12 +44,23 @@ export default async function CountryPage(
   if (!data) notFound();
   const { country, cities: allCities } = data;
 
+  // City rollup keys: include content linked to the country's cities (by City FK for tours,
+  // by city name for trips, which have no cityId) alongside country/island-scoped content
+  // matched by destinationCountry. destinationCountry is reliably populated post-backfill.
+  const cityIds = allCities.map((c) => c.id);
+  const cityNames = allCities.map((c) => c.name);
+
   // Step 2: content sections + sibling countries in parallel
   const [trips, spots, tours, siblingCountries] = await Promise.all([
     db.trip.findMany({
       where: {
-        destinationCountry: country.name,
         isPublic: true,
+        shareToken: { not: null },
+        OR: [
+          { destinationCountry: { equals: country.name, mode: "insensitive" } },
+          { countries: { has: country.name } },
+          { destinationCity: { in: cityNames } },
+        ],
       },
       select: {
         id: true,
@@ -90,8 +101,13 @@ export default async function CountryPage(
     }),
     db.generatedTour.findMany({
       where: {
-        destinationCountry: country.name,
         isPublic: true,
+        deletedAt: null,
+        shareToken: { not: null },
+        OR: [
+          { destinationCountry: { equals: country.name, mode: "insensitive" } },
+          { cityId: { in: cityIds } },
+        ],
       },
       select: {
         id: true,
@@ -107,6 +123,7 @@ export default async function CountryPage(
           take: 1,
         },
       },
+      orderBy: { createdAt: "desc" },
       take: 50,
     }),
     db.country.findMany({
