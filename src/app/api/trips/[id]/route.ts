@@ -28,7 +28,7 @@ export async function GET(
     select: {
       id: true, title: true, destinationCity: true, destinationCountry: true,
       cities: true, country: true, countries: true, startDate: true, endDate: true,
-      status: true, heroImageUrl: true, isPlacesLibrary: true,
+      status: true, heroImageUrl: true, isPlacesLibrary: true, shareToken: true,
       _count: { select: { savedItems: { where: { deletedAt: null } } } },
     },
   });
@@ -50,6 +50,7 @@ export async function GET(
       isPlacesLibrary: trip.isPlacesLibrary,
       coverImageUrl: getTripCoverImage(trip.destinationCity, trip.destinationCountry, trip.heroImageUrl),
       savesCount: trip._count.savedItems,
+      shareToken: trip.shareToken,
     },
   });
 }
