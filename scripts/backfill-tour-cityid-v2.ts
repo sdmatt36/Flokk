@@ -10,10 +10,14 @@
 import * as dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
-import { db } from "@/lib/db";
-import { resolveCityAndCountry } from "@/lib/resolve-city";
-
+// NOTE: @/lib/db reads process.env.DATABASE_URL at module-init time. ESM hoists static imports
+// above the dotenv.config() call above, so we MUST import db (and the resolver, which imports db)
+// dynamically inside main() — after env is loaded — or Prisma initializes with no DATABASE_URL and
+// falls back to localhost (ECONNREFUSED). Mirrors scripts/test-account-deletion.ts.
 async function main() {
+  const { db } = await import("@/lib/db");
+  const { resolveCityAndCountry } = await import("@/lib/resolve-city");
+
   const tours = await db.generatedTour.findMany({
     where: { cityId: null },
     select: { id: true, destinationCity: true, destinationCountry: true },
@@ -60,13 +64,11 @@ async function main() {
     const unique = [...new Map(skippedList.map((s) => [s.city, s])).values()];
     for (const s of unique) console.log(`  id=${s.id} | "${s.city}"`);
   }
+
+  await db.$disconnect();
 }
 
-main()
-  .catch((err) => {
-    console.error("Backfill failed:", err);
-    process.exit(1);
-  })
-  .finally(() => {
-    void db.$disconnect();
-  });
+main().catch((err) => {
+  console.error("Backfill failed:", err);
+  process.exit(1);
+});
