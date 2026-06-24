@@ -13,22 +13,18 @@ const CITY_ALIASES: Record<string, string> = {
   "shibuya": "tokyo",
 };
 
-// Curated region/place → country aliases, for strings that match no City and that we want to
-// pin to a specific country even when a generic Country-name match would do something else.
-// Intentionally tiny and hand-maintained — NOT a general gazetteer. Keys are normalized
-// (lowercased) input strings (full or first-comma-part); values are Country names that are
-// re-resolved through the Country table at match time so they stay canonical.
-// NOTE: "scotland" is mapped to United Kingdom by request even though a "Scotland" Country row
-// exists — this map is consulted BEFORE the generic Country-name match so the override wins.
+// Curated region/landmark → country aliases, ONLY for strings that resolve to no City and no
+// Country row at all (genuine landmarks/islands). Intentionally tiny and hand-maintained — NOT
+// a general gazetteer. Keys are normalized (lowercased) input strings (full or first-comma-part);
+// values are Country names re-resolved through the Country table at match time so they stay
+// canonical. Anything that IS a real Country (e.g. Scotland, Ireland) is left to Pass 5's generic
+// Country-name match — it must NOT be aliased here, so those keep their own country.
 const COUNTRY_ALIASES: Record<string, string> = {
-  "scotland": "United Kingdom",
-  "uk": "United Kingdom",
   "mt. fuji": "Japan",
   "mount fuji": "Japan",
   "fuji": "Japan",
   "ko samui": "Thailand",
   "koh samui": "Thailand",
-  "ireland, uk": "Ireland",
 };
 
 export function slugifyCity(name: string): string {
