@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "audit:drift": "tsx --tsconfig tsconfig.scripts.json scripts/audit-drift.ts",
+    "backfill:tour-cityid": "tsx --tsconfig tsconfig.scripts.json scripts/backfill-tour-cityid-v2.ts",
     "build": "prisma generate && next build",
     "dev": "next dev",
     "lint": "eslint",

@@ -6,6 +6,7 @@ import { haversineMeters } from "@/lib/geo";
 import { PLATFORM_FLOKK_TOURS } from "@/lib/saved-item-types";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { mapPlaceTypesToCanonicalSlugs } from "@/lib/categories";
+import { resolveCityAndCountry } from "@/lib/resolve-city";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -129,12 +130,15 @@ export async function POST(req: NextRequest) {
       ? `${tourMeta.destinationCity} tour`
       : tourMeta.prompt.trim().slice(0, 60);
 
+    const resolvedCity = await resolveCityAndCountry(tourMeta.destinationCity);
     await db.generatedTour.create({
       data: {
         id: tourId,
         title: tourTitle,
         destinationCity: tourMeta.destinationCity,
-        destinationCountry: tourMeta.destinationCountry ?? null,
+        cityId: resolvedCity.cityId,
+        // Prefer a real resolved country over a client-passed null.
+        destinationCountry: resolvedCity.destinationCountry ?? tourMeta.destinationCountry ?? null,
         prompt: tourMeta.prompt,
         durationLabel: tourMeta.durationLabel,
         transport: tourMeta.transport,

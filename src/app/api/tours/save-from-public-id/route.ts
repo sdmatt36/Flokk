@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { PLATFORM_FLOKK_TOURS } from "@/lib/saved-item-types";
 import { mapPlaceTypesToCanonicalSlugs } from "@/lib/categories";
+import { resolveCityAndCountry } from "@/lib/resolve-city";
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -26,6 +27,7 @@ export async function POST(req: Request) {
       title: true,
       destinationCity: true,
       destinationCountry: true,
+      cityId: true,
       prompt: true,
       durationLabel: true,
       transport: true,
@@ -57,6 +59,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Tour not found" }, { status: 404 });
   }
 
+  // Carry the source tour's City linkage forward when present; otherwise resolve it from the
+  // copied destinationCity so the clone is never orphaned from the City hierarchy.
+  const cityLinkage = src.cityId
+    ? { cityId: src.cityId, destinationCountry: src.destinationCountry ?? null }
+    : await resolveCityAndCountry(src.destinationCity);
+
   // Create a cloned tour owned by the requesting profile.
   // Same transaction as /api/tours/save-from-share-token: 1 GeneratedTour + N TourStop + N SavedItem.
   const newTourId = nanoid();
@@ -67,7 +75,8 @@ export async function POST(req: Request) {
         familyProfileId: profileId,
         title: src.title,
         destinationCity: src.destinationCity,
-        destinationCountry: src.destinationCountry ?? null,
+        cityId: cityLinkage.cityId,
+        destinationCountry: cityLinkage.destinationCountry,
         prompt: src.prompt,
         durationLabel: src.durationLabel,
         transport: src.transport,

@@ -95,6 +95,7 @@ export interface ResolvedShareEntity {
     inputDurationHr: number | null;
     destinationCity: string;
     destinationCountry: string | null;
+    cityId: string | null;
     prompt: string;
     durationLabel: string;
     transport: string;
@@ -436,6 +437,7 @@ export async function resolveShareToken(token: string): Promise<ResolvedShareEnt
       inputDurationHr: true,
       destinationCity: true,
       destinationCountry: true,
+      cityId: true,
       prompt: true,
       durationLabel: true,
       transport: true,

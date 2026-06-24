@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { resolveCityAndCountry } from "@/lib/resolve-city";
 import Anthropic from "@anthropic-ai/sdk";
 import { SONNET } from "@/lib/ai-models";
 import { haversineMeters, haversineKm } from "@/lib/geo";
@@ -588,12 +589,15 @@ export async function POST(req: NextRequest) {
     const tourTitle = prompt.trim().length <= 10
       ? `${destinationCity} tour`
       : prompt.trim().slice(0, 60);
+    const { cityId: resolvedCityId, destinationCountry: resolvedCountry } =
+      await resolveCityAndCountry(destinationCity);
     await db.generatedTour.create({
       data: {
         id: tourId,
         title: tourTitle,
         destinationCity,
-        destinationCountry: null,
+        cityId: resolvedCityId,
+        destinationCountry: resolvedCountry,
         prompt,
         durationLabel,
         transport,
