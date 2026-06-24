@@ -4,13 +4,31 @@ import { db } from "@/lib/db";
 // "tokyo", "Shibuya") to a canonical City row + country name. Used at write time by every
 // tour-creation path AND by the cityId backfill, so the two never diverge.
 //
-// MATCH-ONLY — never creates a City. Returns { null, null } when nothing matches.
+// MATCH-ONLY — never creates a City or Country. Returns { null, null } when nothing matches.
 
 // Neighborhoods / region descriptors → canonical city slug. Mirrors the alias map in
 // scripts/backfill-communityspot-city.ts; extend as new variants surface.
 const CITY_ALIASES: Record<string, string> = {
   "ha long bay": "ha-long",
   "shibuya": "tokyo",
+};
+
+// Curated region/place → country aliases, for strings that match no City and that we want to
+// pin to a specific country even when a generic Country-name match would do something else.
+// Intentionally tiny and hand-maintained — NOT a general gazetteer. Keys are normalized
+// (lowercased) input strings (full or first-comma-part); values are Country names that are
+// re-resolved through the Country table at match time so they stay canonical.
+// NOTE: "scotland" is mapped to United Kingdom by request even though a "Scotland" Country row
+// exists — this map is consulted BEFORE the generic Country-name match so the override wins.
+const COUNTRY_ALIASES: Record<string, string> = {
+  "scotland": "United Kingdom",
+  "uk": "United Kingdom",
+  "mt. fuji": "Japan",
+  "mount fuji": "Japan",
+  "fuji": "Japan",
+  "ko samui": "Thailand",
+  "koh samui": "Thailand",
+  "ireland, uk": "Ireland",
 };
 
 export function slugifyCity(name: string): string {
@@ -45,6 +63,16 @@ async function cityByNameUnambiguous(name: string): Promise<CityMatch | null> {
   return matches.length === 1 ? matches[0] : null;
 }
 
+// Case-insensitive Country-name match → canonical Country.name (or null).
+async function countryByName(name: string): Promise<string | null> {
+  if (!name) return null;
+  const row = await db.country.findFirst({
+    where: { name: { equals: name, mode: "insensitive" } },
+    select: { name: true },
+  });
+  return row?.name ?? null;
+}
+
 export async function resolveCityAndCountry(
   destinationCity: string | null,
 ): Promise<{ cityId: string | null; destinationCountry: string | null }> {
@@ -52,10 +80,14 @@ export async function resolveCityAndCountry(
   const raw = destinationCity?.trim();
   if (!raw) return NONE;
 
-  // Pass 0 — alias map (neighborhood/region → canonical city slug)
-  const alias = CITY_ALIASES[raw.toLowerCase()];
-  if (alias) {
-    const c = await cityBySlug(alias);
+  const firstPart = raw.split(",")[0].trim();
+
+  // ── City passes (the only paths that set a cityId) ────────────────────────────
+
+  // Pass 0 — city alias map (neighborhood/region → canonical city slug)
+  const cityAlias = CITY_ALIASES[raw.toLowerCase()];
+  if (cityAlias) {
+    const c = await cityBySlug(cityAlias);
     if (c) return { cityId: c.id, destinationCountry: c.country.name };
   }
 
@@ -68,13 +100,28 @@ export async function resolveCityAndCountry(
   if (c) return { cityId: c.id, destinationCountry: c.country.name };
 
   // Pass 3 — strip a trailing ", <Country>" suffix: take the first comma part, slug then name
-  const firstPart = raw.split(",")[0].trim();
   if (firstPart && firstPart !== raw) {
     c = await cityBySlug(slugifyCity(firstPart));
     if (c) return { cityId: c.id, destinationCountry: c.country.name };
     c = await cityByNameUnambiguous(firstPart);
     if (c) return { cityId: c.id, destinationCountry: c.country.name };
   }
+
+  // ── Country fallback (cityId stays null; sets destinationCountry only) ─────────
+
+  // Pass 4 — curated alias map FIRST (so intentional overrides win even when the token also
+  // exists as a Country row, e.g. "Scotland" → United Kingdom). Try full string then first part.
+  const aliasTarget =
+    COUNTRY_ALIASES[raw.toLowerCase()] ?? COUNTRY_ALIASES[firstPart.toLowerCase()];
+  if (aliasTarget) {
+    const country = await countryByName(aliasTarget);
+    if (country) return { cityId: null, destinationCountry: country };
+  }
+
+  // Pass 5 — generic Country-name match: full string, then first comma part.
+  let country = await countryByName(raw);
+  if (!country && firstPart && firstPart !== raw) country = await countryByName(firstPart);
+  if (country) return { cityId: null, destinationCountry: country };
 
   return NONE;
 }
