@@ -25,6 +25,8 @@ const COUNTRY_ALIASES: Record<string, string> = {
   "fuji": "Japan",
   "ko samui": "Thailand",
   "koh samui": "Thailand",
+  "ko phangan": "Thailand",
+  "kho phangan": "Thailand",
 };
 
 export function slugifyCity(name: string): string {
