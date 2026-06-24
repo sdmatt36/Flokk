@@ -574,7 +574,7 @@ export async function fetchCityData(slug: string): Promise<CityPageData | null> 
           isPublic: true,
           deletedAt: null,
           shareToken: { not: null },
-          destinationCity: { contains: city.name, mode: "insensitive" },
+          cityId: city.id,
         },
         select: {
           id: true, title: true, destinationCity: true, destinationCountry: true,
@@ -605,7 +605,7 @@ export async function fetchCityData(slug: string): Promise<CityPageData | null> 
         where: { isPublic: true, shareToken: { not: null }, destinationCity: { contains: city.name, mode: "insensitive" } },
       }),
       db.generatedTour.count({
-        where: { isPublic: true, deletedAt: null, shareToken: { not: null }, destinationCity: { contains: city.name, mode: "insensitive" } },
+        where: { isPublic: true, deletedAt: null, shareToken: { not: null }, cityId: city.id },
       }),
       db.spotContribution.count({ where: { spot: { cityId: city.id }, rating: { not: null } } }),
       db.city.findMany({

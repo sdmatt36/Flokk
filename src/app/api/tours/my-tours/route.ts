@@ -23,6 +23,8 @@ export async function GET() {
       destinationCountry: true,
       destinationPlaceId: true,
       destinationStructured: true,
+      cityId: true,
+      city: { select: { name: true, country: { select: { name: true } } } },
       transport: true,
       createdAt: true,
       _count: { select: { stops: true } },
@@ -36,8 +38,9 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
-  // Group by destinationPlaceId (canonical dedupe key).
-  // Falls back to lowercase destinationCity for tours without canonical fields.
+  // Group by cityId (canonical City FK) so phantom string lanes collapse onto one City.
+  // Tours still missing a cityId (unresolved regions/islands) fall back to destinationPlaceId
+  // then the lowercased destinationCity string, so they stay in their own lanes — never merged.
   const grouped: Record<string, Array<{
     id: string;
     title: string;
@@ -50,9 +53,13 @@ export async function GET() {
   }>> = {};
 
   for (const t of tours) {
-    const groupKey = t.destinationPlaceId ?? t.destinationCity.toLowerCase().trim();
+    const groupKey = t.cityId ?? t.destinationPlaceId ?? t.destinationCity.toLowerCase().trim();
     const structured = t.destinationStructured as DestinationStructured | null;
-    const destinationDisplayName = formatDestinationDisplay(structured, t.destinationCity);
+    // When keyed on a real City, label from the City (clean, consistent across raw-string
+    // variants in the group); otherwise fall back to the raw-string display formatter.
+    const destinationDisplayName = t.cityId && t.city
+      ? (t.city.country ? `${t.city.name}, ${t.city.country.name}` : t.city.name)
+      : formatDestinationDisplay(structured, t.destinationCity);
 
     if (!grouped[groupKey]) grouped[groupKey] = [];
     const stopPhoto = t.stops[0]?.imageUrl ?? null;
