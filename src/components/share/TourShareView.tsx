@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ExternalLink, Clock, Footprints } from "lucide-react";
 import TourMapBlock from "@/components/tours/TourMapBlock";
@@ -7,6 +9,8 @@ import TourMapBlock from "@/components/tours/TourMapBlock";
 const NAVY = "#1B3A5C";
 const TERRA = "#C4664A";
 const GRAY = "#6B7280";
+
+const INTENT_KEY = "flokk_share_intent";
 
 type Stop = {
   id: string;
@@ -30,14 +34,105 @@ type Stop = {
 interface Props {
   stops: Stop[];
   transport: string;
+  isSignedIn: boolean;
+  token: string;
 }
 
-export function TourShareView({ stops, transport }: Props) {
+export function TourShareView({ stops, transport, isSignedIn, token }: Props) {
+  const router = useRouter();
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const mapStops = stops.map((s) => ({ name: s.name, lat: s.lat, lng: s.lng }));
+
+  // Mirrors ShareItemView.storeIntent — persist the share token so the user can be re-landed
+  // on this tour after sign-up. No auto-complete; same re-land behavior as the place pattern.
+  function storeIntent() {
+    try {
+      localStorage.setItem(
+        INTENT_KEY,
+        JSON.stringify({ token, entityType: "generated_tour", ts: Date.now() })
+      );
+    } catch {
+      // localStorage unavailable — proceed anyway
+    }
+  }
+
+  // Mirrors ShareItemView.handleSave exactly: logged-out -> storeIntent then /sign-up;
+  // logged-in -> POST the tour save-from-share-token route with { token }.
+  async function handleSave() {
+    if (!isSignedIn) {
+      storeIntent();
+      router.push("/sign-up");
+      return;
+    }
+    if (saving || saved) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/tours/save-from-share-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError((body as { error?: string }).error ?? "Save failed");
+        return;
+      }
+      setSaved(true);
+    } catch {
+      setError("Something went wrong — please try again");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const ctaLabel = saved
+    ? "Saved to your Flokk"
+    : saving
+    ? "Saving..."
+    : isSignedIn
+    ? "Save to my Flokk"
+    : "Sign up to save this tour";
 
   return (
     <div style={{ maxWidth: "680px", margin: "0 auto", padding: "20px 16px 0" }}>
       <TourMapBlock stops={mapStops} />
+
+      {/* Primary take-this action — above the stops so it's reachable without scrolling */}
+      <div style={{ padding: "16px 0 8px" }}>
+        <button
+          onClick={handleSave}
+          disabled={saving || saved}
+          style={{
+            width: "100%",
+            padding: "14px",
+            borderRadius: "12px",
+            border: "none",
+            background: saved ? "#4a7c59" : TERRA,
+            color: "#fff",
+            fontSize: "15px",
+            fontWeight: 600,
+            cursor: saving || saved ? "default" : "pointer",
+            opacity: saving ? 0.7 : 1,
+            fontFamily: "inherit",
+          }}
+        >
+          {ctaLabel}
+        </button>
+        {error && (
+          <p style={{ fontSize: "12px", color: "#B91C1C", margin: "8px 0 0", textAlign: "center" }}>
+            {error}
+          </p>
+        )}
+        {!isSignedIn && (
+          <p style={{ fontSize: "12px", color: GRAY, margin: "8px 0 0", textAlign: "center" }}>
+            Free to join — takes 30 seconds.
+          </p>
+        )}
+      </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "32px" }}>
         {stops.map((stop, idx) => (
@@ -247,10 +342,11 @@ export function TourShareView({ stops, transport }: Props) {
           style={{
             display: "inline-block",
             padding: "12px 28px",
-            backgroundColor: TERRA,
-            color: "#fff",
+            backgroundColor: "transparent",
+            color: NAVY,
             fontSize: "14px",
-            fontWeight: 700,
+            fontWeight: 600,
+            border: `1.5px solid ${NAVY}`,
             borderRadius: "999px",
             textDecoration: "none",
           }}

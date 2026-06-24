@@ -4,6 +4,8 @@ import { nanoid } from "nanoid";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { resolveShareToken } from "@/lib/share-token";
+import { PLATFORM_FLOKK_TOURS } from "@/lib/saved-item-types";
+import { mapPlaceTypesToCanonicalSlugs } from "@/lib/categories";
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -42,6 +44,29 @@ export async function POST(req: Request) {
     });
 
     for (const stop of src.stops) {
+      // One SavedItem per stop, in the recipient's LIBRARY (tripId null, UNORGANIZED),
+      // linked to the cloned tour. Public-safe fields only — never the sharer's private
+      // why/familyNote or identity. Mirrors the SavedItem shape in /api/tours/save.
+      const savedItem = await tx.savedItem.create({
+        data: {
+          familyProfileId: profileId,
+          tripId: null,
+          tourId: newTourId,
+          sourceMethod: "IN_APP_SAVE",
+          sourcePlatform: PLATFORM_FLOKK_TOURS,
+          rawTitle: stop.name,
+          destinationCity: src.destinationCity,
+          destinationCountry: src.destinationCountry ?? null,
+          lat: stop.lat ?? null,
+          lng: stop.lng ?? null,
+          placePhotoUrl: stop.imageUrl ?? null,
+          websiteUrl: stop.websiteUrl ?? null,
+          categoryTags: mapPlaceTypesToCanonicalSlugs(stop.placeTypes ?? []),
+          status: "UNORGANIZED",
+          extractionStatus: "ENRICHED",
+        },
+      });
+
       await tx.tourStop.create({
         data: {
           id: nanoid(),
@@ -59,6 +84,7 @@ export async function POST(req: Request) {
           websiteUrl: stop.websiteUrl ?? null,
           ticketRequired: stop.ticketRequired ?? null,
           placeTypes: stop.placeTypes,
+          savedItemId: savedItem.id,
         },
       });
     }

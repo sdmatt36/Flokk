@@ -212,7 +212,7 @@ export default async function ShareItemPage({ params }: { params: Promise<{ toke
         </div>
 
         {/* Map + stops + CTA */}
-        <TourShareView stops={tour.stops} transport={tour.transport} />
+        <TourShareView stops={tour.stops} transport={tour.transport} isSignedIn={isSignedIn} token={token} />
 
         <div className="hidden md:block">
           <SiteFooter />
