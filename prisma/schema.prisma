@@ -1194,6 +1194,12 @@ model GeneratedTour {
   isPublic            Boolean       @default(false)
   categoryTags          String[]      @default([])
   originalTargetStops   Int           @default(5)
+  // Provenance for clones made via the tour accept routes (save-from-share-token /
+  // save-from-public-id): set to the SOURCE GeneratedTour id; null for originals. Backs the
+  // idempotency guard that stops a family re-cloning the same source tour. Added additively via
+  // direct SQL (ADD COLUMN IF NOT EXISTS) — never via prisma migrate, which would drop the
+  // live-but-unmodeled columns (e.g. isFlokkerExample).
+  sourceGeneratedTourId String?
   deletedAt             DateTime?
   deletedBy             String?
   createdAt             DateTime      @default(now())

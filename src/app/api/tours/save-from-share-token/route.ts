@@ -7,6 +7,7 @@ import { resolveShareToken } from "@/lib/share-token";
 import { PLATFORM_FLOKK_TOURS } from "@/lib/saved-item-types";
 import { mapPlaceTypesToCanonicalSlugs } from "@/lib/categories";
 import { resolveCityAndCountry } from "@/lib/resolve-city";
+import { findExistingTourClone } from "@/lib/tour-clone-dedupe";
 
 export async function POST(req: Request) {
   const { userId } = await auth();
@@ -25,6 +26,14 @@ export async function POST(req: Request) {
 
   const src = entity.generatedTour;
 
+  // Idempotency guard (shared with save-from-public-id via findExistingTourClone): if this family
+  // already cloned this source tour, return the existing clone and create ZERO new rows. Required
+  // so an auto-fire-on-re-land (or a refresh) cannot duplicate a whole GeneratedTour + stops.
+  const existingCloneId = await findExistingTourClone(profileId, src.id);
+  if (existingCloneId) {
+    return NextResponse.json({ saved: false, duplicate: true, tourId: existingCloneId });
+  }
+
   // Carry the source tour's City linkage forward when present; otherwise resolve it from the
   // copied destinationCity so the clone is never orphaned from the City hierarchy.
   const cityLinkage = src.cityId
@@ -38,6 +47,7 @@ export async function POST(req: Request) {
       data: {
         id: newTourId,
         familyProfileId: profileId,
+        sourceGeneratedTourId: src.id,
         title: src.title,
         destinationCity: src.destinationCity,
         cityId: cityLinkage.cityId,
