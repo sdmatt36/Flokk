@@ -89,6 +89,7 @@ export async function GET(
     stops: activeStops.map(formatStop),
     removedStops: deletedStops.map(formatStop),
     walkViolations,
+    isPublic: tour.isPublic,
   });
 }
 

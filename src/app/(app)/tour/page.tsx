@@ -49,6 +49,7 @@ type TourResponse = {
   inputGroup?: string | null;
   inputVibe?: string[];
   inputDurationHr?: number | null;
+  isPublic?: boolean;
 };
 
 type SavedTourEntry = {
@@ -287,6 +288,9 @@ export default function TourPage() {
       if (!res.ok) { setError("Could not load tour."); return; }
       const data = await res.json() as TourResponse;
       setResults(data);
+      // Hydrate publish state from the loaded tour so an already-public tour shows the
+      // "Live on Discover" pill + an Unpublish control (was only ever set by in-session publish).
+      setIsCurrentlyPublic(!!data.isPublic);
       // Push state so the back button returns to /tour (form) not home.
       // Skip push if the URL already matches (e.g. initial page load with ?id=).
       const currentId = new URLSearchParams(window.location.search).get("id");
@@ -503,13 +507,23 @@ export default function TourPage() {
               />
             )}
             {results.tourId && (
-              <button
-                onClick={handlePublishClick}
-                className="text-sm text-[#C4664A] font-semibold cursor-pointer"
-                style={{ background: "none", border: "none", padding: 0 }}
-              >
-                Publish to Discover
-              </button>
+              isCurrentlyPublic ? (
+                <button
+                  onClick={handleUnpublish}
+                  className="text-sm text-[#C4664A] font-semibold cursor-pointer"
+                  style={{ background: "none", border: "none", padding: 0 }}
+                >
+                  Unpublish
+                </button>
+              ) : (
+                <button
+                  onClick={handlePublishClick}
+                  className="text-sm text-[#C4664A] font-semibold cursor-pointer"
+                  style={{ background: "none", border: "none", padding: 0 }}
+                >
+                  Publish to Discover
+                </button>
+              )
             )}
             {isCurrentlyPublic && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: "#1B3A5C", fontWeight: 600 }}>
