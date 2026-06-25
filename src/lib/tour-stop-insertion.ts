@@ -100,7 +100,7 @@ export type PrefetchedCandidate = {
   placeTypes: string[];
 };
 
-export type BathroomErrorCode = "no_candidates" | "places_resolution_failed" | "out_of_area";
+export type BathroomErrorCode = "no_candidates" | "places_resolution_failed" | "out_of_area" | "all_filtered_out";
 
 export type BathroomCandidateResult =
   | { candidate: PrefetchedCandidate; insertAfterStopId: string }
@@ -207,6 +207,145 @@ function childrenAgesSummary(members: Array<{ role: string; birthDate: Date | nu
     .filter((age): age is number => age !== null);
   if (ages.length === 0) return "family with children";
   return `children aged ${ages.join(", ")}`;
+}
+
+// ─── Suggest-stop dedupe (shared by every suggest category) ───────────────────
+// The tour's existing stops were loaded but never fed to the model, so a
+// suggestion could duplicate a stop already on the tour (the "Taipei bug").
+// These helpers (1) tell the model which places to avoid in-prompt, and (2) guard
+// the resolved Google Places result against the tour's existing placeIds/names,
+// retrying with the colliding name excluded. One implementation, so every
+// category — and the future "kids" resolver — inherits dedupe for free.
+
+type DedupeStop = { name: string; placeId?: string | null };
+
+// Prompt clause listing places the model must NOT suggest: existing stop names
+// plus any names already tried and rejected this run.
+function buildExclusionClause(excludeNames: string[]): string {
+  const names = Array.from(new Set(excludeNames.map(n => n.trim()).filter(Boolean)));
+  if (names.length === 0) return "";
+  return `\nDo NOT suggest any of these places that are already on the tour: ${names.join(", ")}. Pick somewhere different.\n`;
+}
+
+// True when the resolved place is already on the tour: same Google placeId, or a
+// case-insensitive name match against an existing stop.
+function collidesWithExistingStop(placeId: string, name: string, stops: DedupeStop[]): boolean {
+  const pid = (placeId ?? "").trim();
+  const nm = name.trim().toLowerCase();
+  return stops.some(s =>
+    (!!s.placeId && !!pid && s.placeId.trim() === pid) ||
+    s.name.trim().toLowerCase() === nm
+  );
+}
+
+type PlacesSearchResult = {
+  place_id: string;
+  formatted_address?: string;
+  geometry?: { location: { lat: number; lng: number } };
+  types?: string[];
+};
+
+type AiResolvedPlace = {
+  name: string;
+  why: string;
+  familyNote: string;
+  durationMin: number;
+  firstResult: PlacesSearchResult & { geometry: { location: { lat: number; lng: number } } };
+};
+
+// Ask the model for ONE named place (buildPrompt receives the running exclusion
+// list), resolve it via Google Places Text Search, then guard the result against
+// existing tour stops. On a duplicate, exclude the colliding name and retry, up
+// to MAX_ATTEMPTS total. Returns all_filtered_out if every attempt collides —
+// never a known duplicate. Parse/Places failures surface immediately (matching
+// prior behavior); only duplicates are retried.
+async function resolveAiPlaceWithDedupe(args: {
+  tourId: string;
+  logTag: string;
+  destinationCity: string;
+  defaultDurationMin: number;
+  existingStops: DedupeStop[];
+  buildPrompt: (excludeNames: string[]) => string;
+}): Promise<{ ok: true; place: AiResolvedPlace } | { ok: false; error: BathroomErrorCode }> {
+  const { tourId, logTag, destinationCity, defaultDurationMin, existingStops, buildPrompt } = args;
+
+  const gKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!gKey) {
+    console.log(`[${logTag}] tourId=${tourId} error=no_places_key`);
+    return { ok: false, error: "places_resolution_failed" };
+  }
+
+  const MAX_ATTEMPTS = 3; // initial + 2 retries
+  const excludeNames = existingStops.map(s => s.name);
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    // 1. Model picks a named place, told which to avoid.
+    let aiName = "";
+    let aiWhy = "";
+    let aiFamilyNote = "";
+    let aiDurationMin = defaultDurationMin;
+    try {
+      const anthropic = new Anthropic();
+      const aiResponse = await anthropic.messages.create({
+        model: SONNET,
+        max_tokens: 256,
+        messages: [{ role: "user", content: buildPrompt(excludeNames) }],
+      });
+      const text = aiResponse.content[0].type === "text" ? aiResponse.content[0].text : "";
+      const clean = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean) as { name?: string; why?: string; familyNote?: string; durationMin?: number };
+      aiName        = parsed.name?.trim() ?? "";
+      aiWhy         = parsed.why?.trim() ?? "";
+      aiFamilyNote  = parsed.familyNote?.trim() ?? "";
+      aiDurationMin = typeof parsed.durationMin === "number" ? parsed.durationMin : defaultDurationMin;
+    } catch {
+      console.log(`[${logTag}] tourId=${tourId} error=claude_parse_failed`);
+      return { ok: false, error: "no_candidates" };
+    }
+    if (!aiName) {
+      console.log(`[${logTag}] tourId=${tourId} error=no_place_name`);
+      return { ok: false, error: "no_candidates" };
+    }
+
+    // 2. Resolve the name to a real place.
+    let firstResult: PlacesSearchResult | null = null;
+    try {
+      const query = `${aiName} ${destinationCity}`;
+      const searchRes = await fetch(
+        `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${gKey}`
+      );
+      const searchData = await searchRes.json() as { results?: PlacesSearchResult[] };
+      firstResult = searchData.results?.[0] ?? null;
+    } catch {
+      console.log(`[${logTag}] tourId=${tourId} place="${aiName}" error=places_fetch_failed`);
+      return { ok: false, error: "places_resolution_failed" };
+    }
+    if (!firstResult?.geometry?.location) {
+      console.log(`[${logTag}] tourId=${tourId} place="${aiName}" error=no_places_result`);
+      return { ok: false, error: "places_resolution_failed" };
+    }
+
+    // 3. Dedupe guard — never return a place already on the tour.
+    if (collidesWithExistingStop(firstResult.place_id, aiName, existingStops)) {
+      console.log(`[${logTag}] tourId=${tourId} duplicate="${aiName}" placeId=${firstResult.place_id} attempt=${attempt + 1}/${MAX_ATTEMPTS} — retrying with exclusion`);
+      excludeNames.push(aiName);
+      continue;
+    }
+
+    return {
+      ok: true,
+      place: {
+        name: aiName,
+        why: aiWhy,
+        familyNote: aiFamilyNote,
+        durationMin: aiDurationMin,
+        firstResult: firstResult as AiResolvedPlace["firstResult"],
+      },
+    };
+  }
+
+  console.log(`[${logTag}] tourId=${tourId} error=all_filtered_out (every attempt duplicated an existing stop)`);
+  return { ok: false, error: "all_filtered_out" };
 }
 
 function humanCategoryLabel(c: StopCategory): string {
@@ -625,7 +764,7 @@ export async function resolveBathroomCandidate(opts: {
       stops: {
         where: { deletedAt: null },
         orderBy: { orderIndex: "asc" },
-        select: { id: true, name: true, lat: true, lng: true, orderIndex: true },
+        select: { id: true, name: true, lat: true, lng: true, orderIndex: true, placeId: true },
       },
     },
   });
@@ -688,7 +827,7 @@ export async function resolveBathroomCandidate(opts: {
 
   const transport = tour.transport ?? "Walking";
 
-  const systemPrompt = `You are recommending ONE bathroom-friendly stop for a family currently on a guided tour in ${tour.destinationCity}.
+  const buildPrompt = (excludeNames: string[]) => `You are recommending ONE bathroom-friendly stop for a family currently on a guided tour in ${tour.destinationCity}.
 
 Family context: ${kidsAgesStr}. Transport mode between stops: ${transport}.
 They just visited "${priorStopName}" and are walking to "${nextStopName}". Suggest a venue between these two stops that has accessible public restrooms.
@@ -706,70 +845,21 @@ RULES:
 - Prefer venues genuinely between the two stops on a plausible walking route.
 - durationMin: 10. familyNote: one sentence acknowledging this is a quick stop with a kid-friendly reason (e.g. "Clean lobby restrooms, and the lobby itself is fun to look at.").
 - why: one sentence on why this venue specifically works for a bathroom break here.
-
+${buildExclusionClause(excludeNames)}
 Return ONLY a JSON object, no prose, no markdown:
 { "name": "...", "why": "...", "familyNote": "...", "durationMin": 10 }`;
 
-  let aiName = "";
-  let aiWhy = "";
-  let aiFamilyNote = "";
-  let aiDurationMin = 10;
-
-  try {
-    const anthropic = new Anthropic();
-    const aiResponse = await anthropic.messages.create({
-      model: SONNET,
-      max_tokens: 256,
-      messages: [{ role: "user", content: systemPrompt }],
-    });
-    const text = aiResponse.content[0].type === "text" ? aiResponse.content[0].text : "";
-    const clean = text.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean) as { name?: string; why?: string; familyNote?: string; durationMin?: number };
-    aiName        = parsed.name?.trim() ?? "";
-    aiWhy         = parsed.why?.trim() ?? "";
-    aiFamilyNote  = parsed.familyNote?.trim() ?? "";
-    aiDurationMin = typeof parsed.durationMin === "number" ? parsed.durationMin : 10;
-  } catch {
-    console.log(`[bathroom-suggest] tourId=${tourId} error=claude_parse_failed`);
-    return { error: "no_candidates" };
-  }
-
-  if (!aiName) {
-    console.log(`[bathroom-suggest] tourId=${tourId} error=no_place_name`);
-    return { error: "no_candidates" };
-  }
-
-  const gKey = process.env.GOOGLE_MAPS_API_KEY;
-  if (!gKey) {
-    console.log(`[bathroom-suggest] tourId=${tourId} error=no_places_key`);
-    return { error: "places_resolution_failed" };
-  }
-
-  type PlacesResult = {
-    place_id: string;
-    formatted_address?: string;
-    geometry?: { location: { lat: number; lng: number } };
-    types?: string[];
-  };
-
-  let firstResult: PlacesResult | null = null;
-  try {
-    const query = `${aiName} ${tour.destinationCity}`;
-    const searchRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${gKey}`
-    );
-    const searchData = await searchRes.json() as { results?: PlacesResult[] };
-    firstResult = searchData.results?.[0] ?? null;
-  } catch {
-    console.log(`[bathroom-suggest] tourId=${tourId} place="${aiName}" error=places_fetch_failed`);
-    return { error: "places_resolution_failed" };
-  }
-
-  if (!firstResult?.geometry?.location) {
-    console.log(`[bathroom-suggest] tourId=${tourId} place="${aiName}" error=no_places_result`);
-    return { error: "places_resolution_failed" };
-  }
-
+  const resolved = await resolveAiPlaceWithDedupe({
+    tourId,
+    logTag: "bathroom-suggest",
+    destinationCity: tour.destinationCity,
+    defaultDurationMin: 10,
+    existingStops: tour.stops.map(s => ({ name: s.name, placeId: s.placeId })),
+    buildPrompt,
+  });
+  if (!resolved.ok) return { error: resolved.error };
+  const { name: aiName, why: aiWhy, familyNote: aiFamilyNote, durationMin: aiDurationMin, firstResult } = resolved.place;
+  const gKey = process.env.GOOGLE_MAPS_API_KEY!;
   const resolvedLat = firstResult.geometry.location.lat;
   const resolvedLng = firstResult.geometry.location.lng;
 
@@ -877,7 +967,7 @@ export async function resolveSnackCandidate(opts: {
       stops: {
         where: { deletedAt: null },
         orderBy: { orderIndex: "asc" },
-        select: { id: true, name: true, lat: true, lng: true, orderIndex: true },
+        select: { id: true, name: true, lat: true, lng: true, orderIndex: true, placeId: true },
       },
     },
   });
@@ -939,7 +1029,7 @@ export async function resolveSnackCandidate(opts: {
 
   const transport = tour.transport ?? "Walking";
 
-  const systemPrompt = `You are recommending ONE quick snack stop for a family currently on a guided tour in ${tour.destinationCity}.
+  const buildPrompt = (excludeNames: string[]) => `You are recommending ONE quick snack stop for a family currently on a guided tour in ${tour.destinationCity}.
 
 Family context: ${kidsAgesStr}. Transport mode between stops: ${transport}.
 They just visited "${priorStopName}" and are heading to "${nextStopName}". Suggest a specific, named snack spot between these two stops.
@@ -956,70 +1046,21 @@ RULES:
 - durationMin: 20.
 - why: one sentence on why this snack spot works here (location, local fame, type of snack).
 - familyNote: one short phrase for the kids (e.g. "Best soft-serve in the neighborhood — don't skip the cone.").
-
+${buildExclusionClause(excludeNames)}
 Return ONLY a JSON object, no prose, no markdown:
 { "name": "...", "why": "...", "familyNote": "...", "durationMin": 20 }`;
 
-  let aiName = "";
-  let aiWhy = "";
-  let aiFamilyNote = "";
-  let aiDurationMin = 20;
-
-  try {
-    const anthropic = new Anthropic();
-    const aiResponse = await anthropic.messages.create({
-      model: SONNET,
-      max_tokens: 256,
-      messages: [{ role: "user", content: systemPrompt }],
-    });
-    const text = aiResponse.content[0].type === "text" ? aiResponse.content[0].text : "";
-    const clean = text.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean) as { name?: string; why?: string; familyNote?: string; durationMin?: number };
-    aiName        = parsed.name?.trim() ?? "";
-    aiWhy         = parsed.why?.trim() ?? "";
-    aiFamilyNote  = parsed.familyNote?.trim() ?? "";
-    aiDurationMin = typeof parsed.durationMin === "number" ? parsed.durationMin : 20;
-  } catch {
-    console.log(`[snack-suggest] tourId=${tourId} error=claude_parse_failed`);
-    return { error: "no_candidates" };
-  }
-
-  if (!aiName) {
-    console.log(`[snack-suggest] tourId=${tourId} error=no_place_name`);
-    return { error: "no_candidates" };
-  }
-
-  const gKey = process.env.GOOGLE_MAPS_API_KEY;
-  if (!gKey) {
-    console.log(`[snack-suggest] tourId=${tourId} error=no_places_key`);
-    return { error: "places_resolution_failed" };
-  }
-
-  type PlacesResult = {
-    place_id: string;
-    formatted_address?: string;
-    geometry?: { location: { lat: number; lng: number } };
-    types?: string[];
-  };
-
-  let firstResult: PlacesResult | null = null;
-  try {
-    const query = `${aiName} ${tour.destinationCity}`;
-    const searchRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${gKey}`
-    );
-    const searchData = await searchRes.json() as { results?: PlacesResult[] };
-    firstResult = searchData.results?.[0] ?? null;
-  } catch {
-    console.log(`[snack-suggest] tourId=${tourId} place="${aiName}" error=places_fetch_failed`);
-    return { error: "places_resolution_failed" };
-  }
-
-  if (!firstResult?.geometry?.location) {
-    console.log(`[snack-suggest] tourId=${tourId} place="${aiName}" error=no_places_result`);
-    return { error: "places_resolution_failed" };
-  }
-
+  const resolved = await resolveAiPlaceWithDedupe({
+    tourId,
+    logTag: "snack-suggest",
+    destinationCity: tour.destinationCity,
+    defaultDurationMin: 20,
+    existingStops: tour.stops.map(s => ({ name: s.name, placeId: s.placeId })),
+    buildPrompt,
+  });
+  if (!resolved.ok) return { error: resolved.error };
+  const { name: aiName, why: aiWhy, familyNote: aiFamilyNote, durationMin: aiDurationMin, firstResult } = resolved.place;
+  const gKey = process.env.GOOGLE_MAPS_API_KEY!;
   const resolvedLat = firstResult.geometry.location.lat;
   const resolvedLng = firstResult.geometry.location.lng;
 
@@ -1143,7 +1184,7 @@ export async function resolvePhotoSpotCandidate(opts: {
       stops: {
         where: { deletedAt: null },
         orderBy: { orderIndex: "asc" },
-        select: { id: true, name: true, lat: true, lng: true, orderIndex: true },
+        select: { id: true, name: true, lat: true, lng: true, orderIndex: true, placeId: true },
       },
     },
   });
@@ -1202,7 +1243,7 @@ export async function resolvePhotoSpotCandidate(opts: {
 
   const transport = tour.transport ?? "Walking";
 
-  const systemPrompt = `You are recommending ONE scenic photo stop for a family currently on a guided tour in ${tour.destinationCity}.
+  const buildPrompt = (excludeNames: string[]) => `You are recommending ONE scenic photo stop for a family currently on a guided tour in ${tour.destinationCity}.
 
 Family context: ${kidsAgesStr}. Transport mode between stops: ${transport}.
 They just visited "${priorStopName}" and are heading to "${nextStopName}". Suggest a specific, named scenic or photogenic location between these two stops.
@@ -1219,70 +1260,21 @@ RULES:
 - durationMin: 15.
 - why: one sentence on why this is a great family photo spot (the view, the light, the framing).
 - familyNote: one short phrase for the kids (e.g. "Climb the steps and look back — the whole city is right there.").
-
+${buildExclusionClause(excludeNames)}
 Return ONLY a JSON object, no prose, no markdown:
 { "name": "...", "why": "...", "familyNote": "...", "durationMin": 15 }`;
 
-  let aiName = "";
-  let aiWhy = "";
-  let aiFamilyNote = "";
-  let aiDurationMin = 15;
-
-  try {
-    const anthropic = new Anthropic();
-    const aiResponse = await anthropic.messages.create({
-      model: SONNET,
-      max_tokens: 256,
-      messages: [{ role: "user", content: systemPrompt }],
-    });
-    const text = aiResponse.content[0].type === "text" ? aiResponse.content[0].text : "";
-    const clean = text.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean) as { name?: string; why?: string; familyNote?: string; durationMin?: number };
-    aiName        = parsed.name?.trim() ?? "";
-    aiWhy         = parsed.why?.trim() ?? "";
-    aiFamilyNote  = parsed.familyNote?.trim() ?? "";
-    aiDurationMin = typeof parsed.durationMin === "number" ? parsed.durationMin : 15;
-  } catch {
-    console.log(`[photo-spot-suggest] tourId=${tourId} error=claude_parse_failed`);
-    return { error: "no_candidates" };
-  }
-
-  if (!aiName) {
-    console.log(`[photo-spot-suggest] tourId=${tourId} error=no_place_name`);
-    return { error: "no_candidates" };
-  }
-
-  const gKey = process.env.GOOGLE_MAPS_API_KEY;
-  if (!gKey) {
-    console.log(`[photo-spot-suggest] tourId=${tourId} error=no_places_key`);
-    return { error: "places_resolution_failed" };
-  }
-
-  type PlacesResult = {
-    place_id: string;
-    formatted_address?: string;
-    geometry?: { location: { lat: number; lng: number } };
-    types?: string[];
-  };
-
-  let firstResult: PlacesResult | null = null;
-  try {
-    const query = `${aiName} ${tour.destinationCity}`;
-    const searchRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${gKey}`
-    );
-    const searchData = await searchRes.json() as { results?: PlacesResult[] };
-    firstResult = searchData.results?.[0] ?? null;
-  } catch {
-    console.log(`[photo-spot-suggest] tourId=${tourId} place="${aiName}" error=places_fetch_failed`);
-    return { error: "places_resolution_failed" };
-  }
-
-  if (!firstResult?.geometry?.location) {
-    console.log(`[photo-spot-suggest] tourId=${tourId} place="${aiName}" error=no_places_result`);
-    return { error: "places_resolution_failed" };
-  }
-
+  const resolved = await resolveAiPlaceWithDedupe({
+    tourId,
+    logTag: "photo-spot-suggest",
+    destinationCity: tour.destinationCity,
+    defaultDurationMin: 15,
+    existingStops: tour.stops.map(s => ({ name: s.name, placeId: s.placeId })),
+    buildPrompt,
+  });
+  if (!resolved.ok) return { error: resolved.error };
+  const { name: aiName, why: aiWhy, familyNote: aiFamilyNote, durationMin: aiDurationMin, firstResult } = resolved.place;
+  const gKey = process.env.GOOGLE_MAPS_API_KEY!;
   const resolvedLat = firstResult.geometry.location.lat;
   const resolvedLng = firstResult.geometry.location.lng;
 
@@ -1403,7 +1395,7 @@ export async function resolveRestCandidate(opts: {
       stops: {
         where: { deletedAt: null },
         orderBy: { orderIndex: "asc" },
-        select: { id: true, name: true, lat: true, lng: true, orderIndex: true },
+        select: { id: true, name: true, lat: true, lng: true, orderIndex: true, placeId: true },
       },
     },
   });
@@ -1462,7 +1454,7 @@ export async function resolveRestCandidate(opts: {
 
   const transport = tour.transport ?? "Walking";
 
-  const systemPrompt = `You are recommending ONE rest stop where a family can pause and recover on a guided tour in ${tour.destinationCity}.
+  const buildPrompt = (excludeNames: string[]) => `You are recommending ONE rest stop where a family can pause and recover on a guided tour in ${tour.destinationCity}.
 
 Family context: ${kidsAgesStr}. Transport mode: ${transport}.
 They just visited "${priorStopName}" and are heading to "${nextStopName}".
@@ -1481,70 +1473,21 @@ RULES:
 - durationMin: 20.
 - why: one sentence on location and why this feels like a genuine recovery spot on this route.
 - familyNote: one short phrase why this rest spot is family-friendly (e.g. "Shaded benches and a small fountain — perfect for younger kids to stretch out.").
-
+${buildExclusionClause(excludeNames)}
 Return ONLY a JSON object, no prose, no markdown:
 { "name": "...", "why": "...", "familyNote": "...", "durationMin": 20 }`;
 
-  let aiName = "";
-  let aiWhy = "";
-  let aiFamilyNote = "";
-  let aiDurationMin = 20;
-
-  try {
-    const anthropic = new Anthropic();
-    const aiResponse = await anthropic.messages.create({
-      model: SONNET,
-      max_tokens: 256,
-      messages: [{ role: "user", content: systemPrompt }],
-    });
-    const text = aiResponse.content[0].type === "text" ? aiResponse.content[0].text : "";
-    const clean = text.replace(/```json|```/g, "").trim();
-    const parsed = JSON.parse(clean) as { name?: string; why?: string; familyNote?: string; durationMin?: number };
-    aiName        = parsed.name?.trim() ?? "";
-    aiWhy         = parsed.why?.trim() ?? "";
-    aiFamilyNote  = parsed.familyNote?.trim() ?? "";
-    aiDurationMin = typeof parsed.durationMin === "number" ? parsed.durationMin : 20;
-  } catch {
-    console.log(`[rest-suggest] tourId=${tourId} error=claude_parse_failed`);
-    return { error: "no_candidates" };
-  }
-
-  if (!aiName) {
-    console.log(`[rest-suggest] tourId=${tourId} error=no_place_name`);
-    return { error: "no_candidates" };
-  }
-
-  const gKey = process.env.GOOGLE_MAPS_API_KEY;
-  if (!gKey) {
-    console.log(`[rest-suggest] tourId=${tourId} error=no_places_key`);
-    return { error: "places_resolution_failed" };
-  }
-
-  type PlacesResult = {
-    place_id: string;
-    formatted_address?: string;
-    geometry?: { location: { lat: number; lng: number } };
-    types?: string[];
-  };
-
-  let firstResult: PlacesResult | null = null;
-  try {
-    const query = `${aiName} ${tour.destinationCity}`;
-    const searchRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${gKey}`
-    );
-    const searchData = await searchRes.json() as { results?: PlacesResult[] };
-    firstResult = searchData.results?.[0] ?? null;
-  } catch {
-    console.log(`[rest-suggest] tourId=${tourId} place="${aiName}" error=places_fetch_failed`);
-    return { error: "places_resolution_failed" };
-  }
-
-  if (!firstResult?.geometry?.location) {
-    console.log(`[rest-suggest] tourId=${tourId} place="${aiName}" error=no_places_result`);
-    return { error: "places_resolution_failed" };
-  }
-
+  const resolved = await resolveAiPlaceWithDedupe({
+    tourId,
+    logTag: "rest-suggest",
+    destinationCity: tour.destinationCity,
+    defaultDurationMin: 20,
+    existingStops: tour.stops.map(s => ({ name: s.name, placeId: s.placeId })),
+    buildPrompt,
+  });
+  if (!resolved.ok) return { error: resolved.error };
+  const { name: aiName, why: aiWhy, familyNote: aiFamilyNote, durationMin: aiDurationMin, firstResult } = resolved.place;
+  const gKey = process.env.GOOGLE_MAPS_API_KEY!;
   const resolvedLat = firstResult.geometry.location.lat;
   const resolvedLng = firstResult.geometry.location.lng;
 
