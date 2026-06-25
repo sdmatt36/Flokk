@@ -31,7 +31,6 @@ export async function GET(request: Request) {
     where: {
       status: { in: ["PLANNING", "ACTIVE"] },
       startDate: { gte: windowStart, lte: windowEnd },
-      isAnonymous: false,
       isPlacesLibrary: false,
       familyProfileId: { not: null },
     },

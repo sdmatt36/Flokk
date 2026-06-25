@@ -65,7 +65,6 @@ export async function GET(request: Request) {
     where: {
       status: "COMPLETED",
       endDate: { gte: ratingWindowStart, lte: ratingWindowEnd },
-      isAnonymous: false,
       isPlacesLibrary: false,
       familyProfileId: { not: null },
     },
