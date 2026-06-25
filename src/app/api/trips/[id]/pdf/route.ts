@@ -76,6 +76,7 @@ export async function GET(
           confirmationCode: true,
           notes: true,
           address: true,
+          scheduledDate: true,
           dayIndex: true,
           sortOrder: true,
         },
@@ -159,6 +160,60 @@ export async function GET(
       return diff >= 0 ? diff : null;
     } catch {
       return null;
+    }
+  }
+
+  // ── Authoritative day → calendar date map ────────────────────────────────────
+  // Dates come from each item's scheduledDate (the SAME source the website's
+  // day-view uses), NOT trip.startDate + dayIndex. This makes a pre-trip flight
+  // (dayIndex -1) render on its real scheduledDate (e.g. July 5), with no phantom
+  // day produced by startDate arithmetic and no UTC-midnight off-by-one. Days that
+  // have no dated item are interpolated by whole-day offset from the nearest anchor.
+  function isValidYmd(v: unknown): v is string {
+    return (
+      typeof v === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(v) &&
+      !Number.isNaN(new Date(v + "T12:00:00").getTime())
+    );
+  }
+
+  const directDayDate = new Map<number, string>();
+  for (const it of itineraryItems) {
+    if (it.dayIndex != null && isValidYmd(it.scheduledDate) && !directDayDate.has(it.dayIndex)) {
+      directDayDate.set(it.dayIndex, it.scheduledDate);
+    }
+  }
+  for (const a of activities) {
+    const di = a.dayIndex ?? computeDayIndex(a.date);
+    if (di != null && isValidYmd(a.date) && !directDayDate.has(di)) {
+      directDayDate.set(di, a.date);
+    }
+  }
+
+  const allDayIndexes = new Set<number>();
+  for (const it of itineraryItems) if (it.dayIndex != null) allDayIndexes.add(it.dayIndex);
+  for (const sv of spots) if (sv.dayIndex != null) allDayIndexes.add(sv.dayIndex);
+  for (const a of activities) {
+    const di = a.dayIndex ?? computeDayIndex(a.date);
+    if (di != null) allDayIndexes.add(di);
+  }
+
+  const dayDates: Record<number, string> = {};
+  if (directDayDate.size > 0) {
+    // Reference anchor = the lowest dayIndex with a real date, for offset interpolation.
+    const [refDay, refYmd] = [...directDayDate.entries()].sort((x, y) => x[0] - y[0])[0];
+    const [ry, rm, rd] = refYmd.split("-").map(Number);
+    for (const day of allDayIndexes) {
+      const direct = directDayDate.get(day);
+      if (direct) {
+        dayDates[day] = direct;
+        continue;
+      }
+      const d = new Date(ry, rm - 1, rd + (day - refDay)); // local-date offset, no UTC drift
+      const y = d.getFullYear();
+      const mo = String(d.getMonth() + 1).padStart(2, "0");
+      const da = String(d.getDate()).padStart(2, "0");
+      dayDates[day] = `${y}-${mo}-${da}`;
     }
   }
 
@@ -273,6 +328,7 @@ export async function GET(
       notes: c.notes,
     })),
     keyInfo: keyInfo.map((k) => ({ label: k.label, value: k.value })),
+    dayDates,
     generatedDate,
   };
 

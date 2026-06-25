@@ -137,6 +137,9 @@ export type TripPDFProps = {
   activities: PdfActivity[];
   contacts: PdfContact[];
   keyInfo: PdfKeyInfo[];
+  // dayIndex → "YYYY-MM-DD", derived from item scheduledDate (the website's source
+  // of truth), not trip.startDate + dayIndex. Used to date each day header.
+  dayDates: Record<number, string>;
   generatedDate: string;
 };
 
@@ -186,19 +189,38 @@ function formatDateRange(start: string | null, end: string | null): string {
   }
 }
 
-// dayIndex is 0-based: 0 = first day of trip
-function buildDayLabel(startDate: string | null, dayIndex: number): string {
+// Parse a date-only "YYYY-MM-DD" as a LOCAL calendar date (midday, so DST/timezone
+// can never roll it to the previous day). Returns null for missing/malformed values
+// (e.g. "NaN-NaN-NaN").
+function parseLocalDate(ymd: string | null | undefined): Date | null {
+  if (!ymd || !/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
+  const d = new Date(ymd + "T12:00:00");
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+// dayIndex is 0-based: 0 = first day of trip; negatives are pre-trip (e.g. a red-eye).
+// Dates come from dayDates (item scheduledDate) so they match the website exactly.
+// Falls back to startDate + dayIndex (parsed safely as a local date) only when no
+// dated item anchors the trip. Pre-trip days (dayIndex < 0) are labelled by date,
+// not "Day 0".
+function buildDayLabel(dayDates: Record<number, string>, startDate: string | null, dayIndex: number): string {
   const num = dayIndex + 1;
-  if (!startDate) return `Day ${num}`;
-  try {
-    const base = new Date(startDate);
-    base.setUTCDate(base.getUTCDate() + dayIndex);
-    const dow = base.toLocaleDateString("en-US", { weekday: "long" });
-    const date = base.toLocaleDateString("en-US", { month: "long", day: "numeric" });
-    return `Day ${num}  ·  ${dow}, ${date}`;
-  } catch {
-    return `Day ${num}`;
+  const prefix = dayIndex >= 0 ? `Day ${num}  ·  ` : "";
+
+  let base = parseLocalDate(dayDates[dayIndex]);
+  if (!base && startDate) {
+    // Fallback: derive from the trip start (date part only) + dayIndex, locally.
+    const start = parseLocalDate(startDate.slice(0, 10));
+    if (start) {
+      start.setDate(start.getDate() + dayIndex);
+      base = start;
+    }
   }
+  if (!base) return `Day ${num}`;
+
+  const dow = base.toLocaleDateString("en-US", { weekday: "long" });
+  const date = base.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+  return `${prefix}${dow}, ${date}`;
 }
 
 function cleanDescription(raw: string | null | undefined): string {
@@ -452,6 +474,7 @@ export function TripItineraryPDF({
   activities,
   contacts,
   keyInfo,
+  dayDates,
   generatedDate,
 }: TripPDFProps) {
   // Build unified day map — all three item types, 0-based dayIndex
@@ -605,7 +628,7 @@ export function TripItineraryPDF({
             return (
               <View key={dayIndex}>
                 <View style={s.dayHeaderWrap} wrap={false}>
-                  <Text style={s.dayHeaderText}>{buildDayLabel(startDate, dayIndex)}</Text>
+                  <Text style={s.dayHeaderText}>{buildDayLabel(dayDates, startDate, dayIndex)}</Text>
                 </View>
                 {entries.map((entry, i) => {
                   if (entry.kind === "booking") return <BookingBlock key={`b-${i}`} item={entry.item} />;
