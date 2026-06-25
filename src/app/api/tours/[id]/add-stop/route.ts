@@ -22,7 +22,7 @@ const STATUS_MAP: Record<string, number> = {
   internal_error:           500,
 };
 
-const VALID_CATEGORIES = new Set<StopCategory>(["food", "bathroom", "snack", "photo_spot", "rest"]);
+const VALID_CATEGORIES = new Set<StopCategory>(["food", "bathroom", "snack", "photo_spot", "rest", "kids"]);
 const VALID_MEAL_TYPES  = new Set<MealType>(["auto", "breakfast", "lunch", "dinner"]);
 
 function parsePrefetchedCandidate(v: unknown): PrefetchedCandidate | undefined {

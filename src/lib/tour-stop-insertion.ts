@@ -7,7 +7,7 @@ import { SONNET } from "@/lib/ai-models";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type StopCategory = "food" | "bathroom" | "snack" | "photo_spot" | "rest";
+export type StopCategory = "food" | "bathroom" | "snack" | "photo_spot" | "rest" | "kids";
 export type MealType = "auto" | "breakfast" | "lunch" | "dinner";
 
 export type CategoryOptions =
@@ -15,7 +15,8 @@ export type CategoryOptions =
   | { category: "bathroom" }
   | { category: "snack" }
   | { category: "photo_spot" }
-  | { category: "rest" };
+  | { category: "rest" }
+  | { category: "kids" };
 
 type CategoryConfig = {
   placeTypes: Set<string>;
@@ -42,6 +43,7 @@ const CATEGORY_CONFIGS: Record<StopCategory, CategoryConfig> = {
   snack:     { placeTypes: new Set(), primaryExclusions: new Set(), allowMultiple: true,  defaultDurationMinutes: 20, implemented: false },
   photo_spot:{ placeTypes: new Set(), primaryExclusions: new Set(), allowMultiple: true,  defaultDurationMinutes: 15, implemented: false },
   rest:      { placeTypes: new Set(), primaryExclusions: new Set(), allowMultiple: false, defaultDurationMinutes: 30, implemented: false },
+  kids:      { placeTypes: new Set(), primaryExclusions: new Set(), allowMultiple: true,  defaultDurationMinutes: 60, implemented: false },
 };
 
 // Matches the Stop type consumed by TourResults — DB field names mapped to UI names.
@@ -265,9 +267,12 @@ async function resolveAiPlaceWithDedupe(args: {
   destinationCity: string;
   defaultDurationMin: number;
   existingStops: DedupeStop[];
+  // Names to exclude beyond the tour's own stops — e.g. places already shown this
+  // session via "Show another", so each refresh returns a different place.
+  extraExcludeNames?: string[];
   buildPrompt: (excludeNames: string[]) => string;
 }): Promise<{ ok: true; place: AiResolvedPlace } | { ok: false; error: BathroomErrorCode }> {
-  const { tourId, logTag, destinationCity, defaultDurationMin, existingStops, buildPrompt } = args;
+  const { tourId, logTag, destinationCity, defaultDurationMin, existingStops, extraExcludeNames, buildPrompt } = args;
 
   const gKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!gKey) {
@@ -276,7 +281,7 @@ async function resolveAiPlaceWithDedupe(args: {
   }
 
   const MAX_ATTEMPTS = 3; // initial + 2 retries
-  const excludeNames = existingStops.map(s => s.name);
+  const excludeNames = [...existingStops.map(s => s.name), ...(extraExcludeNames ?? [])];
 
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     // 1. Model picks a named place, told which to avoid.
@@ -355,6 +360,7 @@ function humanCategoryLabel(c: StopCategory): string {
     case "snack":      return "snack";
     case "photo_spot": return "photo";
     case "rest":       return "rest";
+    case "kids":       return "kids";
   }
 }
 
@@ -743,8 +749,9 @@ export async function addStopToTour(opts: {
 export async function resolveBathroomCandidate(opts: {
   tourId: string;
   userId: string;
+  excludeNames?: string[];
 }): Promise<BathroomCandidateResult> {
-  const { tourId, userId } = opts;
+  const { tourId, userId, excludeNames } = opts;
 
   const familyProfileId = await resolveProfileId(userId);
   if (!familyProfileId) {
@@ -855,6 +862,7 @@ Return ONLY a JSON object, no prose, no markdown:
     destinationCity: tour.destinationCity,
     defaultDurationMin: 10,
     existingStops: tour.stops.map(s => ({ name: s.name, placeId: s.placeId })),
+    extraExcludeNames: excludeNames,
     buildPrompt,
   });
   if (!resolved.ok) return { error: resolved.error };
@@ -946,8 +954,9 @@ Return ONLY a JSON object, no prose, no markdown:
 export async function resolveSnackCandidate(opts: {
   tourId: string;
   userId: string;
+  excludeNames?: string[];
 }): Promise<BathroomCandidateResult> {
-  const { tourId, userId } = opts;
+  const { tourId, userId, excludeNames } = opts;
 
   const familyProfileId = await resolveProfileId(userId);
   if (!familyProfileId) {
@@ -1056,6 +1065,7 @@ Return ONLY a JSON object, no prose, no markdown:
     destinationCity: tour.destinationCity,
     defaultDurationMin: 20,
     existingStops: tour.stops.map(s => ({ name: s.name, placeId: s.placeId })),
+    extraExcludeNames: excludeNames,
     buildPrompt,
   });
   if (!resolved.ok) return { error: resolved.error };
@@ -1163,8 +1173,9 @@ Return ONLY a JSON object, no prose, no markdown:
 export async function resolvePhotoSpotCandidate(opts: {
   tourId: string;
   userId: string;
+  excludeNames?: string[];
 }): Promise<BathroomCandidateResult> {
-  const { tourId, userId } = opts;
+  const { tourId, userId, excludeNames } = opts;
 
   const familyProfileId = await resolveProfileId(userId);
   if (!familyProfileId) {
@@ -1270,6 +1281,7 @@ Return ONLY a JSON object, no prose, no markdown:
     destinationCity: tour.destinationCity,
     defaultDurationMin: 15,
     existingStops: tour.stops.map(s => ({ name: s.name, placeId: s.placeId })),
+    extraExcludeNames: excludeNames,
     buildPrompt,
   });
   if (!resolved.ok) return { error: resolved.error };
@@ -1374,8 +1386,9 @@ Return ONLY a JSON object, no prose, no markdown:
 export async function resolveRestCandidate(opts: {
   tourId: string;
   userId: string;
+  excludeNames?: string[];
 }): Promise<BathroomCandidateResult> {
-  const { tourId, userId } = opts;
+  const { tourId, userId, excludeNames } = opts;
 
   const familyProfileId = await resolveProfileId(userId);
   if (!familyProfileId) {
@@ -1483,6 +1496,7 @@ Return ONLY a JSON object, no prose, no markdown:
     destinationCity: tour.destinationCity,
     defaultDurationMin: 20,
     existingStops: tour.stops.map(s => ({ name: s.name, placeId: s.placeId })),
+    extraExcludeNames: excludeNames,
     buildPrompt,
   });
   if (!resolved.ok) return { error: resolved.error };
@@ -1581,5 +1595,219 @@ Return ONLY a JSON object, no prose, no markdown:
   }
 
   console.log(`[rest-suggest] tourId=${tourId} place="${aiName}" ACCEPTED insertAfterStopId=${insertAfterStopId} dist=${distKm.toFixed(1)}km`);
+  return { candidate, insertAfterStopId };
+}
+
+// Age-aware kid-friendly attraction. Mirrors resolveSnackCandidate and reuses the
+// shared resolveAiPlaceWithDedupe (so it inherits exclusion + placeId/name dedupe +
+// retry). The prompt picks an attraction TYPE from the actual children's ages
+// (kidsAgesStr). Distance guard is wider than the on-route categories because kid
+// attractions are destination-class (a zoo or museum is rarely on the walking line).
+export async function resolveKidsCandidate(opts: {
+  tourId: string;
+  userId: string;
+  excludeNames?: string[];
+}): Promise<BathroomCandidateResult> {
+  const { tourId, userId, excludeNames } = opts;
+
+  const familyProfileId = await resolveProfileId(userId);
+  if (!familyProfileId) {
+    console.log(`[kids-suggest] tourId=${tourId} error=no_profile`);
+    return { error: "no_candidates" };
+  }
+
+  const tour = await db.generatedTour.findUnique({
+    where: { id: tourId },
+    select: {
+      familyProfileId: true,
+      destinationCity: true,
+      destinationCenterLat: true,
+      destinationCenterLng: true,
+      transport: true,
+      inputGroup: true,
+      stops: {
+        where: { deletedAt: null },
+        orderBy: { orderIndex: "asc" },
+        select: { id: true, name: true, lat: true, lng: true, orderIndex: true, placeId: true },
+      },
+    },
+  });
+
+  if (!tour || tour.familyProfileId !== familyProfileId) {
+    console.log(`[kids-suggest] tourId=${tourId} error=not_found_or_wrong_owner`);
+    return { error: "no_candidates" };
+  }
+
+  if (tour.stops.length === 0) {
+    console.log(`[kids-suggest] tourId=${tourId} error=no_stops`);
+    return { error: "no_candidates" };
+  }
+
+  const profile = await db.familyProfile.findUnique({
+    where: { id: familyProfileId },
+    select: {
+      members: { select: { role: true, birthDate: true } },
+    },
+  });
+
+  const kidsAgesStr = childrenAgesSummary(
+    (profile?.members ?? []).map(m => ({ role: m.role as string, birthDate: m.birthDate }))
+  );
+
+  const validStops = tour.stops.filter(
+    (s): s is typeof s & { lat: number; lng: number } => s.lat !== null && s.lng !== null
+  );
+
+  let priorStopName: string;
+  let nextStopName: string;
+  let midpointLat: number;
+  let midpointLng: number;
+
+  if (validStops.length < 2) {
+    const last = tour.stops[tour.stops.length - 1];
+    priorStopName = last.name;
+    nextStopName  = "(end of tour)";
+    midpointLat   = last.lat ?? (tour.destinationCenterLat ?? 0);
+    midpointLng   = last.lng ?? (tour.destinationCenterLng ?? 0);
+  } else {
+    let maxDist = -1;
+    let bestIdx = 0;
+    for (let i = 0; i < validStops.length - 1; i++) {
+      const dist = haversineKm(
+        { lat: validStops[i].lat, lng: validStops[i].lng },
+        { lat: validStops[i + 1].lat, lng: validStops[i + 1].lng }
+      );
+      if (dist > maxDist) { maxDist = dist; bestIdx = i; }
+    }
+    priorStopName = validStops[bestIdx].name;
+    nextStopName  = validStops[bestIdx + 1].name;
+    midpointLat   = (validStops[bestIdx].lat + validStops[bestIdx + 1].lat) / 2;
+    midpointLng   = (validStops[bestIdx].lng + validStops[bestIdx + 1].lng) / 2;
+  }
+
+  const transport = tour.transport ?? "Walking";
+
+  const buildPrompt = (names: string[]) => `You are recommending ONE kid-friendly attraction for a family currently on a guided tour in ${tour.destinationCity}.
+
+Family context: ${kidsAgesStr}. Transport mode between stops: ${transport}.
+They just visited "${priorStopName}" and are heading to "${nextStopName}". Suggest ONE specific, named kid-friendly attraction near these two stops that the children would love.
+
+Choose the attraction TYPE based on the children's ages:
+- Toddlers and preschoolers (ages 0-5): playgrounds, petting zoos, aquariums, children's museums, splash pads, carousels or gentle rides.
+- Young kids (ages 6-9): zoos, aquariums, science or discovery museums, hands-on exhibits, large playgrounds, indoor play centers.
+- Older kids and tweens (ages 10-12): waterparks, science museums, interactive or immersive exhibits, adventure or climbing parks, arcades.
+If the family has children of mixed ages, pick an attraction that works for the youngest while still engaging the oldest. If no children are listed, pick a broadly family-friendly attraction suitable for a range of ages.
+
+RULES:
+- The attraction MUST be a real, named, locatable place in ${tour.destinationCity}. NOT a generic type — name a specific one (e.g. a named zoo, museum, aquarium, or playground).
+- Pick something genuinely near the route between the two stops, not across the city.
+- durationMin: a realistic visit length for this attraction (most kid attractions run 45-90 minutes; use 60 if unsure).
+- why: one sentence on why this attraction fits this family and this part of the route.
+- familyNote: one short phrase for the kids (e.g. "Touch tanks and a tunnel you can walk right through.").
+${buildExclusionClause(names)}
+Return ONLY a JSON object, no prose, no markdown:
+{ "name": "...", "why": "...", "familyNote": "...", "durationMin": 60 }`;
+
+  const resolved = await resolveAiPlaceWithDedupe({
+    tourId,
+    logTag: "kids-suggest",
+    destinationCity: tour.destinationCity,
+    defaultDurationMin: 60,
+    existingStops: tour.stops.map(s => ({ name: s.name, placeId: s.placeId })),
+    extraExcludeNames: excludeNames,
+    buildPrompt,
+  });
+  if (!resolved.ok) return { error: resolved.error };
+  const { name: aiName, why: aiWhy, familyNote: aiFamilyNote, durationMin: aiDurationMin, firstResult } = resolved.place;
+  const gKey = process.env.GOOGLE_MAPS_API_KEY!;
+  const resolvedLat = firstResult.geometry.location.lat;
+  const resolvedLng = firstResult.geometry.location.lng;
+
+  type AddressComponent = { long_name: string; short_name: string; types: string[] };
+  let addressComponents: AddressComponent[] = [];
+  let websiteUrl: string | null = null;
+  let imageUrl: string | null = null;
+  let resolvedAddress: string | null = firstResult.formatted_address ?? null;
+
+  try {
+    const detailsRes = await fetch(
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${firstResult.place_id}&fields=address_components,formatted_address,website,photos&key=${gKey}`
+    );
+    const detailsData = await detailsRes.json() as {
+      result?: {
+        address_components?: AddressComponent[];
+        formatted_address?: string;
+        website?: string;
+        photos?: Array<{ photo_reference: string }>;
+      };
+    };
+    addressComponents = detailsData.result?.address_components ?? [];
+    resolvedAddress   = detailsData.result?.formatted_address ?? resolvedAddress;
+    websiteUrl        = detailsData.result?.website ?? null;
+    const photoRef    = detailsData.result?.photos?.[0]?.photo_reference ?? null;
+    if (photoRef) {
+      const photoApiUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${encodeURIComponent(photoRef)}&key=${gKey}`;
+      imageUrl = await resolveGooglePhotoUrl(photoApiUrl);
+    }
+  } catch {
+    // Details fetch is non-fatal; city guard falls through to distance guard
+  }
+
+  // City-match guard
+  const cityNorm = tour.destinationCity.toLowerCase().split(",")[0].trim();
+  const CITY_COMPONENT_TYPES = ["locality", "administrative_area_level_1", "postal_town", "sublocality"];
+  const cityComponents = addressComponents.filter(c => c.types?.some(t => CITY_COMPONENT_TYPES.includes(t)));
+  const cityMatch =
+    cityComponents.length > 0 &&
+    cityComponents.some(c => {
+      const long  = (c.long_name ?? "").toLowerCase();
+      const short = (c.short_name ?? "").toLowerCase();
+      return (
+        long.includes(cityNorm)  || short.includes(cityNorm) ||
+        cityNorm.includes(long)  || cityNorm.includes(short)
+      );
+    });
+
+  // Distance guard: kid attractions are destination-class, so allow a wider 5km
+  // radius around the segment midpoint (the on-route categories use 2km).
+  const distKm = haversineKm(
+    { lat: resolvedLat, lng: resolvedLng },
+    { lat: midpointLat, lng: midpointLng }
+  );
+  const distanceMatch = distKm <= 5;
+
+  if (!cityMatch && !distanceMatch) {
+    const componentNames = cityComponents.map(c => c.long_name).join(", ") || "none";
+    console.log(`[kids-suggest] tourId=${tourId} place="${aiName}" REJECTED city=${componentNames} dist=${distKm.toFixed(1)}km`);
+    return { error: "out_of_area" };
+  }
+
+  const candidate: PrefetchedCandidate = {
+    name: aiName,
+    address: resolvedAddress,
+    lat: resolvedLat,
+    lng: resolvedLng,
+    durationMin: aiDurationMin,
+    why: aiWhy || null,
+    familyNote: aiFamilyNote || null,
+    imageUrl,
+    websiteUrl,
+    placeId: firstResult.place_id,
+    ticketRequired: "unknown",
+    placeTypes: firstResult.types ?? [],
+  };
+
+  // Anchor the kid stop after whichever existing stop is geographically closest.
+  const { insertAfterStopId, distanceKm: nearestDistKm } = findNearestStopInsertionPoint(
+    resolvedLat,
+    resolvedLng,
+    tour.stops.map(s => ({ id: s.id, lat: s.lat, lng: s.lng, orderIndex: s.orderIndex }))
+  );
+
+  console.log(
+    `[kids-suggest] Anchoring kid stop at stop ${insertAfterStopId} (${nearestDistKm.toFixed(2)}km from candidate)`
+  );
+
+  console.log(`[kids-suggest] tourId=${tourId} place="${aiName}" ACCEPTED insertAfterStopId=${insertAfterStopId} dist=${distKm.toFixed(1)}km`);
   return { candidate, insertAfterStopId };
 }

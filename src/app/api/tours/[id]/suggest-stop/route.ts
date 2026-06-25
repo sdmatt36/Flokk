@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { resolveBathroomCandidate, resolveSnackCandidate, resolvePhotoSpotCandidate, resolveRestCandidate } from "@/lib/tour-stop-insertion";
+import { resolveBathroomCandidate, resolveSnackCandidate, resolvePhotoSpotCandidate, resolveRestCandidate, resolveKidsCandidate } from "@/lib/tour-stop-insertion";
 
 export const maxDuration = 30;
 
@@ -17,19 +17,28 @@ export async function POST(
   const { id: tourId } = await params;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
 
+  // Optional names to skip (e.g. places already shown this session via "Show
+  // another"), so a refresh returns a different place. Absent = current behavior.
+  const excludeNames = Array.isArray(body.excludeNames)
+    ? body.excludeNames.filter((n): n is string => typeof n === "string")
+    : undefined;
+
   let result;
   switch (body.category) {
     case "bathroom":
-      result = await resolveBathroomCandidate({ tourId, userId });
+      result = await resolveBathroomCandidate({ tourId, userId, excludeNames });
       break;
     case "snack":
-      result = await resolveSnackCandidate({ tourId, userId });
+      result = await resolveSnackCandidate({ tourId, userId, excludeNames });
       break;
     case "photo_spot":
-      result = await resolvePhotoSpotCandidate({ tourId, userId });
+      result = await resolvePhotoSpotCandidate({ tourId, userId, excludeNames });
       break;
     case "rest":
-      result = await resolveRestCandidate({ tourId, userId });
+      result = await resolveRestCandidate({ tourId, userId, excludeNames });
+      break;
+    case "kids":
+      result = await resolveKidsCandidate({ tourId, userId, excludeNames });
       break;
     default:
       console.log(`[suggest-stop] tourId=${tourId} reason=unsupported_category category=${body.category}`);
