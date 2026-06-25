@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { resolveProfileId } from "@/lib/profile-access";
+import { canEditTripContent } from "@/lib/trip-permissions";
 
 const FLIGHT_BOOKING_PREFIX = "flight-booking:";
 const LODGING_ITEM_PREFIX = "lodging-item:";
@@ -14,6 +16,10 @@ export async function PATCH(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id: tripId, documentId } = await params;
+
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "No profile" }, { status: 400 });
+
   const body = await req.json() as { content?: string; label?: string };
 
   // ── flight-booking: synthetic doc — edits go through the dedicated endpoint ──
@@ -33,6 +39,15 @@ export async function PATCH(
   }
 
   // ── Regular TripDocument PATCH ────────────────────────────────────────────
+  const existing = await db.tripDocument.findUnique({
+    where: { id: documentId },
+    select: { tripId: true },
+  });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!(await canEditTripContent(profileId, existing.tripId))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   const updated = await db.$transaction(async (tx) => {
     const doc = await tx.tripDocument.update({
       where: { id: documentId },
@@ -128,6 +143,9 @@ export async function DELETE(
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id: tripId, documentId } = await params;
 
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "No profile" }, { status: 400 });
+
   // ── lodging-item: synthetic doc — delete the ItineraryItem (and matched check-out) ──
   if (documentId.startsWith(LODGING_ITEM_PREFIX)) {
     const itemId = documentId.slice(LODGING_ITEM_PREFIX.length);
@@ -136,6 +154,9 @@ export async function DELETE(
       select: { id: true, tripId: true, confirmationCode: true },
     });
     if (!item || item.tripId !== tripId) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+    if (!(await canEditTripContent(profileId, item.tripId))) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
     if (item.confirmationCode) {
@@ -158,6 +179,9 @@ export async function DELETE(
     if (!fb || fb.tripId !== tripId) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
+    if (!(await canEditTripContent(profileId, fb.tripId))) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
     await db.$transaction(async (tx) => {
       // Flight rows cascade-delete via FK, but explicit delete is safe too
       await tx.flight.deleteMany({ where: { flightBookingId: fbId } });
@@ -167,6 +191,15 @@ export async function DELETE(
   }
 
   // ── Regular TripDocument DELETE ───────────────────────────────────────────
+  const existing = await db.tripDocument.findUnique({
+    where: { id: documentId },
+    select: { tripId: true },
+  });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (!(await canEditTripContent(profileId, existing.tripId))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   await db.$transaction(async (tx) => {
     const doc = await tx.tripDocument.findUnique({ where: { id: documentId } });
     if (!doc) return;

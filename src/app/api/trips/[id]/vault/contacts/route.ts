@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
-import { getTripAccess } from "@/lib/trip-permissions";
+import { getTripAccess, canEditTripContent } from "@/lib/trip-permissions";
 
 export async function GET(
   _req: Request,
@@ -32,6 +32,13 @@ export async function POST(
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id: tripId } = await params;
+
+  const profileId = await resolveProfileId(userId);
+  if (!profileId) return NextResponse.json({ error: "No profile" }, { status: 400 });
+  if (!(await canEditTripContent(profileId, tripId))) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   const body = await request.json();
   if (!body.name?.trim()) return NextResponse.json({ error: "Name required" }, { status: 400 });
   const contact = await db.tripContact.create({
