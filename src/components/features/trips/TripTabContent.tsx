@@ -2865,18 +2865,58 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     });
   }, [localFlights.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /** Return a directions URL that deep-links into native maps on iOS/Android */
-  function getDirectionsUrl(lat1: number, lng1: number, lat2: number, lng2: number): string {
+  /** A directions endpoint: a human place query (name + address, preferred) with a
+   *  lat/lng fallback. Passing a name/address makes maps apps label and route to the
+   *  real place, instead of reverse-snapping a bare coordinate to the nearest POI
+   *  (e.g. a Haneda coordinate snapping to "Photomatic, Terminal 3"). */
+  type DirPoint = { lat: number; lng: number; query?: string | null };
+
+  /** Readable "name, address" query for a day item, or null when none applies
+   *  (transport rows like flights/trains are labelled separately via airport/coords). */
+  function placeQueryFor(i: UnifiedDayItem | null | undefined): string | null {
+    if (!i) return null;
+    if (i.itemType === "saved" && i.recAddition) {
+      return [i.recAddition.title, i.recAddition.location].filter(Boolean).join(", ") || null;
+    }
+    if (i.itemType === "activity" && i.activity) {
+      const a = i.activity;
+      return [a.title || a.venueName, a.address].filter(Boolean).join(", ") || null;
+    }
+    if (i.itemType === "itinerary" && i.itineraryItem) {
+      const it = i.itineraryItem;
+      // Transport rows are not destinations — labelled via airport/coords instead.
+      if (["FLIGHT", "TRAIN", "TRANSFER", "CRUISE"].includes((it.type ?? "").toUpperCase())) return null;
+      const name = it.title.replace(/^check-(?:in|out):\s*/i, "").trim();
+      return [name, it.address].filter(Boolean).join(", ") || null;
+    }
+    return null;
+  }
+
+  /** Airport query from an IATA code (e.g. "HND" -> "HND Airport"). Maps apps resolve
+   *  this to the airport itself rather than an interior terminal POI. */
+  function airportQuery(iata: string | null | undefined): string | null {
+    const code = (iata ?? "").toUpperCase().trim();
+    return code ? `${code} Airport` : null;
+  }
+
+  /** Directions deep-link into native maps (iOS/Android) or the web. Each endpoint
+   *  uses its name/address query when present (URL-encoded); falls back to bare
+   *  "lat,lng" only when no query exists. */
+  function getDirectionsUrl(from: DirPoint, to: DirPoint): string {
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
     const isIOS = /iPhone|iPad|iPod/i.test(ua);
     const isAndroid = /Android/i.test(ua);
+    const enc = (p: DirPoint) =>
+      p.query && p.query.trim() ? encodeURIComponent(p.query.trim()) : `${p.lat},${p.lng}`;
+    const origin = enc(from);
+    const destination = enc(to);
     if (isIOS) {
-      return `maps://maps.apple.com/?saddr=${lat1},${lng1}&daddr=${lat2},${lng2}`;
+      return `maps://maps.apple.com/?saddr=${origin}&daddr=${destination}`;
     }
     if (isAndroid) {
-      return `intent://maps.google.com/maps/dir/${lat1},${lng1}/${lat2},${lng2}#Intent;scheme=https;package=com.google.android.apps.maps;end`;
+      return `intent://maps.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}#Intent;scheme=https;package=com.google.android.apps.maps;end`;
     }
-    return `https://www.google.com/maps/dir/${lat1},${lng1}/${lat2},${lng2}`;
+    return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}`;
   }
 
   /** Haversine distance in km between two lat/lng points */
@@ -2889,8 +2929,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
-  /** Synchronous transit estimate between two coordinates */
-  function computeTransit(lat1: number, lng1: number, lat2: number, lng2: number): { mode: string; duration: string; directionsUrl: string } {
+  /** Synchronous transit estimate between two coordinates. The estimate stays
+   *  coordinate-based; fromQuery/toQuery only label the directions deep-link. */
+  function computeTransit(lat1: number, lng1: number, lat2: number, lng2: number, fromQuery?: string | null, toQuery?: string | null): { mode: string; duration: string; directionsUrl: string } {
     const km = haversineKm(lat1, lng1, lat2, lng2);
     let mode: string;
     let rawMins: number;
@@ -2916,7 +2957,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     return {
       mode,
       duration,
-      directionsUrl: getDirectionsUrl(lat1, lng1, lat2, lng2),
+      directionsUrl: getDirectionsUrl(
+        { lat: lat1, lng: lng1, query: fromQuery },
+        { lat: lat2, lng: lng2, query: toQuery },
+      ),
     };
   }
 
@@ -3189,7 +3233,12 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 }
 
                                 const hotelName = activeLodging.title.replace(/^check-in:\s*/i, "");
-                                const directionsUrl = getDirectionsUrl(activeLodging.latitude!, activeLodging.longitude!, firstWithCoords.lat, firstWithCoords.lng);
+                                const fromQuery = [hotelName, activeLodging.address].filter(Boolean).join(", ") || null;
+                                const toQuery = placeQueryFor(firstWithCoords);
+                                const directionsUrl = getDirectionsUrl(
+                                  { lat: activeLodging.latitude!, lng: activeLodging.longitude!, query: fromQuery },
+                                  { lat: firstWithCoords.lat!, lng: firstWithCoords.lng!, query: toQuery },
+                                );
                                 return (
                                   <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "4px 28px 8px", marginBottom: "2px" }}>
                                     <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(0,0,0,0.06)" }} />
@@ -3727,7 +3776,16 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                       );
                                     }
 
-                                    const transit = computeTransit(fromCoords!.lat, fromCoords!.lng, toCoords!.lat, toCoords!.lng);
+                                    // Label the deep-link by place/airport name (routing + label),
+                                    // not the bare arrival coordinate. Flight origin -> arrival airport;
+                                    // flight destination -> departure airport; else the stop's name/address.
+                                    const fromQuery = prevIt?.type === "FLIGHT"
+                                      ? airportQuery(prevIt.toAirport)
+                                      : placeQueryFor(item);
+                                    const toQuery = depCoords
+                                      ? airportQuery(nextFromAirport)
+                                      : placeQueryFor(next);
+                                    const transit = computeTransit(fromCoords!.lat, fromCoords!.lng, toCoords!.lat, toCoords!.lng, fromQuery, toQuery);
                                     return (
                                       <div key={`transit_${idx}`} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "2px 28px 6px", marginBottom: "2px" }}>
                                         <div style={{ flex: 1, height: "1px", backgroundColor: "rgba(0,0,0,0.06)" }} />
