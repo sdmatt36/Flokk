@@ -12,7 +12,8 @@ export type SerializableItem = {
   tag: string | null;
   tagBg: string;
   tagColor: string;
-  notes: string | null;
+  description: string | null; // public place blurb — shown to all viewers
+  notes: string | null;        // private family note — owner-only
   imageUrl: string | null;
   rating: { rating: number; notes: string | null; wouldReturn: boolean | null } | null;
   lat: number | null;
@@ -136,7 +137,22 @@ export function ShareActivityCard({
           </p>
         )}
 
-        {/* Description / notes */}
+        {/* Public place description — shown to all viewers */}
+        {item.description && (
+          <p
+            className="text-sm text-stone-500 mt-2"
+            style={{
+              overflow: "hidden",
+              display: "-webkit-box",
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: "vertical",
+            } as React.CSSProperties}
+          >
+            {item.description}
+          </p>
+        )}
+
+        {/* Private family note — owner-only (gated upstream in page.tsx) */}
         {item.notes && (
           <p
             className="text-sm text-stone-500 mt-2"

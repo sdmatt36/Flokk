@@ -306,7 +306,10 @@ export default async function SharePage({
           tag: s.categoryTags[0] ?? null,
           tagBg: "#F5F5F5",
           tagColor: "#888",
-          notes: isOwner ? (s.rawDescription ? s.rawDescription.slice(0, 200) : null) : null,
+          // rawDescription is the public place blurb — shown to ALL viewers.
+          // Saves have no separate private note, so notes stays null here.
+          description: s.rawDescription ?? null,
+          notes: null,
           imageUrl: s.placePhotoUrl ?? s.mediaThumbnailUrl ?? null,
           rating: null,
           lat: s.lat ?? null,
@@ -348,6 +351,7 @@ export default async function SharePage({
           tag: TYPE_LABEL[it.type] ?? "ACT",
           tagBg: tc.bg,
           tagColor: tc.color,
+          description: null,
           notes: (it.type === "FLIGHT" || it.type === "TRAIN") && route ? displayTitle : null,
           imageUrl: it.imageUrl ?? null, // imageUrl populated via Discipline 4.18 — see Decisions Log Chat 43
           rating: isOwner && ratingData
@@ -372,6 +376,9 @@ export default async function SharePage({
         tag: "ACT",
         tagBg: "#F5F5F5",
         tagColor: "#888",
+        // Manual activities carry no public blurb; ma.notes is a PRIVATE family
+        // note and stays owner-gated.
+        description: null,
         notes: isOwner ? (ma.notes ?? null) : null,
         imageUrl: ma.imageUrl ?? null, // ManualActivity.imageUrl from schema
         rating: isOwner && ratingData

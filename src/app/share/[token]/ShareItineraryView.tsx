@@ -300,6 +300,10 @@ export function ShareItineraryView({
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                   <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", lineHeight: 1.2 }}>{item.title}</p>
 
+                                  {item.description && (
+                                    <p style={{ fontSize: "12px", color: "#717171", marginTop: "2px", lineHeight: 1.4 }}>{item.description}</p>
+                                  )}
+
                                   {item.notes && (
                                     <p style={{ fontSize: "12px", color: "#717171", marginTop: "2px", lineHeight: 1.4 }}>{item.notes}</p>
                                   )}

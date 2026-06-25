@@ -57,6 +57,13 @@ export type DayItemRow = {
   categoryTags: string[];
   rawTime: string | null;
   endTime: string | null;
+  // Public place-level fields (additive). description is the public place blurb
+  // (savedItem.rawDescription) shown to all viewers — NOT the private family note.
+  lat: number | null;
+  lng: number | null;
+  websiteUrl: string | null;
+  description: string | null;
+  sourceTripId: string | null;
   savedItemId?: string | null;
   confirmationCode?: string | null;
 };
@@ -71,6 +78,8 @@ export type RawItineraryItem = {
   confirmationCode: string | null; address: string | null;
   dayIndex: number | null; sortOrder: number | null;
   currency: string | null; imageUrl: string | null;
+  // Optional: only some callers (the public preview) select coordinates.
+  latitude?: number | null; longitude?: number | null;
 };
 
 export type RawManualActivity = {
@@ -79,6 +88,8 @@ export type RawManualActivity = {
   dayIndex: number | null; sortOrder: number | null;
   type: string | null; imageUrl: string | null;
   savedItem: { id: string; categoryTags: string[] } | null;
+  // Optional: only some callers (the public preview) select coordinates.
+  lat?: number | null; lng?: number | null;
 };
 
 export type RawFlight = {
@@ -95,18 +106,23 @@ export type RawSavedItem = {
   categoryTags: string[]; tourId: string | null;
   dayIndex: number | null; sortOrder: number | null;
   placePhotoUrl: string | null; address: string | null;
+  // Optional: only some callers (the public preview) select these.
+  lat?: number | null; lng?: number | null; websiteUrl?: string | null;
 };
 
 // ── builder ───────────────────────────────────────────────────────────────────
 
 export function buildDayItems(
-  trip: { destinationCity: string | null; startDate: Date | null; endDate: Date | null },
+  // id is optional: callers that don't select it (owned-trip day-items) get
+  // sourceTripId: null. The public preview passes it for the Flokk It payload.
+  trip: { id?: string | null; destinationCity: string | null; startDate: Date | null; endDate: Date | null },
   rawItineraryItems: RawItineraryItem[],
   activities: RawManualActivity[],
   flights: RawFlight[],
   savedItems: RawSavedItem[],
 ): { dayIndex: number; items: DayItemRow[] }[] {
   const dest = (trip.destinationCity ?? "").toLowerCase().trim();
+  const sourceTripId = trip.id ?? null;
   const itineraryItems = mergeDuplicateLodging(rawItineraryItems);
 
   const allDayIndexes = new Set<number>();
@@ -175,6 +191,12 @@ export function buildDayItems(
           categoryTags: s.categoryTags,
           rawTime: s.startTime ?? null,
           endTime: s.endTime ?? null,
+          lat: s.lat ?? null,
+          lng: s.lng ?? null,
+          websiteUrl: s.websiteUrl ?? null,
+          // Public place blurb — shown to all viewers (not a private note).
+          description: s.rawDescription ?? null,
+          sourceTripId,
         },
       });
     }
@@ -203,6 +225,13 @@ export function buildDayItems(
           categoryTags: activityCategoryTags,
           rawTime: a.time ?? null,
           endTime: a.endTime ?? null,
+          lat: a.lat ?? null,
+          lng: a.lng ?? null,
+          // Manual activities have no public website; their notes are a private
+          // family note and are intentionally NOT exposed here.
+          websiteUrl: null,
+          description: null,
+          sourceTripId,
           savedItemId: a.savedItem?.id ?? null,
         },
       });
@@ -239,6 +268,11 @@ export function buildDayItems(
           categoryTags: [],
           rawTime: null,
           endTime: null,
+          lat: null,
+          lng: null,
+          websiteUrl: null,
+          description: null,
+          sourceTripId,
           confirmationCode: f.confirmationCode ?? null,
         },
       });
@@ -309,6 +343,11 @@ export function buildDayItems(
           categoryTags: [],
           rawTime: null,
           endTime: null,
+          lat: it.latitude ?? null,
+          lng: it.longitude ?? null,
+          websiteUrl: null,
+          description: null,
+          sourceTripId,
           confirmationCode: it.confirmationCode ?? null,
         },
       });

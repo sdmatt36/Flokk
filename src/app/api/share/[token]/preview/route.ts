@@ -46,6 +46,7 @@ export async function GET(
         fromAirport: true, toAirport: true, fromCity: true, toCity: true,
         confirmationCode: true, address: true, dayIndex: true,
         sortOrder: true, currency: true, imageUrl: true,
+        latitude: true, longitude: true,
       },
     }),
     db.manualActivity.findMany({
@@ -54,6 +55,7 @@ export async function GET(
       select: {
         id: true, title: true, time: true, endTime: true, venueName: true,
         address: true, dayIndex: true, sortOrder: true, type: true, imageUrl: true,
+        lat: true, lng: true,
         savedItem: { select: { id: true, categoryTags: true } },
       },
     }),
@@ -74,6 +76,7 @@ export async function GET(
         id: true, rawTitle: true, rawDescription: true, startTime: true, endTime: true,
         categoryTags: true, tourId: true, dayIndex: true, sortOrder: true,
         placePhotoUrl: true, address: true,
+        lat: true, lng: true, websiteUrl: true,
       },
     }),
   ]);
