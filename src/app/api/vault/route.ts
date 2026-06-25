@@ -47,6 +47,16 @@ type HotelCard = {
   additionalConfirmations: string[];
   roomCount: number;
   bookingSource: string | null;
+  // Mobile edit passthrough (additive). itineraryItemId is the editable check-in
+  // LODGING ItineraryItem id; null when it can't be resolved (mobile hides/disables
+  // the pencil, like flight "Edit unavailable"). The rest are editable/display values.
+  itineraryItemId: string | null;
+  checkOutItemId: string | null;
+  address: string | null;
+  notes: string | null;
+  lodgingType: string | null;
+  websiteUrl: string | null;
+  imageUrl: string | null;
 };
 
 type OtherCard = {
@@ -173,6 +183,12 @@ function shapeHotelCard(
   const c = parseContent(doc.content);
   const checkIn = str(c.checkIn);
   const checkOut = str(c.checkOut);
+  // Prefer the embedded check-in item id; fall back to the synthetic "lodging-item:{itemId}"
+  // doc id for orphan stays. Null when neither resolves -> mobile disables the pencil.
+  const LODGING_ITEM_PREFIX = "lodging-item:";
+  const itineraryItemId =
+    str(c._checkInItemId) ??
+    (doc.id.startsWith(LODGING_ITEM_PREFIX) ? doc.id.slice(LODGING_ITEM_PREFIX.length) : null);
   return {
     id: doc.id,
     bookingType: "hotel",
@@ -185,6 +201,13 @@ function shapeHotelCard(
     additionalConfirmations: doc.additionalConfirmations,
     roomCount: doc.roomCount,
     bookingSource: str(c.bookingSource),
+    itineraryItemId,
+    checkOutItemId: str(c._checkOutItemId),
+    address: str(c.address),
+    notes: str(c.notes),
+    lodgingType: str(c.lodgingType),
+    websiteUrl: str(c.venueUrl),
+    imageUrl: str(c.imageUrl),
   };
 }
 

@@ -206,10 +206,18 @@ export function synthesizeHotelVaultDocument(opts: {
     if (checkInItem.confirmationCode) merged.confirmationCode = checkInItem.confirmationCode;
     if (checkInItem.bookingSource) merged.bookingSource = checkInItem.bookingSource;
     if (checkInItem.managementUrl) merged.managementUrl = checkInItem.managementUrl;
+    // Mobile edit passthrough: the editable check-in LODGING ItineraryItem id + fields,
+    // so mobile can PATCH /api/trips/[id]/itinerary/[itemId] (mirrors _flightBookingId).
+    merged._checkInItemId = checkInItem.id;
+    if (checkInItem.notes) merged.notes = checkInItem.notes;
+    if (checkInItem.lodgingType) merged.lodgingType = checkInItem.lodgingType;
+    if (checkInItem.venueUrl) merged.venueUrl = checkInItem.venueUrl;
+    if (checkInItem.imageUrl) merged.imageUrl = checkInItem.imageUrl;
   }
 
   if (checkOutItem) {
     if (checkOutItem.scheduledDate) merged.checkOut = checkOutItem.scheduledDate;
+    merged._checkOutItemId = checkOutItem.id;
   }
 
   return {
@@ -265,6 +273,15 @@ export function synthesizeOrphanHotelVaultDocument(opts: {
     address: checkInItem?.address ?? null,
     bookingSource: checkInItem?.bookingSource ?? null,
     managementUrl: checkInItem?.managementUrl ?? null,
+    // Mobile edit passthrough: the editable LODGING ItineraryItem id + fields. anchor is the
+    // check-in item when present (else the check-out item) and equals the id embedded in
+    // this doc's id (`lodging-item:{anchor.id}`).
+    _checkInItemId: anchor.id,
+    _checkOutItemId: checkOutItem && checkOutItem.id !== anchor.id ? checkOutItem.id : null,
+    notes: anchor.notes ?? null,
+    lodgingType: anchor.lodgingType ?? null,
+    venueUrl: anchor.venueUrl ?? null,
+    imageUrl: anchor.imageUrl ?? null,
   };
 
   return {
