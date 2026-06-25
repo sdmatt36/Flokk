@@ -33,6 +33,10 @@ type FlightCard = {
   cabinClass: string | null;
   flightBookingId: string | null;
   legs: FlightLeg[];
+  // Typed totals/passengers surfaced by the synthesizer (additive).
+  totalCost: number | null;
+  currency: string | null;
+  passengers: string[];
 };
 
 type HotelCard = {
@@ -57,6 +61,10 @@ type HotelCard = {
   lodgingType: string | null;
   websiteUrl: string | null;
   imageUrl: string | null;
+  // Additive: management link + typed totals surfaced by the synthesizer.
+  managementUrl: string | null;
+  totalCost: number | null;
+  currency: string | null;
 };
 
 type OtherCard = {
@@ -173,6 +181,9 @@ function shapeFlightCard(doc: EnrichedVaultDocument): FlightCard {
     cabinClass: str(c.cabinClass),
     flightBookingId: str(c._flightBookingId) ?? null,
     legs: (c.legs as FlightLeg[] | undefined) ?? [],
+    totalCost: typeof c.totalCost === "number" ? c.totalCost : null,
+    currency: str(c.currency),
+    passengers: Array.isArray(c.guestNames) ? (c.guestNames as string[]) : [],
   };
 }
 
@@ -208,6 +219,9 @@ function shapeHotelCard(
     lodgingType: str(c.lodgingType),
     websiteUrl: str(c.venueUrl),
     imageUrl: str(c.imageUrl),
+    managementUrl: str(c.managementUrl),
+    totalCost: typeof c.totalCost === "number" ? c.totalCost : null,
+    currency: str(c.currency),
   };
 }
 

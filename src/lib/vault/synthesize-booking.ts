@@ -65,16 +65,17 @@ function parseContent(raw: string | null | undefined): RawContent {
 export function synthesizeFlightVaultDocument(opts: {
   tripDocument: TripDocument;
   flightBooking?: (FlightBooking & { flights: Flight[] }) | null;
+  flightItem?: ItineraryItem | null;
   tripStartDate?: string | null;
   tripEndDate?: string | null;
 }): VaultDocument {
-  const { tripDocument, flightBooking, tripStartDate, tripEndDate } = opts;
+  const { tripDocument, flightBooking, flightItem, tripStartDate, tripEndDate } = opts;
   const base = parseContent(tripDocument.content);
 
   let merged: RawContent = { ...base };
 
   if (flightBooking && flightBooking.flights.length > 0) {
-    merged = buildFlightContent(flightBooking, base, tripStartDate, tripEndDate);
+    merged = buildFlightContent(flightBooking, base, tripStartDate, tripEndDate, flightItem);
   }
 
   return {
@@ -92,11 +93,12 @@ export function synthesizeFlightVaultDocument(opts: {
 
 export function synthesizeOrphanFlightBookingVaultDocument(opts: {
   flightBooking: FlightBooking & { flights: Flight[] };
+  flightItem?: ItineraryItem | null;
   tripStartDate?: string | null;
   tripEndDate?: string | null;
 }): VaultDocument {
-  const { flightBooking, tripStartDate, tripEndDate } = opts;
-  const content = buildFlightContent(flightBooking, {}, tripStartDate, tripEndDate);
+  const { flightBooking, flightItem, tripStartDate, tripEndDate } = opts;
+  const content = buildFlightContent(flightBooking, {}, tripStartDate, tripEndDate, flightItem);
   const first = (content.legs as RawContent[] | undefined)?.[0];
 
   const label = flightBooking.confirmationCode
@@ -120,7 +122,8 @@ function buildFlightContent(
   flightBooking: FlightBooking & { flights: Flight[] },
   base: RawContent,
   tripStartDate?: string | null,
-  tripEndDate?: string | null
+  tripEndDate?: string | null,
+  flightItem?: ItineraryItem | null
 ): RawContent {
   // Sort all legs chronologically
   let sorted = [...flightBooking.flights].sort((a, b) => {
@@ -161,10 +164,12 @@ function buildFlightContent(
   }));
 
   return {
-    // Preserve TripDocument-only fields not yet in typed models (empty for orphan cards)
-    totalCost: base.totalCost ?? null,
-    currency: base.currency ?? null,
-    guestNames: base.guestNames ?? [],
+    // Preserve TripDocument-only fields not yet in typed models (empty for orphan cards).
+    // Fallback-only: where the email parse left these blank, surface the typed FLIGHT
+    // ItineraryItem's totals/passengers. Never overrides an existing email-parsed value.
+    totalCost: base.totalCost ?? flightItem?.totalCost ?? null,
+    currency: base.currency ?? flightItem?.currency ?? null,
+    guestNames: base.guestNames ?? (flightItem?.passengers?.length ? flightItem.passengers : []),
     bookingUrl: base.bookingUrl ?? null,
     // Override route/time fields from typed model (authoritative)
     type: "flight",
@@ -213,6 +218,12 @@ export function synthesizeHotelVaultDocument(opts: {
     if (checkInItem.lodgingType) merged.lodgingType = checkInItem.lodgingType;
     if (checkInItem.venueUrl) merged.venueUrl = checkInItem.venueUrl;
     if (checkInItem.imageUrl) merged.imageUrl = checkInItem.imageUrl;
+    // Fallback-only: surface the typed total where the email parse left it blank.
+    // Never overrides an existing email-parsed totalCost.
+    if (merged.totalCost == null && checkInItem.totalCost != null) {
+      merged.totalCost = checkInItem.totalCost;
+      merged.currency = checkInItem.currency;
+    }
   }
 
   if (checkOutItem) {
@@ -396,10 +407,17 @@ export async function synthesizeVaultDocuments(tripId: string, prisma?: any): Pr
             include: { flights: true },
           })) as (FlightBooking & { flights: Flight[] }) | null)
         : null;
+      // Typed FLIGHT ItineraryItem carries totalCost/currency/passengers (not on FlightBooking/Flight).
+      const flightItem = confCode
+        ? ((await db.itineraryItem.findFirst({
+            where: { tripId, confirmationCode: confCode, type: "FLIGHT" },
+          })) as ItineraryItem | null)
+        : null;
       results.push(
         synthesizeFlightVaultDocument({
           tripDocument: doc,
           flightBooking,
+          flightItem,
           tripStartDate,
           tripEndDate,
         })
@@ -459,8 +477,14 @@ export async function synthesizeVaultDocuments(tripId: string, prisma?: any): Pr
     // Skip bookings with no legs (nothing to display)
     if (fb.flights.length === 0) continue;
     if (fb.confirmationCode) fbConfCodesSeen.add(fb.confirmationCode);
+    // Typed FLIGHT ItineraryItem carries totalCost/currency/passengers (not on FlightBooking/Flight).
+    const flightItem = fb.confirmationCode
+      ? ((await db.itineraryItem.findFirst({
+          where: { tripId, confirmationCode: fb.confirmationCode, type: "FLIGHT" },
+        })) as ItineraryItem | null)
+      : null;
     results.push(
-      synthesizeOrphanFlightBookingVaultDocument({ flightBooking: fb, tripStartDate, tripEndDate })
+      synthesizeOrphanFlightBookingVaultDocument({ flightBooking: fb, flightItem, tripStartDate, tripEndDate })
     );
   }
 
