@@ -8055,6 +8055,8 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [newContact, setNewContact] = useState({ name: "", role: "", phone: "", whatsapp: "", email: "" });
   const [newDoc, setNewDoc] = useState({ label: "", type: "link", url: "", content: "" });
   const [newKeyInfo, setNewKeyInfo] = useState({ label: "", value: "" });
+  const [editingContact, setEditingContact] = useState<VaultContact | null>(null);
+  const [editingKeyInfo, setEditingKeyInfo] = useState<VaultKeyInfo | null>(null);
 
   useEffect(() => {
     if (tab !== "bookings" || !tripId) return;
@@ -8895,9 +8897,14 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                           {c.email && <a href={`mailto:${c.email}`} style={{ fontSize: "13px", color: "#1B3A5C" }}>{c.email}</a>}
                         </div>
                       </div>
-                      <button onClick={async () => { await fetch(`/api/trips/${tripId}/vault/contacts/${c.id}`, { method: "DELETE" }); setContacts(p => p.filter(x => x.id !== c.id)); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px", flexShrink: 0 }} title="Delete">
-                        <Trash2 size={14} />
-                      </button>
+                      <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
+                        <button onClick={() => setEditingContact(c)} style={{ background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px" }} title="Edit">
+                          <Pencil size={14} />
+                        </button>
+                        <button onClick={async () => { await fetch(`/api/trips/${tripId}/vault/contacts/${c.id}`, { method: "DELETE" }); setContacts(p => p.filter(x => x.id !== c.id)); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px" }} title="Delete">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -9077,9 +9084,14 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                       <span style={{ fontSize: "12px", color: "#717171", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.06em" }}>{k.label}</span>
                       <p style={{ fontSize: "14px", fontWeight: 700, color: "#1a1a1a", marginTop: "2px", wordBreak: "break-all" }}>{k.value}</p>
                     </div>
-                    <button onClick={async () => { await fetch(`/api/trips/${tripId}/vault/keyinfo/${k.id}`, { method: "DELETE" }); setKeyInfo(p => p.filter(x => x.id !== k.id)); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px", flexShrink: 0 }} title="Delete">
-                      <Trash2 size={14} />
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px", flexShrink: 0 }}>
+                      <button onClick={() => setEditingKeyInfo(k)} style={{ background: "none", border: "none", cursor: "pointer", color: "#AAAAAA", padding: "2px" }} title="Edit">
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={async () => { await fetch(`/api/trips/${tripId}/vault/keyinfo/${k.id}`, { method: "DELETE" }); setKeyInfo(p => p.filter(x => x.id !== k.id)); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#D0D0D0", padding: "2px" }} title="Delete">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -9261,6 +9273,112 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
             <p style={{ fontSize: "11px", color: "#BBBBBB", textAlign: "center", marginTop: "12px", lineHeight: 1.5 }}>
               Your ratings earn you Pioneer status and help build the Flokk community library.
             </p>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Edit Contact Modal ── */}
+      {editingContact && tripId && createPortal(
+        <div onClick={() => setEditingContact(null)} className={MODAL_OVERLAY_CLASSES}>
+          <div onClick={e => e.stopPropagation()} className={`${MODAL_PANEL_CLASSES} sm:w-[480px]`} style={{ padding: "24px 20px 40px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+              <p style={{ fontSize: "17px", fontWeight: 800, color: "#1a1a1a" }}>Edit Contact</p>
+              <button onClick={() => setEditingContact(null)} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#999", padding: "4px", lineHeight: 1 }}>×</button>
+            </div>
+            {([
+              { key: "name", label: "Name", placeholder: "Name *" },
+              { key: "role", label: "Role", placeholder: "Role (e.g. Driver)" },
+              { key: "phone", label: "Phone", placeholder: "Phone" },
+              { key: "whatsapp", label: "WhatsApp", placeholder: "WhatsApp number" },
+              { key: "email", label: "Email", placeholder: "Email" },
+            ] as const).map(f => (
+              <div key={f.key} style={{ marginBottom: "14px" }}>
+                <label style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "5px", display: "block" }}>{f.label}</label>
+                <input
+                  type="text"
+                  value={(editingContact[f.key] as string | null | undefined) ?? ""}
+                  onChange={e => setEditingContact(prev => prev ? { ...prev, [f.key]: e.target.value } : null)}
+                  placeholder={f.placeholder}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", backgroundColor: "#fff", outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+            ))}
+            <button
+              disabled={!editingContact.name?.trim()}
+              onClick={async () => {
+                if (!editingContact.name?.trim() || !tripId) return;
+                const res = await fetch(`/api/trips/${tripId}/vault/contacts/${editingContact.id}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    name: editingContact.name,
+                    role: editingContact.role ?? "",
+                    phone: editingContact.phone ?? "",
+                    whatsapp: editingContact.whatsapp ?? "",
+                    email: editingContact.email ?? "",
+                  }),
+                });
+                if (!res.ok) return;
+                const saved = await res.json();
+                setContacts(p => p.map(x => x.id === saved.id ? saved : x));
+                setEditingContact(null);
+              }}
+              style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "none", backgroundColor: editingContact.name?.trim() ? "#1B3A5C" : "#E0E0E0", color: editingContact.name?.trim() ? "#fff" : "#aaa", fontSize: "14px", fontWeight: 700, cursor: editingContact.name?.trim() ? "pointer" : "default", fontFamily: "inherit", marginTop: "4px" }}
+            >
+              Save contact
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Edit Key Info Modal ── */}
+      {editingKeyInfo && tripId && createPortal(
+        <div onClick={() => setEditingKeyInfo(null)} className={MODAL_OVERLAY_CLASSES}>
+          <div onClick={e => e.stopPropagation()} className={`${MODAL_PANEL_CLASSES} sm:w-[480px]`} style={{ padding: "24px 20px 40px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+              <p style={{ fontSize: "17px", fontWeight: 800, color: "#1a1a1a" }}>Edit Key Info</p>
+              <button onClick={() => setEditingKeyInfo(null)} style={{ background: "none", border: "none", fontSize: "22px", cursor: "pointer", color: "#999", padding: "4px", lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ marginBottom: "14px" }}>
+              <label style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "5px", display: "block" }}>Label</label>
+              <input
+                type="text"
+                value={editingKeyInfo.label}
+                onChange={e => setEditingKeyInfo(prev => prev ? { ...prev, label: e.target.value } : null)}
+                placeholder="Label *  (e.g. WiFi password)"
+                style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", backgroundColor: "#fff", outline: "none", boxSizing: "border-box" }}
+              />
+            </div>
+            <div style={{ marginBottom: "14px" }}>
+              <label style={{ fontSize: "11px", fontWeight: 700, color: "#717171", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: "5px", display: "block" }}>Value</label>
+              <input
+                type="text"
+                value={editingKeyInfo.value}
+                onChange={e => setEditingKeyInfo(prev => prev ? { ...prev, value: e.target.value } : null)}
+                placeholder="Value *"
+                style={{ width: "100%", padding: "10px 12px", borderRadius: "10px", border: "1.5px solid #E5E5E5", fontSize: "14px", color: "#1a1a1a", backgroundColor: "#fff", outline: "none", boxSizing: "border-box" }}
+              />
+            </div>
+            <button
+              disabled={!editingKeyInfo.label.trim() || !editingKeyInfo.value.trim()}
+              onClick={async () => {
+                if (!editingKeyInfo.label.trim() || !editingKeyInfo.value.trim() || !tripId) return;
+                const res = await fetch(`/api/trips/${tripId}/vault/keyinfo/${editingKeyInfo.id}`, {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ label: editingKeyInfo.label, value: editingKeyInfo.value }),
+                });
+                if (!res.ok) return;
+                const saved = await res.json();
+                setKeyInfo(p => p.map(x => x.id === saved.id ? saved : x));
+                setEditingKeyInfo(null);
+              }}
+              style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "none", backgroundColor: editingKeyInfo.label.trim() && editingKeyInfo.value.trim() ? "#1B3A5C" : "#E0E0E0", color: editingKeyInfo.label.trim() && editingKeyInfo.value.trim() ? "#fff" : "#aaa", fontSize: "14px", fontWeight: 700, cursor: editingKeyInfo.label.trim() && editingKeyInfo.value.trim() ? "pointer" : "default", fontFamily: "inherit", marginTop: "4px" }}
+            >
+              Save
+            </button>
           </div>
         </div>,
         document.body
