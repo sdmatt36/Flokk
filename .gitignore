@@ -36,3 +36,5 @@ next-env.d.ts
 /.clerk/
 .env.production
 .env*.local
+
+.env*.fresh
