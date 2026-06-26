@@ -135,6 +135,9 @@ export async function POST(req: NextRequest) {
       data: {
         id: tourId,
         title: tourTitle,
+        // Surface created tours in Discover > Tours immediately (feed requires isPublic).
+        // Surface-now/gate-later: moderation/quality gating is a follow-up.
+        isPublic: true,
         destinationCity: tourMeta.destinationCity,
         cityId: resolvedCity.cityId,
         // Prefer a real resolved country over a client-passed null.
