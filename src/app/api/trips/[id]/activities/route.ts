@@ -73,6 +73,7 @@ export async function POST(
     lng: clientLng,
     type: clientType,
     imageUrl: clientImageUrl,
+    placeId,
   } = body;
 
   if (!title || !date) {
@@ -96,6 +97,43 @@ export async function POST(
     const dep = new Date(dy, dm - 1, dd);
     const diff = Math.round((dep.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
     dayIndex = diff;
+  }
+
+  // Place-identity dedup — the SAME place on the SAME trip+day is never an intentional
+  // re-add, so this is NOT bypassable by body.force (unlike the title+date check below).
+  // Mirrors the placeId/coords dedup in POST /api/saves/import-maps-pin. Scoped to the
+  // same dayIndex (the same place on a different day is legitimate). googlePlaceId lives
+  // on the paired manual_activity SavedItem, so the placeId match goes through that relation.
+  if (placeId) {
+    const dupByPlace = await db.manualActivity.findFirst({
+      where: {
+        tripId,
+        dayIndex,
+        deletedAt: null,
+        savedItem: { is: { sourceMethod: "manual_activity", deletedAt: null, googlePlaceId: placeId } },
+      },
+      select: { id: true },
+    });
+    if (dupByPlace) {
+      return NextResponse.json({ error: "duplicate_place", existingId: dupByPlace.id }, { status: 409 });
+    }
+  } else if (typeof clientLat === "number" && typeof clientLng === "number") {
+    // ~50m bounding box (1° lat ≈ 111km → 50m ≈ 0.00045°). Catches identical coords
+    // (the confirmed Bali Bird Park case) and near-duplicates without PostGIS.
+    const COORD_DELTA = 0.00045;
+    const dupByCoord = await db.manualActivity.findFirst({
+      where: {
+        tripId,
+        dayIndex,
+        deletedAt: null,
+        lat: { gte: clientLat - COORD_DELTA, lte: clientLat + COORD_DELTA },
+        lng: { gte: clientLng - COORD_DELTA, lte: clientLng + COORD_DELTA },
+      },
+      select: { id: true },
+    });
+    if (dupByCoord) {
+      return NextResponse.json({ error: "duplicate_place", existingId: dupByCoord.id }, { status: 409 });
+    }
   }
 
   // Dedup check — reject if same title+date already exists for this trip (unless caller passes force:true)
@@ -246,7 +284,7 @@ export async function POST(
           placePhotoUrl: activityEnrichedImageUrl ?? sanitizedImageUrl ?? null,
           destinationCity: cityForSaved,
           destinationCountry: activityEnrichedCountry ?? trip.destinationCountry ?? null,
-          googlePlaceId: activityEnrichedPlaceId ?? null,
+          googlePlaceId: placeId ?? activityEnrichedPlaceId ?? null,
           categoryTags: initTags,
           status: "TRIP_ASSIGNED",
           sourceMethod: "manual_activity",
