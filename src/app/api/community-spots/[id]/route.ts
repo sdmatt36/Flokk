@@ -29,6 +29,7 @@ export async function GET(
       averageRating: spot.averageRating ?? null,
       ratingCount: spot.ratingCount,
       websiteUrl: spot.websiteUrl ?? null,
+      address: spot.address ?? null,
       lat: spot.lat ?? null,
       lng: spot.lng ?? null,
       shareToken: spot.shareToken ?? null,
