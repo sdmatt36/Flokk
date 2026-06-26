@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
-import { CATEGORIES } from "@/lib/categories";
+import { labelForSlug } from "@/lib/categories";
 import { QuickAddModal } from "./QuickAddModal";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -32,7 +32,7 @@ function buildFlatResults(results: SearchResults | null): FlatResult[] {
     flat.push({ key: `continent-${c.id}`, url: `/continents/${c.slug}`, label: c.name, subtitle: "Continent", photoUrl: null });
   }
   for (const p of (results.picks ?? [])) {
-    const catLabel = CATEGORIES.find((cat) => cat.slug === p.category)?.label ?? p.category ?? "";
+    const catLabel = labelForSlug(p.category);
     flat.push({ key: `pick-${p.id}`, url: p.shareToken ? `/spots/${p.shareToken}` : "#", label: p.name, subtitle: [p.city, catLabel].filter(Boolean).join(" · "), photoUrl: p.photoUrl });
   }
   for (const t of (results.itineraries ?? [])) {
@@ -42,11 +42,6 @@ function buildFlatResults(results: SearchResults | null): FlatResult[] {
     flat.push({ key: `tour-${t.id}`, url: t.shareToken ? `/s/${t.shareToken}` : "#", label: t.title, subtitle: t.destinationCity, photoUrl: t.photoUrl });
   }
   return flat;
-}
-
-function categoryLabel(slug: string | null | undefined): string {
-  if (!slug) return "";
-  return CATEGORIES.find((c) => c.slug === slug)?.label ?? slug;
 }
 
 // ── Dropdown panel (shared between bar and overlay) ───────────────────────────
@@ -184,7 +179,7 @@ function buildSections(results: SearchResults | null): { heading: string; items:
   if ((results.continents ?? []).length > 0)
     sections.push({ heading: "Continents", items: (results.continents ?? []).map((c) => ({ key: `continent-${c.id}`, url: `/continents/${c.slug}`, label: c.name, subtitle: "Continent", photoUrl: null })) });
   if ((results.picks ?? []).length > 0)
-    sections.push({ heading: "Picks", items: (results.picks ?? []).map((p) => ({ key: `pick-${p.id}`, url: p.shareToken ? `/spots/${p.shareToken}` : "#", label: p.name, subtitle: [p.city, categoryLabel(p.category)].filter(Boolean).join(" · "), photoUrl: p.photoUrl })) });
+    sections.push({ heading: "Picks", items: (results.picks ?? []).map((p) => ({ key: `pick-${p.id}`, url: p.shareToken ? `/spots/${p.shareToken}` : "#", label: p.name, subtitle: [p.city, labelForSlug(p.category)].filter(Boolean).join(" · "), photoUrl: p.photoUrl })) });
   if ((results.itineraries ?? []).length > 0)
     sections.push({ heading: "Itineraries", items: (results.itineraries ?? []).map((t) => ({ key: `itin-${t.id}`, url: t.shareToken ? `/share/${t.shareToken}` : "#", label: t.title, subtitle: t.destinationCity ?? "", photoUrl: t.heroImageUrl })) });
   if ((results.tours ?? []).length > 0)

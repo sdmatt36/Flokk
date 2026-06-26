@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { MapPin, Trash2, Bookmark } from "lucide-react";
 import { getItemImage } from "@/lib/destination-images";
-import { categoryLabel } from "@/lib/categories";
+import { labelForSlug } from "@/lib/categories";
 import { CategoryBadges } from "@/components/shared/CategoryBadges";
 import { Pill } from "@/components/ui/Pill";
 import { PlaceActionRow } from "@/components/features/places/PlaceActionRow";
@@ -332,7 +332,7 @@ export function SaveCard({ save, openDropdown, setOpenDropdown, assignTrip, onTr
             </div>
           )}
           <span style={{ fontSize: "13px", color: "#94a3b8" }}>
-            {categoryLabel(filteredTags[0]) || "Saved place"}
+            {labelForSlug(filteredTags[0]) || "Saved place"}
           </span>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { categoryLabel } from "@/lib/categories";
+import { labelForSlug } from "@/lib/categories";
 
 interface CategoryBadgesProps {
   slugs: string[];
@@ -31,7 +31,7 @@ export function CategoryBadges({ slugs, variant = "full" }: CategoryBadgesProps)
     const overflow = slugs.length - 1;
     return (
       <div style={{ display: "flex", gap: "4px", alignItems: "center", flexWrap: "nowrap" }}>
-        <span style={BADGE}>{categoryLabel(slugs[0]) || slugs[0]}</span>
+        <span style={BADGE}>{labelForSlug(slugs[0]) || slugs[0]}</span>
         {overflow > 0 && <span style={OVERFLOW}>+{overflow}</span>}
       </div>
     );
@@ -41,7 +41,7 @@ export function CategoryBadges({ slugs, variant = "full" }: CategoryBadgesProps)
     <div style={{ display: "flex", gap: "4px", flexWrap: "wrap", alignItems: "center" }}>
       {slugs.map((slug) => (
         <span key={slug} style={BADGE}>
-          {categoryLabel(slug) || slug}
+          {labelForSlug(slug) || slug}
         </span>
       ))}
     </div>

@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { X, MapPin, Sparkles, ExternalLink, ChevronDown, Check } from "lucide-react";
 import { LODGING_TYPE_LABELS, LODGING_TYPE_OPTIONS } from "@/lib/infer-lodging-type";
-import { categoryLabel, normalizeCategorySlug } from "@/lib/categories";
+import { labelForSlug, normalizeCategorySlug } from "@/lib/categories";
 import { CategoryEditor } from "@/components/shared/CategoryEditor";
 import { bucketTrips } from "@/lib/trip-phase";
 import { getItemImage } from "@/lib/destination-images";
@@ -359,7 +359,7 @@ export function SaveDetailModal({
             <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "6px", alignItems: "center" }}>
               {tags.length > 0 ? tags.map(tag => (
                 <span key={tag} style={{ fontSize: "11px", fontWeight: 600, background: "#C4664A", color: "#fff", borderRadius: "999px", padding: "3px 10px" }}>
-                  {categoryLabel(tag) || tag}
+                  {labelForSlug(tag) || tag}
                 </span>
               )) : (
                 <span style={{ fontSize: "12px", color: "#aaa" }}>No tags yet</span>

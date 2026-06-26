@@ -5,7 +5,7 @@ import { Playfair_Display } from "next/font/google";
 import { PicksGrid } from "./PicksGrid";
 import type { PickSpot } from "./PicksGrid";
 import { QuickAddModal } from "@/components/shared/QuickAddModal";
-import { CATEGORIES } from "@/lib/categories";
+import { labelForSlug } from "@/lib/categories";
 import { CategoryFilterChips } from "@/components/shared/CategoryFilterChips";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700"], display: "swap" });
@@ -21,10 +21,6 @@ interface Props {
   emptyText?: string;
   browseAllHref?: string;
   browseAllLabel?: string;
-}
-
-function categoryLabel(slug: string): string {
-  return CATEGORIES.find((c) => c.slug === slug)?.label ?? slug.replace(/_/g, " ");
 }
 
 export function FilteredPicksSection({
@@ -274,7 +270,7 @@ export function FilteredPicksSection({
                 selected={activeCategory}
                 available={categories.map(([slug, count]) => ({
                   slug,
-                  label: categoryLabel(slug),
+                  label: labelForSlug(slug),
                   count,
                 }))}
                 onSelect={(s) => { setActiveCategory(s); setExpanded(false); }}

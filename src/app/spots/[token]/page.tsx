@@ -4,22 +4,12 @@ import { Playfair_Display, DM_Sans } from "next/font/google";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { SpotDetailActions } from "./_components/SpotDetailActions";
+import { labelForSlug } from "@/lib/categories";
 
 export const dynamic = "force-dynamic";
 
 const playfair = Playfair_Display({ subsets: ["latin"], display: "swap" });
 const dmsans = DM_Sans({ subsets: ["latin"], display: "swap" });
-
-const CATEGORY_LABELS: Record<string, string> = {
-  food_and_drink: "Food & Drink",
-  experiences: "Experiences",
-  accommodation: "Accommodation",
-  shopping: "Shopping",
-  nature: "Nature",
-  culture: "Culture",
-  entertainment: "Entertainment",
-  transport: "Transport",
-};
 
 export async function generateMetadata({
   params,
@@ -138,7 +128,7 @@ export default async function SpotDetailPage({
   const { userId } = await auth();
   const isSignedIn = !!userId;
 
-  const categoryLabel = spot.category ? (CATEGORY_LABELS[spot.category] ?? spot.category) : null;
+  const categoryLabel = spot.category ? labelForSlug(spot.category) : null;
   const citySlug = spot.geoCity?.slug ?? null;
   const countrySlug = spot.geoCity?.country?.slug ?? null;
 

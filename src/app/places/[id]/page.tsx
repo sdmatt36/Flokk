@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { categoryLabel } from "@/lib/categories";
+import { labelForSlug } from "@/lib/categories";
 import { Playfair_Display, DM_Sans } from "next/font/google";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700"] });
@@ -120,7 +120,7 @@ export default async function SpotDetailPage({
                 fontWeight: 500,
               }}
             >
-              {categoryLabel(spot.category)}
+              {labelForSlug(spot.category)}
             </span>
           )}
         </div>

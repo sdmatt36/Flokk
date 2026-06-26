@@ -35,7 +35,7 @@ export const CATEGORIES: Category[] = [
   { slug: "nightlife",                label: "Nightlife" },
   { slug: "shopping",                 label: "Shopping" },
   { slug: "sports_and_entertainment", label: "Sports & Entertainment" },
-  { slug: "wellness",                 label: "Wellness" },
+  { slug: "wellness",                 label: "Beauty & Wellness" },
   { slug: "other",                    label: "Other" },
 ];
 
@@ -125,6 +125,33 @@ export function categoryLabel(slug: string | null | undefined): string {
   if (!slug) return "";
   const match = CATEGORIES.find((c) => c.slug === slug);
   return match?.label ?? slug;
+}
+
+/** Slug → display label, derived from CATEGORIES so there is one source of truth. */
+export const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
+  CATEGORIES.map((c) => [c.slug, c.label]),
+);
+
+/** Title-case a raw/unmapped slug so a bare underscore slug is never rendered. */
+function titleCaseSlug(raw: string): string {
+  return raw
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+/**
+ * Canonical display label for any category value. Normalizes to a canonical slug
+ * first, maps it to its label, and falls back to a Title-Cased version of the raw
+ * input — so render sites never show a bare underscore slug. Label-only; the slug
+ * itself is never changed.
+ */
+export function labelForSlug(slug: string | null | undefined): string {
+  if (!slug?.trim()) return "";
+  const canonical = normalizeCategorySlug(slug);
+  if (canonical) return CATEGORY_LABELS[canonical];
+  return titleCaseSlug(slug.trim());
 }
 
 /** Google Places API type → canonical CategorySlug. First specific match wins; generic fallback to "experiences". */
