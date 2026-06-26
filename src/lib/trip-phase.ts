@@ -32,10 +32,13 @@ export function bucketTrips<T extends { startDate: Date | string | null; endDate
     return aEnd.getTime() - bEnd.getTime();
   });
 
+  // Dated trips first, soonest startDate ascending; dateless trips fall to the end.
+  // A null startDate must NOT coerce to epoch (new Date(0) = 1970), which would sort a
+  // dateless trip as the soonest "next" trip. Use Infinity so nulls sort after all dated.
   upcoming.sort((a, b) => {
-    const aStart = a.startDate instanceof Date ? a.startDate : new Date(a.startDate ?? 0);
-    const bStart = b.startDate instanceof Date ? b.startDate : new Date(b.startDate ?? 0);
-    return aStart.getTime() - bStart.getTime();
+    const aStart = a.startDate ? (a.startDate instanceof Date ? a.startDate : new Date(a.startDate)).getTime() : Infinity;
+    const bStart = b.startDate ? (b.startDate instanceof Date ? b.startDate : new Date(b.startDate)).getTime() : Infinity;
+    return aStart - bStart;
   });
 
   past.sort((a, b) => {
