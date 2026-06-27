@@ -12,6 +12,8 @@ import {
   Plus,
   X,
   ArrowDownWideNarrow,
+  CheckSquare,
+  Square,
 } from "lucide-react";
 import { TourActionMenu } from "@/components/tours/TourActionMenu";
 import { bucketSaves } from "@/lib/saves-bucketing";
@@ -487,20 +489,140 @@ function CityGroupSection({ city, saves, sharedProps, onAssignCity, defaultExpan
   );
 }
 
-function UnassignedTabContent({ items, sharedProps, onAssignCity, sortMode }: {
+function UnassignedTabContent({ items, sharedProps, onAssignCity, sortMode, onBulkAssign }: {
   items: Save[];
   sharedProps: SharedCardGridProps;
   onAssignCity: (id: string) => void;
   sortMode: SortMode;
+  onBulkAssign: (saveIds: string[], tripId: string) => Promise<boolean>;
 }) {
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [pickerTripId, setPickerTripId] = useState<string>("");
+  const [assigning, setAssigning] = useState(false);
+
   if (items.length === 0) {
     return <p style={{ color: "#6B7280", textAlign: "center", padding: "40px 0", fontSize: 14 }}>Every save is assigned or matched. You&apos;re on top of things.</p>;
   }
 
+  const NAVY = "#1B3A5C";
+  const TERRA = "#C4664A";
+  const sans = "'DM Sans', sans-serif";
+
+  const toggleOne = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  const allSelected = selectedIds.size === items.length && items.length > 0;
+  const toggleAll = () => setSelectedIds(allSelected ? new Set() : new Set(items.map((i) => i.id)));
+  const exitSelect = () => { setSelectMode(false); setSelectedIds(new Set()); setPickerTripId(""); };
+
+  async function doBulkAssign() {
+    if (!pickerTripId || selectedIds.size === 0 || assigning) return;
+    setAssigning(true);
+    const ok = await onBulkAssign(Array.from(selectedIds), pickerTripId);
+    setAssigning(false);
+    if (ok) exitSelect();
+  }
+
+  const linkBtn: React.CSSProperties = {
+    background: "none", border: "none", cursor: "pointer", fontFamily: sans,
+    fontWeight: 600, fontSize: 13, color: TERRA, padding: "4px 2px",
+  };
+
+  // ── Select mode: flat selectable list + assign action bar ───────────────────
+  if (selectMode) {
+    return (
+      <section>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <button type="button" onClick={exitSelect} style={linkBtn}>Cancel</button>
+          <span style={{ fontFamily: sans, fontWeight: 600, fontSize: 13, color: NAVY }}>
+            {selectedIds.size} selected
+          </span>
+          <button type="button" onClick={toggleAll} style={linkBtn}>
+            {allSelected ? "Clear all" : "Select all"}
+          </button>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingBottom: selectedIds.size > 0 ? 76 : 0 }}>
+          {items.map((save) => {
+            const checked = selectedIds.has(save.id);
+            return (
+              <button
+                key={save.id}
+                type="button"
+                onClick={() => toggleOne(save.id)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10, width: "100%",
+                  padding: "10px 12px", borderRadius: 10, cursor: "pointer", textAlign: "left",
+                  border: `1px solid ${checked ? TERRA : "#E5E7EB"}`,
+                  background: checked ? "rgba(196,102,74,0.06)" : "#fff", fontFamily: sans,
+                }}
+              >
+                {checked
+                  ? <CheckSquare size={18} color={TERRA} strokeWidth={2} style={{ flexShrink: 0 }} />
+                  : <Square size={18} color="#9CA3AF" strokeWidth={2} style={{ flexShrink: 0 }} />}
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontWeight: 600, fontSize: 14, color: NAVY, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    {save.title}
+                  </span>
+                  {save.location ? (
+                    <span style={{ display: "block", fontSize: 12, color: "#717171" }}>{save.location}</span>
+                  ) : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {selectedIds.size > 0 && (
+          <div style={{
+            position: "sticky", bottom: 0, marginTop: 12, padding: "12px 14px",
+            background: "#fff", borderTop: "1px solid #E5E7EB",
+            display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+          }}>
+            <select
+              value={pickerTripId}
+              onChange={(e) => setPickerTripId(e.target.value)}
+              style={{
+                flex: 1, minWidth: 160, padding: "8px 10px", borderRadius: 8,
+                border: "1px solid #E5E7EB", fontFamily: sans, fontSize: 13, color: NAVY,
+              }}
+            >
+              <option value="">Choose a trip</option>
+              {sharedProps.availableTrips.map((t) => (
+                <option key={t.id} value={t.id}>{t.title}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={doBulkAssign}
+              disabled={!pickerTripId || assigning}
+              style={{
+                padding: "9px 18px", borderRadius: 999, border: "none",
+                background: pickerTripId && !assigning ? NAVY : "#C9D2DC", color: "#fff",
+                fontFamily: sans, fontWeight: 600, fontSize: 13,
+                cursor: pickerTripId && !assigning ? "pointer" : "default", whiteSpace: "nowrap",
+              }}
+            >
+              {assigning ? "Assigning..." : `Assign ${selectedIds.size} to trip`}
+            </button>
+          </div>
+        )}
+      </section>
+    );
+  }
+
+  // ── Normal mode: existing grid + a Select toggle ────────────────────────────
   const { cityGroups, otherPlaces, unassigned } = groupSaves(items, sortMode);
 
   return (
     <section>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+        <button type="button" onClick={() => setSelectMode(true)} style={linkBtn}>Select</button>
+      </div>
       {/* City groups — each with 3+ saves */}
       {cityGroups.map((group, i) => (
         <CityGroupSection
@@ -973,8 +1095,12 @@ export function SavesScreen() {
       fetch("/api/tours/my-tours").then(r => r.json()),
     ]).then(([savesData, tripsData, toursData]) => {
       setSaves((savesData.saves ?? []).map(mapApiItem));
-      // TODO: move isPlacesLibrary filter server-side in a future cleanup prompt
-      const allTrips = (tripsData.trips ?? []).filter((t: { isPlacesLibrary?: boolean }) => !t.isPlacesLibrary);
+      // TODO: move isPlacesLibrary filter server-side in a future cleanup prompt.
+      // Exclude COMPLETED trips so the assign picker (single dropdown + bulk) only offers
+      // PLANNING/ACTIVE trips, matching auto-attach and the mobile picker.
+      const allTrips = (tripsData.trips ?? []).filter(
+        (t: { isPlacesLibrary?: boolean; status?: string }) => !t.isPlacesLibrary && t.status !== "COMPLETED",
+      );
       setAvailableTrips(allTrips);
       setSavedTours(toursData && typeof toursData === "object" && !toursData.error ? toursData : {});
       setLoading(false);
@@ -1136,6 +1262,38 @@ export function SavesScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tripId: trip.id }),
       }).catch(() => {/* silent */});
+    }
+  };
+
+  // Bulk-assign N unassigned saves to one trip (trip-level, dayIndex null). Optimistically
+  // sets tripId on the assigned saves so they leave the Unassigned bucket and file under the
+  // trip. Returns true on success so the select UI can exit.
+  const handleBulkAssign = async (saveIds: string[], tripId: string): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/saves/bulk-assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ savedItemIds: saveIds, tripId }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setSavedToast(d.error ?? "Couldn't assign saves");
+        setTimeout(() => setSavedToast(null), 3000);
+        return false;
+      }
+      const data = await res.json() as { count: number; ids: string[] };
+      const assignedIds = new Set(data.ids ?? saveIds);
+      const trip = availableTrips.find(t => t.id === tripId);
+      setSaves(prev => prev.map(s =>
+        assignedIds.has(s.id) ? { ...s, tripId, assigned: trip?.title ?? s.assigned } : s
+      ));
+      setSavedToast(`Assigned ${data.count} to ${trip?.title ?? "trip"}`);
+      setTimeout(() => setSavedToast(null), 3000);
+      return true;
+    } catch {
+      setSavedToast("Couldn't assign saves");
+      setTimeout(() => setSavedToast(null), 3000);
+      return false;
     }
   };
 
@@ -1651,6 +1809,7 @@ Your saved places, all in one spot
                   items={tabbed.unassigned}
                   sharedProps={sharedGrid}
                   sortMode={sortMode}
+                  onBulkAssign={handleBulkAssign}
                   onAssignCity={(id) => { setAssignCityItemId(id); setManualCityQuery(""); setManualCity(""); setManualCountry(""); setManualCitySuggestions([]); setManualCityShowDropdown(false); }}
                 />
               )}
