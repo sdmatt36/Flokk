@@ -78,7 +78,7 @@ function isBookingUrl(url: string | null): boolean {
 }
 
 // Aggregator/OTA hosts that must never be geocoded by title.
-function isAggregatorUrl(url: string | null): boolean {
+export function isAggregatorUrl(url: string | null): boolean {
   const h = hostOf(url);
   if (!h) return false;
   return /airbnb\.|booking\.com|hotels\.com|expedia\.|vrbo\.com|tripadvisor\./.test(h);

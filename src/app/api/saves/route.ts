@@ -33,7 +33,7 @@ import { z, ZodError } from "zod";
 import { extractOgMetadata } from "@/lib/og-extract";
 import { inferPlatformFromUrl } from "@/lib/saved-item-types";
 import { getVenueImage } from "@/lib/destination-images";
-import { enrichSavedItem, SOCIAL_PLATFORMS } from "@/lib/enrich-save";
+import { enrichSavedItem, SOCIAL_PLATFORMS, isAggregatorUrl } from "@/lib/enrich-save";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { normalizeCategorySlug } from "@/lib/categories";
@@ -300,7 +300,11 @@ export async function POST(request: Request) {
     // invents a coincidental pin. The real place is resolved later by enrichSavedItem's
     // caption extraction.
     const isSocialSave = (SOCIAL_PLATFORMS as readonly string[]).includes(sourcePlatform);
-    if (rawTitle && !isSocialSave && (!savedItem.placePhotoUrl || !savedItem.googlePlaceId)) {
+    // Also skip aggregator/OTA URLs (airbnb/booking/etc.): their scraped OG title is generic
+    // ("Airbnb: Vacation Rentals…"), so textsearch invents a coincidental pin. Leaving lat null
+    // here lets enrichSavedItem's aggregator guard flag needsPlaceConfirmation instead.
+    const skipPrePass = isSocialSave || isAggregatorUrl(url);
+    if (rawTitle && !skipPrePass && (!savedItem.placePhotoUrl || !savedItem.googlePlaceId)) {
       const enriched = await enrichWithPlaces(rawTitle, destinationCity ?? "");
       const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string; destinationCountry?: string; googlePlaceId?: string; address?: string; lat?: number; lng?: number } = {};
       if (enriched.imageUrl && !savedItem.placePhotoUrl) { placesUpdate.placePhotoUrl = enriched.imageUrl; urlEnrichedPhotoUrl = enriched.imageUrl; }

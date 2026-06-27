@@ -28,7 +28,7 @@ async function main() {
   const { enrichWithPlaces } = await import("@/lib/enrich-with-places");
   const { enrichSavedItem } = await import("@/lib/enrich-save");
   const { inferPlatformFromUrl } = await import("@/lib/saved-item-types");
-  const { SOCIAL_PLATFORMS } = await import("@/lib/enrich-save");
+  const { SOCIAL_PLATFORMS, isAggregatorUrl } = await import("@/lib/enrich-save");
   const he = (await import("he")).default;
 
   const cleanText = (s: string | null | undefined): string | null =>
@@ -66,10 +66,11 @@ async function main() {
     createdId = created.id;
     console.log(`Created test row : ${created.id}`);
 
-    // SYNC pre-pass — replicate the coord-writing portion of route.ts:298-311,
-    // including the P1 gate that skips it for social-platform saves.
+    // SYNC pre-pass — replicate the coord-writing portion of route.ts, including the gate
+    // that skips it for social-platform AND aggregator/OTA saves (kept in sync with the route).
     const isSocialSave = (SOCIAL_PLATFORMS as readonly string[]).includes(sourcePlatform);
-    if (rawTitle && !isSocialSave && !created.googlePlaceId) {
+    const skipPrePass = isSocialSave || isAggregatorUrl(TEST_URL);
+    if (rawTitle && !skipPrePass && !created.googlePlaceId) {
       const enriched = await enrichWithPlaces(rawTitle, created.destinationCity ?? "");
       const placesUpdate: Record<string, unknown> = {};
       if (enriched.country && !created.destinationCountry) placesUpdate.destinationCountry = enriched.country;
