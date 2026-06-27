@@ -389,7 +389,7 @@ function extractOgImageFromHtml(html: string): string | null {
   return extractOgMeta(html, "image");
 }
 
-const SOCIAL_PLATFORMS = ["instagram", "tiktok", "youtube", "pinterest", "threads"] as const;
+export const SOCIAL_PLATFORMS = ["instagram", "tiktok", "youtube", "pinterest", "threads"] as const;
 type SocialPlatform = typeof SOCIAL_PLATFORMS[number];
 
 

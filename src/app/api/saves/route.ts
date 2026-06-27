@@ -33,7 +33,7 @@ import { z, ZodError } from "zod";
 import { extractOgMetadata } from "@/lib/og-extract";
 import { inferPlatformFromUrl } from "@/lib/saved-item-types";
 import { getVenueImage } from "@/lib/destination-images";
-import { enrichSavedItem } from "@/lib/enrich-save";
+import { enrichSavedItem, SOCIAL_PLATFORMS } from "@/lib/enrich-save";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { normalizeCategorySlug } from "@/lib/categories";
@@ -295,7 +295,12 @@ export async function POST(request: Request) {
     // Enrich with Google Places photo at save time (synchronous — result in same response)
     let urlEnrichedPhotoUrl: string | null = null;
     let urlEnrichedWebsite: string | null = null;
-    if (rawTitle && (!savedItem.placePhotoUrl || !savedItem.googlePlaceId)) {
+    // Skip the Places pre-pass for social saves: their scraped title is the account/
+    // caption ("Sonya Chang | Expat life in Taipei…"), not a place name, so textsearch
+    // invents a coincidental pin. The real place is resolved later by enrichSavedItem's
+    // caption extraction.
+    const isSocialSave = (SOCIAL_PLATFORMS as readonly string[]).includes(sourcePlatform);
+    if (rawTitle && !isSocialSave && (!savedItem.placePhotoUrl || !savedItem.googlePlaceId)) {
       const enriched = await enrichWithPlaces(rawTitle, destinationCity ?? "");
       const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string; destinationCountry?: string; googlePlaceId?: string; address?: string; lat?: number; lng?: number } = {};
       if (enriched.imageUrl && !savedItem.placePhotoUrl) { placesUpdate.placePhotoUrl = enriched.imageUrl; urlEnrichedPhotoUrl = enriched.imageUrl; }
