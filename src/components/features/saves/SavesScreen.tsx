@@ -11,6 +11,7 @@ import {
   MapPin,
   Plus,
   X,
+  ArrowDownWideNarrow,
 } from "lucide-react";
 import { TourActionMenu } from "@/components/tours/TourActionMenu";
 import { bucketSaves } from "@/lib/saves-bucketing";
@@ -98,34 +99,27 @@ function formatTripDateRange(startIso: string, endIso: string | null): string {
 function groupTabbedSaves(
   saves: Save[],
   allTrips: TripRow[],
-  tripCityCoords: Record<string, { lat: number; lng: number }>
+  tripCityCoords: Record<string, { lat: number; lng: number }>,
+  sortMode: SortMode
 ): TabbedSavesState {
   const result = bucketSaves<Save>(saves, allTrips, tripCityCoords);
+  const cmp = makeCardComparator(sortMode);
 
   for (const s of result.upcomingSections) {
-    s.explicitSaves.sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""));
-    s.suggestedSaves.sort((a, b) => (a.title ?? "").localeCompare(b.title ?? ""));
+    s.explicitSaves.sort(cmp);
+    s.suggestedSaves.sort(cmp);
   }
 
+  // City GROUP order stays alphabetical; only the cards within each group honor the mode.
   const pastSections: PastCitySection[] = Array.from(result.pastCityMap.entries())
     .map(([city, citySaves]) => ({
       city,
-      saves: citySaves.sort((a, b) => (a.title ?? "").localeCompare(b.title ?? "")),
+      saves: citySaves.sort(cmp),
     }))
     .sort((a, b) => a.city.localeCompare(b.city));
 
-  const sortByCity = (a: Save, b: Save) => {
-    const cityA = (a.destinationCity ?? "").toLowerCase();
-    const cityB = (b.destinationCity ?? "").toLowerCase();
-    if (cityA !== cityB) {
-      if (!cityA) return 1;
-      if (!cityB) return -1;
-      return cityA.localeCompare(cityB);
-    }
-    return (a.title ?? "").localeCompare(b.title ?? "");
-  };
-  result.unassigned.sort(sortByCity);
-  result.imported.sort(sortByCity);
+  result.unassigned.sort(cmp);
+  result.imported.sort(cmp);
 
   const upcoming: UpcomingTripSection[] = result.upcomingSections.map((s) => ({
     tripId: s.tripId,
@@ -207,13 +201,33 @@ function CardGrid({ cards, openDropdown, setOpenDropdown, assignTrip, onTripClic
 
 // ─── Grouping ─────────────────────────────────────────────────────────────────
 
-function sortCardsAlphabetical(a: Save, b: Save): number {
+// Card ordering within a group/list. "recent" (default) = newest savedAt first;
+// "az" = alphabetical on the resolved display title (Save.title, already URL/null-safe
+// via resolveTitle — never raw rawTitle). Empty titles sort last in both modes.
+export type SortMode = "recent" | "az";
+
+function compareTitle(a: Save, b: Save): number {
   const titleA = (a.title ?? "").trim();
   const titleB = (b.title ?? "").trim();
   if (titleA && titleB) return titleA.localeCompare(titleB);
   if (titleA) return -1;
   if (titleB) return 1;
   return 0;
+}
+
+function makeCardComparator(mode: SortMode): (a: Save, b: Save) => number {
+  return (a, b) => {
+    if (mode === "recent") {
+      const sa = a.savedAt ?? "";
+      const sb = b.savedAt ?? "";
+      if (sa !== sb) {
+        if (!sa) return 1;
+        if (!sb) return -1;
+        return sb.localeCompare(sa); // ISO 8601 desc → newest first
+      }
+    }
+    return compareTitle(a, b);
+  };
 }
 
 interface SavesGrouping {
@@ -223,7 +237,8 @@ interface SavesGrouping {
   totalCount: number;
 }
 
-function groupSaves(saves: Save[]): SavesGrouping {
+function groupSaves(saves: Save[], sortMode: SortMode): SavesGrouping {
+  const cmp = makeCardComparator(sortMode);
   const unassigned: Save[] = [];
   const cityMap = new Map<string, Save[]>();
 
@@ -255,11 +270,11 @@ function groupSaves(saves: Save[]): SavesGrouping {
   });
 
   for (const group of cityGroups) {
-    group.saves.sort(sortCardsAlphabetical);
+    group.saves.sort(cmp);
   }
 
-  unassigned.sort(sortCardsAlphabetical);
-  otherPlaces.sort(sortCardsAlphabetical);
+  unassigned.sort(cmp);
+  otherPlaces.sort(cmp);
 
   return { unassigned, cityGroups, otherPlaces, totalCount: saves.length };
 }
@@ -472,16 +487,17 @@ function CityGroupSection({ city, saves, sharedProps, onAssignCity, defaultExpan
   );
 }
 
-function UnassignedTabContent({ items, sharedProps, onAssignCity }: {
+function UnassignedTabContent({ items, sharedProps, onAssignCity, sortMode }: {
   items: Save[];
   sharedProps: SharedCardGridProps;
   onAssignCity: (id: string) => void;
+  sortMode: SortMode;
 }) {
   if (items.length === 0) {
     return <p style={{ color: "#6B7280", textAlign: "center", padding: "40px 0", fontSize: 14 }}>Every save is assigned or matched. You&apos;re on top of things.</p>;
   }
 
-  const { cityGroups, otherPlaces, unassigned } = groupSaves(items);
+  const { cityGroups, otherPlaces, unassigned } = groupSaves(items, sortMode);
 
   return (
     <section>
@@ -941,6 +957,7 @@ export function SavesScreen() {
   const [assignCityItemId, setAssignCityItemId] = useState<string | null>(null);
   const initialTab = (searchParams.get("tab") ?? "upcoming") as "upcoming" | "past" | "unassigned" | "imported" | "tours";
   const [activeTab, setActiveTab] = useState<"upcoming" | "past" | "unassigned" | "imported" | "tours">(initialTab);
+  const [sortMode, setSortMode] = useState<SortMode>("recent");
   const [savedTours, setSavedTours] = useState<Record<string, SavedTourEntry[]>>({});
   const [tripCityCoords, setTripCityCoords] = useState<Record<string, { lat: number; lng: number }>>({});
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
@@ -1339,7 +1356,7 @@ export function SavesScreen() {
   };
 
   const filteredSaves = cityFiltered.filter(matchesFilter);
-  const tabbed = groupTabbedSaves(filteredSaves, availableTrips, tripCityCoords);
+  const tabbed = groupTabbedSaves(filteredSaves, availableTrips, tripCityCoords, sortMode);
   const toursCount = Object.values(savedTours).reduce((sum, arr) => sum + arr.length, 0);
   const isEmptyLibrary = !loading && saves.length === 0;
   const hasNoResults = !loading && !isEmptyLibrary && activeTab !== "tours" && tabbed.counts.upcoming === 0 && tabbed.counts.past === 0 && tabbed.counts.unassigned === 0 && tabbed.counts.imported === 0;
@@ -1541,6 +1558,41 @@ Your saved places, all in one spot
           ))}
         </div>
 
+        {/* SORT TOGGLE — default Recent (most recently added), A–Z by display title */}
+        {!loading && !isEmptyLibrary && activeTab !== "tours" && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, marginBottom: 16 }}>
+            <ArrowDownWideNarrow size={15} color="#C4664A" strokeWidth={2} />
+            <div style={{ display: "inline-flex", border: "1px solid #E5E7EB", borderRadius: 999, overflow: "hidden" }}>
+              {([
+                { id: "recent", label: "Recent" },
+                { id: "az", label: "A–Z" },
+              ] as const).map((opt) => {
+                const active = sortMode === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setSortMode(opt.id)}
+                    style={{
+                      padding: "6px 14px",
+                      border: "none",
+                      background: active ? "#1B3A5C" : "transparent",
+                      color: active ? "#FFFFFF" : "#64748B",
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontWeight: 600,
+                      fontSize: 13,
+                      cursor: "pointer",
+                      transition: "background 120ms ease",
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {loading && (
           <div style={{ textAlign: "center", padding: "48px 24px", color: "#999", fontSize: "14px" }}>
             Loading your saves…
@@ -1598,6 +1650,7 @@ Your saved places, all in one spot
                 <UnassignedTabContent
                   items={tabbed.unassigned}
                   sharedProps={sharedGrid}
+                  sortMode={sortMode}
                   onAssignCity={(id) => { setAssignCityItemId(id); setManualCityQuery(""); setManualCity(""); setManualCountry(""); setManualCitySuggestions([]); setManualCityShowDropdown(false); }}
                 />
               )}

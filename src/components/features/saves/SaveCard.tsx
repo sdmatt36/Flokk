@@ -42,6 +42,7 @@ export type Save = {
   sourceMethod: string | null;
   needsAdvanceBooking?: boolean;
   advanceBookingReason?: string | null;
+  savedAt: string | null;
 };
 
 export type ApiItem = {
@@ -120,6 +121,7 @@ export function mapApiItem(item: ApiItem): Save {
     sourceMethod: item.sourceMethod ?? null,
     needsAdvanceBooking: item.needsAdvanceBooking ?? false,
     advanceBookingReason: item.advanceBookingReason ?? null,
+    savedAt: item.savedAt ?? null,
   };
 }
 

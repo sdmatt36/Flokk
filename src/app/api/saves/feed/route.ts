@@ -178,11 +178,22 @@ function buildFeedItem(s: DbSave): FeedSaveItem {
   };
 }
 
-function sortSaves(items: FeedSaveItem[]): FeedSaveItem[] {
+// Card ordering within a section. "recent" (default) = newest savedAt first;
+// "az" = alphabetical on the resolved displayTitle (never raw rawTitle, which holds
+// a URL for un-enriched saves). Advance-booking items stay pinned to the top in both.
+type SortMode = "recent" | "az";
+
+function parseSortMode(raw: string | null): SortMode {
+  return raw === "az" ? "az" : "recent";
+}
+
+function sortSaves(items: FeedSaveItem[], mode: SortMode): FeedSaveItem[] {
   return [...items].sort((a, b) => {
     if (a.needsAdvanceBooking && !b.needsAdvanceBooking) return -1;
     if (!a.needsAdvanceBooking && b.needsAdvanceBooking) return 1;
-    return a.displayTitle.localeCompare(b.displayTitle);
+    if (mode === "az") return a.displayTitle.localeCompare(b.displayTitle);
+    // recent: ISO 8601 strings compare lexicographically = chronologically; desc = newest first.
+    return b.savedAt.localeCompare(a.savedAt);
   });
 }
 
@@ -208,6 +219,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const category = searchParams.get("category");
   const search = searchParams.get("search");
+  const sortMode = parseSortMode(searchParams.get("sort"));
 
   // ── Trips ──────────────────────────────────────────────────────────────────
   const allTrips = await db.trip.findMany({
@@ -309,19 +321,24 @@ export async function GET(req: NextRequest) {
       tripStartDate: s.startDate,
       tripEndDate: s.endDate,
       dateRange: s.startDate ? formatTripDateRange(s.startDate, s.endDate) : null,
-      saves: sortSaves(s.explicitSaves.map(buildFeedItem)),
+      saves: sortSaves(s.explicitSaves.map(buildFeedItem), sortMode),
       suggestedSaves: [],
     });
   }
 
-  const sortedPastCities = [...pastCityMap.entries()].sort(([a], [b]) =>
-    a.localeCompare(b),
-  );
+  // Past-city GROUP order honors the same mode: az = city name; recent = the city
+  // whose newest save is most recent first.
+  const sortedPastCities = [...pastCityMap.entries()].sort(([cityA, savesA], [cityB, savesB]) => {
+    if (sortMode === "az") return cityA.localeCompare(cityB);
+    const newestA = Math.max(...savesA.map((s) => s.savedAt.getTime()));
+    const newestB = Math.max(...savesB.map((s) => s.savedAt.getTime()));
+    return newestB - newestA;
+  });
   for (const [city, citySaves] of sortedPastCities) {
     sections.push({
       type: "past",
       city,
-      saves: sortSaves(citySaves.map(buildFeedItem)),
+      saves: sortSaves(citySaves.map(buildFeedItem), sortMode),
       suggestedSaves: [],
     });
   }
@@ -329,7 +346,7 @@ export async function GET(req: NextRequest) {
   if (unassigned.length > 0) {
     sections.push({
       type: "unassigned",
-      saves: sortSaves(unassigned.map(buildFeedItem)),
+      saves: sortSaves(unassigned.map(buildFeedItem), sortMode),
       suggestedSaves: [],
     });
   }
@@ -337,7 +354,7 @@ export async function GET(req: NextRequest) {
   if (imported.length > 0) {
     sections.push({
       type: "imported",
-      saves: sortSaves(imported.map(buildFeedItem)),
+      saves: sortSaves(imported.map(buildFeedItem), sortMode),
       suggestedSaves: [],
     });
   }
