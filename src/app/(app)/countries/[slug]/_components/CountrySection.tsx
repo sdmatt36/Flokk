@@ -3,6 +3,7 @@
 import { useState } from "react";
 import React from "react";
 import { Playfair_Display } from "next/font/google";
+import { EmptyStateCTA } from "@/components/shared/EmptyStateCTA";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700"] });
 
@@ -78,17 +79,7 @@ export function CountrySection({
       </div>
 
       {isEmpty ? (
-        <div
-          style={{
-            padding: "32px 24px",
-            backgroundColor: "#FAFAFA",
-            borderRadius: "12px",
-            border: "1px dashed #E5E7EB",
-            textAlign: "center",
-          }}
-        >
-          <p style={{ fontSize: "14px", color: "#9CA3AF", margin: 0 }}>{emptyText}</p>
-        </div>
+        <EmptyStateCTA message={emptyText} />
       ) : (
         <>
           <div className="country-section-grid">{visible}</div>

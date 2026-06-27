@@ -170,7 +170,7 @@ export function CommunitySpotCard({
             style={{
               flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center",
               padding: "7px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600,
-              backgroundColor: TERRA, color: "#fff", textDecoration: "none",
+              backgroundColor: TERRA, color: "#fff", textDecoration: "none", whiteSpace: "nowrap",
             }}
           >
             View pick →
@@ -184,7 +184,7 @@ export function CommunitySpotCard({
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
                 padding: "7px 10px", borderRadius: 8, fontSize: 12, fontWeight: 600,
                 backgroundColor: "#fff", color: NAVY, border: `1px solid ${GRAY_200}`,
-                cursor: "pointer", fontFamily: "inherit",
+                cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
               }}
             >
               {copied ? "Copied!" : "Share"}

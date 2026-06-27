@@ -142,6 +142,8 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
           isEmpty={itineraries.length === 0}
           addHref="/trips/new"
           addLabel="Add →"
+          ctaPrefillCity={city.name}
+          ctaDefaultTab="itinerary"
         >
           {itineraries.map((trip) => (
             <div key={trip.id}>
@@ -159,6 +161,8 @@ export default async function CityPage({ params }: { params: Promise<{ slug: str
           isEmpty={tours.length === 0}
           addHref="/tour"
           addLabel="Build one →"
+          ctaPrefillCity={city.name}
+          ctaDefaultTab="tour"
         >
           {tours.map((tour) => (
             <div key={tour.id}>

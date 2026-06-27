@@ -5,6 +5,7 @@ import { Playfair_Display } from "next/font/google";
 import { TourCard } from "@/components/shared/cards/TourCard";
 import type { TourCardItem } from "@/components/shared/cards/TourCard";
 import { QuickAddModal } from "@/components/shared/QuickAddModal";
+import { EmptyStateCTA } from "@/components/shared/EmptyStateCTA";
 
 const playfair = Playfair_Display({ subsets: ["latin"], weight: ["700"], display: "swap" });
 
@@ -274,19 +275,10 @@ export function FilteredToursSection({
 
       {/* Grid or empty state */}
       {filtered.length === 0 ? (
-        <div
-          style={{
-            padding: "32px 24px",
-            backgroundColor: "#FAFAFA",
-            borderRadius: "12px",
-            border: "1px dashed #E5E7EB",
-            textAlign: "center",
-          }}
-        >
-          <p style={{ fontSize: "14px", color: "#9CA3AF", margin: 0 }}>
-            {hasActiveFilter ? "No tours match your filters." : emptyText}
-          </p>
-        </div>
+        <EmptyStateCTA
+          message={hasActiveFilter ? "No tours match your filters." : emptyText}
+          onAdd={() => setModalOpen(true)}
+        />
       ) : (
         <>
           <div className="filtered-tours-grid">

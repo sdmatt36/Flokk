@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { Playfair_Display } from "next/font/google";
 import { QuickAddModal } from "@/components/shared/QuickAddModal";
+import { EmptyStateCTA } from "@/components/shared/EmptyStateCTA";
 import { useUser } from "@clerk/nextjs";
 import { CommunitySpotCard } from "@/components/shared/cards/CommunitySpotCard";
 import { ItemDetailModal } from "@/components/shared/ItemDetailModal";
@@ -211,13 +212,7 @@ export function SpotSection({
         )}
 
         {spots.length === 0 ? (
-          <div style={{
-            padding: "32px 24px", backgroundColor: "#FAFAFA",
-            borderRadius: "12px", border: "1px dashed #E5E7EB",
-            textAlign: "center",
-          }}>
-            <p style={{ fontSize: "14px", color: "#9CA3AF", margin: 0 }}>{emptyText}</p>
-          </div>
+          <EmptyStateCTA message={emptyText} onAdd={() => setAddModalOpen(true)} />
         ) : (
           <>
             {showChips && (
