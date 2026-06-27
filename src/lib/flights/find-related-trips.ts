@@ -66,6 +66,25 @@ function inRange(
   return d >= tripStart && d <= tripEnd;
 }
 
+/** Shift a YYYY-MM-DD string by N days (UTC). */
+function shiftYMD(ymd: string, days: number): string {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Departing-flight window: a departing flight leaves at the END of the trip, so the
+ * departure date must fall in [endDate - 1 day, endDate + 2 days] — NOT the full trip
+ * range. Tighter than inRange to keep a mid-trip or long home-base departure from the
+ * trip's own airport off the no-review auto-write path.
+ */
+function inDepartureWindow(depStr: string | null | undefined, tripEnd: string): boolean {
+  if (!depStr) return false;
+  const d = depStr.slice(0, 10);
+  return d >= shiftYMD(tripEnd, -1) && d <= shiftYMD(tripEnd, 2);
+}
+
 // Normalize a city to lowercased, alphanumeric-spaced tokens so "Denpasar-Bali" → "denpasar bali".
 const normalizeCity = (s: string | null | undefined): string =>
   (s ?? "")
@@ -209,8 +228,13 @@ export function findAllRelatedTrips(
       const hasDestMatch = destinationMatch(leg, trip);
       const hasDateMatch = !!(tripStart && tripEnd) &&
         (inRange(depStr, tripStart, tripEnd) || inRange(arrStr, tripStart, tripEnd));
-      // fromCity match requires date-in-range to prevent false positives on past trips
-      const hasFromCityDestMatch = hasDateMatch && fromCityDestinationMatch(leg, trip);
+      // Departure (from-city) match uses the TIGHT end-anchored window, not the full
+      // trip range: a departing flight leaves at the end of the trip. This prevents a
+      // mid-trip / home-base departure from the trip's own airport auto-attaching on the
+      // no-review write path. The arrival branch (hasDestMatch) is unchanged.
+      const hasFromCityDestMatch = !!tripEnd &&
+        inDepartureWindow(depStr, tripEnd) &&
+        fromCityDestinationMatch(leg, trip);
 
       let confidence: number;
       let matchType: string;
