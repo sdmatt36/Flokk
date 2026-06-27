@@ -59,6 +59,128 @@ function isDirectBusinessWebsite(url: string): boolean {
   }
 }
 
+// ── Aggregator (OTA) detection + JSON-LD place parsing ───────────────────────
+// Booking/Airbnb/etc. are deliberately excluded from isDirectBusinessWebsite; these
+// helpers let us parse their structured data (Booking) and flag the rest instead of
+// junk-geocoding a boilerplate page title (the Airbnb -> Maryland bug).
+function hostOf(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).hostname.replace(/^(www\.|m\.)/, "").toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function isBookingUrl(url: string | null): boolean {
+  const h = hostOf(url);
+  return !!h && /(^|\.)booking\.com$/.test(h);
+}
+
+// Aggregator/OTA hosts that must never be geocoded by title.
+function isAggregatorUrl(url: string | null): boolean {
+  const h = hostOf(url);
+  if (!h) return false;
+  return /airbnb\.|booking\.com|hotels\.com|expedia\.|vrbo\.com|tripadvisor\./.test(h);
+}
+
+type JsonLdPlace = {
+  name: string | null;
+  city: string | null;
+  country: string | null;
+  lat: number | null;
+  lng: number | null;
+};
+
+function coerceNum(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+function coerceStr(v: unknown): string | null {
+  return typeof v === "string" && v.trim() !== "" ? v.trim() : null;
+}
+
+const JSONLD_PLACE_TYPES = new Set([
+  "Hotel", "LodgingBusiness", "Resort", "BedAndBreakfast", "Motel", "Hostel",
+  "Apartment", "VacationRental", "Campground", "LocalBusiness", "Restaurant", "Place",
+]);
+
+// Parses JSON-LD <script type="application/ld+json"> blocks (same block-extraction
+// pattern as extractPageContent above, without the Claude-feeding truncation) and
+// returns the first Hotel/LodgingBusiness/Place node carrying BOTH a city and geo
+// coordinates. Returns null when no node is confidently resolvable.
+function parseJsonLdPlace(html: string): JsonLdPlace | null {
+  const re = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(m[1].trim());
+    } catch {
+      continue;
+    }
+
+    const nodes: Record<string, unknown>[] = [];
+    const collect = (x: unknown) => {
+      if (Array.isArray(x)) {
+        x.forEach(collect);
+        return;
+      }
+      if (x && typeof x === "object") {
+        const o = x as Record<string, unknown>;
+        nodes.push(o);
+        if (o["@graph"]) collect(o["@graph"]);
+      }
+    };
+    collect(parsed);
+
+    for (const node of nodes) {
+      const types = ([] as unknown[]).concat(node["@type"] ?? []).map(coerceStr);
+      if (!types.some((t) => t != null && JSONLD_PLACE_TYPES.has(t))) continue;
+
+      const geo = (node.geo && typeof node.geo === "object" ? node.geo : {}) as Record<string, unknown>;
+      const lat = coerceNum(geo.latitude);
+      const lng = coerceNum(geo.longitude);
+
+      const addr = (node.address && typeof node.address === "object" ? node.address : {}) as Record<string, unknown>;
+      const city = coerceStr(addr.addressLocality) ?? coerceStr(node.addressLocality);
+      const ac = addr.addressCountry;
+      const country =
+        coerceStr(ac) ??
+        (ac && typeof ac === "object" ? coerceStr((ac as Record<string, unknown>).name) : null);
+      const name = coerceStr(node.name);
+
+      if (lat != null && lng != null && city) {
+        return { name, city, country, lat, lng };
+      }
+    }
+  }
+  return null;
+}
+
+// Resolves a Google place_id from a name + coordinate bias (used to backfill a
+// googlePlaceId when JSON-LD provides the place but no Google id).
+async function findPlaceIdByText(
+  query: string,
+  lat: number | null,
+  lng: number | null,
+): Promise<string | null> {
+  try {
+    const bias = lat != null && lng != null ? `&location=${lat},${lng}&radius=2000` : "";
+    const url = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(query)}&inputtype=textquery&fields=place_id${bias}&language=en&key=${GOOGLE_MAPS_API_KEY}`;
+    const res = await fetch(url);
+    const data = (await res.json()) as { status: string; candidates?: { place_id?: string }[] };
+    if (data.status !== "OK") return null;
+    return data.candidates?.[0]?.place_id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function resolveWebsitePlace(
   websiteUrl: string,
   rawTitle: string,
@@ -718,6 +840,8 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   let socialCity: string | null = null;
   let socialCountry: string | null = null;
   let socialCategory: string | null = null;
+  let aggregatorResolved = false;   // a structured-data parser confidently resolved an OTA listing
+  let flagNeedsConfirmation = false; // an unresolved aggregator — flag instead of junk-geocoding
 
   // Step 0: Google Maps — extract place name from URL, skip OG title, go straight to Places API
   const isGoogleMaps =
@@ -770,6 +894,31 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   let websitePlaceId: string | null = null;
   let websiteAddress: string | null = null;
   let websiteCountry: string | null = null;
+
+  // Step 0b: Booking.com — parse JSON-LD (Hotel/LodgingBusiness) for the real place,
+  // city, country and coords instead of geocoding the (often boilerplate) page title.
+  if (!skipNormalEnrichment && isBookingUrl(item.sourceUrl) && process.env.SCRAPINGBEE_API_KEY) {
+    try {
+      const html = await fetchWithScrapingBee(item.sourceUrl!);
+      const ld = html ? parseJsonLdPlace(html) : null;
+      // "Confidently resolved" = a real city AND coordinates from structured data.
+      if (ld && ld.city && ld.lat != null && ld.lng != null) {
+        if (ld.name) workingTitle = ld.name;
+        coords = { lat: ld.lat, lng: ld.lng };
+        socialCity = ld.city;
+        if (ld.country) socialCountry = ld.country;
+        websitePlaceId = await findPlaceIdByText(workingTitle, ld.lat, ld.lng);
+        aggregatorResolved = true;
+        skipNormalEnrichment = true;
+        console.log(`[enrich] Booking.com JSON-LD resolved: "${workingTitle}" ${ld.city} (${ld.lat},${ld.lng})`);
+      } else {
+        console.log(`[enrich] Booking.com JSON-LD insufficient for ${item.id} — will flag`);
+      }
+    } catch (err) {
+      console.error(`[enrich] Booking.com handler failed for ${item.id}:`, err);
+    }
+  }
+
   if (!skipNormalEnrichment) {
     const urlToTry = [item.sourceUrl, item.websiteUrl].find(
       u => u && !isGoogleMaps && isDirectBusinessWebsite(u)
@@ -835,16 +984,26 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
       }
     }
 
-    // Step 2: Geocode if lat is null and website resolution didn't already provide coords
+    // Step 2: Geocode if lat is null and website resolution didn't already provide coords.
+    // NEVER junk-geocode an aggregator/OTA title (Airbnb/Booking/etc.) — if structured
+    // data didn't confidently resolve it, flag for user confirmation instead of writing a
+    // bogus location (this is what kept "Airbnb: Vacation Rentals..." -> Maryland).
     if (item.lat == null && !coords) {
-      coords = await geocode(workingTitle, item.destinationCity, item.destinationCountry);
+      if (isAggregatorUrl(item.sourceUrl)) {
+        flagNeedsConfirmation = true;
+        console.log(`[enrich] aggregator unresolved — flagging needsPlaceConfirmation for ${item.id}`);
+      } else {
+        coords = await geocode(workingTitle, item.destinationCity, item.destinationCountry);
+      }
     }
 
     // Step 3: Places — website, photo, rating
     // Try Google Places textsearch→details (two-step, more reliable photo results) first,
     // then fall back to findplacefromtext (one-step) for website/rating.
-    const curatedPhoto = getVenueImage(workingTitle);
-    if (curatedPhoto) {
+    const curatedPhoto = flagNeedsConfirmation ? null : getVenueImage(workingTitle);
+    if (flagNeedsConfirmation) {
+      // Unresolved aggregator: skip Places lookup so we don't attach a junk photo/website.
+    } else if (curatedPhoto) {
       place = { photoUrl: curatedPhoto };
     } else {
       // Primary: textsearch + place/details for photo
@@ -933,6 +1092,13 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
     (((SOCIAL_PLATFORMS as readonly string[]).includes(item.sourcePlatform ?? "") || isInstagramCaption(cleanTitle)) && !socialPlaceFound && !skipNormalEnrichment)
   ) {
     updateData.needsPlaceConfirmation = true;
+  }
+  // Aggregator/OTA outcome: flag the unresolved ones; clear the flag on a confident
+  // structured-data resolution (e.g. Booking JSON-LD).
+  if (flagNeedsConfirmation) {
+    updateData.needsPlaceConfirmation = true;
+  } else if (aggregatorResolved) {
+    updateData.needsPlaceConfirmation = false;
   }
   if (websitePlaceId && !item.googlePlaceId) updateData.googlePlaceId = websitePlaceId;
   if (websiteAddress && !item.address) updateData.address = websiteAddress;
