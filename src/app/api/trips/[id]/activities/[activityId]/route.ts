@@ -186,6 +186,23 @@ export async function DELETE(
         data: { tripId: null, dayIndex: null, status: "UNORGANIZED" },
       });
     }
+
+    // Ratings integrity (Case 4a): the SavedItem survives, so PlaceRatings that referenced
+    // this hard-deleted activity must not be left with a dangling manualActivityId.
+    // (a) Backfill savedItemId on link-less ratings FIRST — only when we have one to give,
+    //     and only for rows that currently lack a savedItemId (never clobber an existing one).
+    //     Keyed on manualActivityId, so it must run before (b) nulls that pointer.
+    if (activity?.savedItemId) {
+      await tx.placeRating.updateMany({
+        where: { manualActivityId: activityId, savedItemId: null },
+        data: { savedItemId: activity.savedItemId },
+      });
+    }
+    // (b) Clear the now-dangling pointer on every rating that referenced the deleted activity.
+    await tx.placeRating.updateMany({
+      where: { manualActivityId: activityId },
+      data: { manualActivityId: null },
+    });
   });
 
   return NextResponse.json({ success: true });
