@@ -2123,9 +2123,31 @@ Field notes:
         const dateToYMD = (d: Date | null | undefined): string | null =>
           d ? d.toISOString().slice(0, 10) : null;
 
+        // Derive each trip's destination airports from its OWN flights' arrival airports
+        // (e.g. Bali's NRT->DPS yields ["DPS"]), so a departing flight matches by reliable
+        // airport code instead of fragile city strings ("Denpasar" vs "Denpasar-Bali").
+        const matchTripIds = (trips as Array<{ id: string }>).map((t) => t.id);
+        const ownedFlights = matchTripIds.length > 0
+          ? await db.flight.findMany({
+              where: { tripId: { in: matchTripIds } },
+              select: { tripId: true, toAirport: true },
+            })
+          : [];
+        const airportsByTrip = new Map<string, Set<string>>();
+        for (const f of ownedFlights) {
+          const code = (f.toAirport ?? "").trim().toUpperCase();
+          if (!code) continue;
+          if (!airportsByTrip.has(f.tripId)) airportsByTrip.set(f.tripId, new Set());
+          airportsByTrip.get(f.tripId)!.add(code);
+        }
+        const tripsForMatch = (trips as unknown as TripRecord[]).map((t) => ({
+          ...t,
+          destinationAirports: [...(airportsByTrip.get(t.id) ?? [])],
+        }));
+
         const allRelatedTrips = findAllRelatedTrips(
           extracted,
-          trips as unknown as TripRecord[],
+          tripsForMatch,
           resolvedTripId,
         );
 

@@ -36,6 +36,12 @@ export type TripRecord = {
   endDate?: Date | null;
   destinationCity?: string | null;
   destinationCountry?: string | null;
+  // All destination cities for multi-city trips (matched in addition to destinationCity).
+  cities?: string[] | null;
+  // Airport codes this trip is physically at, derived by the caller from the trip's own
+  // flights' arrival airports (e.g. Bali's NRT->DPS yields ["DPS"]). Airport-code matching
+  // is far more reliable than city strings ("Denpasar" vs "Denpasar-Bali").
+  destinationAirports?: string[] | null;
 };
 
 export type RelatedTrip = {
@@ -60,34 +66,77 @@ function inRange(
   return d >= tripStart && d <= tripEnd;
 }
 
+// Normalize a city to lowercased, alphanumeric-spaced tokens so "Denpasar-Bali" → "denpasar bali".
 const normalizeCity = (s: string | null | undefined): string =>
-  (s ?? "").trim().toLowerCase();
+  (s ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 
-/**
- * Returns true if the leg's arrival city (toCity) matches the trip's destination city.
- * fromCity is intentionally not checked here — it is evaluated separately in the
- * scoring loop with a date-in-range guard to avoid false positives on past trips.
- */
-function destinationMatch(leg: Record<string, unknown>, trip: TripRecord): boolean {
-  const tripCity = normalizeCity(trip.destinationCity);
-  if (!tripCity) return false;
+const normalizeAirport = (s: string | null | undefined): string =>
+  (s ?? "").trim().toUpperCase();
 
-  const legToCity = normalizeCity(leg.toCity as string | null | undefined);
-  return !!legToCity && legToCity === tripCity;
+// The full set of normalized trip cities: destinationCity + cities[].
+function tripCityList(trip: TripRecord): string[] {
+  return [trip.destinationCity, ...(trip.cities ?? [])]
+    .map(normalizeCity)
+    .filter(Boolean);
+}
+
+// The set of normalized airport codes the trip is at (caller-derived).
+function tripAirportSet(trip: TripRecord): Set<string> {
+  return new Set((trip.destinationAirports ?? []).map(normalizeAirport).filter(Boolean));
+}
+
+// Fuzzy city equality: exact, whole-string containment ("denpasar" ⊂ "denpasar bali"),
+// or a shared >2-char token. Tolerates the city-naming variance seen across flights.
+function cityFuzzyEqual(legCity: string, tripCity: string): boolean {
+  if (!legCity || !tripCity) return false;
+  if (legCity === tripCity) return true;
+  if (tripCity.includes(legCity) || legCity.includes(tripCity)) return true;
+  const a = legCity.split(" ").filter((w) => w.length > 2);
+  const b = new Set(tripCity.split(" ").filter((w) => w.length > 2));
+  return a.some((w) => b.has(w));
+}
+
+// Read an airport code off a leg, tolerating both shapes: synthesized (from/to) and raw
+// (fromAirport/toAirport).
+function legAirport(leg: Record<string, unknown>, ...keys: string[]): string {
+  for (const k of keys) {
+    const v = leg[k];
+    if (typeof v === "string" && v.trim()) return normalizeAirport(v);
+  }
+  return "";
 }
 
 /**
- * Returns true if the leg's departure city (fromCity) matches the trip's destination city.
+ * Returns true if the leg ARRIVES at this trip's destination — by airport code
+ * (toAirport ∈ trip airports) or fuzzy city (toCity ~ any trip city).
+ * fromCity is evaluated separately in the scoring loop with a date-in-range guard.
+ */
+function destinationMatch(leg: Record<string, unknown>, trip: TripRecord): boolean {
+  const legToAirport = legAirport(leg, "to", "toAirport");
+  if (legToAirport && tripAirportSet(trip).has(legToAirport)) return true;
+
+  const legToCity = normalizeCity(leg.toCity as string | null | undefined);
+  return !!legToCity && tripCityList(trip).some((c) => cityFuzzyEqual(legToCity, c));
+}
+
+/**
+ * Returns true if the leg DEPARTS from this trip's destination — by airport code
+ * (fromAirport ∈ trip airports) or fuzzy city (fromCity ~ any trip city).
  * Only used when the departure date is also within the trip's date range, so that
- * completed trips whose destination city happens to appear as a departure city for an
- * unrelated booking do not get a false match.
+ * completed trips whose destination happens to appear as a departure for an unrelated
+ * booking do not get a false match.
  */
 function fromCityDestinationMatch(leg: Record<string, unknown>, trip: TripRecord): boolean {
-  const tripCity = normalizeCity(trip.destinationCity);
-  if (!tripCity) return false;
+  const legFromAirport = legAirport(leg, "from", "fromAirport");
+  if (legFromAirport && tripAirportSet(trip).has(legFromAirport)) return true;
 
   const legFromCity = normalizeCity(leg.fromCity as string | null | undefined);
-  return !!legFromCity && legFromCity === tripCity;
+  return !!legFromCity && tripCityList(trip).some((c) => cityFuzzyEqual(legFromCity, c));
 }
 
 /**
