@@ -11,6 +11,7 @@ import { verifyWebsiteUrl } from "@/lib/activity-intelligence";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { mapPlaceTypesToCanonicalSlugs, normalizeCategorySlug } from "@/lib/categories";
 import { toDurableImageUrl } from "@/lib/imageStore";
+import { autoAttachSaveToUpcomingTrip } from "@/lib/find-matching-trip";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY!;
@@ -940,6 +941,19 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
 
   await db.savedItem.update({ where: { id: item.id }, data: updateData });
   console.log(`[enrich] enriched ${savedItemId}: ${Object.keys(updateData).join(", ")}`);
+
+  // Now that destinationCity is resolved, try to connect this save to a confident
+  // upcoming-trip city match (never past trips; never maps_import; guarded against
+  // mis-resolves). Isolated in its own try/catch so an attach failure never marks
+  // the (successfully enriched) save as FAILED.
+  try {
+    const attach = await autoAttachSaveToUpcomingTrip(item.id);
+    if (attach.attached) {
+      console.log(`[enrich] auto-attached ${savedItemId} -> trip ${attach.tripId}`);
+    }
+  } catch (e) {
+    console.error(`[enrich] auto-attach failed for ${savedItemId}:`, e);
+  }
 
   } catch (err) {
     console.error(`[enrichSavedItem] failed for ${savedItemId}:`, err);
