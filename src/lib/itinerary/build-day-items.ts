@@ -260,14 +260,17 @@ export function buildDayItems(
           title: `Flight: ${f.fromAirport} → ${f.toAirport}`,
           subtitle: f.airline ?? null,
           address: null,
-          time: isArrival ? formatTime(f.arrivalTime) : formatTime(f.departureTime),
+          // Show BOTH times via the existing time/endTime fields (renderers append
+          // " – {endTime}"): time = departure, endTime = arrival. Do not collapse to one,
+          // and do not rely on f.type (all flights are typed "outbound" upstream).
+          time: formatTime(f.departureTime ?? f.arrivalTime),
           badge: "Flight",
           dayIndex: dayIdx,
           sourceType: "flight",
           photoUrl: null,
           categoryTags: [],
           rawTime: null,
-          endTime: null,
+          endTime: f.departureTime && f.arrivalTime ? f.arrivalTime : null,
           lat: null,
           lng: null,
           websiteUrl: null,
@@ -294,13 +297,16 @@ export function buildDayItems(
 
       let sortTimeMin: number;
       let displayTime: string | null;
+      // For flights, the row carries BOTH times (departure → arrival) via time/endTime;
+      // non-flight rows leave this null. Ordering still uses the arrival/departure split.
+      let displayEndTime: string | null = null;
       if (it.type === "FLIGHT") {
+        displayTime = formatTime(it.departureTime ?? it.arrivalTime);
+        displayEndTime = it.departureTime && it.arrivalTime ? it.arrivalTime : null;
         if (isArrivalFlight) {
           sortTimeMin = parseHHMM(it.arrivalTime) ?? 0;
-          displayTime = formatTime(it.arrivalTime);
         } else {
           sortTimeMin = 1440 + (parseHHMM(it.departureTime) ?? 0);
-          displayTime = formatTime(it.departureTime);
         }
       } else if (it.type === "LODGING") {
         const isCheckOut = it.title.toLowerCase().includes("check-out");
@@ -342,7 +348,7 @@ export function buildDayItems(
           photoUrl: it.imageUrl ?? null,
           categoryTags: [],
           rawTime: null,
-          endTime: null,
+          endTime: displayEndTime,
           lat: it.latitude ?? null,
           lng: it.longitude ?? null,
           websiteUrl: null,
