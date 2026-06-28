@@ -62,7 +62,7 @@ export async function GET(
       select: {
         id: true, type: true, airline: true, flightNumber: true,
         fromAirport: true, toAirport: true, fromCity: true, toCity: true,
-        departureTime: true, arrivalTime: true,
+        departureTime: true, arrivalTime: true, departureDate: true,
         confirmationCode: true, dayIndex: true, sortOrder: true,
       },
     }),
@@ -105,6 +105,7 @@ export async function GET(
         toCity: leg.toCity ?? null,
         departureTime: leg.departureTime ?? null,
         arrivalTime: leg.arrivalTime ?? null,
+        departureDate: leg.departureDate ?? null,
         confirmationCode: null,
         dayIndex: lastDayIndex,
         sortOrder: 9999,

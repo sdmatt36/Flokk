@@ -69,6 +69,18 @@ export type DayItemRow = {
   // True for a read-time "borrowed" departing flight owned by the next trip. The client
   // marks it (badge "Departing") and suppresses edit/remove — it is not this trip's row.
   borrowed?: boolean;
+  // Discrete flight fields (additive; flight rows only). Today the title bakes in the
+  // airports and the subtitle carries the airline (or, for borrowed rows, the continuation
+  // line). These let a renderer show airline + flight number + both airports + both times
+  // without parsing the title. Populated for BOTH normal and borrowed flights. Title and
+  // subtitle are unchanged. Consumed by the mobile flight card (next EAS build).
+  flightNumber?: string | null;
+  airline?: string | null;
+  fromAirport?: string | null;
+  toAirport?: string | null;
+  departureTime?: string | null;
+  arrivalTime?: string | null;
+  departureDate?: string | null;
 };
 
 // ── input types ───────────────────────────────────────────────────────────────
@@ -100,6 +112,7 @@ export type RawFlight = {
   fromAirport: string | null; toAirport: string | null;
   fromCity: string | null; toCity: string | null;
   departureTime: string | null; arrivalTime: string | null;
+  departureDate?: string | null;
   confirmationCode: string | null; dayIndex: number | null; sortOrder: number | null;
   // Read-time cross-trip injection: this flight is OWNED by another (next) trip and is
   // shown here because it departs at this trip's end. Display-only — never persisted.
@@ -289,6 +302,15 @@ export function buildDayItems(
           // Display-only: the booking lives on another trip. Lets the client suppress
           // edit/remove affordances for this row.
           borrowed: f.borrowed ?? false,
+          // Discrete flight fields (additive) for both normal and borrowed rows. Title and
+          // subtitle above are unchanged; these just expose the same data structured.
+          flightNumber: f.flightNumber ?? null,
+          airline: f.airline ?? null,
+          fromAirport: f.fromAirport ?? null,
+          toAirport: f.toAirport ?? null,
+          departureTime: f.departureTime ?? null,
+          arrivalTime: f.arrivalTime ?? null,
+          departureDate: f.departureDate ?? null,
         },
       });
     }
