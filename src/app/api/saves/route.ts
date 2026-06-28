@@ -33,8 +33,9 @@ import { z, ZodError } from "zod";
 import { extractOgMetadata } from "@/lib/og-extract";
 import { inferPlatformFromUrl } from "@/lib/saved-item-types";
 import { getVenueImage } from "@/lib/destination-images";
-import { enrichSavedItem, SOCIAL_PLATFORMS, isAggregatorUrl } from "@/lib/enrich-save";
+import { enrichSavedItem } from "@/lib/enrich-save";
 import { enrichWithPlaces } from "@/lib/enrich-with-places";
+import { resolvePlaceForSave } from "@/lib/saves/resolve-place";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { normalizeCategorySlug } from "@/lib/categories";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
@@ -292,31 +293,23 @@ export async function POST(request: Request) {
       return created;
     }, { timeout: 10000 });
 
-    // Enrich with Google Places photo at save time (synchronous — result in same response)
-    let urlEnrichedPhotoUrl: string | null = null;
-    let urlEnrichedWebsite: string | null = null;
-    // Skip the Places pre-pass for social saves: their scraped title is the account/
-    // caption ("Sonya Chang | Expat life in Taipei…"), not a place name, so textsearch
-    // invents a coincidental pin. The real place is resolved later by enrichSavedItem's
-    // caption extraction.
-    const isSocialSave = (SOCIAL_PLATFORMS as readonly string[]).includes(sourcePlatform);
-    // Also skip aggregator/OTA URLs (airbnb/booking/etc.): their scraped OG title is generic
-    // ("Airbnb: Vacation Rentals…"), so textsearch invents a coincidental pin. Leaving lat null
-    // here lets enrichSavedItem's aggregator guard flag needsPlaceConfirmation instead.
-    const skipPrePass = isSocialSave || isAggregatorUrl(url);
-    if (rawTitle && !skipPrePass && (!savedItem.placePhotoUrl || !savedItem.googlePlaceId)) {
-      const enriched = await enrichWithPlaces(rawTitle, destinationCity ?? "");
-      const placesUpdate: { placePhotoUrl?: string; websiteUrl?: string; destinationCountry?: string; googlePlaceId?: string; address?: string; lat?: number; lng?: number } = {};
-      if (enriched.imageUrl && !savedItem.placePhotoUrl) { placesUpdate.placePhotoUrl = enriched.imageUrl; urlEnrichedPhotoUrl = enriched.imageUrl; }
-      if (enriched.website && !savedItem.websiteUrl && !isMapsUrl(enriched.website)) { placesUpdate.websiteUrl = enriched.website; urlEnrichedWebsite = enriched.website; }
-      if (enriched.country && !savedItem.destinationCountry) { placesUpdate.destinationCountry = enriched.country; }
-      if (enriched.placeId) { placesUpdate.googlePlaceId = enriched.placeId; }
-      if (enriched.formattedAddress) { placesUpdate.address = enriched.formattedAddress; }
-      if (enriched.lat !== null && !savedItem.lat) { placesUpdate.lat = enriched.lat; }
-      if (enriched.lng !== null && !savedItem.lng) { placesUpdate.lng = enriched.lng; }
-      if (Object.keys(placesUpdate).length > 0) {
-        await db.savedItem.update({ where: { id: savedItem.id }, data: placesUpdate });
-      }
+    // Synchronous Google Places pre-pass at save time (result in same response). Shared with
+    // scripts/enrich-harness.ts via resolvePlaceForSave so the harness can never drift from
+    // production. Social-platform saves (scraped title is the account/caption, not a place) and
+    // aggregator/OTA URLs (generic OG title) are skipped there — textsearch would invent a
+    // coincidental pin — and resolved later by enrichSavedItem, which flags
+    // needsPlaceConfirmation when it can't. See src/lib/saves/resolve-place.ts.
+    const place = await resolvePlaceForSave({
+      url,
+      rawTitle,
+      sourcePlatform,
+      destinationCity,
+      existing: savedItem,
+    });
+    const urlEnrichedPhotoUrl: string | null = place.urlEnrichedPhotoUrl;
+    const urlEnrichedWebsite: string | null = place.urlEnrichedWebsite;
+    if (Object.keys(place.update).length > 0) {
+      await db.savedItem.update({ where: { id: savedItem.id }, data: place.update });
     }
 
     // Fire enrichment after response is sent; after() keeps the function alive until the promise resolves.
