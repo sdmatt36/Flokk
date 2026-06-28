@@ -816,8 +816,20 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
     },
   });
 
-  if (!item || !item.rawTitle) {
-    console.log(`[enrich] skipped ${savedItemId}: no item or title`);
+  // Genuine "no item at all" — nothing to act on, bail silently.
+  if (!item) {
+    console.log(`[enrich] skipped ${savedItemId}: no item`);
+    return;
+  }
+  // Item exists but has no usable title — we can't enrich or resolve a place. Do NOT leave a
+  // silent orphan (no coords AND needsPlaceConfirmation=false, an un-actionable save): flag it
+  // for manual confirmation and write NO coords. Mirrors how unresolved aggregator URLs behave.
+  if (!item.rawTitle) {
+    console.log(`[enrich] no title — flagging needsPlaceConfirmation for ${savedItemId}`);
+    await db.savedItem.update({
+      where: { id: item.id },
+      data: { needsPlaceConfirmation: true, extractionStatus: "ENRICHED" },
+    });
     return;
   }
 
