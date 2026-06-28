@@ -53,7 +53,10 @@ export function buildClonedItem(input: CloneItemInput): CloneItemOutput {
     sourceUrl: input.sourceUrl ?? null,
     categoryTags: normalizeAndDedupeCategoryTags(input.categoryTags),
     dayIndex,
-    status: dayIndex != null ? "TRIP_ASSIGNED" : "UNORGANIZED",
+    // TRIP_ASSIGNED requires a non-null tripId. Status here was keyed on dayIndex alone, so a
+    // clone with a dayIndex but no tripId produced TRIP_ASSIGNED + null tripId (the dominant
+    // source of the orphaned-status drift). Gate on tripId so that can never happen.
+    status: (input.tripId && dayIndex != null) ? "TRIP_ASSIGNED" : "UNORGANIZED",
     sourceMethod: "SHARED_TRIP_IMPORT",
     sourcePlatform: "direct",
     extractionStatus: "ENRICHED",

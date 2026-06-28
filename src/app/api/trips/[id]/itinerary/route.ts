@@ -106,7 +106,8 @@ export async function POST(
       lng: lng ?? null,
       categoryTags: normalizeAndDedupeCategoryTags(categoryTags ?? []),
       communitySpotId: communitySpotId ?? null,
-      status: "TRIP_ASSIGNED",
+      // Never emit TRIP_ASSIGNED without a tripId (status/tripId must stay consistent).
+      status: tripId ? "TRIP_ASSIGNED" : "UNORGANIZED",
     },
   });
 

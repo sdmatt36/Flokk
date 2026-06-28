@@ -58,7 +58,8 @@ export async function POST(req: NextRequest) {
       destinationCity: event.segmentCity || null,
       categoryTags: ["event", event.category],
       placePhotoUrl: event.imageUrl ?? null,
-      status: "TRIP_ASSIGNED",
+      // Never emit TRIP_ASSIGNED without a tripId (status/tripId must stay consistent).
+      status: tripId ? "TRIP_ASSIGNED" : "UNORGANIZED",
       extractionStatus: "PENDING",
       eventDateTime: event.startDateTime,
       eventVenue: event.venue ?? null,

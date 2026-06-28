@@ -61,7 +61,8 @@ export async function createBookingSavedItem(
       destinationCity: params.city,
       destinationCountry: params.country,
       categoryTags: normalizeAndDedupeCategoryTags(categoryTags),
-      status: "TRIP_ASSIGNED",
+      // Never emit TRIP_ASSIGNED without a tripId (status/tripId must stay consistent).
+      status: params.tripId ? "TRIP_ASSIGNED" : "UNORGANIZED",
       extractionStatus: "ENRICHED",
       placePhotoUrl: params.vendorName ? (getVenueImage(params.vendorName) ?? null) : null,
       websiteUrl: params.websiteUrl ?? null,
