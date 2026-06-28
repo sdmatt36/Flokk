@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ExternalLink, Clock, Footprints, MapPin } from "lucide-react";
 import type { ResolvedShareEntity } from "@/lib/share-token";
+import { setShareReturn } from "@/lib/share-return";
 
 const NAVY = "#1B3A5C";
 const TERRA = "#C4664A";
@@ -25,6 +26,9 @@ export function ShareItemView({ token, entity, isSignedIn }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   function storeIntent() {
+    // Cookie return path (robust across the sign-up -> onboarding hop) plus the legacy
+    // localStorage intent for back-compat.
+    setShareReturn(`/s/${token}`);
     try {
       localStorage.setItem(
         INTENT_KEY,

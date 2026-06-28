@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { db } from "@/lib/db";
 import { ShareCardList } from "./ShareCardList";
+import { CityImportCTA } from "./CityImportCTA";
 import type { ApiItem } from "@/components/features/saves/SaveCard";
 import { CityCardImage } from "@/components/shared/CityCardImage";
 import { getCityImageUrl } from "@/lib/city-image";
@@ -165,21 +165,7 @@ export default async function CitySharePage({
           <p style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", marginBottom: 18 }}>
             Save these places to your own Flokk and start planning.
           </p>
-          <Link
-            href={`/saves/from-share?cityToken=${token}`}
-            style={{
-              display: "inline-block",
-              padding: "12px 28px",
-              borderRadius: 24,
-              background: "#C4664A",
-              color: "#fff",
-              fontWeight: 700,
-              fontSize: 14,
-              textDecoration: "none",
-            }}
-          >
-            Add all to my Flokk
-          </Link>
+          <CityImportCTA token={token} />
         </div>
       </div>
     </div>

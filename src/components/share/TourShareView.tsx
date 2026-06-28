@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ExternalLink, Clock, Footprints } from "lucide-react";
 import TourMapBlock from "@/components/tours/TourMapBlock";
+import { setShareReturn } from "@/lib/share-return";
 
 const NAVY = "#1B3A5C";
 const TERRA = "#C4664A";
@@ -49,6 +50,9 @@ export function TourShareView({ stops, transport, isSignedIn, token }: Props) {
   // Mirrors ShareItemView.storeIntent — persist the share token so the user can be re-landed
   // on this tour after sign-up. No auto-complete; same re-land behavior as the place pattern.
   function storeIntent() {
+    // Cookie return path (robust across the sign-up -> onboarding hop) plus the legacy
+    // localStorage intent for back-compat.
+    setShareReturn(`/s/${token}`);
     try {
       localStorage.setItem(
         INTENT_KEY,

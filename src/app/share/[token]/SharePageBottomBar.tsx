@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
 import { Calendar } from "lucide-react";
+import { setShareReturn } from "@/lib/share-return";
 
 export function SharePageBottomBar({
   tripId,
@@ -114,13 +115,14 @@ export function SharePageBottomBar({
             </p>
             <a
               href={`/sign-up?redirect_url=${redirectUrl}`}
+              onClick={() => setShareReturn(pathname)}
               style={{ width: "100%", maxWidth: "400px", padding: "14px", borderRadius: "999px", backgroundColor: "#C4664A", color: "#fff", fontWeight: 700, fontSize: "15px", textAlign: "center", textDecoration: "none", display: "block" }}
             >
               Get started free
             </a>
             <p style={{ fontSize: "12px", color: "#AAAAAA" }}>
               Already have an account?{" "}
-              <a href={`/sign-in?redirect_url=${redirectUrl}`} style={{ color: "#C4664A", textDecoration: "none", fontWeight: 600 }}>
+              <a href={`/sign-in?redirect_url=${redirectUrl}`} onClick={() => setShareReturn(pathname)} style={{ color: "#C4664A", textDecoration: "none", fontWeight: 600 }}>
                 Sign in
               </a>
             </p>

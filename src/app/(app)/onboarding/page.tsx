@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { consumeShareReturn } from "@/lib/share-return";
 import { StepFamilyBasics } from "@/components/features/family/StepFamilyBasics";
 import { StepFamilyMembers } from "@/components/features/family/StepFamilyMembers";
 import { StepInterests } from "@/components/features/family/StepInterests";
@@ -69,6 +70,14 @@ export default function OnboardingPage() {
           ? errorData.error.map((e: { message?: string }) => e.message ?? JSON.stringify(e)).join("; ")
           : errorData.error ?? `HTTP ${res.status}`;
         throw new Error(msg);
+      }
+      // Recover the share return path set before sign-up (cookie survives the sign-up ->
+      // onboarding hop; covers trip "Steal", city "Add all", and /s entity/tour). Falls back to
+      // the legacy localStorage /s intent below, then /home for non-share signups.
+      const shareReturn = consumeShareReturn();
+      if (shareReturn) {
+        router.push(shareReturn);
+        return;
       }
       // Recover share intent set before sign-up
       const INTENT_KEY = "flokk_share_intent";
