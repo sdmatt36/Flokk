@@ -765,7 +765,7 @@ function CitySharePopup({
           <p style={{ fontWeight: 600, fontSize: 14, color: "#1B3A5C", marginBottom: 2 }}>
             {loading === "imports" ? "Generating link..." : `Just my Google Maps imports (${state.importCount})`}
           </p>
-          <p style={{ fontSize: 12, color: "#717171" }}>Only your imported Google Maps saves</p>
+          <p style={{ fontSize: 12, color: "#717171" }}>Only your map saves from Google Maps</p>
         </button>
 
         <button
@@ -838,7 +838,7 @@ function ImportedTabContent({ items }: {
   }, [items.length]);
 
   if (items.length === 0) {
-    return <p style={{ color: "#6B7280", textAlign: "center", padding: "40px 0", fontSize: 14 }}>No imported saves yet. Import your Google Maps lists to get started.</p>;
+    return <p style={{ color: "#6B7280", textAlign: "center", padding: "40px 0", fontSize: 14 }}>No map saves yet. Import your Google Maps places to get started.</p>;
   }
 
   if (loadingCities) {
@@ -1689,7 +1689,7 @@ Your saved places, all in one spot
             { id: "upcoming", label: "Upcoming", count: tabbed.counts.upcoming },
             { id: "past", label: "Past", count: tabbed.counts.past },
             { id: "unassigned", label: "Unassigned", count: tabbed.counts.unassigned },
-            { id: "imported", label: "Imported", count: tabbed.counts.imported },
+            { id: "imported", label: "Map Saves", count: tabbed.counts.imported },
             { id: "tours", label: "Tours", count: toursCount },
           ] as const).map((tab) => (
             <button

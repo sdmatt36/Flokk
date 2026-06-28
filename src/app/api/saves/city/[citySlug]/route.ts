@@ -4,7 +4,10 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { getCityImageUrl } from "@/lib/city-image";
 
-const IMPORT_SOURCE_METHODS = ["maps_import", "SHARED_TRIP_IMPORT"];
+// Map Saves = maps_import only. SHARED_TRIP_IMPORT are shared-trip saves, not map saves —
+// they belong to their trip / the general Saves feed, not the Map Saves city wrappers. Kept
+// in sync with the count endpoint GET /api/saves/imported-cities.
+const IMPORT_SOURCE_METHODS = ["maps_import"];
 
 export async function GET(
   request: NextRequest,
