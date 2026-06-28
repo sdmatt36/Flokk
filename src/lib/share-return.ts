@@ -13,14 +13,16 @@ export const SHARE_RETURN_COOKIE = "flokk_share_return";
 const MAX_AGE_SECONDS = 30 * 60; // 30 min
 
 // Only ever return to an internal share path. Guards against an open redirect if the cookie value
-// is tampered with. Allowed: the public share routes and the city-import funnel.
+// is tampered with. Allowed: the public share routes, the city-import funnel, and collaborator
+// invitation accept links (/invitations/).
 export function isSafeShareReturn(path: string | null | undefined): path is string {
   if (typeof path !== "string") return false;
   if (!path.startsWith("/") || path.startsWith("//")) return false;
   return (
     path.startsWith("/share/") ||
     path.startsWith("/s/") ||
-    path.startsWith("/saves/from-share")
+    path.startsWith("/saves/from-share") ||
+    path.startsWith("/invitations/")
   );
 }
 

@@ -1,4 +1,7 @@
 import { CollaboratorRole } from '@prisma/client';
+import { render } from '@react-email/components';
+import { sendEmail } from '@/lib/email';
+import InviteCollaborator from './InviteCollaborator';
 
 export type InviteEmailPayload = {
   to: string;
@@ -11,10 +14,35 @@ export type InviteEmailPayload = {
   acceptUrl: string;
 };
 
+function inviterLabel(familyName: string | null): string {
+  return familyName ? `${familyName} Family` : 'A Flokk family';
+}
+
+function roleLabel(role: CollaboratorRole): string {
+  if (role === 'EDITOR') return 'an editor';
+  if (role === 'VIEWER') return 'a viewer';
+  return 'a collaborator';
+}
+
+// Renders the brand InviteCollaborator template and sends it through the shared Resend sender
+// (src/lib/email.ts), which logs to EmailLog with a consistent FROM. Returns { ok } so the caller
+// (POST /api/trips/[id]/collaborators) can roll back the invite row when the send fails.
 export async function sendInviteEmail(
   payload: InviteEmailPayload
 ): Promise<{ ok: boolean; error?: string }> {
-  // STUB — Checkpoint 6 replaces with Resend + React Email template.
-  console.log('[sendInviteEmail STUB]', JSON.stringify(payload, null, 2));
-  return { ok: true };
+  const inviterName = inviterLabel(payload.inviterFamilyName);
+  const subject = `${inviterName} invited you to plan ${payload.tripTitle} on Flokk`;
+
+  const html = await render(
+    InviteCollaborator({
+      inviterName,
+      tripTitle: payload.tripTitle,
+      destinationCity: payload.destinationCity,
+      roleLabel: roleLabel(payload.role),
+      acceptUrl: payload.acceptUrl,
+    })
+  );
+
+  const result = await sendEmail(payload.to, subject, html, 'collaborator_invite');
+  return result.success ? { ok: true } : { ok: false, error: result.error };
 }

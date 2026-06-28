@@ -2,39 +2,25 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
+import { getInvitePreview } from "@/lib/invitations";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/invitations/[token]
-// Preview an invitation. Public — no auth required.
+// Preview an invitation. Public — no auth required. Shares getInvitePreview with the
+// /invitations/[token] page so the two data paths can never drift.
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ token: string }> }
 ) {
   const { token } = await params;
 
-  const row = await db.tripCollaborator.findUnique({
-    where: { invitationToken: token },
-    include: {
-      trip: { select: { id: true, title: true, destinationCity: true, startDate: true, endDate: true } },
-      invitedBy: { select: { familyName: true } },
-    },
-  });
-
-  if (!row || row.acceptedAt !== null || row.familyProfileId !== null) {
+  const preview = await getInvitePreview(token);
+  if (!preview) {
     return NextResponse.json({ error: "Invitation expired or already accepted" }, { status: 410 });
   }
 
-  return NextResponse.json({
-    tripId: row.trip.id,
-    tripTitle: row.trip.title,
-    destinationCity: row.trip.destinationCity,
-    startDate: row.trip.startDate ? row.trip.startDate.toISOString() : null,
-    endDate: row.trip.endDate ? row.trip.endDate.toISOString() : null,
-    inviterFamilyName: row.invitedBy?.familyName ?? null,
-    role: row.role,
-    isExpired: false,
-  });
+  return NextResponse.json(preview);
 }
 
 // POST /api/invitations/[token]
@@ -81,4 +67,28 @@ export async function POST(
   });
 
   return NextResponse.json({ tripId: updated.tripId, role: updated.role });
+}
+
+// DELETE /api/invitations/[token]
+// Decline a pending invitation. Requires Clerk auth (Decline is only offered to logged-in
+// viewers). Removes the pending token row so the dead link can never be reused.
+export async function DELETE(
+  _req: Request,
+  { params }: { params: Promise<{ token: string }> }
+) {
+  const { userId } = await auth();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { token } = await params;
+
+  const row = await db.tripCollaborator.findUnique({
+    where: { invitationToken: token },
+  });
+
+  if (!row || row.acceptedAt !== null || row.familyProfileId !== null) {
+    return NextResponse.json({ error: "Invitation expired or already accepted" }, { status: 410 });
+  }
+
+  await db.tripCollaborator.delete({ where: { id: row.id } });
+  return NextResponse.json({ declined: true });
 }
