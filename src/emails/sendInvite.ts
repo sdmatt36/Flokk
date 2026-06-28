@@ -1,6 +1,7 @@
 import { CollaboratorRole } from '@prisma/client';
 import { render } from '@react-email/components';
 import { sendEmail } from '@/lib/email';
+import { inviterLabel } from '@/lib/inviter-label';
 import InviteCollaborator from './InviteCollaborator';
 
 export type InviteEmailPayload = {
@@ -13,10 +14,6 @@ export type InviteEmailPayload = {
   role: CollaboratorRole;
   acceptUrl: string;
 };
-
-function inviterLabel(familyName: string | null): string {
-  return familyName ? `${familyName} Family` : 'A Flokk family';
-}
 
 function roleLabel(role: CollaboratorRole): string {
   if (role === 'EDITOR') return 'an editor';

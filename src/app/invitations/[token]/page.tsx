@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { MapPin, Calendar, Users } from "lucide-react";
 import { AppHeader } from "@/components/ui/AppHeader";
 import { getInvitePreview } from "@/lib/invitations";
+import { inviterLabel } from "@/lib/inviter-label";
 import { InvitationActions } from "./InvitationActions";
 import { InvitationAuthCta } from "./InvitationAuthCta";
 
@@ -17,9 +18,6 @@ function roleLabel(role: string): string {
   return "a collaborator";
 }
 
-function inviterLabel(familyName: string | null): string {
-  return familyName ? `${familyName} Family` : "A Flokk family";
-}
 
 function formatDateRange(startIso: string | null, endIso: string | null): string | null {
   if (!startIso) return null;
