@@ -414,12 +414,14 @@ async function fetchWithScrapingBee(
   const apiKey = process.env.SCRAPINGBEE_API_KEY;
   if (!apiKey) return null;
   try {
-    // Premium mode (OTA-only): residential proxy + JS render. Booking blocks datacenter IPs and
-    // the hotel page is JS-rendered, so the default cheap mode returns no structured data.
+    // Premium mode: residential proxy + JS render. Used for sites that block datacenter IPs and
+    // serve JS-rendered content (Booking hotel pages; Instagram/TikTok reels, whose caption only
+    // appears in og:title/og:description after a rendered residential fetch). Heavy pages need a
+    // longer ceiling than the cheap mode.
     const premium = opts?.premium === true;
     const flags = premium ? "render_js=true&premium_proxy=true" : "render_js=false&premium_proxy=false";
     const sbUrl = `https://app.scrapingbee.com/api/v1/?api_key=${apiKey}&url=${encodeURIComponent(url)}&${flags}`;
-    const res = await fetch(sbUrl, { signal: AbortSignal.timeout(premium ? 30000 : 15000) });
+    const res = await fetch(sbUrl, { signal: AbortSignal.timeout(premium ? 40000 : 15000) });
     if (!res.ok) return null;
     return await res.text();
   } catch {
@@ -437,6 +439,18 @@ function extractOgMeta(html: string, field: string): string | null {
 
 function extractOgImageFromHtml(html: string): string | null {
   return extractOgMeta(html, "image");
+}
+
+// Instagram/TikTok reels carry the pinned place in the page JSON ("location":{..."name":"..."}),
+// separate from the caption text. Recover it so a pin reaches Claude even when the caption omits
+// the place name. Returns null when no pinned location is present.
+function extractSocialPinnedLocation(html: string): string | null {
+  const m =
+    html.match(/"location"\s*:\s*\{[^{}]*?"name"\s*:\s*"([^"]{1,80})"/i) ||
+    html.match(/"location"[\s\S]{0,200}?"name"\s*:\s*"([^"]{1,80})"/i);
+  if (!m) return null;
+  const name = he.decode(m[1]).trim();
+  return name && name.toLowerCase() !== "null" ? name : null;
 }
 
 export const SOCIAL_PLATFORMS = ["instagram", "tiktok", "youtube", "pinterest", "threads"] as const;
@@ -1054,23 +1068,32 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
     // Step 1: Extract caption and place data for social platform saves
     const platform = (item.sourcePlatform ?? "unknown") as SocialPlatform | "unknown";
     if ((SOCIAL_PLATFORMS as readonly string[]).includes(platform) || isInstagramCaption(cleanTitle)) {
-      // Fetch caption via ScrapingBee — og:title/og:description has the full caption.
-      // Direct fetch is blocked by Instagram/TikTok auth; ScrapingBee bypasses this.
+      // Fetch caption via ScrapingBee. Instagram/TikTok serve the caption only in
+      // og:title/og:description after a rendered residential fetch (datacenter IPs get a login
+      // wall with empty OG), so use premium mode for those; the caption also lives in
+      // og:description, not og:title (which is just the account name).
       let socialCaption = cleanTitle;
+      const usePremium = platform === "instagram" || platform === "tiktok";
       if (item.sourceUrl && process.env.SCRAPINGBEE_API_KEY) {
-        console.log(`[enrich-save] Fetching ${platform} caption via ScrapingBee:`, item.sourceUrl);
-        const html = await fetchWithScrapingBee(item.sourceUrl);
+        console.log(`[enrich-save] Fetching ${platform} caption via ScrapingBee (premium=${usePremium}):`, item.sourceUrl);
+        const html = await fetchWithScrapingBee(item.sourceUrl, usePremium ? { premium: true } : undefined);
         if (html) {
           const ogTitle = extractOgMeta(html, "title");
           const ogDesc = extractOgMeta(html, "description");
-          // YouTube: prefer og:description (richer) over og:title (short video title)
-          const captionSource = platform === "youtube" && ogDesc && ogDesc.length > (ogTitle?.length ?? 0)
-            ? ogDesc
-            : (ogTitle && ogTitle.length > 20 ? ogTitle : null);
-          if (captionSource) {
-            socialCaption = captionSource;
-            console.log(`[enrich-save] ${platform} caption:`, socialCaption.slice(0, 100));
-          }
+          // YouTube: prefer og:description (richer) over og:title (short video title).
+          // Instagram/TikTok: caption sits in BOTH og:title and og:description (the latter also
+          // carries hashtags) — take the longer. Other social: keep the prior og:title behavior.
+          const captionSource =
+            platform === "youtube"
+              ? (ogDesc && ogDesc.length > (ogTitle?.length ?? 0) ? ogDesc : (ogTitle && ogTitle.length > 20 ? ogTitle : null))
+              : usePremium
+                ? ([ogTitle, ogDesc].filter((s): s is string => !!s && s.length > 20).sort((a, b) => b.length - a.length)[0] ?? null)
+                : (ogTitle && ogTitle.length > 20 ? ogTitle : null);
+          if (captionSource) socialCaption = captionSource;
+          // Append the pinned place (page JSON) so it reaches Claude even if the caption omits it.
+          const pinned = usePremium ? extractSocialPinnedLocation(html) : null;
+          if (pinned) socialCaption = `${socialCaption}\nPinned location: ${pinned}`;
+          if (captionSource || pinned) console.log(`[enrich-save] ${platform} caption:`, socialCaption.slice(0, 120));
           const sbImg = extractOgImageFromHtml(html);
           if (sbImg) sbThumbnail = sbImg;
         }
@@ -1082,17 +1105,36 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
           : "unknown"
       );
       if (extracted) {
-        if (extracted.title) {
-          workingTitle = extracted.title;
-          socialPlaceFound = true;
-        } else {
-          // Claude couldn't identify a specific place — clean the caption and flag for user confirmation
-          workingTitle = cleanInstagramFallback(item.rawTitle);
-        }
         workingDescription = extracted.description || cleanDescription;
         if (extracted.destinationCity) socialCity = extracted.destinationCity;
         if (extracted.destinationCountry) socialCountry = extracted.destinationCountry;
         if (extracted.category) socialCategory = extracted.category;
+        if (extracted.title) {
+          // A specific place resolved — title the save with the PLACE (not the account). Resolve
+          // precise coords + place id via Places (biased by the extracted city), then
+          // reverse-geocode to backfill a missing city/country.
+          workingTitle = extracted.title;
+          socialPlaceFound = true;
+          const q = [extracted.title, socialCity, socialCountry].filter(Boolean).join(" ");
+          const pid = await findPlaceIdByText(q, null, null);
+          if (pid) {
+            const det = await lookupByPlaceId(pid);
+            if (det) {
+              coords = { lat: det.lat, lng: det.lng };
+              if (!websitePlaceId) websitePlaceId = pid;
+              if (det.category && !socialCategory) socialCategory = det.category;
+              if (!socialCity || !socialCountry) {
+                const rev = await reverseGeocodeCity(det.lat, det.lng);
+                if (!socialCity && rev.city) socialCity = rev.city;
+                if (!socialCountry && rev.country) socialCountry = rev.country;
+              }
+            }
+          }
+        } else {
+          // Claude couldn't identify a specific place — clean the caption and flag for user
+          // confirmation. If only a city resolved, it is still written (socialCity below).
+          workingTitle = cleanInstagramFallback(item.rawTitle);
+        }
       } else {
         workingTitle = cleanInstagramFallback(item.rawTitle);
       }
