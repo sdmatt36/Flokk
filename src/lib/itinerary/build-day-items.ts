@@ -66,6 +66,9 @@ export type DayItemRow = {
   sourceTripId: string | null;
   savedItemId?: string | null;
   confirmationCode?: string | null;
+  // True for a read-time "borrowed" departing flight owned by the next trip. The client
+  // marks it (badge "Departing") and suppresses edit/remove — it is not this trip's row.
+  borrowed?: boolean;
 };
 
 // ── input types ───────────────────────────────────────────────────────────────
@@ -98,6 +101,9 @@ export type RawFlight = {
   fromCity: string | null; toCity: string | null;
   departureTime: string | null; arrivalTime: string | null;
   confirmationCode: string | null; dayIndex: number | null; sortOrder: number | null;
+  // Read-time cross-trip injection: this flight is OWNED by another (next) trip and is
+  // shown here because it departs at this trip's end. Display-only — never persisted.
+  borrowed?: boolean; ownerTripName?: string | null;
 };
 
 export type RawSavedItem = {
@@ -240,7 +246,9 @@ export function buildDayItems(
     // 3. Flights
     for (const f of flights) {
       if (f.dayIndex !== dayIdx) continue;
-      const covered = itineraryItems.some(it =>
+      // Borrowed (read-time cross-trip) flights are injected and never duplicate one of
+      // this trip's own ItineraryItems — skip the within-trip de-dup for them.
+      const covered = !f.borrowed && itineraryItems.some(it =>
         it.type === "FLIGHT" && (
           (f.confirmationCode && it.confirmationCode && f.confirmationCode === it.confirmationCode) ||
           (it.fromAirport && it.toAirport && it.fromAirport === f.fromAirport && it.toAirport === f.toAirport && it.dayIndex === f.dayIndex)
@@ -258,13 +266,14 @@ export function buildDayItems(
         row: {
           id: f.id, kind: "booking",
           title: `Flight: ${f.fromAirport} → ${f.toAirport}`,
-          subtitle: f.airline ?? null,
+          // Server-text marking: a borrowed flight belongs to the NEXT trip.
+          subtitle: f.borrowed ? `Continues your ${f.ownerTripName ?? "next"} trip` : (f.airline ?? null),
           address: null,
           // Show BOTH times via the existing time/endTime fields (renderers append
           // " – {endTime}"): time = departure, endTime = arrival. Do not collapse to one,
           // and do not rely on f.type (all flights are typed "outbound" upstream).
           time: formatTime(f.departureTime ?? f.arrivalTime),
-          badge: "Flight",
+          badge: f.borrowed ? "Departing" : "Flight",
           dayIndex: dayIdx,
           sourceType: "flight",
           photoUrl: null,
@@ -276,7 +285,10 @@ export function buildDayItems(
           websiteUrl: null,
           description: null,
           sourceTripId,
-          confirmationCode: f.confirmationCode ?? null,
+          confirmationCode: f.borrowed ? null : (f.confirmationCode ?? null),
+          // Display-only: the booking lives on another trip. Lets the client suppress
+          // edit/remove affordances for this row.
+          borrowed: f.borrowed ?? false,
         },
       });
     }

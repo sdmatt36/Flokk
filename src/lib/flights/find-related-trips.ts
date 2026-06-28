@@ -67,7 +67,7 @@ function inRange(
 }
 
 /** Shift a YYYY-MM-DD string by N days (UTC). */
-function shiftYMD(ymd: string, days: number): string {
+export function shiftYMD(ymd: string, days: number): string {
   const d = new Date(`${ymd}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
@@ -86,7 +86,7 @@ function inDepartureWindow(depStr: string | null | undefined, tripEnd: string): 
 }
 
 // Normalize a city to lowercased, alphanumeric-spaced tokens so "Denpasar-Bali" → "denpasar bali".
-const normalizeCity = (s: string | null | undefined): string =>
+export const normalizeCity = (s: string | null | undefined): string =>
   (s ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -94,7 +94,7 @@ const normalizeCity = (s: string | null | undefined): string =>
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 
-const normalizeAirport = (s: string | null | undefined): string =>
+export const normalizeAirport = (s: string | null | undefined): string =>
   (s ?? "").trim().toUpperCase();
 
 // The full set of normalized trip cities: destinationCity + cities[].
@@ -111,7 +111,7 @@ function tripAirportSet(trip: TripRecord): Set<string> {
 
 // Fuzzy city equality: exact, whole-string containment ("denpasar" ⊂ "denpasar bali"),
 // or a shared >2-char token. Tolerates the city-naming variance seen across flights.
-function cityFuzzyEqual(legCity: string, tripCity: string): boolean {
+export function cityFuzzyEqual(legCity: string, tripCity: string): boolean {
   if (!legCity || !tripCity) return false;
   if (legCity === tripCity) return true;
   if (tripCity.includes(legCity) || legCity.includes(tripCity)) return true;

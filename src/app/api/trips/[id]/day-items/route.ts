@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { canViewTrip, getTripAccess } from "@/lib/trip-permissions";
-import { buildDayItems } from "@/lib/itinerary/build-day-items";
+import { buildDayItems, type RawFlight } from "@/lib/itinerary/build-day-items";
+import { findBorrowedDepartingFlights } from "@/lib/flights/borrowed-departing";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ export async function GET(
   }
 
   const [trip, rawItineraryItems, activities, flights, savedItems] = await Promise.all([
-    db.trip.findUnique({ where: { id: tripId }, select: { destinationCity: true, startDate: true, endDate: true } }),
+    db.trip.findUnique({ where: { id: tripId }, select: { destinationCity: true, startDate: true, endDate: true, familyProfileId: true, cities: true } }),
     db.itineraryItem.findMany({
       where: { tripId, cancelledAt: null },
       orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
@@ -77,11 +78,48 @@ export async function GET(
     }),
   ]);
 
+  // Read-time additive injection: flights OWNED by another (next) trip in the SAME family
+  // that depart at this trip's end. Display-only — placed on this trip's last day, marked
+  // "Departing". No writes, no cost, no effect on the owning trip.
+  let allFlights: RawFlight[] = flights;
+  if (trip?.startDate && trip.endDate) {
+    const startMs = trip.startDate.getTime();
+    const endMs = trip.endDate.getTime();
+    const lastDayIndex = endMs >= startMs ? Math.round((endMs - startMs) / 86400000) : 0;
+    const borrowed = await findBorrowedDepartingFlights({
+      id: tripId,
+      familyProfileId: trip.familyProfileId,
+      endDate: trip.endDate,
+      destinationCity: trip.destinationCity,
+      cities: trip.cities,
+    });
+    const borrowedRows: RawFlight[] = borrowed.flatMap((b) =>
+      b.departingLegs.map((leg) => ({
+        id: `borrowed_${leg.id}`,
+        type: leg.type ?? null,
+        airline: leg.airline ?? null,
+        flightNumber: leg.flightNumber ?? null,
+        fromAirport: leg.fromAirport ?? null,
+        toAirport: leg.toAirport ?? null,
+        fromCity: leg.fromCity ?? null,
+        toCity: leg.toCity ?? null,
+        departureTime: leg.departureTime ?? null,
+        arrivalTime: leg.arrivalTime ?? null,
+        confirmationCode: null,
+        dayIndex: lastDayIndex,
+        sortOrder: 9999,
+        borrowed: true,
+        ownerTripName: b.ownerTripName,
+      })),
+    );
+    allFlights = [...flights, ...borrowedRows];
+  }
+
   const days = buildDayItems(
     trip ?? { destinationCity: null, startDate: null, endDate: null },
     rawItineraryItems,
     activities,
-    flights,
+    allFlights,
     savedItems,
   );
 

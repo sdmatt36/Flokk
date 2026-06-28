@@ -40,6 +40,7 @@ import type {
   Flight,
 } from "@prisma/client";
 import { db as defaultDb } from "@/lib/db";
+import { findBorrowedDepartingFlights } from "@/lib/flights/borrowed-departing";
 
 export type VaultDocument = {
   id: string;
@@ -355,8 +356,14 @@ export async function synthesizeVaultDocuments(tripId: string, prisma?: any): Pr
   // 1. Fetch trip date range for leg partitioning (flight synthesizer only)
   const trip = (await db.trip.findUnique({
     where: { id: tripId },
-    select: { startDate: true, endDate: true },
-  })) as { startDate: Date | null; endDate: Date | null } | null;
+    select: { startDate: true, endDate: true, familyProfileId: true, destinationCity: true, cities: true },
+  })) as {
+    startDate: Date | null;
+    endDate: Date | null;
+    familyProfileId: string | null;
+    destinationCity: string | null;
+    cities: string[];
+  } | null;
 
   const tripStartDate = trip?.startDate
     ? new Date(trip.startDate).toISOString().slice(0, 10)
@@ -486,6 +493,54 @@ export async function synthesizeVaultDocuments(tripId: string, prisma?: any): Pr
     results.push(
       synthesizeOrphanFlightBookingVaultDocument({ flightBooking: fb, flightItem, tripStartDate, tripEndDate })
     );
+  }
+
+  // 3b. Append BORROWED departing flight cards — flights OWNED by another (next) trip in
+  // the SAME family that depart at THIS trip's end. Read-time, display-only: cost is
+  // STRIPPED (never enters this trip's budget) and the card is marked as belonging to the
+  // owning trip. The owning trip's Bookings are unaffected.
+  const borrowed = await findBorrowedDepartingFlights(
+    {
+      id: tripId,
+      familyProfileId: trip?.familyProfileId ?? null,
+      endDate: trip?.endDate ?? null,
+      destinationCity: trip?.destinationCity ?? null,
+      cities: trip?.cities ?? null,
+    },
+    db,
+  );
+  for (const b of borrowed) {
+    // Build from ONLY the departing legs; base={}, no trip dates, flightItem=null => no cost,
+    // no partition. Then defensively strip totalCost/currency and tag the marking fields.
+    const content = buildFlightContent(
+      { ...b.booking, flights: b.departingLegs },
+      {},
+      undefined,
+      undefined,
+      null,
+    );
+    const first = (content.legs as RawContent[] | undefined)?.[0];
+    const lastLeg = (content.legs as RawContent[] | undefined)?.[(content.legs as RawContent[]).length - 1];
+    const label = b.booking.confirmationCode
+      ? `Flight ${b.booking.confirmationCode}`
+      : first
+      ? `${String(first.from ?? "")} → ${String(lastLeg?.to ?? "")}`
+      : "Flight booking";
+    results.push({
+      id: `borrowed-flight-booking:${b.booking.id}:${tripId}`,
+      label,
+      type: "booking",
+      url: null,
+      content: JSON.stringify({
+        ...content,
+        totalCost: null,
+        currency: null,
+        _borrowed: true,
+        _borrowedFromTripId: b.ownerTripId,
+        _borrowedTripName: b.ownerTripName,
+        _marking: `Departing - belongs to your ${b.ownerTripName} trip`,
+      }),
+    });
   }
 
   // 4. Append LODGING ItineraryItems with no corresponding TripDocument (orphan hotels).
