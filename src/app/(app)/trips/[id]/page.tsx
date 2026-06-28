@@ -397,6 +397,7 @@ export default async function TripDetailPage({
             initialPostTripModalVisitCount={trip.postTripModalVisitCount ?? 0}
             viewerMembers={viewerMembers}
             cancelledCount={cancelledCount}
+            isOwner={isOwner}
           />
           <DeleteTripButton tripId={trip.id} tripTitle={trip.title} />
         </>

@@ -110,6 +110,7 @@ import { getTripCoverImage, getItemImage, CATEGORY_IMAGES } from "@/lib/destinat
 import { ItemImageTile } from "@/components/shared/ItemImageTile";
 import { BookingIntelCard } from "@/components/features/trips/BookingIntelCard";
 import { ShareTripButton } from "@/components/features/trips/ShareTripButton";
+import { InviteCollaboratorModal, InviteButton } from "@/components/features/trips/InviteCollaboratorModal";
 import { getEntityStatus, type EntityStatusResult } from "@/lib/entity-status";
 import { EntityStatusPill } from "@/components/ui/EntityStatusPill";
 import { buildSaveStatusMap } from "@/lib/save-status-map";
@@ -7809,7 +7810,7 @@ type SavedRec = {
   tags: string;
 };
 
-export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true, initialIsPublic = false, shareToken, tripStatus, initialPostTripCaptureStarted = false, initialPostTripCaptureComplete = false, initialPostTripModalVisitCount = 0, viewerMembers, cancelledCount = 0 }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean; initialIsPublic?: boolean; shareToken?: string; tripStatus?: string; initialPostTripCaptureStarted?: boolean; initialPostTripCaptureComplete?: boolean; initialPostTripModalVisitCount?: number; viewerMembers?: { role: "ADULT" | "CHILD"; name: string; birthDate: string | null }[]; cancelledCount?: number }) {
+export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripStartDate, tripEndDate, destinationCity, destinationCountry, initialIsAnonymous = true, initialIsPublic = false, shareToken, tripStatus, initialPostTripCaptureStarted = false, initialPostTripCaptureComplete = false, initialPostTripModalVisitCount = 0, viewerMembers, cancelledCount = 0, isOwner = false }: { initialTab?: Tab; tripId?: string; tripTitle?: string; tripStartDate?: string | null; tripEndDate?: string | null; destinationCity?: string | null; destinationCountry?: string | null; initialIsAnonymous?: boolean; initialIsPublic?: boolean; shareToken?: string; tripStatus?: string; initialPostTripCaptureStarted?: boolean; initialPostTripCaptureComplete?: boolean; initialPostTripModalVisitCount?: number; viewerMembers?: { role: "ADULT" | "CHILD"; name: string; birthDate: string | null }[]; cancelledCount?: number; isOwner?: boolean }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   const [advanceBookingFilterActive, setAdvanceBookingFilterActive] = useState(false);
   const [postTripCaptureStarted, setPostTripCaptureStarted] = useState(initialPostTripCaptureStarted);
@@ -7857,6 +7858,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
   const [isAnonymous, setIsAnonymous] = useState<boolean>(initialIsAnonymous);
   const [anonymousSaved, setAnonymousSaved] = useState(false);
   const [showTripSettings, setShowTripSettings] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [isPublic, setIsPublic] = useState(initialIsPublic);
   const [showSharePrompt, setShowSharePrompt] = useState(false);
   const [editTripTitle, setEditTripTitle] = useState('');
@@ -8122,6 +8124,9 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
               tripId={tripId}
               tripTitle={tripTitle ?? "this trip"}
             />
+          )}
+          {isOwner && tripId && (
+            <InviteButton onPress={() => setShowInviteModal(true)} />
           )}
           <button
             onClick={() => {
@@ -9529,6 +9534,16 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
           document.body
         );
       })()}
+
+      {/* ── Invite to collaborate (owner only) ── */}
+      {isOwner && tripId && (
+        <InviteCollaboratorModal
+          visible={showInviteModal}
+          onClose={() => setShowInviteModal(false)}
+          tripId={tripId}
+          tripTitle={tripTitle ?? "this trip"}
+        />
+      )}
 
       {/* ── Trip Settings Modal ── */}
       {showTripSettings && createPortal(
