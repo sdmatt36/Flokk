@@ -140,7 +140,7 @@ export function SharePageBottomBar({
             className="bg-white rounded-2xl p-6 w-full max-w-md"
             onClick={e => e.stopPropagation()}
           >
-            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", fontWeight: 700, color: "#1B3A5C", marginBottom: "8px" }}>
+            <h2 style={{ fontFamily: "var(--font-playfair), 'Playfair Display', Georgia, serif", fontSize: "22px", fontWeight: 700, color: "#1B3A5C", marginBottom: "8px" }}>
               Start planning {tripDestination}?
             </h2>
             <p style={{ fontSize: "14px", color: "#717171", marginBottom: "20px", lineHeight: 1.5 }}>

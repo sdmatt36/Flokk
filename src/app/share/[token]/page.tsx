@@ -576,7 +576,7 @@ export default async function SharePage({
       {/* ── Trip-level notes (dayIndex null) ── */}
       {tripLevelNotes.length > 0 && (
         <div style={{ maxWidth: "1100px", margin: "16px auto 0", padding: "0 24px" }}>
-          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: "#1B3A5C", marginBottom: "12px" }}>
+          <h2 style={{ fontFamily: "var(--font-playfair), 'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: "#1B3A5C", marginBottom: "12px" }}>
             Notes
           </h2>
           {tripLevelNotes.map((note) => {
@@ -599,7 +599,7 @@ export default async function SharePage({
         {/* ── Contacts ── */}
         {(trip.contacts.length > 0 || syntheticHotelContacts.length > 0) && (
           <section style={{ marginTop: "28px" }}>
-            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: "#1B3A5C", marginBottom: "12px" }}>
+            <h2 style={{ fontFamily: "var(--font-playfair), 'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: "#1B3A5C", marginBottom: "12px" }}>
               Contacts
             </h2>
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -697,7 +697,7 @@ export default async function SharePage({
             ships. Code is kept and shown to logged-in viewers so it is ready to wire up. */}
         {isLoggedIn && (
           <div style={{ marginTop: "48px", paddingTop: "32px", borderTop: "1px solid #e5e7eb" }}>
-            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#1B3A5C", marginBottom: "8px" }}>
+            <h2 style={{ fontFamily: "var(--font-playfair), 'Playfair Display', Georgia, serif", fontSize: "22px", color: "#1B3A5C", marginBottom: "8px" }}>
               Questions for the Flokker
             </h2>
             <p style={{ fontSize: "14px", color: "#6b7280", marginBottom: "24px" }}>

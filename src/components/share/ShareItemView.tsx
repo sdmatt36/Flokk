@@ -85,10 +85,10 @@ export function ShareItemView({ token, entity, isSignedIn }: Props) {
     : "Sign up to save this";
 
   return (
-    <div style={{ minHeight: "100svh", background: "#FAFAFA", fontFamily: "Inter, sans-serif" }}>
+    <div style={{ minHeight: "100svh", background: "#FAFAFA", fontFamily: "var(--font-dm-sans), Inter, sans-serif" }}>
       {/* Brand bar */}
       <div style={{ background: NAVY, padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontFamily: "Playfair Display, serif", fontSize: "20px", fontWeight: 700, color: "white", letterSpacing: "-0.02em" }}>
+        <span style={{ fontFamily: "var(--font-playfair), Playfair Display, serif", fontSize: "20px", fontWeight: 700, color: "white", letterSpacing: "-0.02em" }}>
           Flokk
         </span>
         {!isSignedIn && (
@@ -244,7 +244,7 @@ function SavedItemLayout({ item }: { item: NonNullable<ResolvedShareEntity["save
       )}
       <div style={{ padding: "20px 16px 0" }}>
         <span style={{ fontSize: "11px", fontWeight: 700, color: TERRA, textTransform: "uppercase", letterSpacing: "0.06em" }}>{typeLabel}</span>
-        <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 4px" }}>
+        <h1 style={{ fontFamily: "var(--font-playfair), Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 4px" }}>
           {displayTitle}
         </h1>
         {locationLine && (
@@ -313,7 +313,7 @@ function ItineraryItemLayout({ item }: { item: NonNullable<ResolvedShareEntity["
       )}
       <div style={{ padding: "20px 16px 0" }}>
         <span style={{ fontSize: "11px", fontWeight: 700, color: TERRA, textTransform: "uppercase", letterSpacing: "0.06em" }}>{typeLabel}</span>
-        <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 4px" }}>
+        <h1 style={{ fontFamily: "var(--font-playfair), Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 4px" }}>
           {title}
         </h1>
         {locationLine && (
@@ -376,7 +376,7 @@ function ManualActivityLayout({ item }: { item: NonNullable<ResolvedShareEntity[
       )}
       <div style={{ padding: "20px 16px 0" }}>
         <span style={{ fontSize: "11px", fontWeight: 700, color: TERRA, textTransform: "uppercase", letterSpacing: "0.06em" }}>{typeLabel}</span>
-        <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 4px" }}>
+        <h1 style={{ fontFamily: "var(--font-playfair), Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 4px" }}>
           {item.title}
         </h1>
         {locationLine && (
@@ -431,7 +431,7 @@ function FlightLayout({ item }: { item: NonNullable<ResolvedShareEntity["itinera
     <div>
       <div style={{ padding: "20px 16px 0" }}>
         <span style={{ fontSize: "11px", fontWeight: 700, color: TERRA, textTransform: "uppercase", letterSpacing: "0.06em" }}>FLIGHT</span>
-        <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 4px" }}>
+        <h1 style={{ fontFamily: "var(--font-playfair), Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 4px" }}>
           {route || item.title}
         </h1>
         {formattedDate && (
@@ -470,7 +470,7 @@ function TrainLayout({ item }: { item: NonNullable<ResolvedShareEntity["itinerar
     <div>
       <div style={{ padding: "20px 16px 0" }}>
         <span style={{ fontSize: "11px", fontWeight: 700, color: TERRA, textTransform: "uppercase", letterSpacing: "0.06em" }}>TRAIN</span>
-        <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 4px" }}>
+        <h1 style={{ fontFamily: "var(--font-playfair), Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 4px" }}>
           {route || item.title}
         </h1>
         {formattedDate && (
@@ -490,7 +490,7 @@ function TourLayout({ tour }: { tour: NonNullable<ResolvedShareEntity["generated
   return (
     <div style={{ padding: "20px 16px 0" }}>
       <span style={{ fontSize: "11px", fontWeight: 700, color: TERRA, textTransform: "uppercase", letterSpacing: "0.06em" }}>Tour</span>
-      <h1 style={{ fontFamily: "Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 4px" }}>
+      <h1 style={{ fontFamily: "var(--font-playfair), Playfair Display, serif", fontSize: "22px", fontWeight: 700, color: NAVY, margin: "4px 0 4px" }}>
         {tour.title}
       </h1>
       <p style={{ fontSize: "13px", color: GRAY, marginBottom: 4 }}>

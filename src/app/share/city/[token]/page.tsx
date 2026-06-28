@@ -129,7 +129,7 @@ export default async function CitySharePage({
           <CityCardImage src={heroUrl} alt={cityName} objectPosition="50% 24%" />
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 40%, rgba(0,0,0,0.55))" }} />
           <div style={{ position: "absolute", bottom: 20, left: 20, right: 20 }}>
-            <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 30, fontWeight: 700, color: "#fff", margin: 0, textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>
+            <h1 style={{ fontFamily: "var(--font-playfair), 'Playfair Display', serif", fontSize: 30, fontWeight: 700, color: "#fff", margin: 0, textShadow: "0 1px 3px rgba(0,0,0,0.4)" }}>
               {cityName}
             </h1>
           </div>
@@ -138,7 +138,7 @@ export default async function CitySharePage({
 
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 16px 100px" }}>
         {!heroUrl && (
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, fontWeight: 700, color: "#1B3A5C", marginBottom: 8 }}>
+          <h1 style={{ fontFamily: "var(--font-playfair), 'Playfair Display', serif", fontSize: 28, fontWeight: 700, color: "#1B3A5C", marginBottom: 8 }}>
             {cityName}
           </h1>
         )}
@@ -159,7 +159,7 @@ export default async function CitySharePage({
             textAlign: "center",
           }}
         >
-          <p style={{ fontFamily: "'Playfair Display', serif", fontSize: 20, fontWeight: 700, color: "#fff", marginBottom: 8 }}>
+          <p style={{ fontFamily: "var(--font-playfair), 'Playfair Display', serif", fontSize: 20, fontWeight: 700, color: "#fff", marginBottom: 8 }}>
             Add all to my Flokk
           </p>
           <p style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", marginBottom: 18 }}>
