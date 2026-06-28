@@ -2206,11 +2206,30 @@ Field notes:
         }
 
         for (const { trip: relatedTrip, confidence, matchType } of additionalRelatedTrips) {
+         try {
           const relTripId = relatedTrip.id;
           const rtStart = dateToYMD(relatedTrip.startDate ?? null);
           const rtEnd   = dateToYMD(relatedTrip.endDate   ?? null);
 
           if (!rtStart || !rtEnd) continue;
+
+          // Respect the production unique index FlightBooking_profile_confirmation_unique
+          // (familyProfileId, confirmationCode) WHERE confirmationCode IS NOT NULL: a family
+          // has exactly one booking per conf, living on its OWNING trip. P1's matcher now
+          // yields same-family departing-trip matches, so a 2nd FlightBooking create here
+          // would throw P2002 and (unwrapped) abort the whole inbound — failing the OWNING
+          // trip's save too. Skip the related-trip write entirely; do NOT write an orphan
+          // ItineraryItem. The departing-flight display becomes a read-time link (next task).
+          if (outboundConf) {
+            const existingFamilyBooking = await db.flightBooking.findFirst({
+              where: { familyProfileId: familyProfile.id, confirmationCode: outboundConf },
+              select: { id: true },
+            });
+            if (existingFamilyBooking) {
+              console.log(`[email-inbound] multi-trip: skipping related-trip "${relatedTrip.title ?? relTripId}" — FlightBooking for (family=${familyProfile.id}, conf=${outboundConf}) already exists; departing display deferred to read-time link`);
+              continue;
+            }
+          }
 
           // Partition legs to those whose dep or arr falls in this trip's date range
           const relFlightLegs = flightLegs.filter((l) =>
@@ -2373,6 +2392,11 @@ Field notes:
             });
             console.log(`[email-inbound] created vault doc for related trip:`, relTripId);
           }
+         } catch (relErr) {
+           // A related-trip failure must NEVER abort the inbound or the owning-trip write.
+           console.error(`[email-inbound] multi-trip: related-trip write failed for "${relatedTrip.title ?? relatedTrip.id}" — continuing:`, relErr);
+           continue;
+         }
         }
       }
 
