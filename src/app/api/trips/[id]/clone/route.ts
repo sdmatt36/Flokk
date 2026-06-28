@@ -6,6 +6,7 @@ import { buildTripFromExtraction } from "@/lib/trip-builder";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { mintTripShareToken } from "@/lib/trip-share-token";
 import { canAccessTripForCloning } from "@/lib/trip-permissions";
+import { computeStatus } from "@/lib/saved-item-types";
 
 export const dynamic = "force-dynamic";
 
@@ -77,29 +78,38 @@ export async function POST(
   // Clone saved items (omit cost/booking details)
   if (source.savedItems.length > 0) {
     await db.savedItem.createMany({
-      data: source.savedItems.map((item) => ({
-        familyProfileId: profileId,
-        tripId: newTrip.id,
-        sourceMethod: item.sourceMethod ?? "IN_APP_SAVE",
-        sourcePlatform: item.sourcePlatform ?? "direct",
-        sourceUrl: item.sourceUrl,
-        rawTitle: item.rawTitle,
-        rawDescription: item.rawDescription,
-        mediaThumbnailUrl: item.mediaThumbnailUrl,
-        placePhotoUrl: item.placePhotoUrl,
-        destinationCity: item.destinationCity,
-        destinationCountry: item.destinationCountry,
-        lat: item.lat,
-        lng: item.lng,
-        categoryTags: normalizeAndDedupeCategoryTags(item.categoryTags),
-        interestKeys: item.interestKeys,
-        status: "UNORGANIZED" as const,
-        extractionStatus: "ENRICHED" as const,
-        dayIndex: item.dayIndex,
-        notes: item.notes,
-        websiteUrl: item.websiteUrl,
-        affiliateUrl: item.affiliateUrl,
-      })),
+      data: source.savedItems.map((item) => {
+        // tripId is always the new trip (non-null), so the source dayIndex is preserved as-is.
+        // Status is derived from computeStatus — never hardcoded — so a clone can never produce
+        // an UNORGANIZED row that is bound to a trip (the orphaned-status class).
+        const dayIndex = item.dayIndex ?? null;
+        return {
+          familyProfileId: profileId,
+          tripId: newTrip.id,
+          sourceMethod: item.sourceMethod ?? "IN_APP_SAVE",
+          sourcePlatform: item.sourcePlatform ?? "direct",
+          sourceUrl: item.sourceUrl,
+          rawTitle: item.rawTitle,
+          rawDescription: item.rawDescription,
+          mediaThumbnailUrl: item.mediaThumbnailUrl,
+          placePhotoUrl: item.placePhotoUrl,
+          destinationCity: item.destinationCity,
+          destinationCountry: item.destinationCountry,
+          cityId: item.cityId,
+          lat: item.lat,
+          lng: item.lng,
+          categoryTags: normalizeAndDedupeCategoryTags(item.categoryTags),
+          interestKeys: item.interestKeys,
+          status: computeStatus(newTrip.id, dayIndex, item.startTime),
+          extractionStatus: "ENRICHED" as const,
+          dayIndex,
+          startTime: item.startTime,
+          needsPlaceConfirmation: item.needsPlaceConfirmation,
+          notes: item.notes,
+          websiteUrl: item.websiteUrl,
+          affiliateUrl: item.affiliateUrl,
+        };
+      }),
     });
   }
 

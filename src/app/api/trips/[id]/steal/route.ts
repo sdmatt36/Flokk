@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { resolveProfileId } from "@/lib/profile-access";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { canEditTripContent } from "@/lib/trip-permissions";
+import { computeStatus } from "@/lib/saved-item-types";
 
 export async function POST(
   req: Request,
@@ -74,15 +75,34 @@ export async function POST(
     sourceUrl: string | null;
     mediaThumbnailUrl: string | null;
     placePhotoUrl: string | null;
-    status: "UNORGANIZED";
+    dayIndex: number | null;
+    status: ReturnType<typeof computeStatus>;
     sourceMethod: "SHARED_TRIP_IMPORT";
     sourcePlatform: "direct";
     categoryTags: string[];
   };
 
+  // Stolen items land in the target trip unscheduled (no dayIndex). Status is derived from
+  // computeStatus, never hardcoded: tripId set + dayIndex null → TRIP_ASSIGNED (the 149-class fix).
+  const stolenStatus = computeStatus(targetTripId, null, null);
+
+  // Idempotent dedupe: skip any item whose title is already on the target trip, so re-stealing the
+  // same days does not duplicate. Source rows here are ItineraryItem/ManualActivity (no
+  // googlePlaceId / source-save id), so the stable key is the normalized title.
+  const existingTargetSaves = await db.savedItem.findMany({
+    where: { tripId: targetTripId, deletedAt: null },
+    select: { rawTitle: true },
+  });
+  const seenTitles = new Set(
+    existingTargetSaves.map((s) => (s.rawTitle ?? "").trim().toLowerCase()).filter(Boolean)
+  );
+
   const savedItems: SaveInput[] = [];
 
   for (const item of itineraryItems) {
+    const key = (item.title ?? "").trim().toLowerCase();
+    if (!key || seenTitles.has(key)) continue;
+    seenTitles.add(key);
     savedItems.push({
       familyProfileId: profileId,
       tripId: targetTripId,
@@ -94,7 +114,8 @@ export async function POST(
       sourceUrl: null,
       mediaThumbnailUrl: null,
       placePhotoUrl: null,
-      status: "UNORGANIZED",
+      dayIndex: null,
+      status: stolenStatus,
       sourceMethod: "SHARED_TRIP_IMPORT",
       sourcePlatform: "direct",
       categoryTags: normalizeAndDedupeCategoryTags([item.type.toLowerCase()]),
@@ -102,6 +123,9 @@ export async function POST(
   }
 
   for (const item of manualActivities) {
+    const key = (item.title ?? "").trim().toLowerCase();
+    if (!key || seenTitles.has(key)) continue;
+    seenTitles.add(key);
     savedItems.push({
       familyProfileId: profileId,
       tripId: targetTripId,
@@ -113,19 +137,22 @@ export async function POST(
       sourceUrl: item.website ?? null,
       mediaThumbnailUrl: null,
       placePhotoUrl: null,
-      status: "UNORGANIZED",
+      dayIndex: null,
+      status: stolenStatus,
       sourceMethod: "SHARED_TRIP_IMPORT",
       sourcePlatform: "direct",
       categoryTags: normalizeAndDedupeCategoryTags(["activity"]),
     });
   }
 
-  if (savedItems.length === 0) {
+  // Genuinely empty source days → 400. All items already present (deduped) → idempotent no-op.
+  if (itineraryItems.length === 0 && manualActivities.length === 0) {
     return NextResponse.json({ error: "No copyable items in selected days" }, { status: 400 });
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await db.savedItem.createMany({ data: savedItems as any[] });
+  if (savedItems.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await db.savedItem.createMany({ data: savedItems as any[] });
+  }
 
   return NextResponse.json({
     copied: savedItems.length,

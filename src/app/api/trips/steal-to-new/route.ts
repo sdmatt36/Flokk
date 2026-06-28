@@ -96,8 +96,29 @@ export async function POST(req: Request) {
       ? sourceTrip.savedItems.filter(s => s.dayIndex === filterDayIndex)
       : sourceTrip.savedItems;
 
+    // Idempotent dedupe: skip source saves already present on the target so re-stealing the same
+    // day does not duplicate. Prefer the stable googlePlaceId; fall back to the normalized title.
+    const existingTargetSaves = await db.savedItem.findMany({
+      where: { tripId: targetTripId, deletedAt: null },
+      select: { rawTitle: true, googlePlaceId: true },
+    });
+    const seenTitles = new Set(
+      existingTargetSaves.map(s => (s.rawTitle ?? "").trim().toLowerCase()).filter(Boolean)
+    );
+    const seenPlaceIds = new Set(
+      existingTargetSaves.map(s => s.googlePlaceId).filter((x): x is string => !!x)
+    );
+
     const itemsToCreate = sourceItems
       .filter(item => !!item.rawTitle)
+      .filter(item => {
+        if (item.googlePlaceId && seenPlaceIds.has(item.googlePlaceId)) return false;
+        const key = (item.rawTitle ?? "").trim().toLowerCase();
+        if (key && seenTitles.has(key)) return false;
+        if (key) seenTitles.add(key);
+        if (item.googlePlaceId) seenPlaceIds.add(item.googlePlaceId);
+        return true;
+      })
       .map(item => buildClonedItem({
         familyProfileId: profileId,
         tripId: targetTripId,
@@ -107,12 +128,14 @@ export async function POST(req: Request) {
         lng: item.lng ?? null,
         destinationCity: item.destinationCity ?? sourceTrip.destinationCity ?? null,
         destinationCountry: item.destinationCountry ?? sourceTrip.destinationCountry ?? null,
+        cityId: item.cityId ?? null,
         placePhotoUrl: item.placePhotoUrl ?? null,
         websiteUrl: item.websiteUrl ?? null,
         categoryTags: item.categoryTags.length > 0
           ? item.categoryTags
           : inferCategoryTags(item.rawTitle!, item.rawDescription ?? null),
         dayIndex: appendAsDayIndex,  // all items share the same new day slot
+        startTime: item.startTime ?? null,
       }));
 
     if (itemsToCreate.length > 0) {
@@ -219,8 +242,10 @@ export async function POST(req: Request) {
       lng: item.lng ?? null,
       destinationCity: item.destinationCity ?? sourceTrip.destinationCity ?? null,
       destinationCountry: item.destinationCountry ?? sourceTrip.destinationCountry ?? null,
+      cityId: item.cityId ?? null,
       placePhotoUrl: item.placePhotoUrl ?? null,
       websiteUrl: item.websiteUrl ?? null,
+      startTime: item.startTime ?? null,
       categoryTags: item.categoryTags.length > 0 ? item.categoryTags : inferCategoryTags(item.rawTitle, item.rawDescription ?? null),
       dayIndex,
     }));

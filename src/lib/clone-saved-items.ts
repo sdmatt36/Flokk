@@ -1,62 +1,73 @@
 import { normalizeAndDedupeCategoryTags } from "./category-tags";
+import { computeStatus } from "./saved-item-types";
 
 export type CloneItemInput = {
   familyProfileId: string;
-  tripId: string;
+  tripId: string | null;
   rawTitle: string;
   rawDescription?: string | null;
   lat?: number | null;
   lng?: number | null;
   destinationCity?: string | null;
   destinationCountry?: string | null;
+  cityId?: string | null;
   placePhotoUrl?: string | null;
   websiteUrl?: string | null;
   sourceUrl?: string | null;
   categoryTags: string[];
   dayIndex?: number | null;
+  startTime?: string | null;
 };
 
 type CloneItemOutput = {
   familyProfileId: string;
-  tripId: string;
+  tripId: string | null;
   rawTitle: string;
   rawDescription: string | null;
   lat: number | null;
   lng: number | null;
   destinationCity: string | null;
   destinationCountry: string | null;
+  cityId: string | null;
   placePhotoUrl: string | null;
   websiteUrl: string | null;
   sourceUrl: string | null;
   categoryTags: string[];
   dayIndex: number | null;
-  status: "TRIP_ASSIGNED" | "UNORGANIZED";
+  startTime: string | null;
+  status: ReturnType<typeof computeStatus>;
   sourceMethod: "SHARED_TRIP_IMPORT";
   sourcePlatform: "direct";
   extractionStatus: "ENRICHED";
 };
 
 export function buildClonedItem(input: CloneItemInput): CloneItemOutput {
-  // dayIndex=0 means "Day 1" in TripTabContent's 0-based system — treat as valid/assigned
-  const dayIndex = input.dayIndex != null ? input.dayIndex : null;
+  // dayIndex=0 means "Day 1" in TripTabContent's 0-based system — treat as valid/assigned.
+  const tripId = input.tripId ?? null;
+  // Invariant: a dayIndex is only meaningful with a tripId. Never write "day N of no trip"
+  // (the orphaned-day class) — if there is no trip, drop the dayIndex.
+  const dayIndex = tripId ? (input.dayIndex ?? null) : null;
+  const startTime = tripId ? (input.startTime ?? null) : null;
   return {
     familyProfileId: input.familyProfileId,
-    tripId: input.tripId,
+    tripId,
     rawTitle: input.rawTitle,
     rawDescription: input.rawDescription ?? null,
     lat: input.lat ?? null,
     lng: input.lng ?? null,
     destinationCity: input.destinationCity ?? null,
     destinationCountry: input.destinationCountry ?? null,
+    cityId: input.cityId ?? null,
     placePhotoUrl: input.placePhotoUrl ?? null,
     websiteUrl: input.websiteUrl ?? null,
     sourceUrl: input.sourceUrl ?? null,
     categoryTags: normalizeAndDedupeCategoryTags(input.categoryTags),
     dayIndex,
-    // TRIP_ASSIGNED requires a non-null tripId. Status here was keyed on dayIndex alone, so a
-    // clone with a dayIndex but no tripId produced TRIP_ASSIGNED + null tripId (the dominant
-    // source of the orphaned-status drift). Gate on tripId so that can never happen.
-    status: (input.tripId && dayIndex != null) ? "TRIP_ASSIGNED" : "UNORGANIZED",
+    startTime,
+    // Single source of truth for status — never hardcode. Derived from computeStatus so a clone
+    // can never produce an inconsistent (status, tripId, dayIndex) triple: no tripId → UNORGANIZED;
+    // tripId + no dayIndex → TRIP_ASSIGNED; tripId + dayIndex + startTime → SCHEDULED.
+    status: computeStatus(tripId, dayIndex, startTime),
     sourceMethod: "SHARED_TRIP_IMPORT",
     sourcePlatform: "direct",
     extractionStatus: "ENRICHED",
