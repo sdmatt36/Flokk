@@ -26,30 +26,84 @@ function formatTourLocation(city: string, country: string | null): string {
   return `${city}, ${country}`;
 }
 
+const OG_FALLBACK_DESC = "A pick shared on Flokk.";
+
+function truncateDesc(s: string | null | undefined): string | null {
+  if (!s) return null;
+  const t = s.trim().replace(/\s+/g, " ");
+  if (!t) return null;
+  return t.length > 160 ? `${t.slice(0, 157)}...` : t;
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const entity = await resolveShareToken(token);
   if (!entity) return { title: "Place | Flokk" };
 
+  // Build title + the og:image inputs (a photo, a city/country for the destination fallback, and a
+  // public blurb) per entity type from the entity already fetched above — no extra query.
   let title = "Place | Flokk";
+  let photo: string | null = null;
+  let city: string | null = null;
+  let country: string | null = null;
+  let blurb: string | null = null;
+
   if (entity.entityType === "saved_item" && entity.savedItem) {
-    const city = entity.savedItem.destinationCity;
-    title = city
-      ? `${entity.savedItem.rawTitle ?? "Place"} in ${city} | Flokk`
-      : `${entity.savedItem.rawTitle ?? "Place"} | Flokk`;
+    const s = entity.savedItem;
+    title = s.destinationCity
+      ? `${s.rawTitle ?? "Place"} in ${s.destinationCity} | Flokk`
+      : `${s.rawTitle ?? "Place"} | Flokk`;
+    photo = s.placePhotoUrl ?? s.mediaThumbnailUrl ?? null;
+    city = s.destinationCity;
+    country = s.destinationCountry;
+    blurb = s.rawDescription;
   } else if (entity.entityType === "itinerary_item" && entity.itineraryItem) {
-    title = `${entity.itineraryItem.title} | Flokk`;
+    const it = entity.itineraryItem;
+    title = `${it.title} | Flokk`;
+    photo = it.parallelSavedItem?.placePhotoUrl ?? null;
+    city = it.parallelSavedItem?.destinationCity ?? it.trip?.destinationCity ?? it.toCity ?? null;
+    country = it.parallelSavedItem?.destinationCountry ?? null;
+    blurb = it.parallelSavedItem?.rawDescription ?? null;
   } else if (entity.entityType === "manual_activity" && entity.manualActivity) {
-    title = `${entity.manualActivity.title} | Flokk`;
+    const m = entity.manualActivity;
+    title = `${m.title} | Flokk`;
+    photo = m.imageUrl ?? null;
+    city = m.city ?? m.trip?.destinationCity ?? null;
+    // manual activities have no public blurb (notes are private) — generic description below.
+    blurb = null;
   } else if (entity.entityType === "generated_tour" && entity.generatedTour) {
-    const loc = formatTourLocation(
-      entity.generatedTour.destinationCity,
-      entity.generatedTour.destinationCountry
-    );
-    title = `${entity.generatedTour.publicTitle ?? entity.generatedTour.title} · ${loc} | Flokk`;
+    const t = entity.generatedTour;
+    const loc = formatTourLocation(t.destinationCity, t.destinationCountry);
+    title = `${t.publicTitle ?? t.title} · ${loc} | Flokk`;
+    photo = t.stops.find((st) => st.imageUrl)?.imageUrl ?? null;
+    city = extractCityName(t.destinationCity, t.destinationCountry);
+    country = t.destinationCountry;
+    blurb = t.publicSubtitle ?? t.stops.find((st) => st.publicWhy)?.publicWhy ?? null;
   }
 
-  return { title };
+  // Image priority: the entity's own photo -> the place/destination cover -> branded Flokk
+  // default. getTripCoverImage applies that exact chain (heroImageUrl arg, then destination
+  // lookup, then DEFAULT_COVER) — same helper the trip share page uses.
+  const heroImg = getTripCoverImage(city, country, photo);
+  const absoluteImg = heroImg.startsWith("http") ? heroImg : `https://flokktravel.com${heroImg}`;
+  const description = truncateDesc(blurb) ?? OG_FALLBACK_DESC;
+  const alt = title.replace(" | Flokk", "");
+
+  return {
+    title,
+    openGraph: {
+      title,
+      description,
+      type: "website" as const,
+      images: [{ url: absoluteImg, width: 1200, height: 630, alt }],
+    },
+    twitter: {
+      card: "summary_large_image" as const,
+      title,
+      description,
+      images: [absoluteImg],
+    },
+  };
 }
 
 export default async function ShareItemPage({ params }: { params: Promise<{ token: string }> }) {
