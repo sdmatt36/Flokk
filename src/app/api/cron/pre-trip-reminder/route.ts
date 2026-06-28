@@ -5,12 +5,26 @@ import { sendLifecycleEmail, type LifecycleEmailType } from "@/lib/lifecycle-ema
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const WINDOWS: { type: LifecycleEmailType; minDays: number; maxDays: number }[] = [
-  { type: "pre_trip_90", minDays: 87, maxDays: 93 },
-  { type: "pre_trip_30", minDays: 27, maxDays: 33 },
-  { type: "pre_trip_7",  minDays:  5, maxDays:  9 },
-  { type: "pre_trip_1",  minDays:  0, maxDays:  3 },
+// Each reminder fires on EXACTLY one calendar day before departure (see calendarDaysUntil
+// below). The previous {minDays,maxDays} float windows fired on the early edge of a 3-day
+// span (combined with the once-per-trip EmailLog dedup), so "pre_trip_1" / "Tomorrow you
+// leave" went out ~2-3 days early. Comparing whole UTC calendar days makes firing
+// independent of the 01:00 UTC cron run time and the stored time-of-day.
+const WINDOWS: { type: LifecycleEmailType; daysBefore: number }[] = [
+  { type: "pre_trip_90", daysBefore: 90 },
+  { type: "pre_trip_30", daysBefore: 30 },
+  { type: "pre_trip_7",  daysBefore:  7 },
+  { type: "pre_trip_1",  daysBefore:  1 },
 ];
+
+// Whole-day difference between two instants in the UTC calendar frame (no per-trip timezone
+// exists, so UTC date is the consistent frame). Both operands floored to UTC midnight, so the
+// result is an exact integer count of calendar days.
+function utcCalendarDaysBetween(from: Date, to: Date): number {
+  const fromMidnight = Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate());
+  const toMidnight = Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate());
+  return Math.round((toMidnight - fromMidnight) / 86_400_000);
+}
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -23,9 +37,10 @@ export async function GET(request: Request) {
 
   const now = new Date();
 
-  // One query covering the outermost window range (0–93 days out).
-  const windowStart = new Date(now.getTime() + WINDOWS[3].minDays * 86_400_000);
-  const windowEnd   = new Date(now.getTime() + WINDOWS[0].maxDays * 86_400_000);
+  // Prefilter covering every target day (1–90) with a day of slack on each side so the exact
+  // calendar-day check below never misses a trip near a boundary.
+  const windowStart = new Date(now.getTime() - 1 * 86_400_000);
+  const windowEnd   = new Date(now.getTime() + 92 * 86_400_000);
 
   const trips = await db.trip.findMany({
     where: {
@@ -57,11 +72,12 @@ export async function GET(request: Request) {
     const email = trip.familyProfile?.user?.email;
     if (!email) continue;
 
-    const msUntilStart = new Date(trip.startDate!).getTime() - now.getTime();
-    const daysUntilStart = msUntilStart / 86_400_000;
+    // Whole UTC calendar days from today to the trip's start date. pre_trip_1 fires when this
+    // is exactly 1 (the real day before), regardless of cron run time / stored time-of-day.
+    const calendarDaysUntil = utcCalendarDaysBetween(now, new Date(trip.startDate!));
 
     for (const w of WINDOWS) {
-      if (daysUntilStart < w.minDays || daysUntilStart > w.maxDays) continue;
+      if (calendarDaysUntil !== w.daysBefore) continue;
 
       // EmailLog guard: only successful sends block retry
       const prior = await db.emailLog.findFirst({
@@ -75,7 +91,7 @@ export async function GET(request: Request) {
         tripTitle: trip.title,
         recipient: email,
         type: w.type,
-        daysUntilStart: Math.round(daysUntilStart),
+        daysUntilStart: calendarDaysUntil,
       });
 
       if (!dryRun) {
