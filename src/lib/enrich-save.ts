@@ -84,6 +84,49 @@ export function isAggregatorUrl(url: string | null): boolean {
   return /airbnb\.|booking\.com|hotels\.com|expedia\.|vrbo\.com|tripadvisor\./.test(h);
 }
 
+// Lodging OTAs (excludes tripadvisor, which spans restaurants/attractions). Used to stamp the
+// deterministic 'lodging' category tag, mirroring the EMAIL_FORWARD booking path.
+function isLodgingOtaUrl(url: string | null): boolean {
+  const h = hostOf(url);
+  if (!h) return false;
+  return /airbnb\.|booking\.com|hotels\.com|expedia\.|vrbo\.com/.test(h);
+}
+
+// Booking app-shares arrive as booking.com?app_hotel_id=NNN&from_sn=ios — no /hotel/ slug and
+// no JSON-LD on the bare root. Rebuild the canonical hotel deep link so the fetched page renders
+// structured hotel data. Returns null when already a hotel page or not an app-share form.
+function bookingDeepLink(url: string | null): string | null {
+  if (!isBookingUrl(url)) return null;
+  try {
+    const u = new URL(url!);
+    if (/\/hotel\//i.test(u.pathname) || /hotel\.html/i.test(u.pathname)) return null;
+    const appHotelId = u.searchParams.get("app_hotel_id");
+    if (!appHotelId) return null;
+    const params = new URLSearchParams({ app_hotel_id: appHotelId });
+    const checkin = u.searchParams.get("checkin");
+    const checkout = u.searchParams.get("checkout");
+    if (checkin) params.set("checkin", checkin);
+    if (checkout) params.set("checkout", checkout);
+    return `https://www.booking.com/hotel.html?${params.toString()}`;
+  } catch {
+    return null;
+  }
+}
+
+// Strip Booking.com boilerplate from an og:title to recover the bare property name.
+// e.g. "Hotel Splendide, Paris – Updated 2026 Prices" -> "Hotel Splendide, Paris"
+function cleanBookingTitle(ogTitle: string | null): string | null {
+  if (!ogTitle) return null;
+  let t = he.decode(ogTitle)
+    .replace(/^Booking\.com:?\s*/i, "")
+    .replace(/\s*[–—-]\s*Updated\s+\d{4}.*$/i, "")
+    .replace(/\s*[–—-]\s*(Deals|Prices|Reviews|Rooms).*$/i, "")
+    .replace(/,?\s*Updated\s+\d{4}.*$/i, "")
+    .trim();
+  if (t.length > 120) t = t.slice(0, 120).trim();
+  return t || null;
+}
+
 type JsonLdPlace = {
   name: string | null;
   city: string | null;
@@ -364,12 +407,19 @@ ${pageContent}`,
   }
 }
 
-async function fetchWithScrapingBee(url: string): Promise<string | null> {
+async function fetchWithScrapingBee(
+  url: string,
+  opts?: { premium?: boolean },
+): Promise<string | null> {
   const apiKey = process.env.SCRAPINGBEE_API_KEY;
   if (!apiKey) return null;
   try {
-    const sbUrl = `https://app.scrapingbee.com/api/v1/?api_key=${apiKey}&url=${encodeURIComponent(url)}&render_js=false&premium_proxy=false`;
-    const res = await fetch(sbUrl, { signal: AbortSignal.timeout(15000) });
+    // Premium mode (OTA-only): residential proxy + JS render. Booking blocks datacenter IPs and
+    // the hotel page is JS-rendered, so the default cheap mode returns no structured data.
+    const premium = opts?.premium === true;
+    const flags = premium ? "render_js=true&premium_proxy=true" : "render_js=false&premium_proxy=false";
+    const sbUrl = `https://app.scrapingbee.com/api/v1/?api_key=${apiKey}&url=${encodeURIComponent(url)}&${flags}`;
+    const res = await fetch(sbUrl, { signal: AbortSignal.timeout(premium ? 30000 : 15000) });
     if (!res.ok) return null;
     return await res.text();
   } catch {
@@ -821,10 +871,15 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
     console.log(`[enrich] skipped ${savedItemId}: no item`);
     return;
   }
+  // OTA/booking saves (especially app-shares) frequently arrive title-less — the Booking handler
+  // (Step 0b) can still resolve them from the deep-link's structured data. Only bail early for
+  // NON-OTA title-less saves; OTA ones fall through and are flagged later only if resolution fails.
+  const isOtaSave = isBookingUrl(item.sourceUrl) || isAggregatorUrl(item.sourceUrl);
+
   // Item exists but has no usable title — we can't enrich or resolve a place. Do NOT leave a
   // silent orphan (no coords AND needsPlaceConfirmation=false, an un-actionable save): flag it
   // for manual confirmation and write NO coords. Mirrors how unresolved aggregator URLs behave.
-  if (!item.rawTitle) {
+  if (!item.rawTitle && !isOtaSave) {
     console.log(`[enrich] no title — flagging needsPlaceConfirmation for ${savedItemId}`);
     await db.savedItem.update({
       where: { id: item.id },
@@ -836,7 +891,7 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   try {
 
   const stripRawUnicode = (str: string) => str.replace(/&#x[0-9a-fA-F]+;/gi, "").trim();
-  const cleanTitle = stripRawUnicode(he.decode(item.rawTitle));
+  const cleanTitle = item.rawTitle ? stripRawUnicode(he.decode(item.rawTitle)) : "";
   const cleanDescription = item.rawDescription
     ? stripRawUnicode(he.decode(item.rawDescription))
     : null;
@@ -907,27 +962,74 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   let websiteAddress: string | null = null;
   let websiteCountry: string | null = null;
 
-  // Step 0b: Booking.com — parse JSON-LD (Hotel/LodgingBusiness) for the real place,
-  // city, country and coords instead of geocoding the (often boilerplate) page title.
+  // Step 0b: Booking.com — resolve the real place from structured data instead of geocoding the
+  // (often boilerplate) page title. App-shares carry only app_hotel_id (no /hotel/ slug, no
+  // JSON-LD on the bare root), so rebuild the canonical hotel deep link and fetch it through the
+  // premium proxy (residential IP + JS render; OTA-only, cost acceptable). Parse JSON-LD first,
+  // then fall back to og:title; backfill coords via Places and city via reverse-geocode.
   if (!skipNormalEnrichment && isBookingUrl(item.sourceUrl) && process.env.SCRAPINGBEE_API_KEY) {
     try {
-      const html = await fetchWithScrapingBee(item.sourceUrl!);
-      const ld = html ? parseJsonLdPlace(html) : null;
-      // "Confidently resolved" = a real city AND coordinates from structured data.
-      if (ld && ld.city && ld.lat != null && ld.lng != null) {
-        if (ld.name) workingTitle = ld.name;
-        coords = { lat: ld.lat, lng: ld.lng };
-        socialCity = ld.city;
-        if (ld.country) socialCountry = ld.country;
-        websitePlaceId = await findPlaceIdByText(workingTitle, ld.lat, ld.lng);
+      const fetchUrl = bookingDeepLink(item.sourceUrl) ?? item.sourceUrl!;
+      const html = await fetchWithScrapingBee(fetchUrl, { premium: true });
+
+      let resolvedName: string | null = null;
+      let resolvedCity: string | null = null;
+      let resolvedCountry: string | null = null;
+      let resolvedLat: number | null = null;
+      let resolvedLng: number | null = null;
+
+      if (html) {
+        const ld = parseJsonLdPlace(html);
+        if (ld && ld.lat != null && ld.lng != null) {
+          // JSON-LD gave coords (city present unless parseJsonLdPlace's guard ever loosens).
+          resolvedName = ld.name;
+          resolvedCity = ld.city;
+          resolvedCountry = ld.country;
+          resolvedLat = ld.lat;
+          resolvedLng = ld.lng;
+        } else {
+          // JSON-LD absent/insufficient — recover the property name from og:title.
+          resolvedName = cleanBookingTitle(extractOgMeta(html, "title"));
+          if (ld?.country) resolvedCountry = ld.country;
+        }
+      }
+
+      // Name but no coords: resolve coords (and a googlePlaceId) via Places text search.
+      if (resolvedName && (resolvedLat == null || resolvedLng == null)) {
+        const pid = await findPlaceIdByText(resolvedName, resolvedLat, resolvedLng);
+        if (pid) {
+          const det = await lookupByPlaceId(pid);
+          if (det) {
+            resolvedName = det.title ?? resolvedName;
+            resolvedLat = det.lat;
+            resolvedLng = det.lng;
+            websitePlaceId = pid;
+          }
+        }
+      }
+
+      // Coords but no city: reverse-geocode to derive destinationCity/Country.
+      if (resolvedLat != null && resolvedLng != null && !resolvedCity) {
+        const rev = await reverseGeocodeCity(resolvedLat, resolvedLng);
+        if (rev.city) resolvedCity = rev.city;
+        if (rev.country && !resolvedCountry) resolvedCountry = rev.country;
+      }
+
+      // Confident resolution = a name AND coordinates (city may have been reverse-geocoded).
+      if (resolvedName && resolvedLat != null && resolvedLng != null) {
+        workingTitle = resolvedName;
+        coords = { lat: resolvedLat, lng: resolvedLng };
+        if (resolvedCity) socialCity = resolvedCity;
+        if (resolvedCountry) socialCountry = resolvedCountry;
+        if (!websitePlaceId) websitePlaceId = await findPlaceIdByText(workingTitle, resolvedLat, resolvedLng);
         aggregatorResolved = true;
         skipNormalEnrichment = true;
-        console.log(`[enrich] Booking.com JSON-LD resolved: "${workingTitle}" ${ld.city} (${ld.lat},${ld.lng})`);
+        console.log(`[enrich] Booking resolved: "${workingTitle}" ${resolvedCity ?? "?"} (${resolvedLat},${resolvedLng})`);
       } else {
-        console.log(`[enrich] Booking.com JSON-LD insufficient for ${item.id} — will flag`);
+        console.log(`[enrich] Booking resolution insufficient for ${item.id} — will flag`);
       }
     } catch (err) {
-      console.error(`[enrich] Booking.com handler failed for ${item.id}:`, err);
+      console.error(`[enrich] Booking handler failed for ${item.id}:`, err);
     }
   }
 
@@ -1071,7 +1173,7 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   // Step 5: UPDATE — never delete, only add missing data
   // If title is empty after all extraction steps, fall back to URL hostname (e.g. "airbnb.com")
   let finalTitle = workingTitle;
-  if (!finalTitle && item.sourceUrl) {
+  if (!finalTitle && item.sourceUrl && !flagNeedsConfirmation) {
     try {
       finalTitle = new URL(item.sourceUrl).hostname.replace("www.", "");
     } catch {
@@ -1080,7 +1182,9 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   }
 
   const updateData: Record<string, unknown> = {};
-  updateData.rawTitle = finalTitle;
+  // Only overwrite the title when we actually have one. A failed OTA resolution leaves rawTitle
+  // untouched (null) and relies on needsPlaceConfirmation, rather than writing a hostname stub.
+  if (finalTitle) updateData.rawTitle = finalTitle;
   if (workingDescription) updateData.rawDescription = workingDescription;
   if (coords) { updateData.lat = coords.lat; updateData.lng = coords.lng; }
   if (place.website && !item.sourceUrl) updateData.sourceUrl = place.website;
@@ -1097,6 +1201,15 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   if (socialCategory && (!item.categoryTags || item.categoryTags.length === 0) && !mapsCategory) {
     const slug = normalizeCategorySlug(socialCategory) ?? socialCategory;
     updateData.categoryTags = normalizeAndDedupeCategoryTags([slug]);
+  }
+  // Deterministic lodging tag for lodging-OTA saves (Booking/Airbnb/etc.), mirroring the
+  // EMAIL_FORWARD booking path which always tags ["lodging"]. Dedupe; never drop existing tags.
+  if (isLodgingOtaUrl(item.sourceUrl)) {
+    const lodgingSlug = normalizeCategorySlug("lodging") ?? "lodging";
+    const base = (updateData.categoryTags as string[] | undefined) ?? item.categoryTags ?? [];
+    if (!base.includes(lodgingSlug)) {
+      updateData.categoryTags = normalizeAndDedupeCategoryTags([...base, lodgingSlug]);
+    }
   }
   // Flag saves where place identification failed — prompt user to identify
   if (
