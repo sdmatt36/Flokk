@@ -693,17 +693,21 @@ export default async function SharePage({
         )}
 
         {/* ── Questions for the Flokker ── */}
-        <div style={{ marginTop: "48px", paddingTop: "32px", borderTop: "1px solid #e5e7eb" }}>
-          <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#1B3A5C", marginBottom: "8px" }}>
-            Questions for the Flokker
-          </h2>
-          <p style={{ fontSize: "14px", color: "#6b7280", marginBottom: "24px" }}>
-            Ask {curatorName} anything about this trip.
-          </p>
-          <p style={{ fontSize: "14px", color: "#9ca3af", fontStyle: "italic" }}>
-            Messaging coming soon. Join Flokk to be notified when it launches.
-          </p>
-        </div>
+        {/* Unbuilt feature: hidden from the public/logged-out view (cold visitors) until messaging
+            ships. Code is kept and shown to logged-in viewers so it is ready to wire up. */}
+        {isLoggedIn && (
+          <div style={{ marginTop: "48px", paddingTop: "32px", borderTop: "1px solid #e5e7eb" }}>
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "22px", color: "#1B3A5C", marginBottom: "8px" }}>
+              Questions for the Flokker
+            </h2>
+            <p style={{ fontSize: "14px", color: "#6b7280", marginBottom: "24px" }}>
+              Ask {curatorName} anything about this trip.
+            </p>
+            <p style={{ fontSize: "14px", color: "#9ca3af", fontStyle: "italic" }}>
+              Messaging coming soon. Join Flokk to be notified when it launches.
+            </p>
+          </div>
+        )}
 
         {/* ── What is Flokk? (non-logged-in only) ── */}
         {!isLoggedIn && (
