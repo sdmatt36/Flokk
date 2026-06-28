@@ -762,7 +762,7 @@ model FlightBooking {
 
   @@unique([tripId, confirmationCode], name: "unique_trip_confirmation")
   @@index([tripId])
-  @@index([familyProfileId, confirmationCode])
+  @@unique([familyProfileId, confirmationCode])
 }
 
 model Flight {
