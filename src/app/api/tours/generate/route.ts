@@ -923,6 +923,26 @@ export async function POST(req: NextRequest) {
       ? `\n\nThe user's lodging is at coordinates ${anchorLat}, ${anchorLng}. The tour must be anchored near this location:\n- Walking: first stop within 1km of lodging, last stop within 1km of lodging (round-trip from base)\n- Metro / Transit: first stop within 1.5km of lodging or a transit station within 800m of lodging\n- Driving: first stop within 5km of lodging, last stop within 5km of lodging`
       : "";
 
+    // ── Walkable-cluster instruction (fix #2; Walking only) ────────────────────────
+    // Soft GENERATION guide so the model emits one tightly-clustered neighborhood up front,
+    // instead of city-wide stops the walk-leg cap then has to prune. Centered on the lodging
+    // anchor when present, else destinationCenter; radius = half the age-scaled cluster diameter
+    // (the same age tiers enforceWalkLegCap / the cluster-diameter check use). It governs only the
+    // discovery stops the model selects — a specified starting point or final end-anchor is
+    // explicitly exempt (the end stays where the user put it and is pinned/appended outside this
+    // set), and it does not override the saved-place candidates. Not a deletion rule: the cap
+    // remains the backstop. Non-Walking tours get no cluster instruction.
+    const walkClusterCenter = (anchorLat !== null && anchorLng !== null)
+      ? { lat: anchorLat, lng: anchorLng }
+      : destinationCenter;
+    const walkClusterDiameterM = youngestChildAge !== null
+      ? youngestChildAge < 5 ? 1500 : youngestChildAge <= 10 ? 3000 : 5000
+      : 5000;
+    const walkClusterRadiusM = Math.round(walkClusterDiameterM / 2);
+    const walkClusterInstruction = (transport === "Walking" && walkClusterCenter)
+      ? `\n\nWALKABLE CLUSTER: This is a walking tour. Choose all stops within a SINGLE walkable neighborhood: every stop you emit should lie within about ${walkClusterRadiusM}m of ${walkClusterCenter.lat}, ${walkClusterCenter.lng}, and consecutive stops should be a short walk apart. The route should read as one neighborhood, not a path across the city. Prefer a tight, theme-fitting cluster over spreading out for variety. Exception: a specified starting point or final stop stays where it is. Keep the remaining stops clustered and let the route flow toward a specified final stop. Do not pull a specified final stop into the cluster.`
+      : "";
+
     // Start point: if it's a URL, resolve it to a place name first (mirror the end's URL branch);
     // otherwise keep the raw text (existing name path). resolvedStartName drives both the prompt
     // instruction and the post-gen Stop-1 pin.
@@ -1003,7 +1023,7 @@ ${stopCountRule}
 ${namedPlaceRule}
 ${emDashRule}
 ${themeTermsRule}
-${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomRule + "\n" : ""}${mealCadenceRule ? mealCadenceRule + "\n" : ""}${nameRules ? nameRules + "\n" : ""}${groupFramingRule}${soloContextRule}${vibeInterpretationRules}${startingPointInstruction}${anchorInstruction}${savedCandidatesInstruction}${endAnchorInstruction}`;
+${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomRule + "\n" : ""}${mealCadenceRule ? mealCadenceRule + "\n" : ""}${nameRules ? nameRules + "\n" : ""}${groupFramingRule}${soloContextRule}${vibeInterpretationRules}${startingPointInstruction}${anchorInstruction}${walkClusterInstruction}${savedCandidatesInstruction}${endAnchorInstruction}`;
 
     const userMessage = [
       seededContext || null,
