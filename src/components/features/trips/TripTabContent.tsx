@@ -7419,6 +7419,14 @@ function ToursContent({ tripId, tripTitle }: { tripId?: string; tripTitle?: stri
 
   return (
     <div style={{ padding: "16px" }}>
+      {/* Top-level create entry — restored after 82c004d collapsed it into the per-tour
+          "Start over" doorway. Always visible above the cards; links to the existing builder. */}
+      <a
+        href={tripId ? `/tour?tripId=${tripId}` : "/tour"}
+        style={{ display: "block", width: "100%", textAlign: "center", boxSizing: "border-box", marginBottom: "16px", padding: "13px", backgroundColor: "#C4664A", color: "#fff", fontWeight: 700, fontSize: "14px", borderRadius: "12px", textDecoration: "none" }}
+      >
+        Build a new tour
+      </a>
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         {tours.map(tour => {
           const stopsState = expandedStops[tour.id];
