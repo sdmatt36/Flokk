@@ -159,10 +159,15 @@ function twoClosest(seq: CoordStop[]): CoordStop[] {
 // Returns null (a true no-op: no DB writes, no Mapbox calls) when transport !== "Walking",
 // fewer than 2 coord-bearing stops, or the stops already comply — so the common compliant
 // case costs only a haversine scan. Returns { droppedIds } when it changed the tour.
+//
+// protectedEndId (optional): an explicit user end-anchor that must never be dropped and stays
+// last. Only body stops are pruned; the single leg into the protected end may exceed the cap
+// (labeled downstream via per-leg travelTime), never deleted.
 export async function enforceWalkLegCap(
   tourId: string,
   transport: string,
   stops: WalkCapStop[],
+  protectedEndId?: string,
 ): Promise<{ droppedIds: string[] } | null> {
   if (transport !== "Walking") return null;
   try {
@@ -171,33 +176,74 @@ export async function enforceWalkLegCap(
     );
     const coordlessStops = stops.filter((s) => s.lat == null || s.lng == null);
     if (coordStops.length < 2) return null;
-    if (countLegBreaches(coordStops) === 0) return null; // already compliant — no-op
 
-    let working = [...coordStops];
-    while (working.length > 2 && countLegBreaches(working) > 0) {
-      // Candidates: the endpoints of every breaching leg.
-      const candidateIdx = new Set<number>();
-      for (let i = 0; i < working.length - 1; i++) {
-        if (haversineKm(working[i], working[i + 1]) > MAX_WALK_LEG_KM) {
-          candidateIdx.add(i);
-          candidateIdx.add(i + 1);
+    // An explicit user end-anchor (resolved inputEndPoint / extracted free-text end, the stop
+    // pinEndLast targets) is NEVER pruned and always kept last. The single leg INTO it may exceed
+    // the cap — that is the one labeled long leg to the finish the user chose, surfaced to the
+    // client via the persisted per-leg travelTime (the mobile caveat flags any incoming leg > cap).
+    // Only body (discovery) stops are eligible to drop; this exemption also keeps the end outside
+    // the future walking-cluster constraint (#2). With no end-anchor, the original path runs.
+    const protectedEnd = protectedEndId
+      ? coordStops.find((s) => s.id === protectedEndId)
+      : undefined;
+
+    let working: CoordStop[];
+
+    if (!protectedEnd) {
+      if (countLegBreaches(coordStops) === 0) return null; // already compliant — no-op
+
+      working = [...coordStops];
+      while (working.length > 2 && countLegBreaches(working) > 0) {
+        // Candidates: the endpoints of every breaching leg.
+        const candidateIdx = new Set<number>();
+        for (let i = 0; i < working.length - 1; i++) {
+          if (haversineKm(working[i], working[i + 1]) > MAX_WALK_LEG_KM) {
+            candidateIdx.add(i);
+            candidateIdx.add(i + 1);
+          }
         }
+        // Drop the farthest geographic outlier (max distance to the current centroid).
+        const cLat = working.reduce((s, x) => s + x.lat, 0) / working.length;
+        const cLng = working.reduce((s, x) => s + x.lng, 0) / working.length;
+        let worst = -1;
+        let worstD = -1;
+        for (const idx of candidateIdx) {
+          const d = haversineKm(working[idx], { lat: cLat, lng: cLng });
+          if (d > worstD) { worstD = d; worst = idx; }
+        }
+        working.splice(worst, 1);
+        working = nearestNeighborOrder(working);
       }
-      // Drop the farthest geographic outlier (max distance to the current centroid).
-      const cLat = working.reduce((s, x) => s + x.lat, 0) / working.length;
-      const cLng = working.reduce((s, x) => s + x.lng, 0) / working.length;
-      let worst = -1;
-      let worstD = -1;
-      for (const idx of candidateIdx) {
-        const d = haversineKm(working[idx], { lat: cLat, lng: cLng });
-        if (d > worstD) { worstD = d; worst = idx; }
+      // Floor: if a breach survives (only possible at exactly 2 stops), keep the 2 closest.
+      if (countLegBreaches(working) > 0) {
+        working = twoClosest(coordStops);
       }
-      working.splice(worst, 1);
-      working = nearestNeighborOrder(working);
-    }
-    // Floor: if a breach survives (only possible at exactly 2 stops), keep the 2 closest.
-    if (countLegBreaches(working) > 0) {
-      working = twoClosest(coordStops);
+    } else {
+      // Protected-end path: prune only among the body stops (everything except the protected
+      // end), considering ONLY body-internal legs. The leg into the protected end is exempt, so
+      // a far user-chosen finish is labeled (long leg) rather than deleted. The end is appended
+      // last and is never a drop candidate; the loop naturally stops at one body stop (>= 2 total).
+      let body = nearestNeighborOrder(coordStops.filter((s) => s.id !== protectedEnd.id));
+      while (body.length > 1 && countLegBreaches(body) > 0) {
+        const candidateIdx = new Set<number>();
+        for (let i = 0; i < body.length - 1; i++) {
+          if (haversineKm(body[i], body[i + 1]) > MAX_WALK_LEG_KM) {
+            candidateIdx.add(i);
+            candidateIdx.add(i + 1);
+          }
+        }
+        const cLat = body.reduce((s, x) => s + x.lat, 0) / body.length;
+        const cLng = body.reduce((s, x) => s + x.lng, 0) / body.length;
+        let worst = -1;
+        let worstD = -1;
+        for (const idx of candidateIdx) {
+          const d = haversineKm(body[idx], { lat: cLat, lng: cLng });
+          if (d > worstD) { worstD = d; worst = idx; }
+        }
+        body.splice(worst, 1);
+        body = nearestNeighborOrder(body);
+      }
+      working = [...body, protectedEnd]; // protected end always last
     }
 
     const keptIds = new Set(working.map((s) => s.id));

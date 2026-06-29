@@ -1893,10 +1893,14 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
     let capDroppedCount = 0;
     if (tourId && finalStopsFromDb.length > 0) {
       try {
+        // Protect an explicit user end-anchor from the cap (fix #3): it must remain the final
+        // stop even if the only walkable cluster leaves it on a long leg, which is then labeled.
+        const capProtectedEndId = resolvedEnd ? findEndPointId(resolvedEnd.name, finalStopsFromDb) : undefined;
         const enf = await enforceWalkLegCap(
           tourId,
           transport,
           finalStopsFromDb.map(s => ({ id: s.id, lat: s.lat, lng: s.lng })),
+          capProtectedEndId,
         );
         if (enf && enf.droppedIds.length > 0) {
           capDroppedCount = enf.droppedIds.length;
@@ -1971,7 +1975,8 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
           try {
             const legs2 = await measureAdjacentLegs(regenStops.map(s => ({ lat: s.lat, lng: s.lng })), transport);
             await Promise.all(regenStops.map((s, i) => db.tourStop.update({ where: { id: s.id }, data: { travelTimeMin: legs2[i] } })));
-            const enf2 = await enforceWalkLegCap(tourId, transport, regenStops.map(s => ({ id: s.id, lat: s.lat, lng: s.lng })));
+            const regenProtectedEndId = resolvedEnd ? findEndPointId(resolvedEnd.name, regenStops) : undefined;
+            const enf2 = await enforceWalkLegCap(tourId, transport, regenStops.map(s => ({ id: s.id, lat: s.lat, lng: s.lng })), regenProtectedEndId);
             if (enf2 && enf2.droppedIds.length > 0) {
               regenStops = await db.tourStop.findMany({ where: { tourId, deletedAt: null }, orderBy: { orderIndex: "asc" } });
             }
