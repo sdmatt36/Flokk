@@ -71,21 +71,6 @@ export function bucketSaves<T extends BucketSaveInput>(
   const pastTrips = allTrips.filter((t) => t.endDate && toMs(t.endDate) < now.getTime());
   const pastTripIds = new Set(pastTrips.map((t) => t.id));
 
-  const pastTripCities = new Set<string>();
-  const pastTripCountries = new Set<string>();
-  for (const t of pastTrips) {
-    const cityList = t.cities.length > 0 ? t.cities : (t.destinationCity ? [t.destinationCity] : []);
-    for (const c of cityList) {
-      const k = c.trim().toLowerCase();
-      if (k) pastTripCities.add(k);
-    }
-    const tripCountries = t.countries.length > 0 ? t.countries : (t.country ? [t.country] : []);
-    for (const c of tripCountries) {
-      const k = c.trim().toLowerCase();
-      if (k) pastTripCountries.add(k);
-    }
-  }
-
   const upcomingCityIndex = new Map<string, string[]>();
   const upcomingTripCities = new Map<string, string[]>();
   const upcomingTripCountries = new Map<string, string[]>();
@@ -217,21 +202,21 @@ export function bucketSaves<T extends BucketSaveInput>(
         continue;
       }
 
-      // Past city/country fallback
-      if (cityKey && pastTripCities.has(cityKey)) {
-        const city = save.destinationCity ?? "Unknown";
-        const list = pastCityMap.get(city) ?? [];
-        list.push(save);
-        pastCityMap.set(city, list);
-        continue;
-      }
-      if (countryKey && pastTripCountries.has(countryKey)) {
-        const city = save.destinationCity ?? "Unknown";
-        const list = pastCityMap.get(city) ?? [];
-        list.push(save);
-        pastCityMap.set(city, list);
-        continue;
-      }
+    }
+
+    // Unassigned = saves with NO location only (destinationCity null/empty, and cityId null —
+    // no row in the dataset has a cityId without a destinationCity, so the city name is the
+    // governing signal). Any save that HAS a city but didn't match an upcoming trip above is
+    // located, so it belongs in the by-city located view (the Past tab groups located saves by
+    // city) — whether or not a matching past trip exists, and including saves attached to a
+    // Places-Library trip (excluded from allTrips, so it has no upcoming/past match here).
+    // Only truly location-less saves fall through to Unassigned.
+    if (cityKey) {
+      const city = save.destinationCity!.trim();
+      const list = pastCityMap.get(city) ?? [];
+      list.push(save);
+      pastCityMap.set(city, list);
+      continue;
     }
 
     unassigned.push(save);
