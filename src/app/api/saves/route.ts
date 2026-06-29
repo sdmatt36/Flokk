@@ -38,6 +38,7 @@ import { enrichWithPlaces } from "@/lib/enrich-with-places";
 import { resolvePlaceForSave } from "@/lib/saves/resolve-place";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { normalizeCategorySlug } from "@/lib/categories";
+import { savesFlightNot } from "@/lib/saves-bucket-inputs";
 import { findMatchingTrip } from "@/lib/find-matching-trip";
 import { writeThroughCommunitySpot } from "@/lib/community-write-through";
 import { inferLodgingType } from "@/lib/infer-lodging-type";
@@ -429,20 +430,9 @@ export async function GET(request: Request) {
           ? { categoryTags: { has: category } }
           : {}),
         ...(tripId ? { tripId } : {}),
-        // Exclude flight-tagged saves — flights live in ItineraryItem, not SavedItem
-        NOT: [
-          // 1. Explicit flight tags — guard with isEmpty:false so NULL categoryTags don't propagate
-          //    NULL categoryTags: hasSome evaluates to NULL → NOT NULL = NULL → row silently dropped
-          //    isEmpty:false short-circuits to false for empty/null arrays, preventing NULL propagation
-          { AND: [{ categoryTags: { isEmpty: false } }, { categoryTags: { hasSome: ["flight", "airfare", "airline", "airflight", "flights", "Flight", "Airline", "Airfare"] } }] },
-          // 2. Items with no coordinates whose rawTitle contains flight keywords
-          //    (coordinate check avoids excluding places with "flight" in their name)
-          { AND: [{ lat: null }, { rawTitle: { contains: "flight", mode: "insensitive" } }] },
-          { AND: [{ lat: null }, { rawTitle: { contains: "airline", mode: "insensitive" } }] },
-          { AND: [{ lat: null }, { rawTitle: { contains: "airfare", mode: "insensitive" } }] },
-          // 3. Source URL matches Google Flights (guard against null — NULL ILIKE propagates and excludes rows)
-          { AND: [{ sourceUrl: { not: null } }, { sourceUrl: { contains: "/travel/flights", mode: "insensitive" } }] },
-        ],
+        // Exclude flight-tagged saves — flights live in ItineraryItem, not SavedItem.
+        // Shared with /api/saves/feed via savesFlightNot so the two cannot drift.
+        NOT: savesFlightNot,
       },
       orderBy: { savedAt: "desc" },
       include: {

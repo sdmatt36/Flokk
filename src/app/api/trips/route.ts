@@ -6,6 +6,7 @@ import { mintTripShareToken } from "@/lib/trip-share-token";
 import { buildTripFromExtraction } from "@/lib/trip-builder";
 import { getTripCoverImage } from "@/lib/destination-images";
 import { sendLifecycleEmail } from "@/lib/lifecycle-emails";
+import { tripAccessWhere } from "@/lib/saves-bucket-inputs";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +28,7 @@ export async function GET(request: Request) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const trips = await db.trip.findMany({
     where: {
-      collaborators: { some: { familyProfileId: profileId, acceptedAt: { not: null } } },
-      isPlacesLibrary: false,
+      ...tripAccessWhere(profileId),
       ...(statusWhere as object),
     },
     orderBy: { startDate: "asc" },

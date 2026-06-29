@@ -5,15 +5,17 @@ import { resolveProfileId } from "@/lib/profile-access";
 import { getItemImage } from "@/lib/destination-images";
 import { resolveSaveLink } from "@/lib/save-link";
 import { bucketSaves } from "@/lib/saves-bucketing";
+import {
+  savesFlightNot,
+  tripAccessWhere,
+  tripIsBucketable,
+  geocodeTripCities,
+} from "@/lib/saves-bucket-inputs";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 const NO_STORE = { headers: { "Cache-Control": "no-store" } };
-const FLIGHT_TAGS = [
-  "flight", "airfare", "airline", "airflight", "flights",
-  "Flight", "Airline", "Airfare",
-];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -222,20 +224,26 @@ export async function GET(req: NextRequest) {
   const sortMode = parseSortMode(searchParams.get("sort"));
 
   // ── Trips ──────────────────────────────────────────────────────────────────
-  const allTrips = await db.trip.findMany({
-    where: { familyProfileId: profileId, isPlacesLibrary: false },
-    select: {
-      id: true,
-      title: true,
-      status: true,
-      destinationCity: true,
-      cities: true,
-      country: true,
-      countries: true,
-      startDate: true,
-      endDate: true,
-    },
-  });
+  // Derive the trip set identically to the web Saves screen (collaborator access via
+  // tripAccessWhere, then drop Places Library + COMPLETED via tripIsBucketable) so the
+  // buckets match. See src/lib/saves-bucket-inputs.ts.
+  const allTrips = (
+    await db.trip.findMany({
+      where: tripAccessWhere(profileId),
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        destinationCity: true,
+        cities: true,
+        country: true,
+        countries: true,
+        startDate: true,
+        endDate: true,
+        isPlacesLibrary: true,
+      },
+    })
+  ).filter(tripIsBucketable);
 
   // ── Saves ──────────────────────────────────────────────────────────────────
   const saves = await db.savedItem.findMany({
@@ -253,23 +261,7 @@ export async function GET(req: NextRequest) {
             ],
           }
         : {}),
-      NOT: [
-        {
-          AND: [
-            { categoryTags: { isEmpty: false } },
-            { categoryTags: { hasSome: FLIGHT_TAGS } },
-          ],
-        },
-        { AND: [{ lat: null }, { rawTitle: { contains: "flight", mode: "insensitive" } }] },
-        { AND: [{ lat: null }, { rawTitle: { contains: "airline", mode: "insensitive" } }] },
-        { AND: [{ lat: null }, { rawTitle: { contains: "airfare", mode: "insensitive" } }] },
-        {
-          AND: [
-            { sourceUrl: { not: null } },
-            { sourceUrl: { contains: "/travel/flights", mode: "insensitive" } },
-          ],
-        },
-      ],
+      NOT: savesFlightNot,
     },
     orderBy: { savedAt: "desc" },
     select: {
@@ -304,8 +296,11 @@ export async function GET(req: NextRequest) {
   });
 
   // ── Bucketing ──────────────────────────────────────────────────────────────
+  // Geocode trip cities for Tier-2 proximity matching, identical to the web screen's
+  // /api/trips/cities-geo path (was {} here, which silently disabled Tier 2 on mobile).
+  const tripCityCoords = await geocodeTripCities(allTrips);
   const { upcomingSections, pastCityMap, unassigned, imported } =
-    bucketSaves<DbSave>(saves, allTrips, {});
+    bucketSaves<DbSave>(saves, allTrips, tripCityCoords);
 
   const tripStatusById = new Map(allTrips.map((t) => [t.id, t.status]));
 

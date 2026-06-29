@@ -20,6 +20,7 @@ import { bucketSaves } from "@/lib/saves-bucketing";
 import { CountryCityCard } from "@/app/(app)/countries/[slug]/_components/CountryCityCard";
 import { SaveCard, mapApiItem, SOURCE_LABEL_MAP, resolveTitle } from "@/components/features/saves/SaveCard";
 import type { Save, ApiItem } from "@/components/features/saves/SaveCard";
+import { tripIsBucketable } from "@/lib/saves-bucket-inputs";
 import { SavesCardGrid } from "@/components/features/saves/SavesCardGrid";
 import { RatingModal } from "@/components/features/saves/RatingModal";
 import { ImportMapsModal } from "@/components/features/saves/ImportMapsModal";
@@ -1095,12 +1096,10 @@ export function SavesScreen() {
       fetch("/api/tours/my-tours").then(r => r.json()),
     ]).then(([savesData, tripsData, toursData]) => {
       setSaves((savesData.saves ?? []).map(mapApiItem));
-      // TODO: move isPlacesLibrary filter server-side in a future cleanup prompt.
-      // Exclude COMPLETED trips so the assign picker (single dropdown + bulk) only offers
-      // PLANNING/ACTIVE trips, matching auto-attach and the mobile picker.
-      const allTrips = (tripsData.trips ?? []).filter(
-        (t: { isPlacesLibrary?: boolean; status?: string }) => !t.isPlacesLibrary && t.status !== "COMPLETED",
-      );
+      // Exclude Places Library + COMPLETED trips so the assign picker only offers
+      // PLANNING/ACTIVE trips. Shared with /api/saves/feed via tripIsBucketable so the
+      // web and mobile Saves buckets derive from the same trip set.
+      const allTrips = (tripsData.trips ?? []).filter(tripIsBucketable);
       setAvailableTrips(allTrips);
       setSavedTours(toursData && typeof toursData === "object" && !toursData.error ? toursData : {});
       setLoading(false);
