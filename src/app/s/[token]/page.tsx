@@ -292,6 +292,7 @@ export default async function ShareItemPage({ params }: { params: Promise<{ toke
         placePhotoUrl: s.placePhotoUrl,
         mediaThumbnailUrl: s.mediaThumbnailUrl,
         websiteUrl: s.websiteUrl,
+        mapsUrl: s.mapsUrl,
         destinationCity: s.destinationCity,
         destinationCountry: s.destinationCountry,
         lat: null,

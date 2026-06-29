@@ -12,6 +12,7 @@ export interface ResolvedShareEntity {
     placePhotoUrl: string | null;
     mediaThumbnailUrl: string | null;
     websiteUrl: string | null;
+    mapsUrl: string | null;
     destinationCity: string | null;
     destinationCountry: string | null;
     lat: number | null;
@@ -249,6 +250,7 @@ export async function resolveShareToken(token: string): Promise<ResolvedShareEnt
       placePhotoUrl: true,
       mediaThumbnailUrl: true,
       websiteUrl: true,
+      mapsUrl: true,
       destinationCity: true,
       destinationCountry: true,
       lat: true,

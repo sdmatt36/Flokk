@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import { ExternalLink, Clock, Footprints, MapPin } from "lucide-react";
 import type { ResolvedShareEntity } from "@/lib/share-token";
 import { setShareReturn } from "@/lib/share-return";
@@ -25,6 +26,15 @@ export function ShareItemView({ token, entity, isSignedIn }: Props) {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // The server render's auth() can be stripped by an apex -> www redirect, making a logged-in
+  // viewer look signed out. Re-check client-side (mirrors SharePageBottomBar): treat the user as
+  // signed in if EITHER the server prop or the client SDK says so. authResolved = we have a
+  // definitive answer; until then we avoid flashing the signup wall.
+  const { isSignedIn: clientSignedIn, isLoaded: authLoaded } = useAuth();
+  const effectiveSignedIn = isSignedIn || clientSignedIn === true;
+  const authResolved = isSignedIn || authLoaded;
+  const showSignupWall = authResolved && !effectiveSignedIn;
+
   function storeIntent() {
     // Cookie return path (robust across the sign-up -> onboarding hop) plus the legacy
     // localStorage intent for back-compat.
@@ -40,7 +50,7 @@ export function ShareItemView({ token, entity, isSignedIn }: Props) {
   }
 
   async function handleSave() {
-    if (!isSignedIn) {
+    if (!effectiveSignedIn) {
       storeIntent();
       router.push("/sign-up");
       return;
@@ -76,13 +86,16 @@ export function ShareItemView({ token, entity, isSignedIn }: Props) {
     }
   }
 
+  // Only show the signup wall once we definitively know the viewer is signed out. While auth is
+  // still resolving, fall back to the neutral "Save to my Flokk" (disabled below) so a logged-in
+  // user never sees the signup wall, even for a frame.
   const ctaLabel = saved
     ? "Saved to your Flokk"
     : saving
     ? "Saving..."
-    : isSignedIn
-    ? "Save to my Flokk"
-    : "Sign up to save this";
+    : showSignupWall
+    ? "Sign up to save this"
+    : "Save to my Flokk";
 
   return (
     <div style={{ minHeight: "100svh", background: "#FAFAFA", fontFamily: "var(--font-dm-sans), Inter, sans-serif" }}>
@@ -91,7 +104,7 @@ export function ShareItemView({ token, entity, isSignedIn }: Props) {
         <span style={{ fontFamily: "var(--font-playfair), Playfair Display, serif", fontSize: "20px", fontWeight: 700, color: "white", letterSpacing: "-0.02em" }}>
           Flokk
         </span>
-        {!isSignedIn && (
+        {showSignupWall && (
           <a
             href="/sign-in"
             style={{ fontSize: "13px", color: "rgba(255,255,255,0.8)", textDecoration: "none" }}
@@ -122,7 +135,7 @@ export function ShareItemView({ token, entity, isSignedIn }: Props) {
           <div style={{ padding: "16px 16px 0" }}>
             <button
               onClick={handleSave}
-              disabled={saving || saved}
+              disabled={saving || saved || !authResolved}
               style={{
                 width: "100%",
                 padding: "14px",
@@ -132,8 +145,8 @@ export function ShareItemView({ token, entity, isSignedIn }: Props) {
                 color: "white",
                 fontSize: "15px",
                 fontWeight: 600,
-                cursor: saving || saved ? "default" : "pointer",
-                opacity: saving ? 0.7 : 1,
+                cursor: saving || saved || !authResolved ? "default" : "pointer",
+                opacity: saving || !authResolved ? 0.7 : 1,
                 fontFamily: "inherit",
               }}
             >
@@ -142,9 +155,9 @@ export function ShareItemView({ token, entity, isSignedIn }: Props) {
             {error && (
               <p style={{ fontSize: "13px", color: "#e53e3e", marginTop: 8, textAlign: "center" }}>{error}</p>
             )}
-            {!isSignedIn && (
+            {showSignupWall && (
               <p style={{ fontSize: "12px", color: GRAY, marginTop: 8, textAlign: "center" }}>
-                Free to join — takes 30 seconds.
+                Free to join. Takes 30 seconds.
               </p>
             )}
           </div>
@@ -257,6 +270,12 @@ function SavedItemLayout({ item }: { item: NonNullable<ResolvedShareEntity["save
         {visitUrl && (
           <a href={visitUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: TERRA, textDecoration: "none", display: "block", marginBottom: 8 }}>
             Visit website
+          </a>
+        )}
+        {item.mapsUrl && (
+          <a href={item.mapsUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: TERRA, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
+            <MapPin size={14} />
+            Open in Google Maps
           </a>
         )}
       </div>
