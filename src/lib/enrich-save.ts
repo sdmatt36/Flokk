@@ -7,7 +7,7 @@ import { HAIKU } from "@/lib/ai-models";
 import he from "he";
 import { getVenueImage } from "@/lib/destination-images";
 import { resolveGooglePhotoUrl, PLACES_INFRA_STATUSES } from "@/lib/google-places";
-import { pickMacroCity } from "@/lib/city-resolution";
+import { pickMacroCity, normalizeCityName } from "./city-resolution";
 import { verifyWebsiteUrl } from "@/lib/activity-intelligence";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { mapPlaceTypesToCanonicalSlugs, normalizeCategorySlug } from "@/lib/categories";
@@ -844,7 +844,7 @@ async function reverseGeocodeCity(
     // `locality` (e.g. "Taipei", "Denpasar"), absent from results[0] (the POI/street result, which
     // leads with the district). pickMacroCity then drops admin_area_2/_3. See city-resolution.ts.
     const components = (data?.results ?? []).flatMap((r) => r.address_components ?? []);
-    const city = pickMacroCity(components);
+    const city = normalizeCityName(pickMacroCity(components));
     const country = components.find((c) => c.types.includes("country"))?.long_name ?? null;
     return { city, country };
   } catch (err) {

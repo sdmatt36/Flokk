@@ -6,6 +6,8 @@
 // geocoding, and autocomplete callers remain in their own modules and were not
 // migrated in this prompt. Future consolidation is a separate scoped effort.
 
+import { pickMacroCity, normalizeCityName } from "./city-resolution";
+
 const API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? "";
 const PLACES_TEXT_SEARCH = "https://maps.googleapis.com/maps/api/place/textsearch/json";
 const PLACES_DETAILS = "https://maps.googleapis.com/maps/api/place/details/json";
@@ -465,9 +467,10 @@ export async function fetchPlaceDetailsById(
 const GEOCODE_API = "https://maps.googleapis.com/maps/api/geocode/json";
 
 /**
- * Resolve the city name for a lat/lng coordinate pair.
- * Priority: locality → administrative_area_level_3 → administrative_area_level_2.
- * Returns null on any failure — callers must treat null as "unresolvable".
+ * Resolve the macro city name for a lat/lng coordinate pair via the shared pickMacroCity rule
+ * (locality -> postal_town -> administrative_area_level_1; districts dropped), normalized to the
+ * clean English name. No result_type filter so admin_area_level_1 is reachable for no-locality
+ * municipalities (e.g. Istanbul). Returns null on any failure — callers treat null as unresolvable.
  */
 export async function reverseGeocodeCityFromCoords(
   input: { lat: number; lng: number }
@@ -477,10 +480,6 @@ export async function reverseGeocodeCityFromCoords(
   try {
     const url = new URL(GEOCODE_API);
     url.searchParams.set("latlng", `${input.lat},${input.lng}`);
-    url.searchParams.set(
-      "result_type",
-      "locality|administrative_area_level_3|administrative_area_level_2"
-    );
     url.searchParams.set("language", "en");
     url.searchParams.set("key", API_KEY);
 
@@ -498,21 +497,10 @@ export async function reverseGeocodeCityFromCoords(
     }
     if (data.status !== "OK" || !data.results?.length) return null;
 
-    for (const result of data.results) {
-      const locality = result.address_components.find((c) =>
-        c.types.includes("locality")
-      );
-      if (locality?.long_name) return locality.long_name;
-    }
-    for (const result of data.results) {
-      const admin = result.address_components.find(
-        (c) =>
-          c.types.includes("administrative_area_level_3") ||
-          c.types.includes("administrative_area_level_2")
-      );
-      if (admin?.long_name) return admin.long_name;
-    }
-    return null;
+    // Flatten components across ALL results (the locality is often its own result, not results[0])
+    // and pick the macro city via the shared helper, then normalize to the clean English name.
+    const components = data.results.flatMap((r) => r.address_components ?? []);
+    return normalizeCityName(pickMacroCity(components));
   } catch {
     return null;
   }

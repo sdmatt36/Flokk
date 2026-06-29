@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { canonicalizeForMatch } from "./city-resolution";
 
 // Finds the best matching trip for a given destination.
 // Includes completed (past) trips — upcoming trips are preferred, then most recent past trip.
@@ -105,14 +106,17 @@ export function findMatchingUpcomingTrip(
   now: Date = new Date(),
 ): UpcomingMatchTrip | null {
   if (!destinationCity) return null;
-  const target = destinationCity.trim().toLowerCase();
+  // Canonicalize both sides (alias + lowercase + strip diacritics) so an "İstanbul" save matches an
+  // "Istanbul" trip even for rows that slipped through unnormalized. Storage is unaffected — this is
+  // compare-time only.
+  const target = canonicalizeForMatch(destinationCity);
   if (!target) return null;
 
   const matches = trips.filter((t) => {
     if (!isUpcomingTrip(t, now)) return false;
     const cities = [t.destinationCity, ...(t.cities ?? [])]
       .filter((c): c is string => typeof c === "string" && c.trim() !== "")
-      .map((c) => c.trim().toLowerCase());
+      .map((c) => canonicalizeForMatch(c));
     return cities.includes(target);
   });
   if (matches.length === 0) return null;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { pickMacroCity, normalizeCityName } from "@/lib/city-resolution";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -18,7 +19,7 @@ async function geocodeLatlng(lat: number, lng: number): Promise<GeoDetail | null
   try {
     const url = new URL(GEOCODE_API);
     url.searchParams.set("latlng", `${lat},${lng}`);
-    url.searchParams.set("result_type", "locality|administrative_area_level_3|administrative_area_level_2");
+    // No result_type filter so admin_area_level_1 is reachable for no-locality municipalities.
     url.searchParams.set("language", "en");
     url.searchParams.set("key", key);
     const res = await fetch(url.toString());
@@ -28,18 +29,10 @@ async function geocodeLatlng(lat: number, lng: number): Promise<GeoDetail | null
       results?: Array<{ address_components: Array<{ long_name: string; short_name: string; types: string[] }> }>;
     };
     if (data.status !== "OK" || !data.results?.length) return null;
-    let cityName: string | null = null;
-    let countryCode = "";
-    for (const result of data.results) {
-      for (const comp of result.address_components) {
-        if (!cityName && (comp.types.includes("locality") || comp.types.includes("administrative_area_level_3") || comp.types.includes("administrative_area_level_2"))) {
-          cityName = comp.long_name;
-        }
-        if (comp.types.includes("country")) countryCode = comp.short_name;
-      }
-      if (cityName && countryCode) break;
-    }
+    const allComponents = data.results.flatMap((r) => r.address_components ?? []);
+    const cityName = normalizeCityName(pickMacroCity(allComponents));
     if (!cityName) return null;
+    const countryCode = allComponents.find((c) => c.types.includes("country"))?.short_name ?? "";
     return { cityName, countryCode };
   } catch { return null; }
 }

@@ -10,6 +10,7 @@ import {
 } from "@/lib/google-places";
 import { mapPlaceTypesToCanonicalSlugs } from "@/lib/categories";
 import { toDurableImageUrl } from "@/lib/imageStore";
+import { pickMacroCity, normalizeCityName } from "@/lib/city-resolution";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -98,7 +99,7 @@ async function geocodeCity(lat: number, lng: number): Promise<GeoDetail | null> 
   try {
     const url = new URL(GEOCODE_API);
     url.searchParams.set("latlng", `${lat},${lng}`);
-    url.searchParams.set("result_type", "locality|administrative_area_level_3|administrative_area_level_2");
+    // No result_type filter so admin_area_level_1 is reachable for no-locality municipalities.
     url.searchParams.set("language", "en");
     url.searchParams.set("key", key);
     const res = await fetch(url.toString());
@@ -111,28 +112,18 @@ async function geocodeCity(lat: number, lng: number): Promise<GeoDetail | null> 
     };
     if (data.status !== "OK" || !data.results?.length) return null;
 
-    let cityName: string | null = null;
-    let adminArea1: string | null = null;
-    let countryCode = "";
-    let countryName = "";
-
-    for (const result of data.results) {
-      for (const comp of result.address_components) {
-        if (!cityName && (comp.types.includes("locality") || comp.types.includes("administrative_area_level_3") || comp.types.includes("administrative_area_level_2"))) {
-          cityName = comp.long_name;
-        }
-        if (!adminArea1 && comp.types.includes("administrative_area_level_1")) {
-          adminArea1 = comp.long_name;
-        }
-        if (comp.types.includes("country")) {
-          countryCode = comp.short_name; // ISO 2-letter
-          countryName = comp.long_name;
-        }
-      }
-      if (cityName && countryCode) break;
-    }
-
+    // Macro city via the shared resolver (flatten across all results), normalized to clean English.
+    // adminArea1 (the parent state/prefecture) is still captured separately for resolveOrCreateCity's
+    // sub-city -> parent mapping. country from the same flattened set.
+    const allComponents = data.results.flatMap((r) => r.address_components ?? []);
+    const cityName = normalizeCityName(pickMacroCity(allComponents));
     if (!cityName) return null;
+    const a1 = allComponents.find((c) => c.types.includes("administrative_area_level_1"));
+    const adminArea1 = a1 ? normalizeCityName(a1.long_name) : null;
+    const countryComp = allComponents.find((c) => c.types.includes("country"));
+    const countryCode = countryComp?.short_name ?? ""; // ISO 2-letter
+    const countryName = countryComp?.long_name ?? "";
+
     return { cityName, adminArea1, countryCode, countryName };
   } catch {
     return null;

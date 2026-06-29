@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { enrichWithPlaces, nameSimilar, cityMatches } from "@/lib/enrich-with-places";
 import { PLACES_INFRA_STATUSES } from "@/lib/google-places";
 import { resolveWebsitePlace } from "@/lib/enrich-save";
+import { pickMacroCity, normalizeCityName } from "@/lib/city-resolution";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -140,11 +141,11 @@ async function verifyCoords(
       console.log(`[backfill-save-places] [coords-city-reject] (${lat},${lng}) geocoded outside "${destinationCity}" — skipping coords path`);
       return null;
     }
+    // Macro city via the shared resolver, flattened across all results (the locality is often its
+    // own result, not results[0]), normalized to clean English. Country from results[0] as before.
+    const allComps = data.results.flatMap(r => r.address_components ?? []);
     const country = comps.find(c => c.types.includes("country"))?.long_name ?? null;
-    const city = comps.find(c => c.types.includes("locality"))?.long_name
-      ?? comps.find(c => c.types.includes("administrative_area_level_3"))?.long_name
-      ?? comps.find(c => c.types.includes("administrative_area_level_2"))?.long_name
-      ?? null;
+    const city = normalizeCityName(pickMacroCity(allComps));
     return { country, city };
   } catch { return null; }
 }

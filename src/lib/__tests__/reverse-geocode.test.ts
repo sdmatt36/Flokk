@@ -30,7 +30,9 @@ function makeAdminFallbackResponse(adminName: string): object {
     results: [
       {
         address_components: [
-          { long_name: adminName, short_name: adminName, types: ["administrative_area_level_2", "political"] },
+          // A district at level_2 must be IGNORED; the macro city is level_1.
+          { long_name: "Some District", short_name: "Some District", types: ["administrative_area_level_2", "political"] },
+          { long_name: adminName, short_name: adminName, types: ["administrative_area_level_1", "political"] },
           { long_name: "Japan", short_name: "JP", types: ["country", "political"] },
         ],
       },
@@ -63,14 +65,14 @@ describe("reverseGeocodeCityFromCoords", () => {
     expect(result).toBe("Seoul");
   });
 
-  it("locality-less result falls back to administrative_area_level_2", async () => {
+  it("locality-less result falls back to administrative_area_level_1 (district at level_2 ignored)", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => makeAdminFallbackResponse("Hokkaido"),
+      json: async () => makeAdminFallbackResponse("Tokyo"),
     });
 
     const result = await reverseGeocodeCityFromCoords({ lat: 43.0642, lng: 141.3469 });
-    expect(result).toBe("Hokkaido");
+    expect(result).toBe("Tokyo");
   });
 
   it("ZERO_RESULTS → returns null", async () => {
