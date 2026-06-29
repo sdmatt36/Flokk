@@ -157,7 +157,7 @@ function tmpl_pre_trip_7(destination: string, tripHref: string) {
   };
 }
 
-function tmpl_pre_trip_1(destination: string, tripHref: string) {
+function tmpl_pre_trip_1(destination: string, tripHref: string, hasFlights: boolean) {
   return {
     subject: "Tomorrow's the day. A quick checklist.",
     html: emailLayout(
@@ -165,7 +165,9 @@ function tmpl_pre_trip_1(destination: string, tripHref: string) {
       p("Tomorrow you leave. A few things before you go.") +
       p("Screenshot your itinerary. Flokk has your confirmation codes, addresses, and times, and a screenshot is your offline backup.") +
       p(`Download maps for ${destination} so you have directions without data.`) +
-      p("Give yourself time at the airport. Three hours for international, two for domestic, and more with kids.") +
+      // Airport/flight guidance only when the trip actually has flights on record — never assert
+      // a flight we do not have.
+      (hasFlights ? p("Give yourself time at the airport. Three hours for international, two for domestic, and more with kids.") : "") +
       ctaButton("View your itinerary", tripHref) +
       p("Have a great trip. We want to hear how it goes when you are back.") +
       signOff()
@@ -245,6 +247,18 @@ export async function sendLifecycleEmail(
   const homeHref     = url("/home");
   const d            = dest || "your destination";
 
+  // Flight/airport language is gated on the trip actually having flights on record (a parsed
+  // Flight row or a FlightBooking). Only pre_trip_1 carries airport guidance, so we only pay
+  // for this lookup there.
+  let hasFlights = false;
+  if (type === "pre_trip_1" && tripId) {
+    const [flightCount, flightBookingCount] = await Promise.all([
+      db.flight.count({ where: { tripId } }),
+      db.flightBooking.count({ where: { tripId } }),
+    ]);
+    hasFlights = flightCount + flightBookingCount > 0;
+  }
+
   let tpl: { subject: string; html: string };
 
   switch (type) {
@@ -267,7 +281,7 @@ export async function sendLifecycleEmail(
       tpl = tmpl_pre_trip_7(d, tripHref);
       break;
     case "pre_trip_1":
-      tpl = tmpl_pre_trip_1(d, tripHref);
+      tpl = tmpl_pre_trip_1(d, tripHref, hasFlights);
       break;
     case "post_trip_rating":
       tpl = tmpl_post_trip_rating(d, tripHref);

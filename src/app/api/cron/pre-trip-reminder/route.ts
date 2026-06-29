@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sendLifecycleEmail, type LifecycleEmailType } from "@/lib/lifecycle-emails";
+import { utcCalendarDaysBetween } from "@/lib/cron-dates";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -16,15 +17,6 @@ const WINDOWS: { type: LifecycleEmailType; daysBefore: number }[] = [
   { type: "pre_trip_7",  daysBefore:  7 },
   { type: "pre_trip_1",  daysBefore:  1 },
 ];
-
-// Whole-day difference between two instants in the UTC calendar frame (no per-trip timezone
-// exists, so UTC date is the consistent frame). Both operands floored to UTC midnight, so the
-// result is an exact integer count of calendar days.
-function utcCalendarDaysBetween(from: Date, to: Date): number {
-  const fromMidnight = Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate());
-  const toMidnight = Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate());
-  return Math.round((toMidnight - fromMidnight) / 86_400_000);
-}
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");

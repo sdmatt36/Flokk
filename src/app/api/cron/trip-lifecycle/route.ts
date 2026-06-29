@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sendLifecycleEmail } from "@/lib/lifecycle-emails";
+import { utcCalendarDaysBetween } from "@/lib/cron-dates";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -56,15 +57,18 @@ export async function GET(request: Request) {
     }
   }
 
-  // post_trip_rating: COMPLETED trips whose endDate was 0.5–3.5 days ago
-  // (nominal "day after", with 2.5-day catch-up window)
-  const ratingWindowStart = new Date(now.getTime() - 3.5 * 86_400_000);
-  const ratingWindowEnd   = new Date(now.getTime() - 0.5 * 86_400_000);
+  // post_trip_rating: fire the day AFTER endDate, measured in whole UTC calendar days (same
+  // frame as the pre-trip reminders) so the send cannot drift by a day with the stored
+  // time-of-day or the cron run hour. A 1–3 calendar-day window absorbs a missed cron run; the
+  // once-per-trip EmailLog dedup prevents repeats. The DB query is a coarse prefilter (5 days of
+  // slack); the exact day count is enforced in JS below.
+  const ratingPrefilterStart = new Date(now.getTime() - 6 * 86_400_000);
+  const ratingPrefilterEnd   = new Date(now.getTime());
 
   const ratingTrips = await db.trip.findMany({
     where: {
       status: "COMPLETED",
-      endDate: { gte: ratingWindowStart, lte: ratingWindowEnd },
+      endDate: { gte: ratingPrefilterStart, lte: ratingPrefilterEnd },
       isPlacesLibrary: false,
       familyProfileId: { not: null },
     },
@@ -82,6 +86,12 @@ export async function GET(request: Request) {
   for (const trip of ratingTrips) {
     const email = trip.familyProfile?.user?.email;
     if (!email) continue;
+
+    // Day after endDate, with a 2-day catch-up for missed runs. Whole UTC calendar days, so a
+    // trip that ended yesterday is exactly 1 regardless of endDate's stored time-of-day.
+    if (!trip.endDate) continue;
+    const daysSinceEnd = utcCalendarDaysBetween(new Date(trip.endDate), now);
+    if (daysSinceEnd < 1 || daysSinceEnd > 3) continue;
 
     const prior = await db.emailLog.findFirst({
       where: { recipient: email, type: "post_trip_rating", tripId: trip.id, status: "sent" },
