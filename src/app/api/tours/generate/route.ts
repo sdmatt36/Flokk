@@ -1890,6 +1890,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
     // Deterministic: no Walking tour ships with a measured leg over MAX_WALK_LEG_MIN. Drops
     // outliers, soft-deletes them, renumbers, and re-measures the kept set. No-op on
     // non-Walking or already-compliant tours. Wrapped so a failure never aborts generation.
+    let capDroppedCount = 0;
     if (tourId && finalStopsFromDb.length > 0) {
       try {
         const enf = await enforceWalkLegCap(
@@ -1898,6 +1899,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
           finalStopsFromDb.map(s => ({ id: s.id, lat: s.lat, lng: s.lng })),
         );
         if (enf && enf.droppedIds.length > 0) {
+          capDroppedCount = enf.droppedIds.length;
           // Re-read the live (kept) set so the response and later passes reflect the cap.
           finalStopsFromDb = await db.tourStop.findMany({
             where: { tourId, deletedAt: null },
@@ -1906,6 +1908,106 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
         }
       } catch (capErr) {
         console.error("[walk-cap] generate enforcement failed:", capErr);
+      }
+    }
+
+    // ── Post-cap honest re-grade (FIX #1: gutted tour never stores as a pass) ─────
+    // The grader above ran on the PRE-cap stop set, then enforceWalkLegCap can soft-delete
+    // stops (it pruned this tour 6 -> 2), leaving a stale "pass" on a gutted tour. When the
+    // cap dropped stops, re-grade the live post-cap set against the same family context. If
+    // the post-cap set is now INSUFFICIENT, attempt ONE budget-guarded clustering
+    // regeneration (snapshot-restored so it can never leave the tour worse or empty), then
+    // persist the grade of whatever actually ships — never "pass" when the shipped set fails.
+    if (tourId && capDroppedCount > 0 && finalStopsFromDb.length > 0) {
+      try {
+        const graderInputs2: GraderGenerationInputs = { prompt, transport, inputGroup, inputVibe, inputDurationHr };
+        const graderFamilyCtx2: GraderFamilyContext = {
+          ages: graderAges, dietary: graderDietary, foodAllergies: graderFoodAllergies,
+          pace: graderPaceStr, travelStyle: graderStyleStr, interestKeys: graderInterestKeys,
+        };
+        const toGraderStops2 = (rows: typeof finalStopsFromDb): GraderStop[] =>
+          rows.map(s => ({
+            placeId: s.placeId, name: s.name, lat: s.lat, lng: s.lng, placeTypes: s.placeTypes,
+            businessStatus: businessStatusMap.get(s.placeId ?? s.name) ?? null,
+            why: s.why, familyNote: s.familyNote,
+          }));
+
+        // Deterministic floor first (mirrors checkInsufficientStops): if the post-cap set is
+        // too few stops for the duration, drop the stale "pass" immediately — so even if the
+        // LLM re-grade below throws near the time limit, a gutted tour is never left as pass.
+        const minStops2 = inputDurationHr === null ? 3 : inputDurationHr <= 2 ? 2 : inputDurationHr <= 5 ? 3 : 4;
+        if (finalStopsFromDb.length < minStops2 && dbGraderStatus === "pass") {
+          dbGraderStatus = "low_confidence";
+          dbGraderRanAt = new Date();
+          await db.generatedTour.update({
+            where: { id: tourId },
+            data: { graderStatus: dbGraderStatus, graderRanAt: dbGraderRanAt, graderScore: dbGraderScore, graderFlags: dbGraderFlags ?? Prisma.JsonNull },
+          });
+          console.log(`[tour-grader] post-cap deterministic insufficient (stops=${finalStopsFromDb.length}<${minStops2}) -> low_confidence (pre-LLM floor)`);
+        }
+
+        let postGrade = await gradeTour(toGraderStops2(finalStopsFromDb), graderFamilyCtx2, graderInputs2);
+        let postInsufficient = postGrade.flags.some(f => f.code === "INSUFFICIENT_STOPS");
+        console.log(`[tour-grader] post-cap regrade tourId=${tourId} score=${postGrade.score} regenerate=${postGrade.regenerate} insufficient=${postInsufficient} stops=${finalStopsFromDb.length}`);
+
+        if (postInsufficient && Date.now() - t0 + RESERVE_REGEN <= BUDGET_MS) {
+          const guttedSnapshot = [...finalStopsFromDb];
+          const clusterHint = `CRITICAL: All stops MUST be in ONE tight walkable cluster. A previous attempt was pruned to ${finalStopsFromDb.length} stop(s) because the venues were too far apart to walk between. Choose a SINGLE neighborhood and return ${targetStops} venues that are genuinely close together — every consecutive pair within ${maxWalk} minutes walk (~${maxDistMeters}m). Geographic clustering matters more than theme variety here.`;
+          console.log(`[tour-grader] post-cap insufficient — one bounded clustering regeneration`);
+          // runStream(attempt>0) hard-deletes existing rows then writes the fresh pass.
+          await runStream(11, clusterHint);
+          let regenStops = await db.tourStop.findMany({ where: { tourId, deletedAt: null }, orderBy: { orderIndex: "asc" } });
+
+          const rc = regenStops.filter(s => s.lat != null && s.lng != null);
+          if (rc.length >= 3) {
+            try {
+              const pf = resolvedStartName ? findStartPointId(resolvedStartName, regenStops) : undefined;
+              const opt = optimizeRouteOrder(rc.map(s => ({ id: s.id, lat: s.lat!, lng: s.lng! })), pf);
+              pinEndLast(opt, resolvedEnd ? findEndPointId(resolvedEnd.name, regenStops) : undefined, pf);
+              await Promise.all(opt.map((s, i) => db.tourStop.update({ where: { id: s.id }, data: { orderIndex: i } })));
+              regenStops = await db.tourStop.findMany({ where: { tourId, deletedAt: null }, orderBy: { orderIndex: "asc" } });
+            } catch { /* keep unoptimized */ }
+          }
+          try {
+            const legs2 = await measureAdjacentLegs(regenStops.map(s => ({ lat: s.lat, lng: s.lng })), transport);
+            await Promise.all(regenStops.map((s, i) => db.tourStop.update({ where: { id: s.id }, data: { travelTimeMin: legs2[i] } })));
+            const enf2 = await enforceWalkLegCap(tourId, transport, regenStops.map(s => ({ id: s.id, lat: s.lat, lng: s.lng })));
+            if (enf2 && enf2.droppedIds.length > 0) {
+              regenStops = await db.tourStop.findMany({ where: { tourId, deletedAt: null }, orderBy: { orderIndex: "asc" } });
+            }
+          } catch (e) { console.error("[tour-grader] post-cap regen measure/cap failed:", e); }
+
+          const regenGrade = await gradeTour(toGraderStops2(regenStops), graderFamilyCtx2, graderInputs2);
+          const regenInsufficient = regenGrade.flags.some(f => f.code === "INSUFFICIENT_STOPS");
+          if (!regenInsufficient && regenStops.length >= guttedSnapshot.length && regenGrade.score >= postGrade.score) {
+            finalStopsFromDb = regenStops;
+            postGrade = regenGrade;
+            postInsufficient = regenInsufficient;
+            console.log(`[tour-grader] post-cap regen KEPT: score=${regenGrade.score} stops=${regenStops.length}`);
+          } else {
+            // Restore the gutted survivors — runStream hard-deleted them.
+            await db.tourStop.deleteMany({ where: { tourId } });
+            let ri = 0;
+            for (const s of guttedSnapshot) {
+              await db.tourStop.create({ data: { id: s.id, tourId, orderIndex: ri++, name: s.name, address: s.address, lat: s.lat, lng: s.lng, durationMin: s.durationMin, travelTimeMin: s.travelTimeMin, why: s.why, familyNote: s.familyNote, imageUrl: s.imageUrl, websiteUrl: s.websiteUrl, placeId: s.placeId, ticketRequired: s.ticketRequired, placeTypes: s.placeTypes ?? [] } });
+            }
+            finalStopsFromDb = await db.tourStop.findMany({ where: { tourId, deletedAt: null }, orderBy: { orderIndex: "asc" } });
+            console.log(`[tour-grader] post-cap regen DISCARDED (insufficient=${regenInsufficient} score=${regenGrade.score} < ${postGrade.score}) — restored ${guttedSnapshot.length}-stop set`);
+          }
+        }
+
+        // Honest persist — NEVER "pass" when the shipped post-cap set fails the grader.
+        dbGraderScore = postGrade.score;
+        dbGraderFlags = postGrade.flags as unknown as Prisma.InputJsonValue;
+        dbGraderStatus = postGrade.regenerate ? "low_confidence" : "pass";
+        dbGraderRanAt = new Date();
+        await db.generatedTour.update({
+          where: { id: tourId },
+          data: { graderScore: dbGraderScore, graderStatus: dbGraderStatus, graderFlags: dbGraderFlags ?? Prisma.JsonNull, graderRanAt: dbGraderRanAt },
+        });
+        console.log(`[tour-grader] post-cap honest persist tourId=${tourId} status=${dbGraderStatus} score=${dbGraderScore} stops=${finalStopsFromDb.length}`);
+      } catch (e) {
+        console.error("[tour-grader] post-cap regrade pipeline failed:", e);
       }
     }
 
