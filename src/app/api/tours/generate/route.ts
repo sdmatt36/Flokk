@@ -10,6 +10,7 @@ import { optimizeRouteOrder } from "@/lib/tour-route-optimization";
 import { resolveCanonicalUrl } from "@/lib/url-resolver";
 import { resolveGooglePhotoUrl, PLACES_INFRA_STATUSES, PlacesInfraError } from "@/lib/google-places";
 import { resolveWebsitePlace } from "@/lib/enrich-save";
+import { extractOgMetadata } from "@/lib/og-extract";
 import { aggregateTripContext, flatChildAges, describePace, topInterests } from "@/lib/trip-context-multi";
 import { DestinationType, Prisma } from "@prisma/client";
 import { gradeTour, graderFlagsToInstruction, type GraderFamilyContext, type GraderGenerationInputs, type GraderStop } from "@/lib/tour-grader";
@@ -70,14 +71,73 @@ function pinEndLast<T extends { id: string }>(optimized: T[], endId: string | un
 // Catches "end at / ends at / finish at / finishing at <target>" and a trailing/embedded URL.
 function extractEndIntentTarget(prompt: string): string | null {
   if (!prompt) return null;
-  const phrase = prompt.match(/\b(?:end(?:s|ing)?|finish(?:es|ing)?)\s+(?:at|near|with)\s+(.+?)(?:[.\n]|$)/i);
+  // Capture the clause after an end-intent phrase up to a newline or end of string. We do NOT
+  // terminate on "." — URLs and abbreviations contain dots, and the old [.\n] terminator
+  // truncated "https://www.ysvege.com/en/" to "https://www".
+  const phrase = prompt.match(/\b(?:end(?:s|ing)?|finish(?:es|ing)?)\s+(?:at|near|with)\s+(.+)$/im);
   if (phrase?.[1]) {
-    const target = phrase[1].trim();
-    const innerUrl = target.match(/https?:\/\/[^\s)]+/i);
-    return innerUrl?.[0] ?? target;
+    const clause = phrase[1].trim();
+    const innerUrl = clause.match(/https?:\/\/[^\s)]+/i);
+    if (innerUrl) return innerUrl[0].replace(/[).,;:]+$/, "");
+    return clause.replace(/[).,;:]+$/, "").trim() || null;
   }
   const url = prompt.match(/https?:\/\/[^\s)]+/i);
-  return url?.[0] ?? null;
+  return url ? url[0].replace(/[).,;:]+$/, "") : null;
+}
+
+// Strip a site/suffix tail from a scraped page title to recover the bare place name.
+// "YS Vege | Vegetarian Restaurant" -> "YS Vege"; splits on | • · and en/em dashes.
+function cleanPlaceLabel(title: string | null | undefined): string | null {
+  if (!title) return null;
+  const first = title.split(/\s*[|•·–—]\s*|\s+-\s+/)[0].trim();
+  return first || title.trim() || null;
+}
+
+// Last-resort label from a URL host: "https://www.ysvege.com/en/" -> "Ysvege".
+function labelFromUrlHost(url: string): string | null {
+  try {
+    const core = new URL(url).hostname.replace(/^www\./, "").split(".")[0];
+    return core ? core.charAt(0).toUpperCase() + core.slice(1) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Resolve a name OR url to a place. DETERMINISTIC: returns name-only ({lat,lng,placeId} null) when
+// the geo lookup fails but a usable label exists, so the caller can still pin/append it. Returns
+// null only for empty input (or a url with no derivable label). Order for a url: structured
+// resolve (coords+placeId) -> scraped title geocoded -> scraped/host name-only.
+async function resolveLabeledPlace(
+  target: string,
+  destinationCity: string,
+  transport: string,
+  destinationCenter: { lat: number; lng: number } | null,
+): Promise<{ name: string; lat: number | null; lng: number | null; placeId: string | null } | null> {
+  const t = target.trim();
+  if (!t) return null;
+  const zeros = { address: "", lat: 0, lng: 0, duration: 0, travelTime: 0, why: "", familyNote: "", themeRelevance: "" };
+
+  if (/^https?:\/\//i.test(t)) {
+    try {
+      const wp = await resolveWebsitePlace(t, "", destinationCity, null);
+      if (wp?.placeName && wp.lat != null && wp.lng != null) {
+        return { name: wp.placeName, lat: wp.lat, lng: wp.lng, placeId: wp.placeId };
+      }
+    } catch (e) {
+      console.error("[tour-anchor] resolveWebsitePlace failed:", e instanceof Error ? e.message : String(e));
+    }
+    let name: string | null = null;
+    try { name = cleanPlaceLabel((await extractOgMetadata(t))?.title); } catch { /* scrape failure is non-fatal */ }
+    if (!name) name = labelFromUrlHost(t);
+    if (!name) return null;
+    const rs = await resolveAgainstPlaces({ name, ...zeros }, destinationCity, transport, destinationCenter).catch(() => null);
+    if (rs && rs.lat != null && rs.lng != null) return { name: rs.name, lat: rs.lat, lng: rs.lng, placeId: rs.placeId };
+    return { name, lat: null, lng: null, placeId: null };
+  }
+
+  const rs = await resolveAgainstPlaces({ name: t, ...zeros }, destinationCity, transport, destinationCenter).catch(() => null);
+  if (rs && rs.lat != null && rs.lng != null) return { name: rs.name, lat: rs.lat, lng: rs.lng, placeId: rs.placeId };
+  return { name: t, lat: null, lng: null, placeId: null };
 }
 
 async function resolveDestinationCanonical(destinationCity: string): Promise<{
@@ -769,49 +829,35 @@ export async function POST(req: NextRequest) {
       ? `\n\nThe user's lodging is at coordinates ${anchorLat}, ${anchorLng}. The tour must be anchored near this location:\n- Walking: first stop within 1km of lodging, last stop within 1km of lodging (round-trip from base)\n- Metro / Transit: first stop within 1.5km of lodging or a transit station within 800m of lodging\n- Driving: first stop within 5km of lodging, last stop within 5km of lodging`
       : "";
 
-    const startingPointInstruction = inputStartPoint
-      ? `\n\nSTARTING POINT: "${inputStartPoint}"
+    // Start point: if it's a URL, resolve it to a place name first (mirror the end's URL branch);
+    // otherwise keep the raw text (existing name path). resolvedStartName drives both the prompt
+    // instruction and the post-gen Stop-1 pin.
+    let resolvedStartName: string | null = inputStartPoint;
+    if (inputStartPoint && /^https?:\/\//i.test(inputStartPoint)) {
+      const rsp = await resolveLabeledPlace(inputStartPoint, destinationCity, transport, destinationCenter);
+      resolvedStartName = rsp?.name ?? inputStartPoint;
+      console.log(`[tour-start-anchor] inputStartPoint(url)="${inputStartPoint}" resolved="${resolvedStartName}"`);
+    }
+
+    const startingPointInstruction = resolvedStartName
+      ? `\n\nSTARTING POINT: "${resolvedStartName}"
 THIS IS STOP 1. The user expects to begin here.
-- If "${inputStartPoint}" is a specific named venue, use it verbatim as Stop 1.
-- If "${inputStartPoint}" is a broader area or landmark (e.g. "Times Square", "Tuileries", "Downtown"), choose the most iconic specific venue AT that location as Stop 1 (e.g. "Times Square" → "TKTS Booth at Father Duffy Square"; "Tuileries" → "Jardin des Tuileries main entrance"). DO NOT silently skip or move past the starting point.`
+- If "${resolvedStartName}" is a specific named venue, use it verbatim as Stop 1.
+- If "${resolvedStartName}" is a broader area or landmark (e.g. "Times Square", "Tuileries", "Downtown"), choose the most iconic specific venue AT that location as Stop 1 (e.g. "Times Square" → "TKTS Booth at Father Duffy Square"; "Tuileries" → "Jardin des Tuileries main entrance"). DO NOT silently skip or move past the starting point.`
       : "";
 
     // ── End anchor ──────────────────────────────────────────────────────────────
     // Resolve a FINAL STOP from the explicit inputEndPoint, or (free-text promotion — the
     // reported-bug fix) from an "end at / finish at <X>" phrase or a URL embedded in the prompt.
-    // URL -> resolveWebsitePlace (name + coords + placeId); name -> resolveAgainstPlaces.
-    // On any failure we keep the raw text and still inject an end instruction — never hard-fail.
-    let resolvedEnd: { name: string; lat: number | null; lng: number | null; placeId: string | null } | null = null;
-    let endRawText: string | null = null;
-    {
-      const endTarget = inputEndPoint ?? extractEndIntentTarget(prompt);
-      if (endTarget) {
-        endRawText = endTarget;
-        try {
-          if (/^https?:\/\//i.test(endTarget)) {
-            const wp = await resolveWebsitePlace(endTarget, "", destinationCity, null);
-            if (wp?.placeName && wp.lat != null && wp.lng != null) {
-              resolvedEnd = { name: wp.placeName, lat: wp.lat, lng: wp.lng, placeId: wp.placeId };
-            }
-          } else {
-            const rs = await resolveAgainstPlaces(
-              { name: endTarget, address: "", lat: 0, lng: 0, duration: 0, travelTime: 0, why: "", familyNote: "", themeRelevance: "" },
-              destinationCity, transport, destinationCenter,
-            );
-            if (rs && rs.lat != null && rs.lng != null) {
-              resolvedEnd = { name: rs.name, lat: rs.lat, lng: rs.lng, placeId: rs.placeId };
-            }
-          }
-        } catch (e) {
-          console.error("[tour-end-anchor] resolve failed, falling back to raw text:", e instanceof Error ? e.message : String(e));
-        }
-        console.log(`[tour-end-anchor] endTarget="${endTarget}" resolved=${resolvedEnd ? `"${resolvedEnd.name}" @${resolvedEnd.lat},${resolvedEnd.lng}` : "none"}`);
-      }
-    }
+    // resolveLabeledPlace is DETERMINISTIC: URL -> structured place, else scraped/host name (with
+    // a geocode attempt), else name-only. So once an end target exists, resolvedEnd is non-null
+    // and the stop is appended/pinned below — the end is never silently dropped.
+    const endTarget = inputEndPoint ?? extractEndIntentTarget(prompt);
+    const resolvedEnd = endTarget ? await resolveLabeledPlace(endTarget, destinationCity, transport, destinationCenter) : null;
+    console.log(`[tour-end-anchor] endTarget="${endTarget ?? "none"}" resolved=${resolvedEnd ? `"${resolvedEnd.name}" @${resolvedEnd.lat ?? "?"},${resolvedEnd.lng ?? "?"}` : "none"}`);
+
     const endAnchorInstruction = resolvedEnd
       ? `\n\nFINAL STOP: "${resolvedEnd.name}"${resolvedEnd.lat != null && resolvedEnd.lng != null ? ` (coordinates ${resolvedEnd.lat}, ${resolvedEnd.lng})` : ""}. The tour MUST end here as the last stop. Order the preceding stops so the route flows toward this location. Place nothing after it.`
-      : endRawText
-      ? `\n\nFINAL STOP: "${endRawText}". The tour MUST end here as the last stop. If "${endRawText}" is a specific named venue, use it verbatim as the final stop. Order the preceding stops so the route flows toward it. Place nothing after it.`
       : "";
 
     const familyNoteRule = isNoChildren
@@ -1329,7 +1375,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
     const stopsWithCoords = finalStopsFromDb.filter(s => s.lat != null && s.lng != null);
     if (stopsWithCoords.length >= 3) {
       try {
-        const pinnedFirstId = inputStartPoint ? findStartPointId(inputStartPoint, finalStopsFromDb) : undefined;
+        const pinnedFirstId = resolvedStartName ? findStartPointId(resolvedStartName, finalStopsFromDb) : undefined;
         console.log(`[tour-start-point] inputStartPoint="${inputStartPoint ?? "none"}" preOptimStop1="${finalStopsFromDb[0]?.name ?? "none"}" pinnedFirstId="${pinnedFirstId ?? "none"}"`);
         const optimized = optimizeRouteOrder(
           stopsWithCoords.map(s => ({ id: s.id, lat: s.lat!, lng: s.lng! })),
@@ -1512,7 +1558,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
           const regenWithCoords = regenFinalStops.filter(s => s.lat != null && s.lng != null);
           if (regenWithCoords.length >= 3) {
             try {
-              const pf2 = inputStartPoint ? findStartPointId(inputStartPoint, regenFinalStops) : undefined;
+              const pf2 = resolvedStartName ? findStartPointId(resolvedStartName, regenFinalStops) : undefined;
               const opt2 = optimizeRouteOrder(regenWithCoords.map(s => ({ id: s.id, lat: s.lat!, lng: s.lng! })), pf2);
               pinEndLast(opt2, resolvedEnd ? findEndPointId(resolvedEnd.name, regenFinalStops) : undefined, pf2);
               await Promise.all(opt2.map((s, i) => db.tourStop.update({ where: { id: s.id }, data: { orderIndex: i } })));

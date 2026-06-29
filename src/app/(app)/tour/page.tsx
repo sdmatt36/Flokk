@@ -792,7 +792,7 @@ export default function TourPage() {
             type="text"
             value={startingPoint}
             onChange={(e) => setStartingPoint(e.target.value)}
-            placeholder="Starting point (optional: hotel name, landmark, address)"
+            placeholder="Starting point (optional: hotel, landmark, address, or paste a link)"
             className={`${inputClass} mt-3`}
           />
 
@@ -800,7 +800,7 @@ export default function TourPage() {
             type="text"
             value={endLocation}
             onChange={(e) => setEndLocation(e.target.value)}
-            placeholder="Restaurant, landmark, or paste a link — optional"
+            placeholder="Ending point (optional: hotel, landmark, address, or paste a link)"
             className={`${inputClass} mt-3`}
           />
 
