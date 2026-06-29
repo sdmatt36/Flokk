@@ -38,7 +38,7 @@ export default function ContactPage() {
       if (!res.ok) throw new Error("Failed to send");
       setSubmitted(true);
     } catch {
-      setError("Something went wrong. Please email matt@flokktravel.com directly.");
+      setError("Something went wrong. Please email hello@flokktravel.com directly.");
     } finally {
       setSubmitting(false);
     }
