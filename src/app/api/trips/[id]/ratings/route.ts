@@ -94,9 +94,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       })
     : null;
 
-  const rating = existingBySavedItem
+  // Mirror the savedItemId dedup for a manual activity with no paired savedItem: without this a
+  // repeat POST creates a duplicate manualActivityId-keyed PlaceRating that skews flywheel
+  // averages. Same familyProfileId scoping as the savedItemId branch. PlaceRating has no
+  // deletedAt column, so no soft-delete filter is needed.
+  const existingByManual = (!canonicalSavedItemId && body.manualActivityId)
+    ? await db.placeRating.findFirst({
+        where: { manualActivityId: body.manualActivityId, familyProfileId: profileId },
+      })
+    : null;
+
+  const existing = existingBySavedItem ?? existingByManual;
+
+  const rating = existing
     ? await db.placeRating.update({
-        where: { id: existingBySavedItem.id },
+        where: { id: existing.id },
         data: {
           rating: ratingPayload.rating,
           notes: ratingPayload.notes,
