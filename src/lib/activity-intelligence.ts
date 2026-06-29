@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import { HAIKU } from "@/lib/ai-models";
 import { resolveGooglePhotoUrl } from "@/lib/google-places";
+import { toDurableImageUrl } from "@/lib/imageStore";
 
 let _client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -134,15 +135,21 @@ export async function enrichActivityImage(
     const searchRes = await fetch(searchUrl);
     const searchData = await searchRes.json();
 
+    const placeId: string | null = searchData.results?.[0]?.place_id ?? null;
+
     const photoRef = searchData.results?.[0]?.photos?.[0]?.photo_reference;
     if (!photoRef) return null;
 
-    // Step 2 — Get photo URL and follow redirect to final lh3.googleusercontent.com URL
+    // Step 2 — Get photo URL and follow redirect to the Google CDN URL, then PERSIST it durably.
+    // Google place-photos CDN links expire on a rolling basis, so store our own copy instead of
+    // the raw redirect URL (mirrors enrich-with-places.ts). Falls back to the raw URL only if the
+    // durable upload fails.
     const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=${photoRef}&key=${apiKey}`;
-    const finalImageUrl = await resolveGooglePhotoUrl(photoUrl);
-    if (!finalImageUrl) return null;
+    const resolvedImageUrl = await resolveGooglePhotoUrl(photoUrl);
+    if (!resolvedImageUrl) return null;
+    const finalImageUrl = (await toDurableImageUrl(resolvedImageUrl)) ?? resolvedImageUrl;
 
-    // Step 3 — If manualActivity context provided, write to ManualActivity and sync SavedItem
+    // Step 3 — If manualActivity context provided, write to ManualActivity and sync SavedItem.
     if (manualActivity) {
       await db.manualActivity.update({
         where: { id: manualActivity.id },
@@ -155,7 +162,9 @@ export async function enrichActivityImage(
             familyProfileId: manualActivity.familyProfileId,
             rawTitle: { contains: manualActivity.title, mode: "insensitive" },
           },
-          data: { placePhotoUrl: finalImageUrl },
+          // Capture the resolved placeId (previously discarded) so future re-enrichment can
+          // re-fetch a fresh photo by id rather than by name.
+          data: { placePhotoUrl: finalImageUrl, ...(placeId ? { googlePlaceId: placeId } : {}) },
         });
       } catch (e) {
         console.error("[enrichActivityImage] SavedItem sync failed:", e);
