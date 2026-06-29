@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { pickMacroCity, normalizeCityName } from "@/lib/city-resolution";
+import { pickMacroCityFromResults } from "@/lib/city-resolution";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -26,13 +26,12 @@ async function geocodeLatlng(lat: number, lng: number): Promise<GeoDetail | null
     if (!res.ok) return null;
     const data = await res.json() as {
       status: string;
-      results?: Array<{ address_components: Array<{ long_name: string; short_name: string; types: string[] }> }>;
+      results?: Array<{ types: string[]; address_components: Array<{ long_name: string; short_name: string; types: string[] }> }>;
     };
     if (data.status !== "OK" || !data.results?.length) return null;
-    const allComponents = data.results.flatMap((r) => r.address_components ?? []);
-    const cityName = normalizeCityName(pickMacroCity(allComponents));
+    const cityName = pickMacroCityFromResults(data.results);
     if (!cityName) return null;
-    const countryCode = allComponents.find((c) => c.types.includes("country"))?.short_name ?? "";
+    const countryCode = data.results.flatMap((r) => r.address_components ?? []).find((c) => c.types.includes("country"))?.short_name ?? "";
     return { cityName, countryCode };
   } catch { return null; }
 }

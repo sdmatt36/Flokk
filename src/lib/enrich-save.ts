@@ -7,7 +7,7 @@ import { HAIKU } from "@/lib/ai-models";
 import he from "he";
 import { getVenueImage } from "@/lib/destination-images";
 import { resolveGooglePhotoUrl, PLACES_INFRA_STATUSES } from "@/lib/google-places";
-import { pickMacroCity, normalizeCityName } from "./city-resolution";
+import { pickMacroCityFromResults } from "./city-resolution";
 import { verifyWebsiteUrl } from "@/lib/activity-intelligence";
 import { normalizeAndDedupeCategoryTags } from "@/lib/category-tags";
 import { mapPlaceTypesToCanonicalSlugs, normalizeCategorySlug } from "@/lib/categories";
@@ -839,13 +839,12 @@ async function reverseGeocodeCity(
   try {
     const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&language=en&key=${key}`;
     const res = await fetch(url);
-    const data = await res.json() as { results?: { address_components: { long_name: string; types: string[] }[] }[] };
-    // Flatten components across ALL results: the macro city is frequently its OWN result typed
-    // `locality` (e.g. "Taipei", "Denpasar"), absent from results[0] (the POI/street result, which
-    // leads with the district). pickMacroCity then drops admin_area_2/_3. See city-resolution.ts.
-    const components = (data?.results ?? []).flatMap((r) => r.address_components ?? []);
-    const city = normalizeCityName(pickMacroCity(components));
-    const country = components.find((c) => c.types.includes("country"))?.long_name ?? null;
+    const data = await res.json() as { results?: { types: string[]; address_components: { long_name: string; types: string[] }[] }[] };
+    // Macro city via the shared resolver, which picks the standalone-locality result (English
+    // exonym) and returns null rather than snapping to a region. See city-resolution.ts.
+    const results = data?.results ?? [];
+    const city = pickMacroCityFromResults(results);
+    const country = results.flatMap((r) => r.address_components ?? []).find((c) => c.types.includes("country"))?.long_name ?? null;
     return { city, country };
   } catch (err) {
     console.error("[reverseGeocodeCity] failed:", err);

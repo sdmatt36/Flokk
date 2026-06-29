@@ -10,7 +10,7 @@ import {
 } from "@/lib/google-places";
 import { mapPlaceTypesToCanonicalSlugs } from "@/lib/categories";
 import { toDurableImageUrl } from "@/lib/imageStore";
-import { pickMacroCity, normalizeCityName } from "@/lib/city-resolution";
+import { pickMacroCityFromResults, normalizeCityName } from "@/lib/city-resolution";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -107,16 +107,17 @@ async function geocodeCity(lat: number, lng: number): Promise<GeoDetail | null> 
     const data = await res.json() as {
       status: string;
       results?: Array<{
+        types: string[];
         address_components: Array<{ long_name: string; short_name: string; types: string[] }>;
       }>;
     };
     if (data.status !== "OK" || !data.results?.length) return null;
 
-    // Macro city via the shared resolver (flatten across all results), normalized to clean English.
-    // adminArea1 (the parent state/prefecture) is still captured separately for resolveOrCreateCity's
-    // sub-city -> parent mapping. country from the same flattened set.
+    // Macro city via the shared resolver (standalone-locality result + region-null). adminArea1 (the
+    // parent state/prefecture) is still captured separately for resolveOrCreateCity's sub-city ->
+    // parent mapping. A null city (region) means "unresolvable" — the caller leaves cityId null.
     const allComponents = data.results.flatMap((r) => r.address_components ?? []);
-    const cityName = normalizeCityName(pickMacroCity(allComponents));
+    const cityName = pickMacroCityFromResults(data.results);
     if (!cityName) return null;
     const a1 = allComponents.find((c) => c.types.includes("administrative_area_level_1"));
     const adminArea1 = a1 ? normalizeCityName(a1.long_name) : null;

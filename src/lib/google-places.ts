@@ -6,7 +6,7 @@
 // geocoding, and autocomplete callers remain in their own modules and were not
 // migrated in this prompt. Future consolidation is a separate scoped effort.
 
-import { pickMacroCity, normalizeCityName } from "./city-resolution";
+import { pickMacroCityFromResults } from "./city-resolution";
 
 const API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? "";
 const PLACES_TEXT_SEARCH = "https://maps.googleapis.com/maps/api/place/textsearch/json";
@@ -488,6 +488,7 @@ export async function reverseGeocodeCityFromCoords(
     const data = await res.json() as {
       status: string;
       results?: Array<{
+        types: string[];
         address_components: Array<{ long_name: string; types: string[] }>;
       }>;
     };
@@ -497,10 +498,8 @@ export async function reverseGeocodeCityFromCoords(
     }
     if (data.status !== "OK" || !data.results?.length) return null;
 
-    // Flatten components across ALL results (the locality is often its own result, not results[0])
-    // and pick the macro city via the shared helper, then normalize to the clean English name.
-    const components = data.results.flatMap((r) => r.address_components ?? []);
-    return normalizeCityName(pickMacroCity(components));
+    // Macro city via the shared resolver (standalone-locality result + region-null behavior).
+    return pickMacroCityFromResults(data.results);
   } catch {
     return null;
   }
