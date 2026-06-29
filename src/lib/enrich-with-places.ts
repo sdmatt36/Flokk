@@ -6,6 +6,7 @@
 import { extractSearchableTitle } from "./extract-searchable-title";
 import { resolveGooglePhotoUrl, PLACES_INFRA_STATUSES } from "@/lib/google-places";
 import { toDurableImageUrl } from "@/lib/imageStore";
+import { pickMacroCity } from "@/lib/city-resolution";
 
 const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY ?? "";
 
@@ -125,13 +126,9 @@ export async function enrichWithPlaces(
       const lng = result.geometry?.location?.lng ?? null;
       const formattedAddress = result.formatted_address ?? null;
 
-      // Extract city from address_components: locality → postal_town → admin_area_level_2 → admin_area_level_1
-      // postal_town is used in UK addresses where locality is absent (e.g. London boroughs)
-      const locality = addressComponents.find(c => c.types.includes("locality"));
-      const postalTown = addressComponents.find(c => c.types.includes("postal_town"));
-      const adminArea2 = addressComponents.find(c => c.types.includes("administrative_area_level_2"));
-      const adminArea1 = addressComponents.find(c => c.types.includes("administrative_area_level_1"));
-      const extractedCity = locality?.long_name ?? postalTown?.long_name ?? adminArea2?.long_name ?? adminArea1?.long_name ?? null;
+      // Macro city via the shared resolver: locality → postal_town → admin_area_level_1, dropping
+      // the district at admin_area_level_2/_3 (the Beyoğlu / Santa Maria Maior bug). See city-resolution.ts.
+      const extractedCity = pickMacroCity(addressComponents);
       const extractedCountry = addressComponents.find(c => c.types.includes("country"))?.long_name ?? null;
 
       let imageUrl: string | null = null;
