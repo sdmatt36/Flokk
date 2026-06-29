@@ -1231,7 +1231,7 @@ export async function enrichSavedItem(savedItemId: string): Promise<void> {
   if (coords) { updateData.lat = coords.lat; updateData.lng = coords.lng; }
   if (place.website && !item.sourceUrl) updateData.sourceUrl = place.website;
   if (place.photoUrl) updateData.placePhotoUrl = await toDurableImageUrl(place.photoUrl);
-  if (sbThumbnail && !/[?&]key=AIza/i.test(sbThumbnail)) updateData.mediaThumbnailUrl = sbThumbnail;
+  if (sbThumbnail && !/[?&]key=AIza/i.test(sbThumbnail)) updateData.mediaThumbnailUrl = (await toDurableImageUrl(sbThumbnail)) ?? sbThumbnail;
   if (typeof place.rating === "number") updateData.relevanceScore = place.rating;
   if (description && !workingDescription) updateData.rawDescription = description;
   if (mapsCategory && (!item.categoryTags || item.categoryTags.length === 0)) {

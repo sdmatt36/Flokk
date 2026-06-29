@@ -225,6 +225,11 @@ export async function POST(request: Request) {
       }
     }
 
+    // Persist the social thumbnail to our storage while the CDN URL is fresh (Instagram/TikTok
+    // CDN links expire); store the durable URL, falling back to the raw URL only if the upload
+    // fails. Done before the transaction so the network call never runs inside it.
+    mediaThumbnailUrl = await toDurableImageUrl(mediaThumbnailUrl);
+
     const savedItem = await db.$transaction(async (tx) => {
       const created = await tx.savedItem.create({
         data: {
