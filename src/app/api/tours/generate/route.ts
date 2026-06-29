@@ -9,6 +9,7 @@ import { haversineMeters, haversineKm } from "@/lib/geo";
 import { optimizeRouteOrder } from "@/lib/tour-route-optimization";
 import { resolveCanonicalUrl } from "@/lib/url-resolver";
 import { resolveGooglePhotoUrl, PLACES_INFRA_STATUSES, PlacesInfraError } from "@/lib/google-places";
+import { resolveWebsitePlace } from "@/lib/enrich-save";
 import { aggregateTripContext, flatChildAges, describePace, topInterests } from "@/lib/trip-context-multi";
 import { DestinationType, Prisma } from "@prisma/client";
 import { gradeTour, graderFlagsToInstruction, type GraderFamilyContext, type GraderGenerationInputs, type GraderStop } from "@/lib/tour-grader";
@@ -40,6 +41,43 @@ function findStartPointId(startPoint: string, stops: Array<{ id: string; name: s
     return sName.includes(norm) || norm.includes(sName);
   });
   return match?.id ?? stops[0]?.id;
+}
+
+// Returns the id of the stop matching the resolved end point. STRICT: no fallback — returns
+// undefined when no stop matches, so the caller can append the end stop instead of mis-pinning.
+function findEndPointId(endName: string, stops: Array<{ id: string; name: string | null }>): string | undefined {
+  const norm = endName.toLowerCase().trim();
+  if (!norm) return undefined;
+  const match = stops.find(s => {
+    const sName = (s.name ?? "").toLowerCase();
+    return sName.length > 0 && (sName.includes(norm) || norm.includes(sName));
+  });
+  return match?.id;
+}
+
+// Move the pinned end stop to the last position of an already-ordered list (mutates in place).
+// No-op if there is no end pin or it coincides with the pinned first stop.
+function pinEndLast<T extends { id: string }>(optimized: T[], endId: string | undefined, firstId: string | undefined): void {
+  if (!endId || endId === firstId) return;
+  const li = optimized.findIndex(s => s.id === endId);
+  if (li >= 0) {
+    const [endStop] = optimized.splice(li, 1);
+    optimized.push(endStop);
+  }
+}
+
+// Extract an end-intent target from free-text prompt copy when no explicit inputEndPoint was set.
+// Catches "end at / ends at / finish at / finishing at <target>" and a trailing/embedded URL.
+function extractEndIntentTarget(prompt: string): string | null {
+  if (!prompt) return null;
+  const phrase = prompt.match(/\b(?:end(?:s|ing)?|finish(?:es|ing)?)\s+(?:at|near|with)\s+(.+?)(?:[.\n]|$)/i);
+  if (phrase?.[1]) {
+    const target = phrase[1].trim();
+    const innerUrl = target.match(/https?:\/\/[^\s)]+/i);
+    return innerUrl?.[0] ?? target;
+  }
+  const url = prompt.match(/https?:\/\/[^\s)]+/i);
+  return url?.[0] ?? null;
 }
 
 async function resolveDestinationCanonical(destinationCity: string): Promise<{
@@ -372,6 +410,7 @@ export async function POST(req: NextRequest) {
     transport?: string;
     tripId?: string;
     inputStartPoint?: string;
+    inputEndPoint?: string;
     inputGroup?: string;
     inputVibe?: string[];
     inputDurationHr?: number;
@@ -381,6 +420,7 @@ export async function POST(req: NextRequest) {
   const transport = body.transport ?? "Walking";
   const tripId = body.tripId ?? null;
   const inputStartPoint = body.inputStartPoint?.trim() || null;
+  const inputEndPoint = body.inputEndPoint?.trim() || null;
   const inputGroup = body.inputGroup ?? "family_kids";
   const inputVibe: string[] = body.inputVibe ?? [];
   const inputDurationHr = body.inputDurationHr ?? null;
@@ -611,6 +651,7 @@ export async function POST(req: NextRequest) {
         inputVibe,
         inputDurationHr,
         inputStartPoint,
+        inputEndPoint,
       },
     });
 
@@ -735,6 +776,44 @@ THIS IS STOP 1. The user expects to begin here.
 - If "${inputStartPoint}" is a broader area or landmark (e.g. "Times Square", "Tuileries", "Downtown"), choose the most iconic specific venue AT that location as Stop 1 (e.g. "Times Square" → "TKTS Booth at Father Duffy Square"; "Tuileries" → "Jardin des Tuileries main entrance"). DO NOT silently skip or move past the starting point.`
       : "";
 
+    // ── End anchor ──────────────────────────────────────────────────────────────
+    // Resolve a FINAL STOP from the explicit inputEndPoint, or (free-text promotion — the
+    // reported-bug fix) from an "end at / finish at <X>" phrase or a URL embedded in the prompt.
+    // URL -> resolveWebsitePlace (name + coords + placeId); name -> resolveAgainstPlaces.
+    // On any failure we keep the raw text and still inject an end instruction — never hard-fail.
+    let resolvedEnd: { name: string; lat: number | null; lng: number | null; placeId: string | null } | null = null;
+    let endRawText: string | null = null;
+    {
+      const endTarget = inputEndPoint ?? extractEndIntentTarget(prompt);
+      if (endTarget) {
+        endRawText = endTarget;
+        try {
+          if (/^https?:\/\//i.test(endTarget)) {
+            const wp = await resolveWebsitePlace(endTarget, "", destinationCity, null);
+            if (wp?.placeName && wp.lat != null && wp.lng != null) {
+              resolvedEnd = { name: wp.placeName, lat: wp.lat, lng: wp.lng, placeId: wp.placeId };
+            }
+          } else {
+            const rs = await resolveAgainstPlaces(
+              { name: endTarget, address: "", lat: 0, lng: 0, duration: 0, travelTime: 0, why: "", familyNote: "", themeRelevance: "" },
+              destinationCity, transport, destinationCenter,
+            );
+            if (rs && rs.lat != null && rs.lng != null) {
+              resolvedEnd = { name: rs.name, lat: rs.lat, lng: rs.lng, placeId: rs.placeId };
+            }
+          }
+        } catch (e) {
+          console.error("[tour-end-anchor] resolve failed, falling back to raw text:", e instanceof Error ? e.message : String(e));
+        }
+        console.log(`[tour-end-anchor] endTarget="${endTarget}" resolved=${resolvedEnd ? `"${resolvedEnd.name}" @${resolvedEnd.lat},${resolvedEnd.lng}` : "none"}`);
+      }
+    }
+    const endAnchorInstruction = resolvedEnd
+      ? `\n\nFINAL STOP: "${resolvedEnd.name}"${resolvedEnd.lat != null && resolvedEnd.lng != null ? ` (coordinates ${resolvedEnd.lat}, ${resolvedEnd.lng})` : ""}. The tour MUST end here as the last stop. Order the preceding stops so the route flows toward this location. Place nothing after it.`
+      : endRawText
+      ? `\n\nFINAL STOP: "${endRawText}". The tour MUST end here as the last stop. If "${endRawText}" is a specific named venue, use it verbatim as the final stop. Order the preceding stops so the route flows toward it. Place nothing after it.`
+      : "";
+
     const familyNoteRule = isNoChildren
       ? `5. In the why field, use correct group framing (see GROUP FRAMING below). Do not mention children.`
       : `5. familyNote MUST reference the specific children: ${childAgesContext}. Tailor to their ages.
@@ -784,7 +863,7 @@ ${stopCountRule}
 ${namedPlaceRule}
 ${emDashRule}
 ${themeTermsRule}
-${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomRule + "\n" : ""}${mealCadenceRule ? mealCadenceRule + "\n" : ""}${nameRules ? nameRules + "\n" : ""}${groupFramingRule}${soloContextRule}${vibeInterpretationRules}${startingPointInstruction}${anchorInstruction}`;
+${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomRule + "\n" : ""}${mealCadenceRule ? mealCadenceRule + "\n" : ""}${nameRules ? nameRules + "\n" : ""}${groupFramingRule}${soloContextRule}${vibeInterpretationRules}${startingPointInstruction}${anchorInstruction}${endAnchorInstruction}`;
 
     const userMessage = [
       seededContext || null,
@@ -1197,6 +1276,30 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
       orderBy: { orderIndex: "asc" },
     });
 
+    // End anchor: if the resolved end place was not emitted by the model, append it as the final
+    // stop (we have name + coords + placeId). Runs before optimization so it is ordered last.
+    if (tourId && resolvedEnd && !findEndPointId(resolvedEnd.name, finalStopsFromDb)) {
+      const maxOrder = finalStopsFromDb.reduce((m, s) => Math.max(m, s.orderIndex), -1);
+      await db.tourStop.create({
+        data: {
+          id: crypto.randomUUID(),
+          tourId,
+          orderIndex: maxOrder + 1,
+          name: resolvedEnd.name,
+          address: null,
+          lat: resolvedEnd.lat,
+          lng: resolvedEnd.lng,
+          placeId: resolvedEnd.placeId ?? null,
+          placeTypes: [],
+        },
+      });
+      finalStopsFromDb = await db.tourStop.findMany({
+        where: { tourId, deletedAt: null },
+        orderBy: { orderIndex: "asc" },
+      });
+      console.log(`[tour-end-anchor] appended end stop "${resolvedEnd.name}" (model did not emit it)`);
+    }
+
     if (finalStopsFromDb.length < targetStops) {
       console.warn(`[tour-underdelivery] WARN: ${finalStopsFromDb.length}/${targetStops} stops delivered for tour ${tourId} (${durationLabel}, ${destinationCity})`);
     }
@@ -1232,6 +1335,11 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
           stopsWithCoords.map(s => ({ id: s.id, lat: s.lat!, lng: s.lng! })),
           pinnedFirstId
         );
+
+        // Force the resolved end place to the last position (end anchor).
+        const pinnedLastId = resolvedEnd ? findEndPointId(resolvedEnd.name, finalStopsFromDb) : undefined;
+        pinEndLast(optimized, pinnedLastId, pinnedFirstId);
+        console.log(`[tour-end-point] resolvedEnd="${resolvedEnd?.name ?? "none"}" pinnedLastId="${pinnedLastId ?? "none"}"`);
 
         const newOrderById = new Map<string, number>();
         optimized.forEach((s, i) => newOrderById.set(s.id, i));
@@ -1406,6 +1514,7 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
             try {
               const pf2 = inputStartPoint ? findStartPointId(inputStartPoint, regenFinalStops) : undefined;
               const opt2 = optimizeRouteOrder(regenWithCoords.map(s => ({ id: s.id, lat: s.lat!, lng: s.lng! })), pf2);
+              pinEndLast(opt2, resolvedEnd ? findEndPointId(resolvedEnd.name, regenFinalStops) : undefined, pf2);
               await Promise.all(opt2.map((s, i) => db.tourStop.update({ where: { id: s.id }, data: { orderIndex: i } })));
               regenFinalStops = await db.tourStop.findMany({ where: { tourId, deletedAt: null }, orderBy: { orderIndex: "asc" } });
             } catch { /* optimization failure — use unoptimized */ }

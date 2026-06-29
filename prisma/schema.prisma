@@ -1222,6 +1222,7 @@ model GeneratedTour {
   inputVibe             String[]      @default([])
   inputDurationHr       Int?
   inputStartPoint       String?
+  inputEndPoint         String?
   graderScore           Int?
   graderStatus          String?
   graderFlags           Json?

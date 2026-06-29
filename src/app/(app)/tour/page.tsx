@@ -145,6 +145,7 @@ export default function TourPage() {
   const [prompt, setPrompt] = useState("");
   const [destinationCity, setDestinationCity] = useState("");
   const [startingPoint, setStartingPoint] = useState("");
+  const [endLocation, setEndLocation] = useState("");
   const [destinationCountry, setDestinationCountry] = useState<string | null>(null);
   const [durationLabel, setDurationLabel] = useState("");
   const [transport, setTransport] = useState("");
@@ -355,6 +356,7 @@ export default function TourPage() {
           familyProfileId: undefined,
           tripId: tripId ?? undefined,
           inputStartPoint: startingPoint.trim() || undefined,
+          inputEndPoint: endLocation.trim() || undefined,
           inputGroup: WHOS_COMING_TO_GROUP[whosComing] ?? "family_kids",
           inputVibe: vibes.map(v => VIBE_TO_SLUG[v]).filter(Boolean),
           inputDurationHr: DURATION_TO_HOURS[durationLabel] ?? null,
@@ -390,6 +392,7 @@ export default function TourPage() {
     setError("");
     setTouched(false);
     setStartingPoint("");
+    setEndLocation("");
     setSuggestions([]);
     setShowSuggestions(false);
   }
@@ -790,6 +793,14 @@ export default function TourPage() {
             value={startingPoint}
             onChange={(e) => setStartingPoint(e.target.value)}
             placeholder="Starting point (optional: hotel name, landmark, address)"
+            className={`${inputClass} mt-3`}
+          />
+
+          <input
+            type="text"
+            value={endLocation}
+            onChange={(e) => setEndLocation(e.target.value)}
+            placeholder="Restaurant, landmark, or paste a link — optional"
             className={`${inputClass} mt-3`}
           />
 
