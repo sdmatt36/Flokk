@@ -245,6 +245,24 @@ function scrubEmDash(s: string | null | undefined): string | null {
   return s.replace(/—/g, ", ").replace(/,\s*,/g, ",").replace(/\s{2,}/g, " ").trim();
 }
 
+// Saves-aware weaving helpers. normalizePlaceName mirrors the grader's name key so a stop the
+// model emits can be matched back to an injected saved place. matchInjectedSave accepts an exact
+// normalized match or a non-trivial one-contains-the-other overlap (guards against trivial hits).
+function normalizePlaceName(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+function matchInjectedSave<T extends { normName: string }>(emittedName: string, saves: T[]): T | undefined {
+  const n = normalizePlaceName(emittedName);
+  if (!n) return undefined;
+  return saves.find(s => {
+    if (!s.normName) return false;
+    if (s.normName === n) return true;
+    const shorter = n.length <= s.normName.length ? n : s.normName;
+    if (shorter.length < 5) return false;
+    return n.includes(s.normName) || s.normName.includes(n);
+  });
+}
+
 type ResolvedStop = RawStop & { imageUrl: string | null; websiteUrl: string | null; placeId: string | null; ticketRequired: string | null; placeTypes: string[]; businessStatus: string | null };
 
 function ageFromBirthDate(birthDate: Date | string | null | undefined): number | null {
@@ -654,6 +672,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── Saved-places candidates (saves-aware weaving; trip tours only) ─────────
+    // Raw fetch here near the lodging lookup; geo pre-filter + rank happen below
+    // once destinationCenter is resolved. v1: coords required (name-only excluded),
+    // tourId:null skips places already on a tour. No-trip path fetches nothing, so
+    // the whole weaving layer is a no-op and behavior is byte-identical to today.
+    type SaveCandidateRow = {
+      id: string; rawTitle: string | null; lat: number | null; lng: number | null;
+      googlePlaceId: string | null; address: string | null; categoryTags: string[];
+      savedAt: Date; ratings: { rating: number; wouldReturn: boolean | null; notes: string | null }[];
+    };
+    let savedCandidateRows: SaveCandidateRow[] = [];
+    if (tripId) {
+      savedCandidateRows = await db.savedItem.findMany({
+        where: { tripId, deletedAt: null, tourId: null, lat: { not: null }, lng: { not: null } },
+        select: {
+          id: true, rawTitle: true, lat: true, lng: true, googlePlaceId: true,
+          address: true, categoryTags: true, savedAt: true,
+          ratings: { select: { rating: true, wouldReturn: true, notes: true } },
+        },
+      });
+      console.log(`[tour-saves] trip ${tripId}: ${savedCandidateRows.length} raw saved-place candidate(s) with coords`);
+    }
+
     const cityPattern = `%${destinationCity}%`;
     const [manualActivityRows, itineraryItemRows] = await Promise.all([
       db.$queryRaw<Array<{ id: string; title: string; address: string | null; lat: number | null; lng: number | null; imageUrl: string | null; avg_rating: number }>>`
@@ -738,6 +779,59 @@ export async function POST(req: NextRequest) {
     const destinationCenter = await getDestinationCenter(destinationCity);
     if (!destinationCenter) {
       console.log(`[tour-resolve] no destination center for ${destinationCity}; cityName-match only`);
+    }
+
+    // ── Saved-places weaving: geo pre-filter, rank, build candidate block ──────
+    // Center on the lodging anchor when present, else destinationCenter. Keep only
+    // saves inside the age-scaled cluster diameter so a far save can never stretch a
+    // leg. Rank wouldReturn -> rating desc -> most recent. Cap well under targetStops
+    // (leave clear room for discovery). With no usable center, weave nothing.
+    type InjectedSave = { name: string; normName: string; googlePlaceId: string | null; lat: number; lng: number };
+    let injectedSaves: InjectedSave[] = [];
+    let savedCandidatesInstruction = "";
+    if (savedCandidateRows.length > 0) {
+      const center = (anchorLat !== null && anchorLng !== null)
+        ? { lat: anchorLat, lng: anchorLng }
+        : destinationCenter;
+      const clusterRadiusM = youngestChildAge !== null
+        ? youngestChildAge < 5 ? 1500 : youngestChildAge <= 10 ? 3000 : 5000
+        : 5000;
+      const ranked = savedCandidateRows
+        .filter(s => s.lat != null && s.lng != null && !!s.rawTitle && !/^https?:\/\//i.test(s.rawTitle))
+        .map(s => {
+          const wouldReturn = s.ratings.some(r => r.wouldReturn === true);
+          const rating = s.ratings.reduce((m, r) => Math.max(m, r.rating ?? 0), 0);
+          const note = s.ratings.find(r => r.notes && r.notes.trim())?.notes?.trim() ?? null;
+          const distM = center ? haversineMeters(center.lat, center.lng, s.lat!, s.lng!) : Infinity;
+          return { s, wouldReturn, rating, note, distM };
+        })
+        .filter(c => center ? c.distM <= clusterRadiusM : false)
+        .sort((a, b) =>
+          (Number(b.wouldReturn) - Number(a.wouldReturn)) ||
+          (b.rating - a.rating) ||
+          (b.s.savedAt.getTime() - a.s.savedAt.getTime())
+        );
+      const cap = Math.max(1, Math.floor(targetStops / 2));
+      const chosen = ranked.slice(0, cap);
+      injectedSaves = chosen.map(c => ({
+        name: c.s.rawTitle!.trim(),
+        normName: normalizePlaceName(c.s.rawTitle!),
+        googlePlaceId: c.s.googlePlaceId,
+        lat: c.s.lat!,
+        lng: c.s.lng!,
+      }));
+      if (chosen.length > 0) {
+        const lines = chosen.map((c, i) => {
+          const extras = [
+            c.wouldReturn ? "would return" : null,
+            c.rating > 0 ? `rated ${c.rating}/5` : null,
+            c.note ? `note: ${c.note}` : null,
+          ].filter(Boolean).join(", ");
+          return `${i + 1}. ${c.s.rawTitle!.trim()}${c.s.address ? `, ${c.s.address}` : ""} (coordinates ${c.s.lat}, ${c.s.lng})${extras ? ` [${extras}]` : ""}`;
+        }).join("\n");
+        savedCandidatesInstruction = `\n\nSAVED PLACES (the family already saved these for THIS trip). Prefer them as stops WHEN they fit the theme and stay on the walking route. Use the saved place's name verbatim as the stop name and its given coordinates. These are optional candidates: skip any that would force a detour off the route or that do not serve the theme. Do not name a saved place you are not actually including.\n${lines}`;
+      }
+      console.log(`[tour-saves] trip ${tripId}: ${injectedSaves.length}/${savedCandidateRows.length} candidate(s) injected (cap ${cap}, radius ${clusterRadiusM}m, center=${center ? "yes" : "none"})`);
     }
 
     // ── Group framing helpers (A6) ────────────────────────────────────────────
@@ -909,7 +1003,7 @@ ${stopCountRule}
 ${namedPlaceRule}
 ${emDashRule}
 ${themeTermsRule}
-${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomRule + "\n" : ""}${mealCadenceRule ? mealCadenceRule + "\n" : ""}${nameRules ? nameRules + "\n" : ""}${groupFramingRule}${soloContextRule}${vibeInterpretationRules}${startingPointInstruction}${anchorInstruction}${endAnchorInstruction}`;
+${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomRule + "\n" : ""}${mealCadenceRule ? mealCadenceRule + "\n" : ""}${nameRules ? nameRules + "\n" : ""}${groupFramingRule}${soloContextRule}${vibeInterpretationRules}${startingPointInstruction}${anchorInstruction}${savedCandidatesInstruction}${endAnchorInstruction}`;
 
     const userMessage = [
       seededContext || null,
@@ -1036,14 +1130,37 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
       });
 
       // Phase C — filter accepted stops and write to DB in emission order
+      // usedPlaceKeys dedupes woven saves vs discoveries (placeId + normalized name). Only
+      // active when saved-place candidates exist; otherwise this block is a no-op.
+      const usedPlaceKeys = new Set<string>();
       for (let i = 0; i < rawQueue.length; i++) {
         const { raw } = rawQueue[i];
         const result = resolveResults[i];
-        if (result.status === "rejected" || !result.value) {
+        let resolved = result.status === "fulfilled" ? result.value : null;
+
+        // saves-aware: match this emitted stop to an injected saved place and pin it to the
+        // save's real coords/placeId (deterministic — no resolver drift). Rescue it even when
+        // the resolver rejected/failed, so a user's saved place is not lost to a Places miss.
+        const matchedSave = injectedSaves.length ? matchInjectedSave(raw.name, injectedSaves) : undefined;
+        if (matchedSave) {
+          if (resolved) {
+            resolved = { ...resolved, lat: matchedSave.lat, lng: matchedSave.lng, placeId: matchedSave.googlePlaceId ?? resolved.placeId };
+          } else {
+            resolved = {
+              name: matchedSave.name, address: raw.address ?? "", lat: matchedSave.lat, lng: matchedSave.lng,
+              duration: raw.duration, travelTime: raw.travelTime, why: raw.why, familyNote: raw.familyNote,
+              themeRelevance: raw.themeRelevance, imageUrl: null,
+              websiteUrl: matchedSave.googlePlaceId ? `https://www.google.com/maps/place/?q=place_id:${matchedSave.googlePlaceId}` : null,
+              placeId: matchedSave.googlePlaceId, ticketRequired: null, placeTypes: [], businessStatus: null,
+            };
+            console.log(`[tour-saves] rescued saved place "${matchedSave.name}" (resolver miss) -> ${matchedSave.lat},${matchedSave.lng}`);
+          }
+        }
+
+        if (!resolved) {
           rejectedCount++;
           continue;
         }
-        const resolved = result.value;
         console.log(`[tour-relevance] "${resolved.name}" -> "${(raw.themeRelevance ?? "").slice(0, 120)}"`);
         const weak = hasWeakThemeRelevance(raw.themeRelevance);
         if (weak) {
@@ -1052,6 +1169,16 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
           console.log(`[tour-theme-weak] "${raw.name}" -> "${raw.themeRelevance ?? ""}"`);
           rejectedCount++;
           continue;
+        }
+        // saves-aware dedupe: skip a place already written this pass (a woven save re-emitted,
+        // or a later discovery that equals a save by placeId/name).
+        if (injectedSaves.length) {
+          const dupKey = resolved.placeId ?? normalizePlaceName(resolved.name);
+          if (dupKey && usedPlaceKeys.has(dupKey)) {
+            console.log(`[tour-saves] dedupe skip "${resolved.name}" (already used this pass)`);
+            continue;
+          }
+          if (dupKey) usedPlaceKeys.add(dupKey);
         }
         const stopId = crypto.randomUUID();
         const idx = orderIndex++;
@@ -1197,7 +1324,11 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
         }
         fillPass++;
         const missing = targetStops - completedStops.length;
-        const alreadyAccepted = completedStops.map(s => s.name);
+        // Exclude injected saved-place names too, so a save the model did not pick is not
+        // re-added here via the resolver path (which would drift off its real coords).
+        const alreadyAccepted = injectedSaves.length
+          ? Array.from(new Set([...completedStops.map(s => s.name), ...injectedSaves.map(s => s.name)]))
+          : completedStops.map(s => s.name);
         const tFillStart = Date.now();
         console.log(`[grader-timing] tourId=${tourId ?? "?"} phase=fill_start pass=${fillPass} need=${missing} total_elapsed_ms=${tFillStart - t0}`);
         console.log(`[tour-fill] pass ${fillPass}/${MAX_FILL_PASSES}: need ${missing} more stops (have ${completedStops.length}/${targetStops})`);
@@ -1491,7 +1622,11 @@ ${kidsSweetsRule ? kidsSweetsRule + "\n" : ""}${kidsBathroomRule ? kidsBathroomR
           while (completedStops.length < targetStops && regenFillPass < 3) {
             regenFillPass++;
             const missing = targetStops - completedStops.length;
-            const alreadyAccepted = completedStops.map(s => s.name);
+            // Exclude injected saved-place names (see main fill loop) so the resolver path
+            // does not re-add an unpicked save and drift it off its real coords.
+            const alreadyAccepted = injectedSaves.length
+              ? Array.from(new Set([...completedStops.map(s => s.name), ...injectedSaves.map(s => s.name)]))
+              : completedStops.map(s => s.name);
             const rfFillInstruction = `ALREADY ACCEPTED STOPS — DO NOT REPEAT THESE:\n${alreadyAccepted.map((n, i) => `${i + 1}. ${n}`).join("\n")}\n\nEmit exactly ${missing} NEW stop(s).\n\n${regenInstruction}`;
             const rfFillTool: Anthropic.Tool = { ...emitTourStopTool, description: `Emit exactly ${missing} new stop(s). Do NOT repeat any already-accepted stop.` };
             const rfStream = anthropic.messages.stream({
