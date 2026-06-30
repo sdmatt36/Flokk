@@ -1052,6 +1052,7 @@ export function SavesScreen() {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [showFabModal, setShowFabModal] = useState(false);
   const [fabUrl, setFabUrl] = useState("");
+  const [fabSubmitting, setFabSubmitting] = useState(false);
   const [modalItemId, setModalItemId] = useState<string | null>(null);
   const [identifyingItem, setIdentifyingItem] = useState<string | null>(null);
   const [placeQuery, setPlaceQuery] = useState("");
@@ -1418,6 +1419,8 @@ export function SavesScreen() {
       if (res.ok && data.savedItem) {
         const tripForItem = data.matchedTrip ? { id: data.matchedTrip.id, title: data.matchedTrip.title } : null;
         setSaves((prev) => [mapApiItem({ ...data.savedItem, trip: tripForItem, needsPlaceConfirmation: false }), ...prev]);
+        // Land on the new save's full detail (it also stays in its city/trip section above).
+        setModalItemId(data.savedItem.id);
         setShowManualModal(false);
         setManualName("");
         setManualCategory("food_and_drink");
@@ -1437,6 +1440,48 @@ export function SavesScreen() {
       }
     } finally {
       setManualSubmitting(false);
+    }
+  };
+
+  // URL-paste save from the quick "Save something new" sheet. Same land-on-save as the manual path:
+  // the new save is prepended into its city/trip section AND its full detail opens (polling while
+  // it enriches). A duplicate lands on the existing save's detail.
+  const handleFabSave = async () => {
+    const trimmed = fabUrl.trim();
+    if (!trimmed || fabSubmitting) return;
+    setFabSubmitting(true);
+    try {
+      const res = await fetch("/api/saves", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: trimmed }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSavedToast(data.error ?? "Couldn't save that link");
+        setTimeout(() => setSavedToast(null), 3000);
+        return;
+      }
+      if (data.duplicate && data.existingId) {
+        setModalItemId(data.existingId);
+        setShowFabModal(false);
+        setFabUrl("");
+        return;
+      }
+      if (data.savedItem) {
+        const tripForItem = data.matchedTrip ? { id: data.matchedTrip.id, title: data.matchedTrip.title } : null;
+        setSaves((prev) => [mapApiItem({ ...data.savedItem, trip: tripForItem, needsPlaceConfirmation: false }), ...prev]);
+        setModalItemId(data.savedItem.id);
+        setShowFabModal(false);
+        setFabUrl("");
+        setSavedToast(data.matchedTrip ? `Saved and added to ${data.matchedTrip.title}` : "Saved");
+        setTimeout(() => setSavedToast(null), 3500);
+      }
+    } catch {
+      setSavedToast("Couldn't save that link");
+      setTimeout(() => setSavedToast(null), 3000);
+    } finally {
+      setFabSubmitting(false);
     }
   };
 
@@ -1975,19 +2020,20 @@ Your saved places, all in one spot
                 Cancel
               </button>
               <button
-                onClick={() => { setShowFabModal(false); setFabUrl(""); }}
+                onClick={handleFabSave}
+                disabled={fabSubmitting || !fabUrl.trim()}
                 style={{
                   padding: "10px 20px",
                   borderRadius: "999px",
                   border: "none",
-                  backgroundColor: "#C4664A",
-                  color: "#fff",
+                  backgroundColor: fabSubmitting || !fabUrl.trim() ? "#E5E5E5" : "#C4664A",
+                  color: fabSubmitting || !fabUrl.trim() ? "#999" : "#fff",
                   fontSize: "14px",
                   fontWeight: 600,
-                  cursor: "pointer",
+                  cursor: fabSubmitting || !fabUrl.trim() ? "default" : "pointer",
                 }}
               >
-                Save
+                {fabSubmitting ? "Saving..." : "Save"}
               </button>
             </div>
           </div>

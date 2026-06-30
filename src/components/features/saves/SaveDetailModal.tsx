@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { X, MapPin, Sparkles, ExternalLink, ChevronDown, Check } from "lucide-react";
+import { X, MapPin, Sparkles, ExternalLink, ChevronDown, Check, Loader2 } from "lucide-react";
 import { LODGING_TYPE_LABELS, LODGING_TYPE_OPTIONS } from "@/lib/infer-lodging-type";
 import { labelForSlug, normalizeCategorySlug } from "@/lib/categories";
 import { CategoryEditor } from "@/components/shared/CategoryEditor";
@@ -29,6 +29,7 @@ type SaveItem = {
   affiliateUrl: string | null;
   websiteUrl: string | null;
   sourceUrl: string | null;
+  extractionStatus: string | null;
   isBooked: boolean;
   startTime: string | null;
   endTime: string | null;
@@ -145,6 +146,15 @@ export function SaveDetailModal({
   const localTagsRef = useRef<string[]>([]);
   const initialNotes = useRef("");
   const initialTags = useRef<string[]>([]);
+  // Polling while the save enriches (land-on-save). One in-flight fetch at a time; up to 12 tries
+  // at 2s (~24s) while extractionStatus is PENDING; stop on resolve, cap, close, or itemId change.
+  const POLL_INTERVAL_MS = 2000;
+  const POLL_MAX_ATTEMPTS = 12;
+  const fetchingRef = useRef(false);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollAttemptsRef = useRef(0);
+  const hydratedRef = useRef(false);
+  const [pollExhausted, setPollExhausted] = useState(false);
 
   useEffect(() => {
     requestAnimationFrame(() => setMounted(true));
@@ -152,31 +162,63 @@ export function SaveDetailModal({
     return () => { document.body.style.overflow = ""; };
   }, []);
 
+  // Load the item by id and, while it is still PENDING, keep polling so photo/place/city/trip fill
+  // in live without blanking the view. First load hydrates the user-editable fields; subsequent
+  // polls only refresh the display item + assigned trip, so they never clobber in-progress edits.
+  const loadItem = useCallback(async () => {
+    if (fetchingRef.current) return; // guard against overlapping fetches
+    fetchingRef.current = true;
+    try {
+      const res = await fetch(`/api/saves/${itemId}`);
+      const data = await res.json();
+      const next = data.item as SaveItem | undefined;
+      if (next) {
+        setItem(next);
+        setAssignedTrip(next.trip ?? null);
+        if (!hydratedRef.current) {
+          hydratedRef.current = true;
+          setInterestKeys(data.interestKeys ?? []);
+          setNotes(next.notes ?? "");
+          setIsBooked(next.isBooked ?? false);
+          setStartTime(next.startTime ?? "");
+          setEndTime(next.endTime ?? "");
+          setLocalWebsiteUrl(next.websiteUrl ?? null);
+          setUserRating(next.userRating ?? null);
+          setLodgingType(next.lodgingType ?? null);
+          initialNotes.current = next.notes ?? "";
+          const raw: string[] = next.categoryTags ?? [];
+          const tags: string[] = [...new Set(raw.map((t) => normalizeCategorySlug(t) ?? t.toLowerCase().trim()).filter((t): t is string => t.length > 0))];
+          localTagsRef.current = tags;
+          setLocalTags(tags);
+          initialTags.current = tags;
+        }
+      }
+      const stillPending = next?.extractionStatus === "PENDING";
+      if (stillPending && pollAttemptsRef.current < POLL_MAX_ATTEMPTS) {
+        pollAttemptsRef.current += 1;
+        pollTimerRef.current = setTimeout(() => { void loadItem(); }, POLL_INTERVAL_MS);
+      } else if (stillPending) {
+        setPollExhausted(true); // cap hit, still PENDING: stop polling, fall back to title + link + edit
+      }
+    } catch {
+      // Keep the prior item visible; a transient error just ends this poll cycle.
+    } finally {
+      fetchingRef.current = false;
+    }
+  }, [itemId]);
+
   useEffect(() => {
-    fetch(`/api/saves/${itemId}`)
-      .then(r => r.json())
-      .then(data => {
-        setItem(data.item);
-        setInterestKeys(data.interestKeys ?? []);
-        setNotes(data.item?.notes ?? "");
-        setAssignedTrip(data.item?.trip ?? null);
-        setIsBooked(data.item?.isBooked ?? false);
-        setStartTime(data.item?.startTime ?? "");
-        setEndTime(data.item?.endTime ?? "");
-        setLocalWebsiteUrl(data.item?.websiteUrl ?? null);
-        setUserRating(data.item?.userRating ?? null);
-        setLodgingType(data.item?.lodgingType ?? null);
-        initialNotes.current = data.item?.notes ?? "";
-        const raw: string[] = data.item?.categoryTags ?? [];
-        const tags: string[] = [...new Set(raw.map((t) => normalizeCategorySlug(t) ?? t.toLowerCase().trim()).filter((t): t is string => t.length > 0))];
-        localTagsRef.current = tags;
-        setLocalTags(tags);
-        initialTags.current = tags;
-      });
+    hydratedRef.current = false;
+    pollAttemptsRef.current = 0;
+    setPollExhausted(false);
+    void loadItem();
     fetch("/api/trips?status=ALL")
       .then(r => r.json())
       .then(data => setTrips(data.trips ?? []));
-  }, [itemId]);
+    return () => {
+      if (pollTimerRef.current) { clearTimeout(pollTimerRef.current); pollTimerRef.current = null; }
+    };
+  }, [itemId, loadItem]);
 
   async function handleNotesBlur() {
     if (notes === initialNotes.current) return;
@@ -339,12 +381,17 @@ export function SaveDetailModal({
               <h2 style={{ fontSize: "22px", fontWeight: 900, color: "#fff", lineHeight: 1.1, marginBottom: "4px", textShadow: "0 2px 8px rgba(0,0,0,0.4)" }}>
                 {getDisplayTitle(item.rawTitle, item.sourceUrl)}
               </h2>
-              {location && (
+              {location ? (
                 <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <MapPin size={12} style={{ color: "rgba(255,255,255,0.85)" }} />
                   <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.9)", fontWeight: 500 }}>{location}</span>
                 </div>
-              )}
+              ) : (item.extractionStatus === "PENDING" && !pollExhausted) ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "5px" }}>
+                  <Loader2 size={12} className="animate-spin" style={{ color: "rgba(255,255,255,0.85)" }} />
+                  <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.9)", fontWeight: 500 }}>Finding the place...</span>
+                </div>
+              ) : null}
             </div>
           )}
         </div>
@@ -926,6 +973,24 @@ export function SaveDetailModal({
                   Link →
                 </a>
               ) : null}
+
+              {/* Original saved link: always reachable, even after enrichment swaps the primary
+                  button to the resolved website. Only shown when it differs from the primary link. */}
+              {item.sourceUrl && item.websiteUrl && item.sourceUrl !== item.websiteUrl && (
+                <a
+                  href={item.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: "5px",
+                    width: "100%", padding: "8px", textDecoration: "none",
+                    fontSize: "13px", fontWeight: 600, color: "#C4664A",
+                  }}
+                >
+                  <ExternalLink size={13} />
+                  Open original link
+                </a>
+              )}
 
               {/* Book it — toggleable */}
               {isBooked ? (
