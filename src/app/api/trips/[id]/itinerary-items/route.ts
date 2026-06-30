@@ -59,6 +59,7 @@ export async function GET(
       needsVerification: true,
       bookingSource: true,
       managementUrl: true,
+      venueUrl: true,
       imageUrl: true,
       status: true,
       lodgingType: true,

@@ -1791,6 +1791,7 @@ type ItineraryItemLocal = {
   needsVerification?: boolean | null;
   bookingSource?: string | null;
   managementUrl?: string | null;
+  venueUrl?: string | null;
   imageUrl?: string | null;
   additionalConfirmations?: string[];
   status?: string | null;
@@ -4401,6 +4402,16 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                         style={{ display: "block", textAlign: "center", backgroundColor: "transparent", color: "#C4664A", border: "1.5px solid #C4664A", fontWeight: 600, padding: "12px", borderRadius: "10px", fontSize: "14px", textDecoration: "none", marginTop: "8px" }}
                       >
                         Manage booking
+                      </a>
+                    )}
+                    {sit.venueUrl && (
+                      <a
+                        href={sit.venueUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", backgroundColor: "transparent", color: "#C4664A", border: "1.5px solid #C4664A", fontWeight: 600, padding: "12px", borderRadius: "10px", fontSize: "14px", textDecoration: "none", marginTop: "8px" }}
+                      >
+                        <ExternalLink size={14} /> Visit hotel
                       </a>
                     )}
                     {!isCheckOut && (
@@ -8648,6 +8659,7 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                   const HOTEL_SOURCE_LABEL: Record<string, string> = { "booking.com": "Booking.com", airbnb: "Airbnb", "hotels.com": "Hotels.com", expedia: "Expedia", marriott: "Marriott", hilton: "Hilton", hyatt: "Hyatt", vrbo: "VRBO", direct: "Direct" };
                   const hotelBookingSource = (booking.type as string) === "hotel" ? (booking.bookingSource as string | null | undefined) ?? null : null;
                   const hotelManagementUrl = (booking.type as string) === "hotel" ? (booking.managementUrl as string | null | undefined) ?? null : null;
+                  const hotelVenueUrl = (booking.type as string) === "hotel" ? (booking.venueUrl as string | null | undefined) ?? null : null;
                   const hotelSourceLabel = hotelBookingSource && hotelBookingSource !== "unknown" ? (HOTEL_SOURCE_LABEL[hotelBookingSource] ?? hotelBookingSource) : null;
                   if (hotelSourceLabel) rows.push({ label: "Booked via", value: hotelSourceLabel });
                   const matchedFlight = isFlightType && !isFlightWithLegs
@@ -8809,6 +8821,16 @@ export function TripTabContent({ initialTab = "saved", tripId, tripTitle, tripSt
                           style={{ display: "inline-block", marginTop: "8px", fontSize: "12px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
                         >
                           Manage booking →
+                        </a>
+                      )}
+                      {hotelVenueUrl && (
+                        <a
+                          href={hotelVenueUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: "8px", fontSize: "12px", fontWeight: 600, color: "#C4664A", textDecoration: "none" }}
+                        >
+                          <ExternalLink size={12} /> Visit hotel
                         </a>
                       )}
                       {!!(booking.url || booking.bookingUrl) && (
