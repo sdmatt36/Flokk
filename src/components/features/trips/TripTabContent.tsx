@@ -6946,11 +6946,40 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
       fetch(`/api/trips/${tripId}/activities`).then(r => r.ok ? r.json() : []),
     ]).then(([itinData, savesData, ratingData, manualData]) => {
       const itinItems: { id: string; title?: string | null; type?: string }[] = Array.isArray(itinData) ? itinData : ((itinData as { items?: unknown[] }).items ?? []);
-      type ExistingRating = { id: string; rating: number; notes: string | null; wouldReturn: boolean | null; itineraryItemId?: string | null; manualActivityId?: string | null; savedItemId?: string | null };
+      type ExistingRating = { id: string; rating: number; notes: string | null; wouldReturn: boolean | null; kidsRating?: number | null; itineraryItemId?: string | null; manualActivityId?: string | null; savedItemId?: string | null };
       const existingRatings: ExistingRating[] = ratingData.ratings ?? [];
       setExistingRatingsCount(existingRatings.length);
       const ratingByItinId = new Map<string, ExistingRating>(existingRatings.filter(r => r.itineraryItemId).map(r => [r.itineraryItemId!, r]));
       const ratingByManualId = new Map<string, ExistingRating>(existingRatings.filter(r => r.manualActivityId).map(r => [r.manualActivityId!, r]));
+      const ratingBySavedId = new Map<string, ExistingRating>(existingRatings.filter(r => r.savedItemId).map(r => [r.savedItemId!, r]));
+      // Ratings arrive createdAt-asc (API orderBy), so a higher index is more recent — used to break richness ties.
+      const ratingOrder = new Map<string, number>(existingRatings.map((r, i) => [r.id, i]));
+      const prRichness = (r: ExistingRating) =>
+        (r.notes && r.notes.trim() ? 1 : 0) + (r.wouldReturn != null ? 1 : 0) + (r.kidsRating != null ? 1 : 0);
+      // Resolve a place's rating across EVERY key it could be stored under (its own id plus any bridged
+      // counterpart), checked in priority order savedItemId -> manualActivityId -> itineraryItemId. Any
+      // PlaceRating row beats the bare Option-B SavedItem.userRating; among multiple PlaceRating hits the
+      // richest (notes/wouldReturn/kidsRating) wins, then the most recent. userRating is the last resort.
+      const resolveRating = (
+        ids: { saved?: string | null; manual?: string | null; itin?: string | null },
+        fallbackUserRating?: number | null,
+        fallbackNotes?: string | null,
+      ): { rating: number; notes: string; wouldReturn: boolean | null; ratingId?: string; alreadySaved: boolean } => {
+        const hits: ExistingRating[] = [];
+        if (ids.saved) { const r = ratingBySavedId.get(ids.saved); if (r) hits.push(r); }
+        if (ids.manual) { const r = ratingByManualId.get(ids.manual); if (r) hits.push(r); }
+        if (ids.itin) { const r = ratingByItinId.get(ids.itin); if (r) hits.push(r); }
+        if (hits.length > 0) {
+          const best = hits.reduce((acc, r) => {
+            const d = prRichness(r) - prRichness(acc);
+            if (d !== 0) return d > 0 ? r : acc;
+            return (ratingOrder.get(r.id) ?? 0) > (ratingOrder.get(acc.id) ?? 0) ? r : acc;
+          });
+          return { rating: best.rating, notes: best.notes ?? "", wouldReturn: best.wouldReturn ?? null, ratingId: best.id, alreadySaved: true };
+        }
+        if (fallbackUserRating != null) return { rating: fallbackUserRating, notes: fallbackNotes ?? "", wouldReturn: null, alreadySaved: true };
+        return { rating: 0, notes: "", wouldReturn: null, alreadySaved: false };
+      };
 
       // LODGING: exclude check-out items; strip "Check-in: " prefix from title
       // ACTIVITY: include all
@@ -6960,17 +6989,17 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
           (it.type === "LODGING" && !it.title?.toLowerCase().startsWith("check-out"))
         )
         .map(it => {
-          const existing = ratingByItinId.get(it.id);
+          const r = resolveRating({ itin: it.id });
           return {
             id: it.id,
             title: (it.title?.replace(/^check-in:\s*/i, "") ?? it.title ?? "Untitled").trim(),
             type: it.type ?? "",
             itemKind: "itinerary" as const,
-            rating: existing?.rating ?? 0,
-            notes: existing?.notes ?? "",
-            wouldReturn: existing?.wouldReturn ?? null,
-            alreadySaved: !!existing,
-            ratingId: existing?.id,
+            rating: r.rating,
+            notes: r.notes,
+            wouldReturn: r.wouldReturn,
+            alreadySaved: r.alreadySaved,
+            ratingId: r.ratingId,
           };
         });
 
@@ -6978,17 +7007,20 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
       // Save-kind ratings live exclusively in SavedItem.userRating (Option B architecture)
       const saveItems: HowWasItItem[] = ((savesData.saves ?? []) as { id: string; rawTitle?: string | null; categoryTags?: string[]; userRating?: number | null; notes?: string | null }[])
         .filter(s => !s.categoryTags?.some(t => EXCLUDE_SAVE_TAGS.test(t)))
-        .map(s => ({
-          id: s.id,
-          title: s.rawTitle ?? "Untitled",
-          type: "save",
-          itemKind: "save" as const,
-          rating: s.userRating ?? 0,
-          notes: s.notes ?? "",
-          wouldReturn: null,
-          alreadySaved: s.userRating != null,
-          savedItemId: s.id,
-        }));
+        .map(s => {
+          const r = resolveRating({ saved: s.id }, s.userRating, s.notes);
+          return {
+            id: s.id,
+            title: s.rawTitle ?? "Untitled",
+            type: "save",
+            itemKind: "save" as const,
+            rating: r.rating,
+            notes: r.notes,
+            wouldReturn: r.wouldReturn,
+            alreadySaved: r.alreadySaved,
+            savedItemId: s.id,
+          };
+        });
 
       // ManualActivity records — deduplicate against itinerary and save titles
       const existingTitles = new Set<string>([
@@ -7003,33 +7035,35 @@ function HowWasItContent({ tripId, tripTitle, destinationCity, postTripCaptureCo
       const manualItems: HowWasItItem[] = ((manualData as { id: string; title: string; savedItemId?: string | null }[]) ?? [])
         .filter(m => !existingTitles.has(m.title.toLowerCase()))
         .map(m => {
-          // If this ManualActivity has a paired SavedItem, always use the save-kind path.
-          // This ensures How Was It and SaveDetailModal share the same userRating field.
+          // Paired to a SavedItem: resolve across BOTH the paired savedItemId and its own
+          // manualActivityId (bridged counterpart), then fall back to the shared userRating so
+          // How Was It and SaveDetailModal still converge on the same star.
           if (m.savedItemId) {
             const matched = allSavesById.get(m.savedItemId);
+            const r = resolveRating({ saved: m.savedItemId, manual: m.id }, matched?.userRating, matched?.notes);
             return {
               id: m.id,
               title: m.title,
               type: "ACTIVITY",
               itemKind: "save" as const,
-              rating: matched?.userRating ?? 0,
-              notes: matched?.notes ?? "",
-              wouldReturn: null,
-              alreadySaved: matched?.userRating != null,
+              rating: r.rating,
+              notes: r.notes,
+              wouldReturn: r.wouldReturn,
+              alreadySaved: r.alreadySaved,
               savedItemId: m.savedItemId,
             };
           }
-          const existing = ratingByManualId.get(m.id);
+          const r = resolveRating({ manual: m.id });
           return {
             id: m.id,
             title: m.title,
             type: "ACTIVITY",
             itemKind: "manual" as const,
-            rating: existing?.rating ?? 0,
-            notes: existing?.notes ?? "",
-            wouldReturn: existing?.wouldReturn ?? null,
-            alreadySaved: !!existing,
-            ratingId: existing?.id,
+            rating: r.rating,
+            notes: r.notes,
+            wouldReturn: r.wouldReturn,
+            alreadySaved: r.alreadySaved,
+            ratingId: r.ratingId,
           };
         });
 
