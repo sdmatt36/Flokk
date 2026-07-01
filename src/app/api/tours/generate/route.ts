@@ -300,6 +300,7 @@ function getMaxStopRadiusKm(transport: string): number {
   if (t === "walking") return 8;
   if (t.includes("transit") || t.includes("metro")) return 25;
   if (t.includes("car") || t.includes("driving")) return 50;
+  if (t.includes("mixed")) return 50; // widest — Mixed connects clusters by transit/car
   return 15;
 }
 
@@ -793,9 +794,22 @@ export async function POST(req: NextRequest) {
       const center = (anchorLat !== null && anchorLng !== null)
         ? { lat: anchorLat, lng: anchorLng }
         : destinationCenter;
-      const clusterRadiusM = youngestChildAge !== null
-        ? youngestChildAge < 5 ? 1500 : youngestChildAge <= 10 ? 3000 : 5000
-        : 5000;
+      // Save-selection radius is MODE-AWARE, mirroring getMaxStopRadiusKm's tiers, so far saves are
+      // not dropped on non-walking tours (e.g. Bali Ubud↔Seminyak ~30km on a Car/Mixed tour). Age
+      // tightening (kids walk less) applies to WALKING ONLY — a young child must never shrink the
+      // transit/car/mixed radius, since those legs are ridden, not walked.
+      const clusterRadiusM = (() => {
+        const t = transport.toLowerCase();
+        if (t === "walking") {
+          return youngestChildAge !== null
+            ? (youngestChildAge < 5 ? 1500 : youngestChildAge <= 10 ? 3000 : 5000)
+            : 5000;
+        }
+        if (t.includes("transit") || t.includes("metro")) return 25000; // ~25km
+        if (t.includes("car") || t.includes("driving")) return 50000;   // ~50km
+        if (t.includes("mixed")) return 50000;                          // widest
+        return 15000;                                                   // default ~15km
+      })();
       const ranked = savedCandidateRows
         .filter(s => s.lat != null && s.lng != null && !!s.rawTitle && !/^https?:\/\//i.test(s.rawTitle))
         .map(s => {
@@ -920,7 +934,7 @@ export async function POST(req: NextRequest) {
 
     // ── Anchor instruction (injected into system prompt when trip context exists) ──
     const anchorInstruction = anchorLat !== null && anchorLng !== null
-      ? `\n\nThe user's lodging is at coordinates ${anchorLat}, ${anchorLng}. The tour must be anchored near this location:\n- Walking: first stop within 1km of lodging, last stop within 1km of lodging (round-trip from base)\n- Metro / Transit: first stop within 1.5km of lodging or a transit station within 800m of lodging\n- Driving: first stop within 5km of lodging, last stop within 5km of lodging`
+      ? `\n\nThe user's lodging is at coordinates ${anchorLat}, ${anchorLng}. The tour must be anchored near this location:\n- Walking: first stop within 1km of lodging, last stop within 1km of lodging (round-trip from base)\n- Metro / Transit: first stop within 1.5km of lodging or a transit station within 800m of lodging\n- Driving: first stop within 5km of lodging, last stop within 5km of lodging\n- Mixed: first stop within ~2km of lodging (walk or short ride), last stop within 5km of lodging`
       : "";
 
     // ── Walkable-cluster instruction (fix #2; Walking only) ────────────────────────
@@ -1015,7 +1029,7 @@ NAME CONSISTENCY: If you use specific names in any stop, use those same names th
 ABSOLUTE RULES — violating any of these means the tour fails:
 1. Every stop MUST be a real, operating venue physically located IN ${destinationCity}. No venues from other cities. No "branch" workarounds. No closed or fictional places.
 2. Every stop MUST directly serve the theme. No tangential sightseeing added for variety.
-3. ${transport === "Walking" ? `Walking tour: every consecutive stop pair MUST be within ${maxWalk} minutes walk (~${maxDistMeters}m) of each other. Cluster tightly in one neighborhood.` : transport === "Metro / Transit" ? "Metro tour: stops can span the city but must be reachable by public transit." : "Car tour: no distance constraint."}
+3. ${transport === "Walking" ? `Walking tour: every consecutive stop pair MUST be within ${maxWalk} minutes walk (~${maxDistMeters}m) of each other. Cluster tightly in one neighborhood.` : transport === "Metro / Transit" ? "Metro tour: stops can span the city but must be reachable by public transit." : transport === "Mixed" ? "Mixed-mode tour: choose the best mode per leg: walk short hops, take transit across town, drive long legs; keep nearby stops in walkable clusters and connect clusters by transit or car." : "Car tour: no distance constraint."}
 4. Total time (sum of all duration + travelTime) must not exceed ${maxMinutes} minutes.
 ${familyNoteRule}
 

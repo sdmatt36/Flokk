@@ -785,6 +785,7 @@ export default function TourPage() {
               <option value="Walking">Walking</option>
               <option value="Metro / Transit">Metro / Transit</option>
               <option value="Car or Taxi">Car or Taxi</option>
+              <option value="Mixed">Mixed</option>
             </select>
           </div>
 
