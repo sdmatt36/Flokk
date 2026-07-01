@@ -2390,6 +2390,34 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     return compactedItems;
   }
 
+  // Resolves the lodging a traveler is based at for a given day: the most-recent check-in LODGING
+  // with valid coords whose stay spans the day, bounded check-in.dayIndex < dayIndex <= its matched
+  // check-out.dayIndex. The lower bound is strict because the arrival (check-in) day ends AT the
+  // hotel (see the check-in END-anchor in the day sort) rather than starting from it, so the hotel
+  // is an implicit ORIGIN only from the morning after check-in through checkout. Check-in / check-out
+  // rows are paired by hotel name; an unpaired check-in stays open-ended (no upper bound, preserving
+  // prior behavior). Shared by the day map (buildMapPinsForDay) and the "From [hotel]" directions banner.
+  function resolveActiveLodging(dayIndex: number): ItineraryItemLocal | null {
+    const hasCoords = (lat: number | null | undefined, lng: number | null | undefined) =>
+      lat != null && lng != null && lat !== 0 && lng !== 0 &&
+      lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
+    const norm = (t: string) => t.replace(/^check-(?:in|out):\s*/i, "").trim().toLowerCase();
+    const checkOuts = localItineraryItems.filter(it =>
+      it.type === "LODGING" && /^check-out:/i.test(it.title) && it.dayIndex != null);
+    const applicable = localItineraryItems.filter(it => {
+      if (it.type !== "LODGING" || !/^check-in:/i.test(it.title)) return false;
+      if (it.dayIndex == null || it.dayIndex >= dayIndex) return false; // strict lower bound
+      if (!hasCoords(it.latitude, it.longitude)) return false;
+      const name = norm(it.title);
+      const matchOut = checkOuts
+        .filter(co => norm(co.title) === name && (co.dayIndex ?? -1) >= (it.dayIndex ?? 0))
+        .sort((a, b) => (a.dayIndex ?? 0) - (b.dayIndex ?? 0))[0] ?? null;
+      const checkOutDay = matchOut?.dayIndex ?? Number.POSITIVE_INFINITY; // unpaired = open-ended
+      return dayIndex <= checkOutDay;
+    });
+    return applicable.sort((a, b) => (b.dayIndex ?? 0) - (a.dayIndex ?? 0))[0] ?? null;
+  }
+
   /** Build ordered map pins for a specific day, matching visual list order exactly. */
   function buildMapPinsForDay(dayIndex: number): { title: string; lat: number; lng: number; dayIndex: number }[] {
     function validCoord(lat: unknown, lng: unknown): boolean {
@@ -2399,7 +2427,8 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         (lat as number) >= -90 && (lat as number) <= 90 &&
         (lng as number) >= -180 && (lng as number) <= 180;
     }
-    return buildDayItems(dayIndex).flatMap(item => {
+    const dayItems = buildDayItems(dayIndex);
+    const pins = dayItems.flatMap(item => {
       let title = "";
       let lat: number | null = null;
       let lng: number | null = null;
@@ -2428,6 +2457,25 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       if (!validCoord(lat, lng)) return [];
       return [{ title, lat: lat!, lng: lng!, dayIndex }];
     });
+
+    // Hotel as implicit origin (map route only): on a middle night of a stay — the active lodging
+    // spans this day and no LODGING pin already sits on it — prepend the hotel as the route origin
+    // so buildGoogleMapsUrl's origin (markers[0]) starts from the hotel. Origin only: it is never a
+    // day item, so it is not a reorderable/deletable itinerary stop. Skipped on empty days so we
+    // never surface a lone hotel pin with no route, and skipped on check-in/check-out days (a
+    // LODGING pin is already present there), leaving those days unchanged.
+    const dayHasLodgingPin = dayItems.some(item =>
+      item.itemType === "itinerary" && item.itineraryItem?.type === "LODGING" &&
+      !item.itineraryItem.cancelledAt &&
+      validCoord(item.itineraryItem.latitude, item.itineraryItem.longitude));
+    if (pins.length > 0 && !dayHasLodgingPin) {
+      const hotel = resolveActiveLodging(dayIndex);
+      if (hotel && validCoord(hotel.latitude, hotel.longitude)) {
+        const hotelName = hotel.title.replace(/^check-in:\s*/i, "");
+        return [{ title: hotelName, lat: hotel.latitude!, lng: hotel.longitude!, dayIndex }, ...pins];
+      }
+    }
+    return pins;
   }
 
   // ── Conflict detection ────────────────────────────────────────────────────
@@ -3286,11 +3334,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                 const isVTCq = (lat: number | null | undefined, lng: number | null | undefined) =>
                                   lat != null && lng != null && lat !== 0 && lng !== 0 &&
                                   lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
-                                const activeLodging = localItineraryItems
-                                  .filter(it => it.type === "LODGING" && /^check-in:/i.test(it.title) &&
-                                    it.dayIndex != null && it.dayIndex < dayIndex &&
-                                    isVTCq(it.latitude, it.longitude))
-                                  .sort((a, b) => (b.dayIndex ?? 0) - (a.dayIndex ?? 0))[0] ?? null;
+                                const activeLodging = resolveActiveLodging(dayIndex);
                                 if (!activeLodging) return null;
                                 const firstWithCoords = allDayItems.find(it =>
                                   isVTCq(it.lat, it.lng) &&
