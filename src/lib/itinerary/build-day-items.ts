@@ -52,6 +52,10 @@ export type DayItemRow = {
   time: string | null;
   badge: string;
   dayIndex: number;
+  // Intra-day order key. Items are returned sorted by this ASC (with a stable time-then-id
+  // tiebreak), and the value is exposed so the client can trust and reconstruct that order
+  // instead of re-deriving it. Unreordered items are 0 and fall back to time order.
+  sortOrder: number;
   sourceType: "savedItem" | "manualActivity" | "itineraryItem" | "flight";
   photoUrl: string | null;
   categoryTags: string[];
@@ -163,7 +167,9 @@ export function buildDayItems(
     anchorW: number;
     lodgingW: number;
     tourId: string | null;
-    row: DayItemRow;
+    // sortOrder is added onto the row from the Sortable's own value at emit time (below), so the
+    // returned row.sortOrder always equals the key it was sorted by.
+    row: Omit<DayItemRow, "sortOrder">;
   };
 
   return [...allDayIndexes].sort((a, b) => a - b).map(dayIdx => {
@@ -400,7 +406,10 @@ export function buildDayItems(
       if (so !== 0) return so;
       const sk = a.sortTimeMin - b.sortTimeMin;
       if (sk !== 0) return sk;
-      return a.lodgingW - b.lodgingW;
+      const lw = a.lodgingW - b.lodgingW;
+      if (lw !== 0) return lw;
+      // Final stable tiebreak: deterministic across requests regardless of query/insertion order.
+      return a.row.id.localeCompare(b.row.id);
     });
 
     const compacted: Sortable[] = [];
@@ -415,6 +424,6 @@ export function buildDayItems(
       }
     }
 
-    return { dayIndex: dayIdx, items: compacted.map(i => i.row) };
+    return { dayIndex: dayIdx, items: compacted.map(i => ({ ...i.row, sortOrder: i.sortOrder })) };
   });
 }
