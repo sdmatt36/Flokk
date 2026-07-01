@@ -1,0 +1,1 @@
+ALTER TABLE "SavedItem" ADD COLUMN IF NOT EXISTS "endTime" TEXT;
