@@ -2150,9 +2150,16 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
   // Consumed after the next localActivities update so the new item is included.
   const pendingAutoSortDayRef = useRef<number | null>(null);
 
-  // Sync local copies from props (new items added, etc.)
-  useEffect(() => { setLocalActivities(activities); }, [activities]);
-  useEffect(() => { setLocalFlights(flights); }, [flights]);
+  // True while a reorder's awaited writes + authoritative refetch are in flight. Blocks the
+  // blind local-copy sync effects below and the saved/itinerary mount fetches from overwriting
+  // the reordered arrays with a refetch that lands before the writes commit (snap-back fix).
+  const reorderInFlightRef = useRef(false);
+
+  // Sync local copies from props (new items added, etc.). Skipped mid-reorder so a flokk:refresh
+  // refetch cannot restore the pre-reorder order before the writes commit; handleReorder's
+  // authoritative refetch resyncs local == server once the writes resolve.
+  useEffect(() => { if (reorderInFlightRef.current) return; setLocalActivities(activities); }, [activities]);
+  useEffect(() => { if (reorderInFlightRef.current) return; setLocalFlights(flights); }, [flights]);
 
   // Fallback geocoding: fire-and-forget for activities with null lat/lng
   useEffect(() => {
@@ -2578,7 +2585,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     return result;
   }
 
-  function handleReorder(sortId: string, direction: "up" | "down") {
+  async function handleReorder(sortId: string, direction: "up" | "down") {
     // Determine which day this item lives on
     let dayIdx: number | null = null;
     if (sortId.startsWith("saved_")) {
@@ -2601,21 +2608,44 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     console.log("[reorder] moving item at index", currentIndex, "to", newIndex, "in day", dayIdx, "sortId:", sortId);
 
     const reordered = localArrayMove(dayItems, currentIndex, newIndex);
+    // Hold the guard from the first optimistic write until the awaited writes AND the
+    // authoritative refetch below both resolve, so no refetch landing in that window can
+    // restore the pre-reorder order.
+    reorderInFlightRef.current = true;
+    const patch = (url: string, sortOrder: number): Promise<void> =>
+      fetch(url, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder }) })
+        .then(r => { if (!r.ok) throw new Error(`reorder PATCH ${url} -> ${r.status}`); });
+    const writes: Promise<void>[] = [];
     reordered.forEach((item, i) => {
       if (item.itemType === "saved" && item.rawId) {
         setRecAdditions(prev => prev.map(r => r.savedItemId === item.rawId ? { ...r, sortOrder: i } : r));
-        fetch(`/api/saves/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
+        writes.push(patch(`/api/saves/${item.rawId}`, i));
       } else if (item.itemType === "activity" && item.rawId) {
         setLocalActivities(prev => prev.map(a => a.id === item.rawId ? { ...a, sortOrder: i } : a));
-        fetch(`/api/trips/${tripId}/activities/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
+        writes.push(patch(`/api/trips/${tripId}/activities/${item.rawId}`, i));
       } else if (item.itemType === "flight" && item.rawId) {
         setLocalFlights(prev => prev.map(f => f.id === item.rawId ? { ...f, sortOrder: i } : f));
-        fetch(`/api/trips/${tripId}/flights/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
+        writes.push(patch(`/api/trips/${tripId}/flights/${item.rawId}`, i));
       } else if (item.itemType === "itinerary" && item.rawId) {
         setLocalItineraryItems(prev => prev.map(it => it.id === item.rawId ? { ...it, sortOrder: i } : it));
-        fetch(`/api/trips/${tripId}/itinerary/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: i }) }).catch(console.error);
+        writes.push(patch(`/api/trips/${tripId}/itinerary/${item.rawId}`, i));
       }
     });
+    try {
+      await Promise.all(writes);
+    } catch (e) {
+      console.error("[reorder] persist failed", e);
+      setDragErrorToast("Could not save the new order. Please try again.");
+      setTimeout(() => setDragErrorToast(null), 3000);
+    }
+    // One authoritative refetch so local state equals the server's committed order. Runs on both
+    // success and failure (on failure it resyncs local to the true persisted state). The guard is
+    // still set, so these refetches settle local state without the blind sync effects clobbering
+    // it; it clears only once they resolve.
+    try {
+      await Promise.all([refreshRecAdditions(), refreshItineraryItems(), refreshActivities(), refreshFlights()]);
+    } catch { /* best-effort resync */ }
+    reorderInFlightRef.current = false;
   }
 
   function handleCrossDayMove(sortId: string, newDayIndex: number) {
@@ -2713,6 +2743,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     fetch(`/api/trips/${tripId}/itinerary`)
       .then(r => r.json())
       .then(({ items }: { items: Array<{ id: string; rawTitle: string | null; rawDescription: string | null; placePhotoUrl?: string | null; mediaThumbnailUrl: string | null; destinationCity?: string | null; destinationCountry?: string | null; dayIndex: number | null; sortOrder?: number; lat?: number | null; lng?: number | null; isBooked?: boolean; startTime?: string | null; endTime?: string | null; categoryTags?: string[]; tourId?: string | null }> }) => {
+        if (reorderInFlightRef.current) return; // don't clobber an in-flight reorder; its authoritative refetch owns the resync
         if (!items?.length) return;
         const mapped = items.map(item => ({
           dayIndex: item.dayIndex ?? 0,
@@ -2760,6 +2791,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     fetch(`/api/trips/${tripId}/itinerary-items${includeCancelled ? "?include_cancelled=true" : ""}`)
       .then(r => r.json())
       .then(({ items }: { items: ItineraryItemLocal[] }) => {
+        if (reorderInFlightRef.current) return; // don't clobber an in-flight reorder; its authoritative refetch owns the resync
         if (!Array.isArray(items) || items.length === 0) return;
         const allZero = items.every(it => (it.sortOrder ?? 0) === 0);
         if (allZero) {
@@ -2796,13 +2828,59 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
       .catch(() => {});
   }, [tripId, includeCancelled]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function refreshItineraryItems() {
-    if (!tripId) return;
-    fetch(`/api/trips/${tripId}/itinerary-items${includeCancelled ? "?include_cancelled=true" : ""}`)
+  function refreshItineraryItems(): Promise<void> {
+    if (!tripId) return Promise.resolve();
+    return fetch(`/api/trips/${tripId}/itinerary-items${includeCancelled ? "?include_cancelled=true" : ""}`)
       .then(r => r.json())
       .then(({ items }: { items: ItineraryItemLocal[] }) => {
         if (Array.isArray(items)) setLocalItineraryItems(items);
       })
+      .catch(() => {});
+  }
+
+  // Authoritative saved-places refetch used by handleReorder after its writes commit. Unguarded
+  // (it runs while the reorder guard is set) and never re-seeds sortOrder, so it only ever
+  // reflects the server's committed order. Mirrors the mount-fetch mapping above.
+  function refreshRecAdditions(): Promise<void> {
+    if (!tripId) return Promise.resolve();
+    return fetch(`/api/trips/${tripId}/itinerary`)
+      .then(r => r.json())
+      .then(({ items }: { items: Array<{ id: string; rawTitle: string | null; rawDescription: string | null; placePhotoUrl?: string | null; mediaThumbnailUrl: string | null; destinationCity?: string | null; destinationCountry?: string | null; dayIndex: number | null; sortOrder?: number; lat?: number | null; lng?: number | null; isBooked?: boolean; startTime?: string | null; endTime?: string | null; categoryTags?: string[]; tourId?: string | null }> }) => {
+        if (!Array.isArray(items)) return;
+        setRecAdditions(items.map(item => ({
+          dayIndex: item.dayIndex ?? 0,
+          title: item.rawTitle ?? "",
+          location: item.rawDescription ?? "",
+          img: getItemImage(item.rawTitle ?? null, item.placePhotoUrl ?? null, item.mediaThumbnailUrl, (item.categoryTags ?? [])[0] ?? null, item.destinationCity, item.destinationCountry),
+          savedItemId: item.id,
+          lat: item.lat ?? null,
+          lng: item.lng ?? null,
+          isBooked: item.isBooked ?? false,
+          sortOrder: item.sortOrder ?? 0,
+          startTime: item.startTime ?? null,
+          endTime: item.endTime ?? null,
+          categoryTags: item.categoryTags ?? [],
+          tourId: item.tourId ?? null,
+        })));
+      })
+      .catch(() => {});
+  }
+
+  // Authoritative activities/flights refetch for handleReorder. Writes directly to the local
+  // copies (the parent owns activities/flights props and their sync effects, which are guarded
+  // mid-reorder), so local reflects the server's committed order once the reorder writes resolve.
+  function refreshActivities(): Promise<void> {
+    if (!tripId) return Promise.resolve();
+    return fetch(`/api/trips/${tripId}/activities`)
+      .then(r => r.json())
+      .then((data: Activity[]) => { if (Array.isArray(data)) setLocalActivities(data); })
+      .catch(() => {});
+  }
+  function refreshFlights(): Promise<void> {
+    if (!tripId) return Promise.resolve();
+    return fetch(`/api/trips/${tripId}/flights`)
+      .then(r => r.json())
+      .then((data: Flight[]) => { if (Array.isArray(data)) setLocalFlights(data); })
       .catch(() => {});
   }
 
