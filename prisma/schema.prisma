@@ -401,6 +401,7 @@ model SavedItem {
   userRating          Int?
   userNote            String?
   sortOrder                Int       @default(0)
+  manuallyPlaced           Boolean   @default(false) // true once a user drags/moves this stop; makes its day sort by sortOrder (manual absolute), never re-derived from time
   startTime                String?
   endTime                  String?
   needsPlaceConfirmation   Boolean   @default(false)
@@ -820,6 +821,7 @@ model ManualActivity {
   imageUrl         String?
   dayIndex         Int?
   sortOrder        Int      @default(0)
+  manuallyPlaced   Boolean  @default(false) // true once a user drags/moves this stop; makes its day sort by sortOrder (manual absolute)
   tourId           String?
   deletedAt        DateTime?
   createdAt        DateTime @default(now())
@@ -981,6 +983,7 @@ model ItineraryItem {
   arrivalLng       Float?
   sourceType        String   @default("EMAIL_IMPORT")
   sortOrder         Int      @default(0)
+  manuallyPlaced    Boolean  @default(false) // true once a user drags/moves this stop; makes its day sort by sortOrder (manual absolute)
   needsVerification Boolean  @default(false)
   rooms             Json?
   bookingSource     String?  // "booking.com" | "airbnb" | "hotels.com" | "expedia" | "marriott" | "hilton" | "hyatt" | "vrbo" | "direct" | "unknown"

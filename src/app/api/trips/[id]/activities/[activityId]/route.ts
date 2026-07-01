@@ -109,6 +109,7 @@ export async function PATCH(
       ...(confirmationCode !== undefined && { confirmationCode: confirmationCode ?? null }),
       ...(resolvedNewType !== undefined && { type: resolvedNewType }),
       ...(body.sortOrder !== undefined && { sortOrder: body.sortOrder }),
+      ...(body.manuallyPlaced !== undefined && { manuallyPlaced: body.manuallyPlaced }),
     },
     select: {
       id: true, tripId: true, title: true, date: true, time: true, endTime: true,

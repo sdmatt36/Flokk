@@ -56,6 +56,7 @@ export async function GET(
       arrivalLat: true,
       arrivalLng: true,
       sortOrder: true,
+      manuallyPlaced: true,
       needsVerification: true,
       bookingSource: true,
       managementUrl: true,

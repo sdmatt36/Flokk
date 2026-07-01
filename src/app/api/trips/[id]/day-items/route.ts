@@ -42,7 +42,7 @@ export async function GET(
         departureTime: true, arrivalTime: true,
         fromAirport: true, toAirport: true, fromCity: true, toCity: true,
         confirmationCode: true, address: true, dayIndex: true,
-        sortOrder: true, currency: true, imageUrl: true,
+        sortOrder: true, manuallyPlaced: true, currency: true, imageUrl: true,
         latitude: true, longitude: true,
       },
     }),
@@ -51,7 +51,7 @@ export async function GET(
       orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }],
       select: {
         id: true, title: true, time: true, endTime: true, venueName: true,
-        address: true, dayIndex: true, sortOrder: true, type: true, imageUrl: true,
+        address: true, dayIndex: true, sortOrder: true, manuallyPlaced: true, type: true, imageUrl: true,
         lat: true, lng: true,
         savedItem: { select: { id: true, categoryTags: true } },
       },
@@ -71,7 +71,7 @@ export async function GET(
       orderBy: [{ dayIndex: "asc" }, { sortOrder: "asc" }, { savedAt: "asc" }],
       select: {
         id: true, rawTitle: true, rawDescription: true, startTime: true, endTime: true,
-        categoryTags: true, tourId: true, dayIndex: true, sortOrder: true,
+        categoryTags: true, tourId: true, dayIndex: true, sortOrder: true, manuallyPlaced: true,
         placePhotoUrl: true, address: true,
         lat: true, lng: true,
       },

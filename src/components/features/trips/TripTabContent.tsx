@@ -160,6 +160,7 @@ type Activity = {
   confirmationCode?: string | null;
   dayIndex?: number | null;
   sortOrder?: number;
+  manuallyPlaced?: boolean;
   lat?: number | null;
   lng?: number | null;
   type?: string | null;
@@ -1761,7 +1762,7 @@ const AIRPORT_COUNTRY: Record<string, string> = {
   CPT: "ZA", JNB: "ZA", CAI: "EG", RAK: "MA",
 };
 
-type RecAddition = { dayIndex: number; title: string; location: string; img?: string; savedItemId?: string; lat?: number | null; lng?: number | null; isBooked?: boolean; sortOrder: number; startTime?: string | null; endTime?: string | null; categoryTags?: string[]; tourId?: string | null };
+type RecAddition = { dayIndex: number; title: string; location: string; img?: string; savedItemId?: string; lat?: number | null; lng?: number | null; isBooked?: boolean; sortOrder: number; manuallyPlaced?: boolean; startTime?: string | null; endTime?: string | null; categoryTags?: string[]; tourId?: string | null };
 
 // Unified sortable item — combines SavedItems, ManualActivities, and Flights into one sortable list per day
 type ItineraryItemLocal = {
@@ -1787,6 +1788,7 @@ type ItineraryItemLocal = {
   arrivalLat?: number | null;
   arrivalLng?: number | null;
   sortOrder: number;
+  manuallyPlaced?: boolean;
   bookingUrl?: string | null;
   needsVerification?: boolean | null;
   bookingSource?: string | null;
@@ -1806,6 +1808,7 @@ type UnifiedDayItem = {
   sortId: string;  // "saved_xxx" | "activity_xxx" | "flight_xxx" | "itinerary_xxx"
   itemType: "saved" | "activity" | "flight" | "itinerary";
   sortOrder: number;
+  manuallyPlaced: boolean;
   rawId: string;
   startTime?: string | null;   // for time-based sorting and transit
   lat?: number | null;          // for transit routing
@@ -2283,6 +2286,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         sortId: `saved_${a.savedItemId ?? a.title}`,
         itemType: "saved" as const,
         sortOrder: a.sortOrder ?? 0,
+        manuallyPlaced: a.manuallyPlaced ?? false,
         rawId: a.savedItemId ?? "",
         startTime: a.startTime ?? null,
         lat: a.lat ?? null,
@@ -2293,6 +2297,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         sortId: `activity_${a.id}`,
         itemType: "activity" as const,
         sortOrder: a.sortOrder ?? 0,
+        manuallyPlaced: a.manuallyPlaced ?? false,
         rawId: a.id,
         startTime: a.time ?? null,
         lat: a.lat ?? null,
@@ -2315,6 +2320,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           sortId: `flight_${f.id}`,
           itemType: "flight" as const,
           sortOrder: f.sortOrder ?? 0,
+          manuallyPlaced: false, // flights are not a manuallyPlaced model
           rawId: f.id,
           startTime: f.departureTime ?? null,
           lat: arrCoords?.lat ?? null,
@@ -2326,6 +2332,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
         sortId: `itinerary_${it.id}`,
         itemType: "itinerary" as const,
         sortOrder: it.sortOrder ?? 0,
+        manuallyPlaced: it.manuallyPlaced ?? false,
         rawId: it.id,
         startTime: it.departureTime ?? null,
         lat: it.latitude ?? null,
@@ -2660,23 +2667,27 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     // authoritative refetch below both resolve, so no refetch landing in that window can
     // restore the pre-reorder order.
     reorderInFlightRef.current = true;
-    const patch = (url: string, sortOrder: number): Promise<void> =>
-      fetch(url, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder }) })
+    // Rule A: the item the user actually grabbed is flagged manuallyPlaced so its day switches to
+    // manual-absolute ordering (sortOrder leads) and it is never re-derived from the clock. Only the
+    // moved stop is flagged — the rest are just reindexed. Flights are out of the three-model scope.
+    const patch = (url: string, sortOrder: number, manuallyPlaced?: boolean): Promise<void> =>
+      fetch(url, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder, ...(manuallyPlaced ? { manuallyPlaced: true } : {}) }) })
         .then(r => { if (!r.ok) throw new Error(`reorder PATCH ${url} -> ${r.status}`); });
     const writes: Promise<void>[] = [];
     reordered.forEach((item, i) => {
+      const moved = item.sortId === sortId;
       if (item.itemType === "saved" && item.rawId) {
-        setRecAdditions(prev => prev.map(r => r.savedItemId === item.rawId ? { ...r, sortOrder: i } : r));
-        writes.push(patch(`/api/saves/${item.rawId}`, i));
+        setRecAdditions(prev => prev.map(r => r.savedItemId === item.rawId ? { ...r, sortOrder: i, ...(moved && { manuallyPlaced: true }) } : r));
+        writes.push(patch(`/api/saves/${item.rawId}`, i, moved));
       } else if (item.itemType === "activity" && item.rawId) {
-        setLocalActivities(prev => prev.map(a => a.id === item.rawId ? { ...a, sortOrder: i } : a));
-        writes.push(patch(`/api/trips/${tripId}/activities/${item.rawId}`, i));
+        setLocalActivities(prev => prev.map(a => a.id === item.rawId ? { ...a, sortOrder: i, ...(moved && { manuallyPlaced: true }) } : a));
+        writes.push(patch(`/api/trips/${tripId}/activities/${item.rawId}`, i, moved));
       } else if (item.itemType === "flight" && item.rawId) {
         setLocalFlights(prev => prev.map(f => f.id === item.rawId ? { ...f, sortOrder: i } : f));
-        writes.push(patch(`/api/trips/${tripId}/flights/${item.rawId}`, i));
+        writes.push(patch(`/api/trips/${tripId}/flights/${item.rawId}`, i)); // flights: not a manuallyPlaced model
       } else if (item.itemType === "itinerary" && item.rawId) {
-        setLocalItineraryItems(prev => prev.map(it => it.id === item.rawId ? { ...it, sortOrder: i } : it));
-        writes.push(patch(`/api/trips/${tripId}/itinerary/${item.rawId}`, i));
+        setLocalItineraryItems(prev => prev.map(it => it.id === item.rawId ? { ...it, sortOrder: i, ...(moved && { manuallyPlaced: true }) } : it));
+        writes.push(patch(`/api/trips/${tripId}/itinerary/${item.rawId}`, i, moved));
       }
     });
     try {
@@ -2733,19 +2744,19 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     if (sortId.startsWith("saved_")) {
       const rawId = sortId.slice(6);
       const prev = recAdditions;
-      setRecAdditions(p => p.map(r => (r.savedItemId ?? r.title) === rawId ? { ...r, dayIndex: newDayIndex } : r));
+      setRecAdditions(p => p.map(r => (r.savedItemId ?? r.title) === rawId ? { ...r, dayIndex: newDayIndex, manuallyPlaced: true } : r));
       if (rawId) fetch(`/api/saves/${rawId}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dayIndex: newDayIndex, ...(newDateStr && { scheduledDate: newDateStr }) }),
+        body: JSON.stringify({ dayIndex: newDayIndex, manuallyPlaced: true, ...(newDateStr && { scheduledDate: newDateStr }) }),
       }).then(r => { if (!r.ok) throw new Error(); })
         .catch(() => { setRecAdditions(prev); showDragError(); });
     } else if (sortId.startsWith("activity_")) {
       const id = sortId.slice(9);
       const prev = localActivities;
-      setLocalActivities(p => p.map(a => a.id === id ? { ...a, dayIndex: newDayIndex } : a));
+      setLocalActivities(p => p.map(a => a.id === id ? { ...a, dayIndex: newDayIndex, manuallyPlaced: true } : a));
       fetch(`/api/trips/${tripId}/activities/${id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dayIndex: newDayIndex, ...(newDateStr && { date: newDateStr }) }),
+        body: JSON.stringify({ dayIndex: newDayIndex, manuallyPlaced: true, ...(newDateStr && { date: newDateStr }) }),
       }).then(r => { if (!r.ok) throw new Error(); })
         .catch(() => { setLocalActivities(prev); showDragError(); });
     } else if (sortId.startsWith("flight_")) {
@@ -2760,10 +2771,10 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     } else if (sortId.startsWith("itinerary_")) {
       const id = sortId.slice(10);
       const prev = localItineraryItems;
-      setLocalItineraryItems(p => p.map(it => it.id === id ? { ...it, dayIndex: newDayIndex } : it));
+      setLocalItineraryItems(p => p.map(it => it.id === id ? { ...it, dayIndex: newDayIndex, manuallyPlaced: true } : it));
       fetch(`/api/trips/${tripId}/itinerary/${id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dayIndex: newDayIndex, ...(newDateStr && { scheduledDate: newDateStr }) }),
+        body: JSON.stringify({ dayIndex: newDayIndex, manuallyPlaced: true, ...(newDateStr && { scheduledDate: newDateStr }) }),
       }).then(r => { if (!r.ok) throw new Error(); })
         .catch(() => { setLocalItineraryItems(prev); showDragError(); });
     }
@@ -2790,7 +2801,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     if (!tripId) return;
     fetch(`/api/trips/${tripId}/itinerary`)
       .then(r => r.json())
-      .then(({ items }: { items: Array<{ id: string; rawTitle: string | null; rawDescription: string | null; placePhotoUrl?: string | null; mediaThumbnailUrl: string | null; destinationCity?: string | null; destinationCountry?: string | null; dayIndex: number | null; sortOrder?: number; lat?: number | null; lng?: number | null; isBooked?: boolean; startTime?: string | null; endTime?: string | null; categoryTags?: string[]; tourId?: string | null }> }) => {
+      .then(({ items }: { items: Array<{ id: string; rawTitle: string | null; rawDescription: string | null; placePhotoUrl?: string | null; mediaThumbnailUrl: string | null; destinationCity?: string | null; destinationCountry?: string | null; dayIndex: number | null; sortOrder?: number; manuallyPlaced?: boolean; lat?: number | null; lng?: number | null; isBooked?: boolean; startTime?: string | null; endTime?: string | null; categoryTags?: string[]; tourId?: string | null }> }) => {
         if (reorderInFlightRef.current) return; // don't clobber an in-flight reorder; its authoritative refetch owns the resync
         if (!items?.length) return;
         const mapped = items.map(item => ({
@@ -2803,6 +2814,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           lng: item.lng ?? null,
           isBooked: item.isBooked ?? false,
           sortOrder: item.sortOrder ?? 0,
+          manuallyPlaced: item.manuallyPlaced ?? false,
           startTime: item.startTime ?? null,
           endTime: item.endTime ?? null,
           categoryTags: item.categoryTags ?? [],
@@ -2855,7 +2867,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
             // Compute time-aware sort key using a temporary UnifiedDayItem wrapper
             const withWeight = dayItems.map(it => ({
               it,
-              w: toSortKey({ sortId: `itinerary_${it.id}`, itemType: "itinerary" as const, sortOrder: 0, rawId: it.id, itineraryItem: it }),
+              w: toSortKey({ sortId: `itinerary_${it.id}`, itemType: "itinerary" as const, sortOrder: 0, manuallyPlaced: false, rawId: it.id, itineraryItem: it }),
             }));
             withWeight.sort((a, b) => a.w - b.w);
             withWeight.forEach(({ it }, i) => {
@@ -2893,7 +2905,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     if (!tripId) return Promise.resolve();
     return fetch(`/api/trips/${tripId}/itinerary`)
       .then(r => r.json())
-      .then(({ items }: { items: Array<{ id: string; rawTitle: string | null; rawDescription: string | null; placePhotoUrl?: string | null; mediaThumbnailUrl: string | null; destinationCity?: string | null; destinationCountry?: string | null; dayIndex: number | null; sortOrder?: number; lat?: number | null; lng?: number | null; isBooked?: boolean; startTime?: string | null; endTime?: string | null; categoryTags?: string[]; tourId?: string | null }> }) => {
+      .then(({ items }: { items: Array<{ id: string; rawTitle: string | null; rawDescription: string | null; placePhotoUrl?: string | null; mediaThumbnailUrl: string | null; destinationCity?: string | null; destinationCountry?: string | null; dayIndex: number | null; sortOrder?: number; manuallyPlaced?: boolean; lat?: number | null; lng?: number | null; isBooked?: boolean; startTime?: string | null; endTime?: string | null; categoryTags?: string[]; tourId?: string | null }> }) => {
         if (!Array.isArray(items)) return;
         setRecAdditions(items.map(item => ({
           dayIndex: item.dayIndex ?? 0,
@@ -2905,6 +2917,7 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
           lng: item.lng ?? null,
           isBooked: item.isBooked ?? false,
           sortOrder: item.sortOrder ?? 0,
+          manuallyPlaced: item.manuallyPlaced ?? false,
           startTime: item.startTime ?? null,
           endTime: item.endTime ?? null,
           categoryTags: item.categoryTags ?? [],
@@ -2957,6 +2970,9 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
     const items = buildDayItems(dayToSort);
     const sorted = [...items].sort((a, b) => toSortKey(a) - toSortKey(b));
     sorted.forEach((item, idx) => {
+      // Rule A: never re-time-sort a manually-placed stop. Its sortOrder is left untouched (and its
+      // flag intact) so a deliberate placement survives adding a new stop; only non-manual items reindex.
+      if (item.manuallyPlaced) return;
       if (item.itemType === "saved" && item.rawId) {
         setRecAdditions(prev => prev.map(r => r.savedItemId === item.rawId ? { ...r, sortOrder: idx } : r));
         fetch(`/api/saves/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx }) }).catch(console.error);
@@ -3938,19 +3954,22 @@ function ItineraryContent({ flyTarget, onFlyTargetConsumed, tripId, tripStartDat
                                   const items = buildDayItems(dayIndex);
                                   const withWeight = items.map(item => ({ item, w: toSortKey(item) }));
                                   withWeight.sort((a, b) => a.w - b.w);
+                                  // Explicit "auto-sort by time" is a deliberate re-sort intent: it CLEARS
+                                  // manuallyPlaced (DB + memory) for every stop in the day, returning the whole
+                                  // day to smart/clock mode, then persists the time order. Flights have no flag.
                                   withWeight.forEach(({ item }, idx) => {
                                     if (item.itemType === "saved" && item.rawId) {
-                                      setRecAdditions(prev => prev.map(r => r.savedItemId === item.rawId ? { ...r, sortOrder: idx } : r));
-                                      fetch(`/api/saves/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx }) }).catch(console.error);
+                                      setRecAdditions(prev => prev.map(r => r.savedItemId === item.rawId ? { ...r, sortOrder: idx, manuallyPlaced: false } : r));
+                                      fetch(`/api/saves/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx, manuallyPlaced: false }) }).catch(console.error);
                                     } else if (item.itemType === "activity" && item.rawId) {
-                                      setLocalActivities(prev => prev.map(a => a.id === item.rawId ? { ...a, sortOrder: idx } : a));
-                                      fetch(`/api/trips/${tripId}/activities/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx }) }).catch(console.error);
+                                      setLocalActivities(prev => prev.map(a => a.id === item.rawId ? { ...a, sortOrder: idx, manuallyPlaced: false } : a));
+                                      fetch(`/api/trips/${tripId}/activities/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx, manuallyPlaced: false }) }).catch(console.error);
                                     } else if (item.itemType === "flight" && item.rawId) {
                                       setLocalFlights(prev => prev.map(f => f.id === item.rawId ? { ...f, sortOrder: idx } : f));
                                       fetch(`/api/trips/${tripId}/flights/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx }) }).catch(console.error);
                                     } else if (item.itemType === "itinerary" && item.rawId) {
-                                      setLocalItineraryItems(prev => prev.map(it => it.id === item.rawId ? { ...it, sortOrder: idx } : it));
-                                      fetch(`/api/trips/${tripId}/itinerary/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx }) }).catch(console.error);
+                                      setLocalItineraryItems(prev => prev.map(it => it.id === item.rawId ? { ...it, sortOrder: idx, manuallyPlaced: false } : it));
+                                      fetch(`/api/trips/${tripId}/itinerary/${item.rawId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sortOrder: idx, manuallyPlaced: false }) }).catch(console.error);
                                     }
                                   });
                                   setAutoSortConfirmDay(dayIndex);

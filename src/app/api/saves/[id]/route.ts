@@ -103,6 +103,7 @@ export async function PATCH(
   if (typeof body.dayIndex === "number" || body.dayIndex === null) updateData.dayIndex = body.dayIndex;
   if (typeof body.scheduledDate === "string" || body.scheduledDate === null) updateData.scheduledDate = body.scheduledDate ?? null;
   if (typeof body.sortOrder === "number") updateData.sortOrder = body.sortOrder;
+  if (typeof body.manuallyPlaced === "boolean") updateData.manuallyPlaced = body.manuallyPlaced;
   if (typeof body.startTime === "string" || body.startTime === null) updateData.startTime = body.startTime ?? null;
   if (typeof body.endTime === "string" || body.endTime === null) updateData.endTime = body.endTime ?? null;
   if (typeof body.communitySpotId === "string" && item.communitySpotId === null) updateData.communitySpotId = body.communitySpotId;

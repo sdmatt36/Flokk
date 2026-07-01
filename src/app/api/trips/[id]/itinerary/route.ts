@@ -41,6 +41,7 @@ export async function GET(
       destinationCountry: true,
       dayIndex: true,
       sortOrder: true,
+      manuallyPlaced: true,
       lat: true,
       lng: true,
       isBooked: true,

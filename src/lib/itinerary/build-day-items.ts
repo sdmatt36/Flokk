@@ -96,6 +96,7 @@ export type RawItineraryItem = {
   fromCity: string | null; toCity: string | null;
   confirmationCode: string | null; address: string | null;
   dayIndex: number | null; sortOrder: number | null;
+  manuallyPlaced?: boolean | null;
   currency: string | null; imageUrl: string | null;
   // Optional: only some callers (the public preview) select coordinates.
   latitude?: number | null; longitude?: number | null;
@@ -105,6 +106,7 @@ export type RawManualActivity = {
   id: string; title: string; time: string | null; endTime: string | null;
   venueName: string | null; address: string | null;
   dayIndex: number | null; sortOrder: number | null;
+  manuallyPlaced?: boolean | null;
   type: string | null; imageUrl: string | null;
   savedItem: { id: string; categoryTags: string[] } | null;
   // Optional: only some callers (the public preview) select coordinates.
@@ -128,6 +130,7 @@ export type RawSavedItem = {
   startTime: string | null; endTime: string | null;
   categoryTags: string[]; tourId: string | null;
   dayIndex: number | null; sortOrder: number | null;
+  manuallyPlaced?: boolean | null;
   placePhotoUrl: string | null; address: string | null;
   // Optional: only some callers (the public preview) select these.
   lat?: number | null; lng?: number | null; websiteUrl?: string | null;
@@ -164,6 +167,8 @@ export function buildDayItems(
     sortId: string;
     sortOrder: number;
     sortTimeMin: number;
+    effTimeMin?: number;
+    manuallyPlaced: boolean;
     anchorW: number;
     lodgingW: number;
     tourId: string | null;
@@ -199,6 +204,7 @@ export function buildDayItems(
       items.push({
         sortId: `saved_${s.id}`,
         sortOrder: s.sortOrder ?? 0,
+        manuallyPlaced: s.manuallyPlaced ?? false,
         sortTimeMin: parseHHMM(s.startTime) ?? 9999,
         anchorW: 50,
         lodgingW: 50,
@@ -233,6 +239,7 @@ export function buildDayItems(
       items.push({
         sortId: `activity_${a.id}`,
         sortOrder: a.sortOrder ?? 0,
+        manuallyPlaced: a.manuallyPlaced ?? false,
         sortTimeMin: parseHHMM(a.time) ?? 9999,
         anchorW: 50,
         lodgingW: 50,
@@ -278,6 +285,8 @@ export function buildDayItems(
       items.push({
         sortId: `flight_${f.id}`,
         sortOrder: f.sortOrder ?? 0,
+        manuallyPlaced: false, // flights are not one of the three user-movable day-stop models
+
         sortTimeMin: isArrival ? (parseHHMM(f.arrivalTime) ?? 0) : (1440 + (parseHHMM(f.departureTime) ?? 0)),
         anchorW: 50,
         lodgingW: 50,
@@ -370,6 +379,7 @@ export function buildDayItems(
       items.push({
         sortId: `itinerary_${it.id}`,
         sortOrder: it.sortOrder ?? 0,
+        manuallyPlaced: it.manuallyPlaced ?? false,
         sortTimeMin,
         anchorW,
         lodgingW: it.type === "LODGING"
@@ -399,29 +409,75 @@ export function buildDayItems(
       });
     }
 
+    // Effective-time pre-pass: give each item an effective time so TIMED items order by the clock
+    // while UNTIMED items hold their manual position instead of all jumping to the end. Walk in the
+    // same (anchorW, sortOrder, id) order untimed items are anchored by, carrying the most recent
+    // real time forward: a timed item uses its own time; an untimed item inherits the time of the
+    // timed item it currently follows (leading untimed items keep -1 and stay on top). sortTimeMin
+    // === 9999 is the untimed sentinel (SavedItem/ManualActivity); flights, lodging and trains always
+    // carry a real derived value, so they are never untimed and never inherit. Computed once per item
+    // (independent of the pair), so the final comparator stays transitive.
+    const preOrdered = [...items].sort((a, b) =>
+      (a.anchorW - b.anchorW) ||
+      (a.sortOrder - b.sortOrder) ||
+      a.row.id.localeCompare(b.row.id)
+    );
+    let lastTimed = -1;
+    for (const it of preOrdered) {
+      if (it.sortTimeMin !== 9999) lastTimed = it.sortTimeMin;
+      it.effTimeMin = lastTimed;
+    }
+
+    // Rule A — a manually moved stop stays put, absolutely. Two per-day modes:
+    //  - MANUAL (any item on the day has manuallyPlaced): sortOrder LEADS, so a user-moved stop is
+    //    absolute and never re-derived from the clock. anchorW -> sortOrder -> effTimeMin -> lodgingW -> id.
+    //  - SMART DEFAULT (nothing manually placed): time leads via the effTimeMin pre-pass, untimed
+    //    items holding their manual position. anchorW -> effTimeMin -> sortOrder -> lodgingW -> id.
+    // anchorW stays the top key either way, so lodging/hotel anchoring is unchanged. dayIsManual is a
+    // per-day constant, so the comparator is a fixed lexicographic order (transitive) within a day.
+    const dayIsManual = items.some(i => i.manuallyPlaced);
     items.sort((a, b) => {
       const aw = a.anchorW - b.anchorW;
       if (aw !== 0) return aw;
+      const et = (a.effTimeMin ?? -1) - (b.effTimeMin ?? -1);
       const so = a.sortOrder - b.sortOrder;
-      if (so !== 0) return so;
-      const sk = a.sortTimeMin - b.sortTimeMin;
-      if (sk !== 0) return sk;
+      if (dayIsManual) {
+        if (so !== 0) return so;
+        if (et !== 0) return et;
+      } else {
+        if (et !== 0) return et;
+        if (so !== 0) return so;
+      }
       const lw = a.lodgingW - b.lodgingW;
       if (lw !== 0) return lw;
       // Final stable tiebreak: deterministic across requests regardless of query/insertion order.
       return a.row.id.localeCompare(b.row.id);
     });
 
+    // Tour-cluster compaction, with a Rule A yield so a moved stop is never re-pinned:
+    //  - a manuallyPlaced item ALWAYS emits at its own sorted position (never gathered into a cluster);
+    //  - the cluster gather excludes manuallyPlaced members (items.filter(... && !x.manuallyPlaced));
+    //  - if the FIRST member of a tour we reach (its anchor) is manuallyPlaced, that tour is not
+    //    compacted at all — every member emits in place.
     const compacted: Sortable[] = [];
     const emittedTourIds = new Set<string>();
+    const noCompactTourIds = new Set<string>();
     for (const item of items) {
-      if (item.tourId) {
-        if (emittedTourIds.has(item.tourId)) continue;
-        emittedTourIds.add(item.tourId);
-        compacted.push(...items.filter(x => x.tourId === item.tourId));
-      } else {
+      if (item.manuallyPlaced) {
+        // A moved stop emits in place. If it is the anchor (first member of its tour we reach), opt
+        // the whole tour out of compaction so its other members are not re-pinned around the move.
+        if (item.tourId && !emittedTourIds.has(item.tourId)) noCompactTourIds.add(item.tourId);
         compacted.push(item);
+        continue;
       }
+      if (!item.tourId) {
+        compacted.push(item);
+        continue;
+      }
+      if (emittedTourIds.has(item.tourId)) continue;                 // already gathered at the anchor
+      if (noCompactTourIds.has(item.tourId)) { compacted.push(item); continue; } // tour opted out — in place
+      emittedTourIds.add(item.tourId);
+      compacted.push(...items.filter(x => x.tourId === item.tourId && !x.manuallyPlaced));
     }
 
     return { dayIndex: dayIdx, items: compacted.map(i => ({ ...i.row, sortOrder: i.sortOrder })) };
