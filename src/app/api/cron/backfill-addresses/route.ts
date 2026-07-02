@@ -61,6 +61,11 @@ export async function GET(request: Request) {
 
   console.log(`[backfill-addresses] Processing ${items.length} saves (${withLatLng.length} lat/lng, ${titleOnly.length} title-only)`);
 
+  // Idle guard: no address=null backlog → make zero Places/geocode calls this run.
+  if (items.length === 0) {
+    return NextResponse.json({ updated: 0, skipped: 0, idle: true });
+  }
+
   let updated = 0;
   let skipped = 0;
 

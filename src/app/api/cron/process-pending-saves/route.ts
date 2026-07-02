@@ -33,6 +33,11 @@ export async function GET(request: Request) {
 
   console.log(`[process-pending-saves] ${items.length} eligible items`);
 
+  // Idle guard: no genuine-PENDING backlog → make zero Places/enrichment calls this tick.
+  if (items.length === 0) {
+    return NextResponse.json({ enriched: 0, failed: 0, idle: true });
+  }
+
   let enriched = 0;
   let failed = 0;
 

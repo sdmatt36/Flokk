@@ -34,7 +34,7 @@
     },
     {
       "path": "/api/cron/backfill-addresses",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 6 * * *"
     }
   ]
 }

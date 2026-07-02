@@ -63,12 +63,11 @@ export async function GET(request: Request) {
       if (placeId) {
         // Places Details
         const detailsRes = await fetch(
-          `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=website,formatted_phone_number,photos&key=${GOOGLE_KEY}`
+          `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=website,photos&key=${GOOGLE_KEY}`
         );
         const detailsData = await detailsRes.json() as {
           result?: {
             website?: string;
-            formatted_phone_number?: string;
             photos?: { photo_reference: string }[];
           };
         };
